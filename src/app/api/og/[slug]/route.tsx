@@ -76,7 +76,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug: s
             <span style={{ fontSize: 28, fontWeight: 600 }}>Delta Robôs</span>
           </div>
           <span style={{ fontSize: 22, color: MUDO }}>
-            {robo.ativo_nome} · {robo.ativo} · {robo.conta_tipo === "demo" ? "conta demo" : "conta real"}
+            {robo.ativo_nome} · {robo.ativo}
+            {robo.conta_tipo === "demo" ? " · conta demo" : ""}
           </span>
         </div>
 

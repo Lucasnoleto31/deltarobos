@@ -28,8 +28,8 @@ const PERGUNTAS = [
     r: "Operação fechada aparece em até 5 segundos. Se o coletor parar por mais de 2 minutos em horário de pregão, o site avisa em vez de mostrar dado velho.",
   },
   {
-    p: "Conta demo ou conta real?",
-    r: "Cada robô mostra um selo quando a conta que alimenta as estatísticas é demo. Sem selo, é conta real.",
+    p: "De qual conta vêm as estatísticas?",
+    r: "Cada robô tem uma conta principal da Delta Robôs que alimenta os números públicos. Quando ela é uma conta demo, o robô mostra um selo indicando isso.",
   },
 ];
 

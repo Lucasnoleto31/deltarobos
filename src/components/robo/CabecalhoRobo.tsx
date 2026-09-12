@@ -68,7 +68,7 @@ export function CabecalhoRobo() {
         </div>
         {robo.conta_real_desde ? (
           <div className="flex gap-1.5">
-            <dt className="text-muted-foreground">Conta real desde</dt>
+            <dt className="text-muted-foreground">Operando desde</dt>
             <dd className="font-medium tabular-nums">{formatarData(robo.conta_real_desde)}</dd>
           </div>
         ) : null}

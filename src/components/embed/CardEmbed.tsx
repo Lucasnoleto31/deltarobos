@@ -29,7 +29,9 @@ export function CardEmbed({ robo, resumo, hoje, linkSite }: Props) {
             {robo.ativo_nome} · {robo.ativo}
           </p>
         </div>
-        <Badge variant="outline">{emBreve ? "Em breve" : robo.status === "ativo" ? "Conta real" : robo.status}</Badge>
+        <Badge variant="outline">
+          {emBreve ? "Em breve" : robo.conta_tipo === "demo" ? "Conta demo" : robo.status === "ativo" ? "Ao vivo" : robo.status}
+        </Badge>
       </div>
 
       {emBreve ? (

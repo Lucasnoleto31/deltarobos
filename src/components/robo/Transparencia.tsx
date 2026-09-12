@@ -23,7 +23,7 @@ export function Transparencia({ robo }: Props) {
         <div className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
           <p className="font-medium">De onde vem o dado</p>
           <p className="mt-1 text-muted-foreground">
-            Um coletor roda no MetaTrader 5 da conta {robo.conta_tipo === "demo" ? "demo" : "real"} da Delta Robôs e
+            Um coletor roda no MetaTrader 5 da conta da Delta Robôs{robo.conta_tipo === "demo" ? " (conta demo)" : ""} e
             envia cada operação ao fechar, mais um sinal de vida a cada 3 segundos. Nada é digitado à mão.
           </p>
         </div>
