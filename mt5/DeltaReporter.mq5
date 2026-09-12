@@ -23,12 +23,13 @@ input string InpToken         = "";                           // Token da conta 
 input int    InpHeartbeatSeg  = 3;                            // Intervalo do heartbeat (segundos)
 input int    InpDiasHistorico = 7;                            // Dias de histórico reenviados no init
 input int    InpTimeoutMs     = 3000;                         // Timeout HTTP (ms)
+input int    InpTimeoutHistMs = 20000;                        // Timeout HTTP do histórico (ms)
 input string InpSimbolos      = "";                           // Símbolos extras pra cotação (ex.: WINV26,WDOV26)
 input bool   InpLog           = true;                         // Log na aba Especialistas
 
 #define EA_VERSAO   "1.0.0"
 #define FILA_MAX    500
-#define PAGINA_HIST 500
+#define PAGINA_HIST 100
 
 //--- fila de reenvio (só deals; heartbeat velho não tem valor)
 string g_fila_caminho[];
@@ -107,9 +108,10 @@ void LembrarSimbolo(string simbolo)
 //| HTTP                                                             |
 //+------------------------------------------------------------------+
 // Devolve true se a API respondeu 2xx. Em -1 explica a liberação de URL.
-bool Http(string metodo, string caminho, string corpo, string &resposta)
+bool Http(string metodo, string caminho, string corpo, string &resposta, int timeout_ms = 0)
   {
    string url = InpUrlBase + caminho;
+   int    timeout = (timeout_ms > 0 ? timeout_ms : InpTimeoutMs);
    string cabecalhos = "Content-Type: application/json\r\n"
                        "Accept: application/json\r\n"
                        "Authorization: Bearer " + InpToken + "\r\n";
@@ -126,7 +128,7 @@ bool Http(string metodo, string caminho, string corpo, string &resposta)
      }
 
    ResetLastError();
-   int codigo = WebRequest(metodo, url, cabecalhos, InpTimeoutMs, dados, resultado, cabecalhos_resp);
+   int codigo = WebRequest(metodo, url, cabecalhos, timeout, dados, resultado, cabecalhos_resp);
 
    if(codigo == -1)
      {
@@ -144,7 +146,13 @@ bool Http(string metodo, string caminho, string corpo, string &resposta)
 
    if(codigo >= 200 && codigo < 300) return true;
 
-   Log(StringFormat("HTTP %d em %s %s: %s", codigo, metodo, caminho, StringSubstr(resposta, 0, 300)));
+   // 1001..1004 são códigos internos do MT5 (conexão/timeout), não HTTP
+   if(codigo >= 1001 && codigo <= 1004)
+      Log(StringFormat("falha de rede %d em %s %s (%d bytes, timeout %d ms)",
+                       codigo, metodo, caminho, ArraySize(dados), timeout));
+   else
+      Log(StringFormat("HTTP %d em %s %s (%d bytes): %s",
+                       codigo, metodo, caminho, ArraySize(dados), StringSubstr(resposta, 0, 300)));
    // 401/400/429: reenviar não resolve; trata como "entregue" pra não travar a fila
    return (codigo == 400 || codigo == 401 || codigo == 429);
   }
@@ -175,7 +183,8 @@ void Reenviar()
    while(g_fila_n > 0)
      {
       string resp;
-      if(!Http("POST", g_fila_caminho[0], g_fila_corpo[0], resp)) return;
+      int timeout = (StringFind(g_fila_caminho[0], "/history") >= 0 ? InpTimeoutHistMs : 0);
+      if(!Http("POST", g_fila_caminho[0], g_fila_corpo[0], resp, timeout)) return;
       for(int i = 1; i < g_fila_n; i++)
         {
          g_fila_caminho[i - 1] = g_fila_caminho[i];
@@ -343,7 +352,7 @@ void EnviarHistorico()
                      ",\"deals\":["        + itens + "]"
                      "}";
       string resp;
-      if(Http("POST", "/api/ingest/history", corpo, resp))
+      if(Http("POST", "/api/ingest/history", corpo, resp, InpTimeoutHistMs))
          enviados += (fim - inicio);
       else
          Enfileirar("/api/ingest/history", corpo);
