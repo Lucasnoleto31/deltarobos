@@ -36,14 +36,16 @@ export interface OperacaoPublica {
   abertura_em: string;
   fechamento_em: string;
   duracao_seg: number;
-  preco_entrada: number;
-  preco_saida: number;
+  /** nulos em operações importadas do histórico antigo */
+  preco_entrada: number | null;
+  preco_saida: number | null;
   pontos_por_contrato: number;
   resultado_brl_por_contrato: number;
   custos_brl_por_contrato: number;
   versao_robo: string | null;
   dia_pregao: string;
   resultado_liquido_por_contrato: number;
+  origem: "mt5" | "manual";
 }
 
 /** Linha de posicoes_abertas_publico */

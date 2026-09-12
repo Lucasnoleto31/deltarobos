@@ -59,8 +59,9 @@ export function formatarPontos(valor: number, sinal = false): string {
   return fmtNumero(1, sinal, 0).format(Number.isFinite(valor) ? valor : 0);
 }
 
-/** Preço de negociação: 135.000 (WIN) ou 5.400,5 (WDO). */
-export function formatarPreco(preco: number): string {
+/** Preço de negociação: 135.000 (WIN) ou 5.400,5 (WDO). Nulo (importação) vira "–". */
+export function formatarPreco(preco: number | null | undefined): string {
+  if (preco === null || preco === undefined || !Number.isFinite(preco)) return "–";
   return fmtNumero(3, false, 0).format(preco);
 }
 

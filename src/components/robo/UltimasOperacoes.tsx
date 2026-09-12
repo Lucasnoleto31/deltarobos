@@ -37,7 +37,9 @@ export function UltimasOperacoes({ operacoes }: Props) {
               <td>{formatarDataCurta(o.dia_pregao)}</td>
               <td>
                 {formatarHora(o.fechamento_em)}
-                <span className="ml-1 text-xs text-muted-foreground">{formatarDuracao(o.duracao_seg)}</span>
+                {o.origem !== "manual" ? (
+                  <span className="ml-1 text-xs text-muted-foreground">{formatarDuracao(o.duracao_seg)}</span>
+                ) : null}
               </td>
               <td className={o.lado === "compra" ? "text-positivo" : "text-negativo"}>{rotuloLado(o.lado)}</td>
               <td className="hidden sm:table-cell">{o.simbolo}</td>

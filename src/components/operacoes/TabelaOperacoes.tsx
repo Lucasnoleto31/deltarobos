@@ -87,7 +87,7 @@ export function TabelaOperacoes({ itens, slug, dia, aoVivo }: Props) {
               <td>{formatarDataCurta(o.dia_pregao)}</td>
               <td>{formatarHora(o.abertura_em)}</td>
               <td>{formatarHora(o.fechamento_em)}</td>
-              <td className="text-muted-foreground">{formatarDuracao(o.duracao_seg)}</td>
+              <td className="text-muted-foreground">{o.origem === "manual" ? "–" : formatarDuracao(o.duracao_seg)}</td>
               <td>{o.simbolo}</td>
               <td className={o.lado === "compra" ? "text-positivo" : "text-negativo"}>{rotuloLado(o.lado)}</td>
               <td className="text-right">{formatarPreco(o.preco_entrada)}</td>

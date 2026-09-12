@@ -16,7 +16,8 @@ interface Props {
 
 const LIMITE = 5000;
 
-function celula(v: string | number): string {
+function celula(v: string | number | null): string {
+  if (v === null) return "";
   const s = typeof v === "number" ? String(v).replace(".", ",") : v;
   return /[;"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
