@@ -1,0 +1,7 @@
+# Fim de linha LF no repositório, independente do sistema de quem commita
+* text=auto eol=lf
+*.mq5 text eol=crlf
+*.png binary
+*.ico binary
+*.jpg binary
+*.woff2 binary

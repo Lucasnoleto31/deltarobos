@@ -1,6 +1,6 @@
 # Plano da Fase 1 (MVP ao vivo)
 
-Status: **proposta para aprovação**. Nada foi implementado. Itens marcados com **(+)** não estão na spec e precisam de aval (ver seção 6).
+Status: **aprovado em 12/09/2026 e implementado** (código, migrations, EA e testes no repositório; ver README para operar). Itens marcados com **(+)** não estavam na spec e foram aprovados junto com as respostas da seção 6. Ajustes feitos na implementação em relação ao plano: `conta_principal_id` ficou em `robos` (em vez de flag por magic) e é definida no primeiro mapeamento; `operacoes` ganhou `ciclo` para reversões dentro do mesmo `posicao_id`; `cotacoes_publico` virou `mercado_publico` (inclui horário de pregão e valor do ponto); criadas `feriados_publico` e `parametros_publico`; o cliente ressincroniza com as views ao conectar no Realtime para cobrir o intervalo do cache de 60s.
 
 Escopo da Fase 1 (spec §11): migrations do schema, API de ingest, EA `DeltaReporter.mq5`, home (barra, hero, cards, comunidade, 3 passos, rodapé), página do robô (cabeçalho, hoje ao vivo, KPIs básicos, curva, operações do dia).
 
