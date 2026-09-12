@@ -3,11 +3,15 @@ import { buscarRobo, listarEstatisticas } from "@/lib/consultas/publico";
 import { ehMes, limitesDoMes, listarOperacoesDoMes } from "@/lib/consultas/relatorios";
 import { formatarData, formatarHora } from "@/lib/formato";
 import { RelatorioMensal } from "@/lib/relatorios/RelatorioMensal";
+import { compactar, porDiaSemana, porHora, porSimbolo } from "@/lib/stats/operacoes";
 import { hojeSP, mesDe } from "@/lib/stats/periodos";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 120;
+
+/** O PDF lista até isso de operações; acima, o resumo fica e a lista completa vai no CSV. */
+const LIMITE_OPERACOES_PDF = 1000;
 
 /** GET /api/relatorios/[slug]/[mes]/pdf — relatório mensal em PDF gerado das operações públicas. */
 export async function GET(_req: Request, { params }: { params: Promise<{ slug: string; mes: string }> }) {
@@ -23,13 +27,22 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug: s
 
   const { ate } = limitesDoMes(mes);
   const agora = new Date();
+  const compactas = ops.map(compactar);
+  const opcoesOp = { base: "liquido" as const, unidade: "brl" as const, valorPonto: robo.valor_ponto_brl };
+  const porDia = porDiaSemana(compactas, opcoesOp).filter((f) => f.n > 0);
+  const porHoraF = porHora(compactas, opcoesOp).filter((f) => f.n > 0);
+  const simbolos = porSimbolo(compactas, opcoesOp);
   const pdf = await renderToBuffer(
     <RelatorioMensal
       robo={robo}
       mes={mes}
       ultimoDia={ate}
       linhas={linhas}
-      ops={ops}
+      ops={ops.slice(0, LIMITE_OPERACOES_PDF)}
+      totalOps={ops.length}
+      porDia={porDia}
+      porHora={porHoraF}
+      porSimbolo={simbolos}
       geradoEm={`${formatarData(hojeSP(agora))} ${formatarHora(agora)}`}
     />,
   );

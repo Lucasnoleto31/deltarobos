@@ -1,6 +1,7 @@
 import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 import { formatarBRL, formatarData, formatarHora, formatarMesAno, formatarMultiplo, formatarNumero, formatarPct, formatarPontos, formatarPreco, rotuloLado } from "@/lib/formato";
 import { calcularKpis } from "@/lib/stats/kpis";
+import type { Faixa, FaixaSimbolo } from "@/lib/stats/operacoes";
 import { ordenarPorDia } from "@/lib/stats/serie";
 import type { LinhaDiaria, OpcoesSerie } from "@/lib/stats/tipos";
 import type { OperacaoPublica, RoboPublico } from "@/lib/tipos";
@@ -10,7 +11,13 @@ interface Props {
   mes: string;
   ultimoDia: string;
   linhas: LinhaDiaria[];
+  /** operações listadas no PDF (pode ser um recorte) */
   ops: OperacaoPublica[];
+  /** total de operações do mês */
+  totalOps: number;
+  porDia: Faixa[];
+  porHora: Faixa[];
+  porSimbolo: FaixaSimbolo[];
   geradoEm: string;
 }
 
@@ -48,7 +55,7 @@ function brl(v: number, inteiro = false): string {
 }
 
 /** Relatório mensal de um robô, gerado a partir das operações públicas. */
-export function RelatorioMensal({ robo, mes, ultimoDia, linhas, ops, geradoEm }: Props) {
+export function RelatorioMensal({ robo, mes, ultimoDia, linhas, ops, totalOps, porDia, porHora, porSimbolo, geradoEm }: Props) {
   const opcoes: OpcoesSerie = { base: "liquido", unidade: "brl", valorPonto: robo.valor_ponto_brl };
   const k = calcularKpis(linhas, opcoes, { hoje: ultimoDia, capitalReferencia: robo.capital_referencia });
   const bruto = linhas.reduce((t, l) => t + l.resultado_brl_por_contrato, 0);
@@ -60,16 +67,6 @@ export function RelatorioMensal({ robo, mes, ultimoDia, linhas, ops, geradoEm }:
     acc.push({ ...l, liquido, acumulado: anterior + liquido });
     return acc;
   }, []);
-
-  const porSimbolo = new Map<string, { n: number; liquido: number; nGain: number }>();
-  for (const o of ops) {
-    const item = porSimbolo.get(o.simbolo) ?? { n: 0, liquido: 0, nGain: 0 };
-    const liq = o.resultado_brl_por_contrato - o.custos_brl_por_contrato;
-    item.n += 1;
-    item.liquido += liq;
-    if (liq > 0) item.nGain += 1;
-    porSimbolo.set(o.simbolo, item);
-  }
 
   const kpis = [
     { rotulo: "Resultado líquido", valor: brl(k.acumulado), cor: cor(k.acumulado), detalhe: "por 1 contrato" },
@@ -134,17 +131,45 @@ export function RelatorioMensal({ robo, mes, ultimoDia, linhas, ops, geradoEm }:
           </View>
         ))}
 
-        {porSimbolo.size > 0 ? (
+        {porSimbolo.length > 0 ? (
           <>
             <Text style={s.secao}>Por série do contrato</Text>
-            {[...porSimbolo.entries()].map(([simbolo, v]) => (
-              <View key={simbolo} style={s.linha} wrap={false}>
-                <Text style={[s.cel, { width: "30%" }]}>{simbolo}</Text>
+            {porSimbolo.map((v) => (
+              <View key={v.simbolo} style={s.linha} wrap={false}>
+                <Text style={[s.cel, { width: "30%" }]}>{v.simbolo}</Text>
                 <Text style={[s.cel, s.dir, { width: "20%" }]}>{v.n} op.</Text>
                 <Text style={[s.cel, s.dir, { width: "20%" }]}>{v.n > 0 ? formatarPct(v.nGain / v.n, 0) : "–"} acerto</Text>
-                <Text style={[s.cel, s.dir, { width: "30%", color: cor(v.liquido) }]}>{brl(v.liquido)}</Text>
+                <Text style={[s.cel, s.dir, { width: "30%", color: cor(v.total) }]}>{brl(v.total)}</Text>
               </View>
             ))}
+          </>
+        ) : null}
+
+        {porDia.length > 0 ? (
+          <>
+            <Text style={s.secao}>Por dia da semana e por hora de entrada</Text>
+            <View style={{ flexDirection: "row", gap: 16 }}>
+              <View style={{ width: "48%" }}>
+                {porDia.map((f) => (
+                  <View key={f.chave} style={s.linha} wrap={false}>
+                    <Text style={[s.cel, { width: "30%" }]}>{f.rotulo}</Text>
+                    <Text style={[s.cel, s.dir, { width: "20%" }]}>{f.n} op.</Text>
+                    <Text style={[s.cel, s.dir, { width: "20%" }]}>{f.n > 0 ? formatarPct(f.nGain / f.n, 0) : "–"}</Text>
+                    <Text style={[s.cel, s.dir, { width: "30%", color: cor(f.total) }]}>{brl(f.total)}</Text>
+                  </View>
+                ))}
+              </View>
+              <View style={{ width: "48%" }}>
+                {porHora.map((f) => (
+                  <View key={f.chave} style={s.linha} wrap={false}>
+                    <Text style={[s.cel, { width: "30%" }]}>{f.rotulo}</Text>
+                    <Text style={[s.cel, s.dir, { width: "20%" }]}>{f.n} op.</Text>
+                    <Text style={[s.cel, s.dir, { width: "20%" }]}>{f.n > 0 ? formatarPct(f.nGain / f.n, 0) : "–"}</Text>
+                    <Text style={[s.cel, s.dir, { width: "30%", color: cor(f.total) }]}>{brl(f.total)}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
           </>
         ) : null}
 
@@ -160,7 +185,13 @@ export function RelatorioMensal({ robo, mes, ultimoDia, linhas, ops, geradoEm }:
       </Page>
 
       <Page size="A4" style={s.page}>
-        <Text style={s.secao}>Operações do mês ({formatarNumero(ops.length)})</Text>
+        <Text style={s.secao}>Operações do mês ({formatarNumero(totalOps)})</Text>
+        {totalOps > ops.length ? (
+          <Text style={[s.nota, { marginTop: 0, marginBottom: 6 }]}>
+            Lista com as primeiras {formatarNumero(ops.length)} operações do mês. As {formatarNumero(totalOps)} completas estão no CSV
+            do mesmo mês, na aba Relatórios do robô.
+          </Text>
+        ) : null}
         <View style={s.cabTabela} fixed>
           <Text style={[s.cel, { width: "10%" }]}>Dia</Text>
           <Text style={[s.cel, { width: "8%" }]}>Abert.</Text>
