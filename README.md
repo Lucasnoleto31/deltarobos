@@ -83,7 +83,12 @@ antigo mês a mês a partir de julho). Trocar a data recalcula a série inteira 
 ```bash
 python scripts/importar-antigo.py --dry-run   # só conta na origem
 python scripts/importar-antigo.py             # carga (repetir é seguro)
+python scripts/importar-antigo.py --robo "alaska-&-square" --slug alaska-square --corte 2026-09-13 --sem-lote
 ```
+
+Alaska & Square vem com `--sem-lote`: o "lote" da origem (4 a 16) não é contrato a normalizar, e
+a curva certa é a soma direta dos resultados (+R$ 14.269,60 até 11/09/2026). Esse robô não tem
+conta nem coletor: `custo_por_contrato = 0`, `capital_referencia = 25000`, corte em 2026-09-12.
 
 Robô só com histórico importado (sem conta principal, como o Alaska & Square) aparece com status
 "Histórico" e sem painel ao vivo; `robos_publico.tem_coletor` diz isso ao front.

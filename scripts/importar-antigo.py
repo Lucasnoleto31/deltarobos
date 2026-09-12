@@ -5,7 +5,7 @@ tabela public.trades) para o Delta Robôs (public.operacoes, origem 'manual').
 Uso (na pasta do projeto, com a CLI do Supabase logada e linkada):
     python scripts/importar-antigo.py                       # apollo e orion, data < 2026-07-01
     python scripts/importar-antigo.py --dry-run             # só conta
-    python scripts/importar-antigo.py --robo "alaska-&-square" --slug alaska-square --corte 2026-09-13
+    python scripts/importar-antigo.py --robo "alaska-&-square" --slug alaska-square --corte 2026-09-13 --sem-lote
 
 Regras:
 - `--robo` é o slug na origem, `--slug` o slug no destino (padrão: igual), `--corte` é
@@ -16,6 +16,8 @@ Regras:
 - Custos = custo_por_contrato do robô no destino × lote (o antigo não tinha custo).
 - Idempotente: id da origem vai em operacoes.id_externo (índice único por robô).
 - Robô sem conta principal (só histórico) grava conta_id nulo.
+- `--sem-lote`: ignora o lote da origem (contratos = 1, resultado como está). Usado no
+  Alaska & Square, cujo lote 4–16 não representa contratos a normalizar.
 - Depois da carga, robos.historico_manual_ate = corte - 1 dia ativa a exibição.
 """
 
@@ -59,7 +61,7 @@ def sql_str(v) -> str:
     return "'" + str(v).replace("'", "''") + "'"
 
 
-def importar(robo_origem: str, slug_destino: str, corte: str, dry_run: bool) -> None:
+def importar(robo_origem: str, slug_destino: str, corte: str, dry_run: bool, sem_lote: bool = False) -> None:
     destino = consultar(
         f"select r.id, r.slug, r.conta_principal_id, r.custo_por_contrato from robos r where r.slug = {sql_str(slug_destino)}"
     )
@@ -99,7 +101,7 @@ def importar(robo_origem: str, slug_destino: str, corte: str, dry_run: bool) -> 
             if prefixo is None:
                 print("símbolo sem multiplicador, pulando:", simbolo, t["id"])
                 continue
-            lote = max(1, int(t["lote"] or 1))
+            lote = 1 if sem_lote else max(1, int(t["lote"] or 1))
             bruto = float(t["resultado_bruto"] if t["resultado_bruto"] is not None else t["resultado"])
             bruto_ct = bruto / lote
             pontos_ct = bruto_ct / valor_ponto[prefixo]
@@ -163,11 +165,12 @@ def main() -> None:
     p.add_argument("--slug", help="slug do robô no destino (padrão: igual ao da origem)")
     p.add_argument("--corte", default="2026-07-01", help="importa data < corte (padrão 2026-07-01)")
     p.add_argument("--dry-run", action="store_true")
+    p.add_argument("--sem-lote", action="store_true", help="não normaliza pelo lote: resultado da origem já é por unidade (Alaska & Square)")
     a = p.parse_args()
 
     pares = [(a.robo, a.slug or a.robo)] if a.robo else [("apollo", "apollo"), ("orion", "orion")]
     for origem, destino in pares:
-        importar(origem, destino, a.corte, a.dry_run)
+        importar(origem, destino, a.corte, a.dry_run, a.sem_lote)
 
 
 if __name__ == "__main__":
