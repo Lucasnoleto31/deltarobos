@@ -1,0 +1,196 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+
+export const metadata: Metadata = {
+  title: "Metodologia",
+  description:
+    "Como cada métrica da Delta Robôs é calculada, como os dados são coletados do MetaTrader 5, o que é custo e o que é normalização por contrato.",
+};
+
+const SECOES = [
+  { id: "coleta", titulo: "Como os dados chegam" },
+  { id: "normalizacao", titulo: "Por contrato" },
+  { id: "custos", titulo: "Bruto e líquido" },
+  { id: "operacao", titulo: "O que é uma operação" },
+  { id: "resultado", titulo: "Resultado do dia, mês, ano e acumulado" },
+  { id: "drawdown", titulo: "Drawdown e recuperação" },
+  { id: "taxa-acerto", titulo: "Taxa de acerto" },
+  { id: "fator-lucro", titulo: "Fator de lucro" },
+  { id: "payoff", titulo: "Payoff" },
+  { id: "sequencias", titulo: "Sequências e dias" },
+  { id: "capital-minimo", titulo: "Capital mínimo recomendado" },
+  { id: "periodos", titulo: "Períodos e dia de pregão" },
+  { id: "glossario", titulo: "Glossário" },
+];
+
+function Secao({ id, titulo, children }: { id: string; titulo: string; children: React.ReactNode }) {
+  return (
+    <section id={id} className="scroll-mt-24 space-y-3">
+      <h2 className="text-xl font-semibold tracking-tight">{titulo}</h2>
+      <div className="space-y-3 text-pretty text-muted-foreground [&_strong]:text-foreground">{children}</div>
+    </section>
+  );
+}
+
+/** Spec §8.7: definição de cada métrica, coleta, custos, normalização e glossário. */
+export default function PaginaMetodologia() {
+  return (
+    <div className="conteudo grid gap-10 py-10 lg:grid-cols-[220px_1fr]">
+      <nav aria-label="Seções" className="lg:sticky lg:top-20 lg:self-start">
+        <p className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">Nesta página</p>
+        <ol className="space-y-1 text-sm">
+          {SECOES.map((s) => (
+            <li key={s.id}>
+              <a href={`#${s.id}`} className="text-muted-foreground hover:text-foreground">
+                {s.titulo}
+              </a>
+            </li>
+          ))}
+        </ol>
+      </nav>
+
+      <article className="max-w-prose space-y-12">
+        <header className="space-y-3">
+          <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Metodologia</h1>
+          <p className="text-lg text-muted-foreground">
+            Cada número do site pode ser refeito à mão a partir das operações listadas. Aqui está a regra de cada um.
+          </p>
+        </header>
+
+        <Secao id="coleta" titulo="Como os dados chegam">
+          <p>
+            Em cada terminal MetaTrader 5 da Delta Robôs roda um coletor (um Expert Advisor que <strong>não opera</strong>,
+            só lê a conta). A cada negócio executado ele envia o registro para a nossa API na hora. A cada 3 segundos
+            envia também saldo, posições abertas e cotação. Ao iniciar, reenvia os últimos dias para conferência.
+          </p>
+          <p>
+            Nada é digitado à mão. Se o coletor parar por mais de 2 minutos em horário de pregão, o site avisa{" "}
+            <strong>&quot;sem atualização&quot;</strong> em vez de mostrar dado velho como se fosse ao vivo.
+          </p>
+          <p>
+            Cada robô tem uma <strong>conta principal</strong>, que alimenta as estatísticas públicas. Quando essa conta é
+            demo, o site mostra um selo &quot;conta demo&quot; ao lado do nome.
+          </p>
+        </Secao>
+
+        <Secao id="normalizacao" titulo="Por contrato">
+          <p>
+            Todo valor é dividido pela quantidade de contratos da operação. Um gain de R$ 60 com 2 contratos aparece como{" "}
+            <strong>R$ 30 por contrato</strong>. Assim, contas com lotes diferentes não distorcem a média e você multiplica
+            pelo seu tamanho.
+          </p>
+          <p>
+            Pontos viram reais pelo valor do ponto do ativo: <strong>WIN R$ 0,20</strong> e <strong>WDO R$ 10,00</strong> por
+            ponto por contrato. O símbolo real muda a cada vencimento (WINV26, WINZ26…), mas tudo é agrupado pelo ativo.
+          </p>
+        </Secao>
+
+        <Secao id="custos" titulo="Bruto e líquido">
+          <p>
+            <strong>Bruto</strong> é o lucro que o MetaTrader reporta. <strong>Líquido</strong> desconta um custo fixo por
+            contrato por operação (corretagem e emolumentos), configurado por robô e exibido na seção Transparência de cada
+            um. O site mostra líquido por padrão, com um toggle para ver o bruto.
+          </p>
+          <p>
+            Gain e loss são classificados sempre pelo resultado <strong>líquido</strong>: uma operação de +R$ 0,10 bruto com
+            custo de R$ 0,25 conta como loss.
+          </p>
+        </Secao>
+
+        <Secao id="operacao" titulo="O que é uma operação">
+          <p>
+            Uma operação vai da abertura de uma posição até ela zerar. Entradas parciais viram um preço médio de entrada;
+            saídas parciais, um preço médio de saída. Se a posição inverte de lado sem zerar (reversão), fecha um ciclo e
+            começa outro.
+          </p>
+          <p>
+            Preço de entrada e saída são <strong>médios ponderados pelo volume</strong>. Pontos por contrato = (saída − entrada)
+            no sentido da posição. O resultado em reais é o do MetaTrader, para bater com o relatório da corretora no centavo.
+          </p>
+        </Secao>
+
+        <Secao id="resultado" titulo="Resultado do dia, mês, ano e acumulado">
+          <p>
+            Soma do resultado por contrato das operações fechadas no período, pelo dia de pregão do fechamento em horário de
+            Brasília. <strong>Média mensal</strong> é o acumulado dividido pelo número de meses com pregão na série.
+          </p>
+        </Secao>
+
+        <Secao id="drawdown" titulo="Drawdown e recuperação">
+          <p>
+            A curva de capital acumula o resultado dia a dia. <strong>Drawdown</strong> é a distância entre a curva e o maior
+            valor que ela já atingiu. O drawdown máximo é a maior dessas distâncias no período, em reais por contrato e, quando
+            há capital de referência, em porcentagem dele.
+          </p>
+          <p>
+            <strong>Tempo de recuperação</strong> conta os dias corridos entre o último dia no pico e o primeiro dia em que a
+            curva voltou a esse pico. Se ainda não voltou, aparece &quot;em recuperação&quot;.
+          </p>
+        </Secao>
+
+        <Secao id="taxa-acerto" titulo="Taxa de acerto">
+          <p>Número de operações com resultado líquido positivo dividido pelo total de operações.</p>
+        </Secao>
+
+        <Secao id="fator-lucro" titulo="Fator de lucro">
+          <p>
+            Soma de todos os gains dividida pela soma de todos os losses (em valor absoluto). Acima de 1 o robô ganha mais
+            do que perde. Sem loss no período, o fator não é definido.
+          </p>
+        </Secao>
+
+        <Secao id="payoff" titulo="Payoff">
+          <p>Gain médio dividido pela perda média, em valor absoluto. Mostra o tamanho relativo do que se ganha e do que se perde.</p>
+        </Secao>
+
+        <Secao id="sequencias" titulo="Sequências e dias">
+          <p>
+            <strong>Maior sequência de gains ou losses</strong> é contada operação a operação, em ordem de fechamento; uma
+            operação zerada quebra a sequência. <strong>Dias positivos e negativos</strong> olham o resultado líquido de cada
+            dia de pregão. Melhor e pior dia são os extremos dessa série.
+          </p>
+        </Secao>
+
+        <Secao id="capital-minimo" titulo="Capital mínimo recomendado">
+          <p>
+            Por contrato: <strong>margem de referência + drawdown máximo × fator de segurança</strong>. O fator padrão é 1,5.
+            A margem é a exigida pela corretora para manter um contrato em day trade e é configurada por ativo. É uma
+            referência de conforto, não uma garantia: drawdowns futuros podem ser maiores que os passados.
+          </p>
+        </Secao>
+
+        <Secao id="periodos" titulo="Períodos e dia de pregão">
+          <p>
+            Dia de pregão é a data em Brasília. Sábados, domingos e feriados da B3 não contam como dia. Os filtros 7 dias, 30
+            dias, 3 meses, 12 meses e ano são contados até hoje; &quot;personalizado&quot; aceita qualquer intervalo.
+          </p>
+        </Secao>
+
+        <Secao id="glossario" titulo="Glossário">
+          <dl className="grid gap-3 sm:grid-cols-[160px_1fr]">
+            <dt className="font-medium text-foreground">WIN / WDO</dt>
+            <dd>Mini índice Bovespa e mini dólar, contratos futuros da B3.</dd>
+            <dt className="font-medium text-foreground">Contrato</dt>
+            <dd>Unidade mínima negociada. O resultado do site é sempre por 1 contrato.</dd>
+            <dt className="font-medium text-foreground">Magic number</dt>
+            <dd>Identificador que cada robô grava nas próprias ordens. É como o site sabe qual robô fez cada operação.</dd>
+            <dt className="font-medium text-foreground">Heartbeat</dt>
+            <dd>Sinal de vida do coletor, a cada 3 segundos, com saldo, posições e cotação.</dd>
+            <dt className="font-medium text-foreground">Posicionado</dt>
+            <dd>O robô tem posição aberta neste momento.</dd>
+            <dt className="font-medium text-foreground">Flutuante</dt>
+            <dd>Resultado da posição aberta se fosse fechada agora, por contrato.</dd>
+          </dl>
+        </Secao>
+
+        <p className="text-sm text-muted-foreground">
+          Dúvida sobre algum número? Fale com a equipe pela{" "}
+          <Link href="/#comunidade" className="underline underline-offset-4 hover:text-foreground">
+            comunidade
+          </Link>
+          .
+        </p>
+      </article>
+    </div>
+  );
+}

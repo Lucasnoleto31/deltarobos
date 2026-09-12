@@ -21,6 +21,8 @@ export interface RoboPublico {
   ultimo_heartbeat_em: string | null;
   ultima_operacao_em: string | null;
   posicionado: boolean;
+  relatorio_mt5_url: string | null;
+  conta_tipo: "real" | "demo" | null;
 }
 
 /** Linha de operacoes_publico */
@@ -41,6 +43,7 @@ export interface OperacaoPublica {
   custos_brl_por_contrato: number;
   versao_robo: string | null;
   dia_pregao: string;
+  resultado_liquido_por_contrato: number;
 }
 
 /** Linha de posicoes_abertas_publico */

@@ -1,10 +1,14 @@
+import type { Metadata } from "next";
 import { BarraAoVivo } from "@/components/home/BarraAoVivo";
 import { CasaAoVivoProvider } from "@/components/home/CasaAoVivoProvider";
 import { ComoComecar } from "@/components/home/ComoComecar";
 import { Comunidade } from "@/components/home/Comunidade";
+import { Ecossistema } from "@/components/home/Ecossistema";
 import { GradeRobos } from "@/components/home/GradeRobos";
 import { Hero } from "@/components/home/Hero";
+import { ResumoDoDia } from "@/components/home/ResumoDoDia";
 import type { DadosCardRobo } from "@/components/home/tipos";
+import { TransparenciaFaq } from "@/components/home/TransparenciaFaq";
 import {
   carregarParametros,
   listarEstatisticas,
@@ -20,6 +24,15 @@ import { ultimosVideos } from "@/lib/youtube";
 
 // Estatísticas pesadas com cache de 60s; o painel "hoje" é realtime puro no cliente.
 export const revalidate = 60;
+
+export const metadata: Metadata = {
+  openGraph: {
+    title: "Delta Robôs · Performance ao vivo",
+    description: "Resultado ao vivo dos robôs de day trade, direto do MetaTrader 5, por contrato.",
+    images: [{ url: "/api/og/casa", width: 1200, height: 630 }],
+  },
+  twitter: { card: "summary_large_image" },
+};
 
 export default async function Home() {
   const hoje = hojeSP();
@@ -82,8 +95,11 @@ export default async function Home() {
       <BarraAoVivo />
       <Hero textos={parametros.textos} links={parametros.links} />
       <GradeRobos cards={cards} />
+      <ResumoDoDia />
       <Comunidade links={parametros.links} videos={videos} />
+      <Ecossistema links={parametros.links} />
       <ComoComecar links={parametros.links} />
+      <TransparenciaFaq textos={parametros.textos} />
     </CasaAoVivoProvider>
   );
 }

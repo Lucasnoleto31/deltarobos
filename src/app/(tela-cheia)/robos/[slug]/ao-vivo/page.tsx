@@ -1,0 +1,60 @@
+import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+import { TelaAoVivo } from "@/components/ao-vivo/TelaAoVivo";
+import { RoboAoVivoProvider } from "@/components/robo/RoboAoVivoProvider";
+import {
+  buscarRobo,
+  listarFeriados,
+  listarMercado,
+  listarOperacoesDoDia,
+  listarPosicoes,
+} from "@/lib/consultas/publico";
+import { hojeSP } from "@/lib/stats/periodos";
+
+export const revalidate = 60;
+export const dynamicParams = true;
+
+interface Props {
+  params: Promise<{ slug: string }>;
+}
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { slug } = await params;
+  const robo = await buscarRobo(slug);
+  if (!robo) return { title: "Robô não encontrado" };
+  return {
+    title: `${robo.nome} · Ao vivo`,
+    description: `Resultado do dia do ${robo.nome} em tempo real.`,
+    openGraph: { images: [{ url: `/api/og/${slug}`, width: 1200, height: 630 }] },
+  };
+}
+
+/** Tela cheia só com o dia: pra compartilhar e deixar aberta no celular (spec §8.4). */
+export default async function PaginaAoVivo({ params }: Props) {
+  const { slug } = await params;
+  const robo = await buscarRobo(slug);
+  if (!robo) notFound();
+
+  const hoje = hojeSP();
+  const [operacoes, posicoes, feriados, mercado] = await Promise.all([
+    listarOperacoesDoDia(slug, hoje),
+    listarPosicoes(slug),
+    listarFeriados(),
+    listarMercado(),
+  ]);
+  const m = mercado.find((x) => x.prefixo_simbolo === robo.ativo);
+  const pregao = m ? { inicio: m.pregao_inicio, fim: m.pregao_fim } : { inicio: "09:00", fim: "18:00" };
+
+  return (
+    <div className="dark min-h-dvh bg-background text-foreground">
+      <RoboAoVivoProvider
+        robo={robo}
+        inicial={{ operacoes, posicoes, ultimoHeartbeatEm: robo.ultimo_heartbeat_em, dia: hoje }}
+        pregao={pregao}
+        feriados={feriados}
+      >
+        <TelaAoVivo />
+      </RoboAoVivoProvider>
+    </div>
+  );
+}

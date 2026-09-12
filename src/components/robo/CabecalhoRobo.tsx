@@ -40,6 +40,11 @@ export function CabecalhoRobo() {
               {robo.ativo_nome} · {robo.ativo}
             </Badge>
             {robo.versao_atual ? <Badge variant="secondary">v{robo.versao_atual}</Badge> : null}
+            {robo.conta_tipo === "demo" ? (
+              <Badge variant="outline" className="border-alerta/50 text-alerta" title="As estatísticas vêm de uma conta demo">
+                Conta demo
+              </Badge>
+            ) : null}
           </div>
           {robo.descricao_publica ? (
             <p className="max-w-prose text-pretty text-muted-foreground">{robo.descricao_publica}</p>

@@ -1,6 +1,6 @@
 # Plano da Fase 2 (estatísticas completas)
 
-Status: **proposta para aprovação**. Itens marcados com **(+)** não estão na spec.
+Status: **implementado em 12/09/2026** com as propostas A a H e as decisões abaixo, já que as dúvidas bloqueantes não foram respondidas: margem de referência fica nula até ser informada (o capital mínimo avisa); relatório do MT5 é `robos.relatorio_mt5_url`; itens 4, 9 e 14 da home entraram; a conta demo da XP serviu de dado real. A pedido do Lucas, a página do robô virou **abas** (Visão geral, Desempenho, Operações e atalho Ao vivo), com a aba Desempenho no molde do sistema anterior: filtro de período com datas, cards de KPI, curva, resultado mensal e por ativo. Migration 0011 acrescentou `contas_matriz.tipo` (selo "conta demo") e `operacoes_publico.resultado_liquido_por_contrato`. Itens marcados com **(+)** não estavam na spec.
 
 Escopo da Fase 2 (spec §11): todas as métricas (§7), calendário, heatmap, distribuições, risco, página de operações (§8.3), tela ao vivo (§8.4), metodologia (§8.7), OG image e embed (§8.8). Proponho trazer junto três itens da home que a spec não atribuiu a nenhuma fase: resumo/fechamento do dia (§8.1 item 4), transparência e FAQ (item 14) e ecossistema (item 9). Ver dúvida 3.
 

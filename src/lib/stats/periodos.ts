@@ -1,4 +1,4 @@
-export type Periodo = "7d" | "30d" | "3m" | "12m" | "ano" | "tudo";
+export type Periodo = "7d" | "30d" | "3m" | "12m" | "ano" | "tudo" | "personalizado";
 
 export const PERIODOS: ReadonlyArray<{ valor: Periodo; rotulo: string }> = [
   { valor: "7d", rotulo: "7 dias" },
@@ -7,7 +7,46 @@ export const PERIODOS: ReadonlyArray<{ valor: Periodo; rotulo: string }> = [
   { valor: "12m", rotulo: "12 meses" },
   { valor: "ano", rotulo: "Ano" },
   { valor: "tudo", rotulo: "Tudo" },
+  { valor: "personalizado", rotulo: "Personalizado" },
 ];
+
+export function ehPeriodo(v: unknown): v is Periodo {
+  return typeof v === "string" && PERIODOS.some((p) => p.valor === v);
+}
+
+/** Intervalo fechado de datas YYYY-MM-DD; null = sem limite. */
+export interface Intervalo {
+  de: string | null;
+  ate: string | null;
+}
+
+const RE_DIA = /^\d{4}-\d{2}-\d{2}$/;
+
+export function ehDia(v: unknown): v is string {
+  return typeof v === "string" && RE_DIA.test(v) && !Number.isNaN(new Date(`${v}T00:00:00Z`).getTime());
+}
+
+/** Intervalo efetivo de um período (ou do personalizado), limitado a hoje. */
+export function intervaloDe(
+  periodo: Periodo,
+  hoje: string,
+  personalizado?: { de?: string | null; ate?: string | null },
+): Intervalo {
+  if (periodo === "personalizado") {
+    const de = ehDia(personalizado?.de) ? personalizado!.de! : null;
+    const ateBruto = ehDia(personalizado?.ate) ? personalizado!.ate! : hoje;
+    return { de, ate: ateBruto < hoje ? ateBruto : hoje };
+  }
+  return { de: inicioPeriodo(periodo, hoje), ate: hoje };
+}
+
+export function filtrarIntervalo<T extends { dia: string }>(linhas: readonly T[], i: Intervalo): T[] {
+  return linhas.filter((l) => (i.de === null || l.dia >= i.de) && (i.ate === null || l.dia <= i.ate));
+}
+
+export function dentroDoIntervalo(dia: string, i: Intervalo): boolean {
+  return (i.de === null || dia >= i.de) && (i.ate === null || dia <= i.ate);
+}
 
 export const FUSO = "America/Sao_Paulo";
 
@@ -107,6 +146,7 @@ export function inicioPeriodo(periodo: Periodo, hoje: string): string | null {
     case "ano":
       return `${anoDe(hoje)}-01-01`;
     case "tudo":
+    case "personalizado":
       return null;
   }
 }

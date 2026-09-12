@@ -1,0 +1,59 @@
+import { Gift, GraduationCap, LineChart } from "lucide-react";
+import type { Links } from "@/lib/tipos";
+
+interface Props {
+  links: Links;
+}
+
+/** Item 9 da home: treinamentos, painel de mercado e programa de pontos (links externos). */
+export function Ecossistema({ links }: Props) {
+  const cards = [
+    {
+      href: links.treinamentos,
+      icone: <GraduationCap className="size-5" />,
+      titulo: "Treinamentos",
+      texto: "Cursos e mentorias da Delta pra operar com método.",
+    },
+    {
+      href: links.painel_mercado,
+      icone: <LineChart className="size-5" />,
+      titulo: "Painel de mercado",
+      texto: "Leitura diária do mercado feita pela equipe.",
+    },
+    {
+      href: links.programa_pontos,
+      icone: <Gift className="size-5" />,
+      titulo: "Programa de pontos",
+      texto: "Pontos por lotes operados, trocados por benefícios.",
+    },
+  ].filter((c) => c.href);
+
+  if (cards.length === 0) return null;
+
+  return (
+    <section id="ecossistema" className="conteudo scroll-mt-20 py-8">
+      <div className="mb-4">
+        <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">Ecossistema Delta</h2>
+        <p className="text-sm text-muted-foreground">Mais do que robôs.</p>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-3">
+        {cards.map((c) => (
+          <a
+            key={c.titulo}
+            href={c.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group flex flex-col gap-3 rounded-xl bg-card p-5 ring-1 ring-foreground/10 transition-shadow hover:ring-foreground/25"
+          >
+            <span className="grid size-9 place-items-center rounded-lg bg-muted">{c.icone}</span>
+            <div className="flex-1">
+              <h3 className="font-semibold">{c.titulo}</h3>
+              <p className="text-sm text-muted-foreground">{c.texto}</p>
+            </div>
+            <span className="text-sm font-medium underline-offset-4 group-hover:underline">Conhecer →</span>
+          </a>
+        ))}
+      </div>
+    </section>
+  );
+}

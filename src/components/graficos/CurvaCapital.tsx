@@ -10,29 +10,19 @@ import {
   type UTCTimestamp,
 } from "lightweight-charts";
 import { useTheme } from "next-themes";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Segmentado } from "@/components/compartilhados/Segmentado";
+import { useEffect, useMemo, useRef } from "react";
 import { Valor } from "@/components/compartilhados/Valor";
 import { formatarBRL, formatarDataCurta, formatarPontos } from "@/lib/formato";
-import { filtrarPeriodo, PERIODOS, type Periodo } from "@/lib/stats/periodos";
 import { curvaAcumulada, drawdownMaximo } from "@/lib/stats/serie";
-import type { Base, LinhaDiaria, Unidade } from "@/lib/stats/tipos";
+import type { LinhaDiaria, OpcoesSerie } from "@/lib/stats/tipos";
 
 interface Props {
-  linhas: LinhaDiaria[];
-  valorPonto: number;
-  hoje: string;
-  periodoInicial?: Periodo;
+  /** série já filtrada pelo período desejado */
+  linhas: readonly LinhaDiaria[];
+  opcoes: OpcoesSerie;
+  altura?: number;
+  mostrarResumo?: boolean;
 }
-
-const OPCOES_UNIDADE: ReadonlyArray<{ valor: Unidade; rotulo: string }> = [
-  { valor: "brl", rotulo: "R$" },
-  { valor: "pontos", rotulo: "Pontos" },
-];
-const OPCOES_BASE: ReadonlyArray<{ valor: Base; rotulo: string }> = [
-  { valor: "liquido", rotulo: "Líquido" },
-  { valor: "bruto", rotulo: "Bruto" },
-];
 
 // lightweight-charts não entende oklch(); cores fixas por tema
 const CORES = {
@@ -62,22 +52,16 @@ function diaParaTimestamp(dia: string): UTCTimestamp {
 
 /**
  * Curva de capital acumulada por contrato (pane de cima) com drawdown
- * desenhado embaixo. Toggles de período, unidade e bruto/líquido.
+ * desenhado embaixo. Quem controla período, unidade e base é o pai.
  */
-export function CurvaCapital({ linhas, valorPonto, hoje, periodoInicial = "tudo" }: Props) {
-  const [periodo, setPeriodo] = useState<Periodo>(periodoInicial);
-  const [unidade, setUnidade] = useState<Unidade>("brl");
-  const [base, setBase] = useState<Base>("liquido");
-
+export function CurvaCapital({ linhas, opcoes, altura = 320, mostrarResumo = true }: Props) {
   const { resolvedTheme } = useTheme();
   const cores = resolvedTheme === "light" ? CORES.light : CORES.dark;
 
-  const curva = useMemo(
-    () => curvaAcumulada(filtrarPeriodo(linhas, periodo, hoje), { base, unidade, valorPonto }),
-    [linhas, periodo, hoje, base, unidade, valorPonto],
-  );
+  const curva = useMemo(() => curvaAcumulada(linhas, opcoes), [linhas, opcoes]);
   const dd = useMemo(() => drawdownMaximo(curva), [curva]);
   const acumulado = curva.length > 0 ? curva[curva.length - 1].acumulado : 0;
+  const unidade = opcoes.unidade;
 
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -125,7 +109,7 @@ export function CurvaCapital({ linhas, valorPonto, hoje, periodoInicial = "tudo"
     );
 
     const painel = chart.panes()[1];
-    if (painel) painel.setHeight(90);
+    if (painel) painel.setHeight(Math.round(altura * 0.28));
 
     chartRef.current = chart;
     areaRef.current = area;
@@ -170,48 +154,36 @@ export function CurvaCapital({ linhas, valorPonto, hoje, periodoInicial = "tudo"
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <Segmentado
-          ariaLabel="Período"
-          opcoes={PERIODOS}
-          valor={periodo}
-          onChange={setPeriodo}
-          className="overflow-x-auto"
-        />
-        <div className="ml-auto flex gap-2">
-          <Segmentado ariaLabel="Unidade" opcoes={OPCOES_UNIDADE} valor={unidade} onChange={setUnidade} />
-          <Segmentado ariaLabel="Bruto ou líquido" opcoes={OPCOES_BASE} valor={base} onChange={setBase} />
-        </div>
-      </div>
-
-      <dl className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
-        <div className="flex items-baseline gap-2">
-          <dt className="text-muted-foreground">No período</dt>
-          <dd className="font-semibold">
-            <Valor valor={acumulado} unidade={unidade} />
-          </dd>
-        </div>
-        <div className="flex items-baseline gap-2">
-          <dt className="text-muted-foreground">Drawdown máx.</dt>
-          <dd className="font-semibold">
-            <Valor valor={-dd.valor} unidade={unidade} />
-            {dd.diasAteRecuperar !== null ? (
-              <span className="ml-1 text-xs font-normal text-muted-foreground">
-                recuperado em {dd.diasAteRecuperar} dias
-              </span>
-            ) : dd.valor > 0 ? (
-              <span className="ml-1 text-xs font-normal text-muted-foreground">em recuperação</span>
-            ) : null}
-          </dd>
-        </div>
-        <div className="flex items-baseline gap-2">
-          <dt className="text-muted-foreground">Dias</dt>
-          <dd className="font-semibold tabular-nums">{curva.length}</dd>
-        </div>
-      </dl>
+      {mostrarResumo ? (
+        <dl className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
+          <div className="flex items-baseline gap-2">
+            <dt className="text-muted-foreground">No período</dt>
+            <dd className="font-semibold">
+              <Valor valor={acumulado} unidade={unidade} />
+            </dd>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <dt className="text-muted-foreground">Drawdown máx.</dt>
+            <dd className="font-semibold">
+              <Valor valor={-dd.valor} unidade={unidade} />
+              {dd.diasAteRecuperar !== null ? (
+                <span className="ml-1 text-xs font-normal text-muted-foreground">
+                  recuperado em {dd.diasAteRecuperar} dias
+                </span>
+              ) : dd.valor > 0 ? (
+                <span className="ml-1 text-xs font-normal text-muted-foreground">em recuperação</span>
+              ) : null}
+            </dd>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <dt className="text-muted-foreground">Dias</dt>
+            <dd className="font-semibold tabular-nums">{curva.length}</dd>
+          </div>
+        </dl>
+      ) : null}
 
       <div className="relative">
-        <div ref={containerRef} className="h-80 w-full" />
+        <div ref={containerRef} className="w-full" style={{ height: altura }} />
         {curva.length === 0 ? (
           <div className="absolute inset-0 grid place-items-center text-sm text-muted-foreground">
             Sem operações no período.
@@ -219,8 +191,9 @@ export function CurvaCapital({ linhas, valorPonto, hoje, periodoInicial = "tudo"
         ) : null}
       </div>
       <p className="text-xs text-muted-foreground">
-        Resultado acumulado por 1 contrato, dia a dia. Embaixo, a distância até o pico anterior
-        (drawdown).
+        Resultado acumulado por {opcoes.contratos ?? 1}{" "}
+        {(opcoes.contratos ?? 1) === 1 ? "contrato" : "contratos"}, dia a dia. Embaixo, a distância
+        até o pico anterior (drawdown).
       </p>
     </div>
   );

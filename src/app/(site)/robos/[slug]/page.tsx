@@ -1,94 +1,61 @@
-import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import Link from "next/link";
 import { CurvaCapital } from "@/components/graficos/CurvaCapital";
-import { CabecalhoRobo } from "@/components/robo/CabecalhoRobo";
 import { Disclaimer } from "@/components/robo/Disclaimer";
 import { KpisRobo } from "@/components/robo/KpisRobo";
 import { PainelHoje } from "@/components/robo/PainelHoje";
-import { RoboAoVivoProvider } from "@/components/robo/RoboAoVivoProvider";
 import { Transparencia } from "@/components/robo/Transparencia";
+import { UltimasOperacoes } from "@/components/robo/UltimasOperacoes";
+import { buttonVariants } from "@/components/ui/button";
 import {
   buscarRobo,
   carregarParametros,
   listarEstatisticas,
-  listarFeriados,
-  listarMercado,
-  listarOperacoesDoDia,
-  listarPosicoes,
+  listarUltimasOperacoes,
 } from "@/lib/consultas/publico";
 import { hojeSP } from "@/lib/stats/periodos";
 
-// Slug novo cadastrado no banco funciona sem deploy: nada de lista fixa.
 export const revalidate = 60;
-export const dynamicParams = true;
 
 interface Props {
   params: Promise<{ slug: string }>;
 }
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { slug } = await params;
-  const robo = await buscarRobo(slug);
-  if (!robo) return { title: "Robô não encontrado" };
-  return {
-    title: robo.nome,
-    description:
-      robo.descricao_publica ??
-      `Performance ao vivo do robô ${robo.nome} (${robo.ativo_nome}), direto do MetaTrader 5.`,
-  };
-}
-
+/** Aba "Visão geral": hoje ao vivo, resumo desde o início, curva e últimas operações. */
 export default async function PaginaRobo({ params }: Props) {
   const { slug } = await params;
-  const robo = await buscarRobo(slug);
-  if (!robo) notFound();
-
   const hoje = hojeSP();
-  const [linhas, operacoes, posicoes, feriados, mercado, parametros] = await Promise.all([
+  const [robo, linhas, ultimas, parametros] = await Promise.all([
+    buscarRobo(slug),
     listarEstatisticas(slug),
-    listarOperacoesDoDia(slug, hoje),
-    listarPosicoes(slug),
-    listarFeriados(),
-    listarMercado(),
+    listarUltimasOperacoes(slug, 20),
     carregarParametros(),
   ]);
-
-  const mercadoDoAtivo = mercado.find((m) => m.prefixo_simbolo === robo.ativo);
-  const pregao = mercadoDoAtivo
-    ? { inicio: mercadoDoAtivo.pregao_inicio, fim: mercadoDoAtivo.pregao_fim }
-    : { inicio: "09:00", fim: "18:00" };
+  if (!robo) return null; // o layout já tratou o 404
 
   const emBreve = robo.status === "em_breve";
 
   return (
-    <article className="conteudo space-y-10 py-8">
-      <RoboAoVivoProvider
-        robo={robo}
-        inicial={{ operacoes, posicoes, ultimoHeartbeatEm: robo.ultimo_heartbeat_em, dia: hoje }}
-        pregao={pregao}
-        feriados={feriados}
-      >
-        <CabecalhoRobo />
-        {emBreve ? (
-          <p className="rounded-2xl border border-dashed p-8 text-center text-muted-foreground">
-            Este robô ainda não começou a operar em conta real. As estatísticas aparecem aqui
-            assim que a primeira operação fechar.
-          </p>
-        ) : (
-          <PainelHoje />
-        )}
-      </RoboAoVivoProvider>
-
-      {!emBreve ? (
+    <div className="space-y-10">
+      {emBreve ? (
+        <p className="rounded-2xl border border-dashed p-8 text-center text-muted-foreground">
+          Este robô ainda não começou a operar em conta real. As estatísticas aparecem aqui assim
+          que a primeira operação fechar.
+        </p>
+      ) : (
         <>
+          <PainelHoje />
+
           <section aria-labelledby="kpis" className="space-y-3">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <h2 id="kpis" className="text-lg font-semibold tracking-tight">
-                Estatísticas
+                Resumo desde o início
               </h2>
-              <p className="text-xs text-muted-foreground">
-                Desde o início · R$ líquido por 1 contrato
-              </p>
+              <Link
+                href={`/robos/${slug}/desempenho`}
+                className={buttonVariants({ size: "sm", variant: "outline" })}
+              >
+                Ver desempenho completo
+              </Link>
             </div>
             <KpisRobo
               linhas={linhas}
@@ -103,11 +70,29 @@ export default async function PaginaRobo({ params }: Props) {
               Curva de capital
             </h2>
             <div className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10 sm:p-5">
-              <CurvaCapital linhas={linhas} valorPonto={robo.valor_ponto_brl} hoje={hoje} />
+              <CurvaCapital
+                linhas={linhas}
+                opcoes={{ base: "liquido", unidade: "brl", valorPonto: robo.valor_ponto_brl }}
+              />
             </div>
           </section>
+
+          <section aria-labelledby="ultimas" className="space-y-3">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h2 id="ultimas" className="text-lg font-semibold tracking-tight">
+                Últimas operações
+              </h2>
+              <Link
+                href={`/robos/${slug}/operacoes`}
+                className={buttonVariants({ size: "sm", variant: "outline" })}
+              >
+                Lista completa
+              </Link>
+            </div>
+            <UltimasOperacoes operacoes={ultimas} />
+          </section>
         </>
-      ) : null}
+      )}
 
       <Transparencia robo={robo} />
       <Disclaimer
@@ -115,6 +100,6 @@ export default async function PaginaRobo({ params }: Props) {
         texto={parametros.textos.disclaimer}
         linkCta={parametros.links.whatsapp}
       />
-    </article>
+    </div>
   );
 }
