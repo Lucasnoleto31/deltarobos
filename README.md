@@ -70,6 +70,21 @@ Um robô novo é só mais um `insert into robos` + mapeamento de magic: ele apar
 
 Se o magic já tinha deals antes do mapeamento: `select reatribuir_magic('<conta>', 1001);`.
 
+### Histórico importado (origem manual) e data de corte
+
+O histórico anterior ao coletor veio do projeto antigo (Quantsrobos, tabela `trades`) por
+`scripts/importar-antigo.py`, que lê pela CLI (`--project-ref`) e grava em `operacoes` com
+`origem = 'manual'` e `id_externo` (idempotente). Sem preços de entrada/saída, só resultado.
+
+Cada robô tem `robos.historico_manual_ate`: até essa data os números públicos usam o manual;
+depois, só o MT5 da conta principal. Hoje é `2026-06-30` para Apollo e Orion (o MT5 bate com o
+antigo mês a mês a partir de julho). Trocar a data recalcula a série inteira pelo trigger.
+
+```bash
+python scripts/importar-antigo.py --dry-run   # só conta na origem
+python scripts/importar-antigo.py             # carga (repetir é seguro)
+```
+
 ### Regras de segurança do schema
 
 - RLS em toda tabela. `anon` só lê as views `*_publico` e chama `resumo_casa_hoje()`.
