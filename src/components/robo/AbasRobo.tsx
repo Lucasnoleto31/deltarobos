@@ -16,6 +16,9 @@ export function AbasRobo({ slug }: Props) {
   const abas = [
     { href: base, rotulo: "Visão geral", exato: true },
     { href: `${base}/desempenho`, rotulo: "Desempenho", exato: false },
+    { href: `${base}/calendario`, rotulo: "Calendário", exato: false },
+    { href: `${base}/risco`, rotulo: "Risco", exato: false },
+    { href: `${base}/faixas`, rotulo: "Faixas", exato: false },
     { href: `${base}/operacoes`, rotulo: "Operações", exato: false },
   ];
 

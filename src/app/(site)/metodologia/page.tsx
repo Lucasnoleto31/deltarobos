@@ -19,6 +19,9 @@ const SECOES = [
   { id: "payoff", titulo: "Payoff" },
   { id: "sequencias", titulo: "Sequências e dias" },
   { id: "capital-minimo", titulo: "Capital mínimo recomendado" },
+  { id: "indices-risco", titulo: "Calmar, recovery factor, Ulcer e tempo em drawdown" },
+  { id: "risco-de-ruina", titulo: "Risco de ruína" },
+  { id: "faixas", titulo: "Validação de faixas" },
   { id: "periodos", titulo: "Períodos e dia de pregão" },
   { id: "glossario", titulo: "Glossário" },
 ];
@@ -156,6 +159,50 @@ export default function PaginaMetodologia() {
             Por contrato: <strong>margem de referência + drawdown máximo × fator de segurança</strong>. O fator padrão é 1,5.
             A margem é a exigida pela corretora para manter um contrato em day trade e é configurada por ativo. É uma
             referência de conforto, não uma garantia: drawdowns futuros podem ser maiores que os passados.
+          </p>
+        </Secao>
+
+        <Secao id="indices-risco" titulo="Calmar, recovery factor, Ulcer e tempo em drawdown">
+          <p>
+            <strong>Calmar</strong> = retorno anualizado ÷ queda máxima. O retorno anualizado é o resultado do período
+            multiplicado por 252 e dividido pelo número de dias de pregão. Acima de 1, o robô rende por ano mais do que a
+            pior queda que já sofreu.
+          </p>
+          <p>
+            <strong>Recovery factor</strong> = resultado do período ÷ queda máxima. Quantas vezes o robô já &quot;pagou&quot; o
+            seu maior drawdown.
+          </p>
+          <p>
+            <strong>Ulcer index</strong> = raiz quadrada da média dos quadrados do drawdown dia a dia. Mede quão fundo e por
+            quanto tempo a curva ficou abaixo do pico; em % do capital de referência quando ele existe.
+          </p>
+          <p>
+            <strong>Tempo em drawdown</strong> = fração dos dias de pregão em que a curva estava abaixo do último pico.
+          </p>
+        </Secao>
+
+        <Secao id="risco-de-ruina" titulo="Risco de ruína">
+          <p>
+            Aproximação clássica da ruína do apostador: <strong>E = acerto × payoff − (1 − acerto)</strong> é a expectativa
+            por unidade arriscada; <strong>unidades = capital de referência ÷ perda média</strong>;{" "}
+            <strong>risco = ((1 − E) ÷ (1 + E)) ^ unidades</strong>. Se E for zero ou negativo, o risco é 100%: sem
+            expectativa positiva, é questão de tempo. É um indicador de ordem de grandeza, não uma probabilidade exata.
+          </p>
+        </Secao>
+
+        <Secao id="faixas" titulo="Validação de faixas">
+          <p>
+            Cada combinação de dia da semana (segunda a sexta) e hora de entrada (9h às 17h) é uma faixa. Para cada uma:{" "}
+            <strong>expectativa</strong> = média do resultado líquido por operação; <strong>percentil</strong> = posição da
+            expectativa entre as faixas com pelo menos 10 operações; <strong>estabilidade</strong> = meses positivos ÷ meses
+            com operação; <strong>confiança</strong> = operações ÷ 100, limitada a 1.
+          </p>
+          <p>
+            <strong>Score = 50 × percentil + 30 × estabilidade + 20 × confiança</strong>, de 0 a 100. Expectativa zero ou
+            negativa limita o score a 40. Classificação: <strong>Ligar</strong> ≥ 75 (lote 100%), <strong>Cautela</strong>{" "}
+            55–74 (lote 60%), <strong>Neutro</strong> 45–54 (lote 35%), <strong>Evitar</strong> abaixo de 45 (lote 0%). Faixa
+            com menos de 10 operações fica sem classificação. Os &quot;insights&quot; são frases geradas por regras fixas a
+            partir desses números.
           </p>
         </Secao>
 

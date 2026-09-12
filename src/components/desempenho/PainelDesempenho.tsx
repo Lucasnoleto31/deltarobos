@@ -1,12 +1,14 @@
 "use client";
 
 import { Activity, BarChart3, Percent, Scale, TrendingDown, TrendingUp } from "lucide-react";
+import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Valor } from "@/components/compartilhados/Valor";
+import { buttonVariants } from "@/components/ui/button";
 import { CurvaCapital } from "@/components/graficos/CurvaCapital";
 import { formatarBRL, formatarData, formatarDuracao, formatarMesAno, formatarMultiplo, formatarNumero, formatarPct, formatarPontos } from "@/lib/formato";
-import { heatmapAnoMes, mesesComDados } from "@/lib/stats/calendario";
+import { heatmapAnoMes } from "@/lib/stats/calendario";
 import { calcularKpis } from "@/lib/stats/kpis";
 import {
   dia as diaDaOperacao,
@@ -18,11 +20,10 @@ import {
   sequencias,
   type OperacaoCompacta,
 } from "@/lib/stats/operacoes";
-import { dentroDoIntervalo, ehDia, ehPeriodo, filtrarIntervalo, intervaloDe, mesDe, type Periodo } from "@/lib/stats/periodos";
+import { dentroDoIntervalo, ehDia, ehPeriodo, filtrarIntervalo, intervaloDe, type Periodo } from "@/lib/stats/periodos";
 import { episodiosDrawdown } from "@/lib/stats/risco";
 import { curvaAcumulada, drawdownMaximo } from "@/lib/stats/serie";
 import type { Base, LinhaDiaria, OpcoesSerie, Unidade } from "@/lib/stats/tipos";
-import { Calendario } from "./Calendario";
 import { CardsKpi, type ItemKpi } from "./CardsKpi";
 import { Filtros, type EstadoFiltros } from "./Filtros";
 import { GraficoBarras } from "./GraficoBarras";
@@ -78,7 +79,6 @@ export function PainelDesempenho({
   slug,
   linhas,
   ops,
-  feriados,
   hoje,
   valorPonto,
   capitalReferencia,
@@ -119,7 +119,6 @@ export function PainelDesempenho({
     [linhasF, valorPonto],
   );
   const heatmap = useMemo(() => heatmapAnoMes(linhas, opcoes), [linhas, opcoes]);
-  const meses = useMemo(() => mesesComDados(linhas), [linhas]);
   const mensal = useMemo(
     () => heatmap.flatMap((l) => l.meses.filter((m): m is NonNullable<typeof m> => m !== null)).map((m) => ({ rotulo: formatarMesAno(`${m.mes}-01`), valor: m.total, n: m.nDias })),
     [heatmap],
@@ -133,8 +132,6 @@ export function PainelDesempenho({
     estado.unidade === "brl" && capitalReferencia && capitalReferencia > 0
       ? kpis.acumulado / (capitalReferencia * estado.contratos)
       : null;
-
-  const mesInicial = meses.length > 0 ? (meses.includes(mesDe(hoje)) ? mesDe(hoje) : meses[meses.length - 1]) : mesDe(hoje);
 
   const linkOperacoes = (() => {
     const p = new URLSearchParams();
@@ -232,9 +229,25 @@ export function PainelDesempenho({
           <p className="mb-3 text-xs text-muted-foreground">todo o histórico</p>
           <Heatmap linhas={heatmap} unidade={estado.unidade} />
         </section>
-        <section className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10 sm:p-5">
-          <h2 className="mb-3 font-semibold">Calendário</h2>
-          <Calendario linhas={linhas} opcoes={opcoes} feriados={feriados} mesesDisponiveis={meses} mesInicial={mesInicial} />
+        <section className="flex flex-col justify-between rounded-2xl bg-card p-4 ring-1 ring-foreground/10 sm:p-5">
+          <div>
+            <h2 className="font-semibold">Calendário, risco e faixas</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              O dia a dia com detalhe por horário, os índices de risco com a curva de drawdown e a validação de faixas por dia e hora ficam
+              nas abas próprias.
+            </p>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Link href={`/robos/${slug}/calendario`} className={buttonVariants({ variant: "outline", size: "sm" })}>
+              Calendário
+            </Link>
+            <Link href={`/robos/${slug}/risco`} className={buttonVariants({ variant: "outline", size: "sm" })}>
+              Risco
+            </Link>
+            <Link href={`/robos/${slug}/faixas`} className={buttonVariants({ variant: "outline", size: "sm" })}>
+              Validação de faixas
+            </Link>
+          </div>
         </section>
       </div>
 

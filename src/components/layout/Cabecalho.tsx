@@ -3,6 +3,8 @@ import { AlternadorTema } from "./AlternadorTema";
 
 const LINKS = [
   { href: "/#robos", rotulo: "Robôs" },
+  { href: "/comparativo", rotulo: "Comparativo" },
+  { href: "/metodologia", rotulo: "Metodologia" },
   { href: "/#comunidade", rotulo: "Comunidade" },
   { href: "/#como-comecar", rotulo: "Como começar" },
 ];
