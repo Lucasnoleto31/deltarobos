@@ -14,6 +14,7 @@ export interface DadosCardRobo {
   horarioFim: string | null;
   posicionado: boolean;
   ultimoHeartbeatEm: string | null;
+  temColetor: boolean;
   hoje: number;
   mes: number;
   acumulado: number;

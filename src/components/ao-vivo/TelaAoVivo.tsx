@@ -32,6 +32,7 @@ export function TelaAoVivo() {
     horarioFim: robo.horario_fim,
     pregaoAberto: aberto,
     agora: agora ?? new Date(0),
+    temColetor: robo.tem_coletor,
   });
 
   const compartilhar = async () => {

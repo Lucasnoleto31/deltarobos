@@ -20,6 +20,7 @@ export function AbasRobo({ slug }: Props) {
     { href: `${base}/risco`, rotulo: "Risco", exato: false },
     { href: `${base}/faixas`, rotulo: "Faixas", exato: false },
     { href: `${base}/operacoes`, rotulo: "Operações", exato: false },
+    { href: `${base}/relatorios`, rotulo: "Relatórios", exato: false },
   ];
 
   return (

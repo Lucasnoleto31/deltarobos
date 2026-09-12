@@ -52,18 +52,31 @@ export async function buscarRobo(slug: string): Promise<RoboPublico | null> {
   }
 }
 
-/** Série diária completa (todos os robôs, ou um). ~250 linhas/ano/robô. */
+/**
+ * Série diária completa (todos os robôs, ou um). O PostgREST devolve no máximo
+ * 1.000 linhas por requisição, então pagina até acabar (robô com anos de
+ * histórico passa fácil de 1.000 dias).
+ */
 export async function listarEstatisticas(slug?: string): Promise<EstatisticaPublica[]> {
   try {
-    let q = supabasePublico()
-      .from("estatisticas_publico")
-      .select("*")
-      .order("dia", { ascending: true })
-      .limit(20000);
-    if (slug) q = q.eq("slug", slug);
-    const { data, error } = await q;
-    if (error) throw error;
-    return (data ?? []) as EstatisticaPublica[];
+    const sb = supabasePublico();
+    const passo = 1000;
+    const linhas: EstatisticaPublica[] = [];
+    for (let de = 0; de < 100_000; de += passo) {
+      let q = sb
+        .from("estatisticas_publico")
+        .select("*")
+        .order("dia", { ascending: true })
+        .order("robo_id", { ascending: true })
+        .range(de, de + passo - 1);
+      if (slug) q = q.eq("slug", slug);
+      const { data, error } = await q;
+      if (error) throw error;
+      const lote = (data ?? []) as EstatisticaPublica[];
+      linhas.push(...lote);
+      if (lote.length < passo) break;
+    }
+    return linhas;
   } catch (e) {
     avisar("listarEstatisticas", e);
     return [];

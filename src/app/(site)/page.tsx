@@ -73,6 +73,7 @@ export default async function Home() {
         horarioFim: r.horario_fim,
         posicionado: r.posicionado,
         ultimoHeartbeatEm: r.ultimo_heartbeat_em,
+        temColetor: r.tem_coletor,
         hoje: resumoRobo.hoje,
         mes: resumoRobo.mes,
         acumulado: resumoRobo.acumulado,

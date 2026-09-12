@@ -23,7 +23,8 @@ export interface PaginaOperacoes {
 }
 
 export const TAMANHO_PAGINA = 50;
-export const LIMITE_COMPACTAS = 5000;
+/** Todas as operações do robô vão compactadas pro cliente (tuplas curtas, comprimem bem). */
+export const LIMITE_COMPACTAS = 50_000;
 
 function avisar(onde: string, e: unknown) {
   console.warn(`[consultas] ${onde}: ${e instanceof Error ? e.message : String(e)}`);

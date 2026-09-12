@@ -111,6 +111,7 @@ export function GradeRobos({ cards }: Props) {
               horarioFim: card.horarioFim,
               pregaoAberto: aberto,
               agora: agora ?? new Date(0),
+              temColetor: card.temColetor,
             });
             return (
               <li key={card.slug}>

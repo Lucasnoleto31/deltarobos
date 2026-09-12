@@ -23,6 +23,8 @@ export interface RoboPublico {
   posicionado: boolean;
   relatorio_mt5_url: string | null;
   conta_tipo: "real" | "demo" | null;
+  /** false = robô só com histórico importado, sem conta/coletor no MT5 */
+  tem_coletor: boolean;
 }
 
 /** Linha de operacoes_publico */

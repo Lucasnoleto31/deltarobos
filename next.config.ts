@@ -6,6 +6,8 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: process.cwd(),
   },
+  // gerador de PDF roda em Node puro; não passa pelo bundler
+  serverExternalPackages: ["@react-pdf/renderer"],
   async headers() {
     return [
       {

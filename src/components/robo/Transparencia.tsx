@@ -49,21 +49,26 @@ export function Transparencia({ robo }: Props) {
           </p>
         </div>
         <div className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
-          <p className="font-medium">Relatório do MT5</p>
+          <p className="font-medium">Relatórios mensais</p>
+          <p className="mt-1 text-muted-foreground">
+            <Link
+              href={`/robos/${robo.slug}/relatorios`}
+              className="inline-flex items-center gap-1.5 underline-offset-4 hover:text-foreground hover:underline"
+            >
+              <FileText className="size-4" /> Baixar o PDF ou o CSV de cada mês
+            </Link>
+            , gerados na hora a partir das operações.
+          </p>
           {robo.relatorio_mt5_url ? (
             <a
               href={robo.relatorio_mt5_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-1 inline-flex items-center gap-1.5 text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+              className="mt-1 block text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
             >
-              <FileText className="size-4" /> Abrir relatório mensal exportado do MetaTrader
+              Relatório exportado do MetaTrader
             </a>
-          ) : (
-            <p className="mt-1 text-muted-foreground">
-              O relatório mensal exportado do MetaTrader é publicado aqui assim que fechar o mês.
-            </p>
-          )}
+          ) : null}
         </div>
       </div>
     </section>

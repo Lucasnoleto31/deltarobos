@@ -14,7 +14,7 @@ interface Props {
   total: number;
 }
 
-const LIMITE = 5000;
+const LIMITE = 50_000;
 
 function celula(v: string | number | null): string {
   if (v === null) return "";

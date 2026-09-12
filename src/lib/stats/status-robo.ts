@@ -9,7 +9,8 @@ export type StatusAoVivo =
   | "pausado"
   | "em_breve"
   | "arquivado"
-  | "desconhecido";
+  | "desconhecido"
+  | "historico";
 
 export interface EntradaStatus {
   status: RoboStatus;
@@ -20,16 +21,19 @@ export interface EntradaStatus {
   /** pregão do ativo do robô aberto agora? */
   pregaoAberto: boolean;
   agora: Date;
+  /** false = só histórico importado, sem coletor no MT5 (padrão true) */
+  temColetor?: boolean;
 }
 
 /**
  * Status exibido no card e no cabeçalho do robô.
- * Ordem: cadastro > pregão fechado > coletor parado > posicionado > horário do robô.
+ * Ordem: cadastro > sem coletor > pregão fechado > coletor parado > posicionado > horário do robô.
  */
 export function statusAoVivo(e: EntradaStatus): StatusAoVivo {
   if (e.status === "em_breve" || e.status === "pausado" || e.status === "arquivado") {
     return e.status;
   }
+  if (e.temColetor === false) return "historico";
   if (!e.pregaoAberto) return "fora_do_horario";
   if (coletaParada(e.ultimoHeartbeatEm, e.agora, true)) return "desconhecido";
   if (e.posicionado) return "posicionado";
@@ -48,6 +52,7 @@ export const ROTULO_STATUS: Record<StatusAoVivo, string> = {
   em_breve: "Em breve",
   arquivado: "Arquivado",
   desconhecido: "Sem atualização",
+  historico: "Histórico",
 };
 
 export type TomStatus = "positivo" | "negativo" | "neutro" | "alerta" | "info";
@@ -60,4 +65,5 @@ export const TOM_STATUS: Record<StatusAoVivo, TomStatus> = {
   em_breve: "neutro",
   arquivado: "neutro",
   desconhecido: "negativo",
+  historico: "neutro",
 };

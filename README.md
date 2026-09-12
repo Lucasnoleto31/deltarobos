@@ -85,6 +85,16 @@ python scripts/importar-antigo.py --dry-run   # só conta na origem
 python scripts/importar-antigo.py             # carga (repetir é seguro)
 ```
 
+Robô só com histórico importado (sem conta principal, como o Alaska & Square) aparece com status
+"Histórico" e sem painel ao vivo; `robos_publico.tem_coletor` diz isso ao front.
+
+### Relatórios mensais
+
+`/robos/<slug>/relatorios` lista os meses com operação; `/api/relatorios/<slug>/<YYYY-MM>/pdf`
+gera o PDF (`@react-pdf/renderer`, resumo + por dia + por série + todas as operações) e
+`/api/relatorios/<slug>/<YYYY-MM>/csv` o CSV, ambos a partir de `operacoes_publico`. Meses
+fechados ficam em cache por um dia.
+
 ### Regras de segurança do schema
 
 - RLS em toda tabela. `anon` só lê as views `*_publico` e chama `resumo_casa_hoje()`.
