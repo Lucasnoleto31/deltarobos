@@ -8,7 +8,7 @@
 export const LIMITES_POR_MINUTO = {
   deal: 120,
   heartbeat: 60,
-  history: 30,
+  history: 60, // 1 página a cada 3 s = 20/min; folga pra reenvios
   reconciliar: 5,
   ping: 30,
 } as const;

@@ -156,8 +156,10 @@ bool Http(string metodo, string caminho, string corpo, string &resposta, int tim
    else
       Log(StringFormat("HTTP %d em %s %s (%d bytes): %s",
                        codigo, metodo, caminho, ArraySize(dados), StringSubstr(resposta, 0, 300)));
-   // 401/400/429: reenviar não resolve; trata como "entregue" pra não travar a fila
-   return (codigo == 400 || codigo == 401 || codigo == 429);
+   // 429 (limite por minuto): fica na fila e tenta no próximo timer.
+   // 400/401: reenviar não resolve; sai da fila pra não travar (o log já avisou).
+   if(codigo == 429) return false;
+   return (codigo == 400 || codigo == 401);
   }
 
 void Enfileirar(string caminho, string corpo)
