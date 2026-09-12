@@ -1,0 +1,15 @@
+import { Cabecalho } from "@/components/layout/Cabecalho";
+import { Rodape } from "@/components/layout/Rodape";
+import { carregarParametros } from "@/lib/consultas/publico";
+
+export default async function LayoutSite({ children }: { children: React.ReactNode }) {
+  const parametros = await carregarParametros();
+
+  return (
+    <>
+      <Cabecalho />
+      <main className="flex-1">{children}</main>
+      <Rodape links={parametros.links} textos={parametros.textos} />
+    </>
+  );
+}
