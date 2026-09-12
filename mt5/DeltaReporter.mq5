@@ -18,7 +18,7 @@
 #property strict
 
 //--- inputs
-input string InpUrlBase       = "https://SEU-DOMINIO.com.br"; // URL base da API (sem barra no final)
+input string InpUrlBase       = "https://deltarobos-mu.vercel.app"; // URL base da API (sem barra no final)
 input string InpToken         = "";                           // Token da conta (gerado no banco/admin)
 input int    InpHeartbeatSeg  = 3;                            // Intervalo do heartbeat (segundos)
 input int    InpDiasHistorico = 7;                            // Dias de histórico reenviados no init
