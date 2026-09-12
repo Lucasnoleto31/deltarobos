@@ -36,6 +36,9 @@ string g_fila_caminho[];
 string g_fila_corpo[];
 int    g_fila_n = 0;
 
+//--- depois que a fila do histórico esvazia, pede uma reconciliação ao servidor
+bool   g_reconciliar_pendente = false;
+
 //--- símbolos vistos (posições + deals + gráfico + extras) pra cotação
 string g_simbolos[];
 
@@ -177,22 +180,33 @@ void Enfileirar(string caminho, string corpo)
    Log(StringFormat("na fila: %d", g_fila_n));
   }
 
-// Tenta esvaziar a fila em ordem; para na primeira falha
-void Reenviar()
+// Envia UM item da fila por chamada (o heartbeat nunca espera a fila inteira).
+// Em falha o item fica na fila e tenta de novo no próximo timer.
+void ReenviarUm()
   {
-   while(g_fila_n > 0)
+   if(g_fila_n == 0) return;
+
+   string resp;
+   bool historico = (StringFind(g_fila_caminho[0], "/history") >= 0);
+   int  timeout   = (historico ? InpTimeoutHistMs : 0);
+   if(!Http("POST", g_fila_caminho[0], g_fila_corpo[0], resp, timeout)) return;
+
+   if(historico) Log(StringFormat("página de histórico ok, restam %d na fila", g_fila_n - 1));
+
+   for(int i = 1; i < g_fila_n; i++)
      {
-      string resp;
-      int timeout = (StringFind(g_fila_caminho[0], "/history") >= 0 ? InpTimeoutHistMs : 0);
-      if(!Http("POST", g_fila_caminho[0], g_fila_corpo[0], resp, timeout)) return;
-      for(int i = 1; i < g_fila_n; i++)
-        {
-         g_fila_caminho[i - 1] = g_fila_caminho[i];
-         g_fila_corpo[i - 1]   = g_fila_corpo[i];
-        }
-      g_fila_n--;
-      ArrayResize(g_fila_caminho, g_fila_n);
-      ArrayResize(g_fila_corpo, g_fila_n);
+      g_fila_caminho[i - 1] = g_fila_caminho[i];
+      g_fila_corpo[i - 1]   = g_fila_corpo[i];
+     }
+   g_fila_n--;
+   ArrayResize(g_fila_caminho, g_fila_n);
+   ArrayResize(g_fila_corpo, g_fila_n);
+
+   // fila zerou depois de um histórico: fecha o que ficou pendurado
+   if(g_fila_n == 0 && g_reconciliar_pendente)
+     {
+      g_reconciliar_pendente = false;
+      Reconciliar();
      }
   }
 
@@ -308,8 +322,9 @@ void EnviarHeartbeat()
       Log("heartbeat falhou; tenta de novo no próximo timer");
   }
 
-// Reenvia os últimos N dias em páginas de até 500 deals
-void EnviarHistorico()
+// Monta os últimos N dias em páginas e coloca na fila; o OnTimer envia uma
+// página por tick, depois do heartbeat, pra nunca travar o "ao vivo".
+void EnfileirarHistorico()
   {
    datetime de  = TimeCurrent() - (datetime)(InpDiasHistorico * 86400);
    datetime ate = TimeCurrent() + 86400;
@@ -351,13 +366,21 @@ void EnviarHistorico()
                      ",\"total_paginas\":" + IntegerToString(total_paginas) +
                      ",\"deals\":["        + itens + "]"
                      "}";
-      string resp;
-      if(Http("POST", "/api/ingest/history", corpo, resp, InpTimeoutHistMs))
-         enviados += (fim - inicio);
-      else
-         Enfileirar("/api/ingest/history", corpo);
+      Enfileirar("/api/ingest/history", corpo);
+      enviados += (fim - inicio);
      }
-   Log(StringFormat("histórico: %d de %d deals enviados (%d páginas)", enviados, total, total_paginas));
+   g_reconciliar_pendente = true;
+   Log(StringFormat("histórico: %d deals em %d páginas na fila; envio 1 página por timer", enviados, total_paginas));
+  }
+
+// Pede ao servidor pra reparear posições sem operação ou marcadas como abertas
+void Reconciliar()
+  {
+   string resp;
+   if(Http("POST", "/api/ingest/reconciliar", "{}", resp, InpTimeoutHistMs))
+      Log("reconciliação ok: " + StringSubstr(resp, 0, 300));
+   else
+      Log("reconciliação falhou; roda de novo no próximo init");
   }
 
 bool Ping()
@@ -417,10 +440,9 @@ int OnInit()
                     (int)OffsetServidorSeg()));
 
    Ping();
-   EnviarHistorico();
+   EventSetTimer(InpHeartbeatSeg);   // timer ANTES do histórico: o ao vivo não espera
    EnviarHeartbeat();
-
-   EventSetTimer(InpHeartbeatSeg);
+   EnfileirarHistorico();            // só enfileira; o OnTimer envia 1 página por tick
    return INIT_SUCCEEDED;
   }
 
@@ -432,8 +454,8 @@ void OnDeinit(const int reason)
 
 void OnTimer()
   {
-   Reenviar();
-   EnviarHeartbeat();
+   EnviarHeartbeat();   // ao vivo primeiro
+   ReenviarUm();        // depois, no máximo 1 item da fila (deal ou página de histórico)
   }
 
 // Cada deal novo na conta (qualquer robô, qualquer magic)

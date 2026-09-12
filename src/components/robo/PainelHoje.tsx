@@ -73,7 +73,7 @@ export function PainelHoje() {
                   const flutuantePontos = brlParaPontos(p.lucro_flutuante_por_contrato, robo.valor_ponto_brl);
                   return (
                     <li
-                      key={p.simbolo}
+                      key={`${p.simbolo}-${p.lado}`}
                       className={cn(
                         "flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2.5",
                         p.lado === "compra" ? "border-positivo/40 bg-positivo/5" : "border-negativo/40 bg-negativo/5",

@@ -8,7 +8,8 @@
 export const LIMITES_POR_MINUTO = {
   deal: 120,
   heartbeat: 60,
-  history: 10,
+  history: 30,
+  reconciliar: 5,
   ping: 30,
 } as const;
 

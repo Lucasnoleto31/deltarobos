@@ -70,19 +70,25 @@ export function useRoboAoVivo(slug: string, inicial: InicialRoboAoVivo): EstadoR
           ultimaMensagemEm: marcar(),
         }));
       })
+      // posições vêm agregadas por (símbolo, lado)
       .on("broadcast", { event: "posicao" }, ({ payload }) => {
         const p = payload as PosicaoPublica;
         setEstado((s) => ({
           ...s,
-          posicoes: [...s.posicoes.filter((x) => x.simbolo !== p.simbolo), p],
+          posicoes: [
+            ...s.posicoes.filter((x) => !(x.simbolo === p.simbolo && x.lado === p.lado)),
+            p,
+          ],
           ultimaMensagemEm: marcar(),
         }));
       })
       .on("broadcast", { event: "posicao_fechada" }, ({ payload }) => {
-        const { simbolo } = payload as { simbolo: string };
+        const { simbolo, lado } = payload as { simbolo: string; lado?: PosicaoPublica["lado"] };
         setEstado((s) => ({
           ...s,
-          posicoes: s.posicoes.filter((x) => x.simbolo !== simbolo),
+          posicoes: s.posicoes.filter(
+            (x) => !(x.simbolo === simbolo && (lado === undefined || x.lado === lado)),
+          ),
           ultimaMensagemEm: marcar(),
         }));
       })

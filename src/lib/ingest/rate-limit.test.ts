@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { permitir, permitirEndpoint, zerarLimites } from "./rate-limit";
+import { LIMITES_POR_MINUTO, permitir, permitirEndpoint, zerarLimites } from "./rate-limit";
 
 describe("rate limit", () => {
   beforeEach(() => zerarLimites());
@@ -21,9 +21,10 @@ describe("rate limit", () => {
 
   it("chaves independentes por conta e endpoint", () => {
     const t0 = 1_000_000;
-    for (let i = 0; i < 10; i++) permitirEndpoint("conta-a", "history", t0 + i);
-    expect(permitirEndpoint("conta-a", "history", t0 + 11).ok).toBe(false);
-    expect(permitirEndpoint("conta-b", "history", t0 + 11).ok).toBe(true);
-    expect(permitirEndpoint("conta-a", "heartbeat", t0 + 11).ok).toBe(true);
+    const limite = LIMITES_POR_MINUTO.history;
+    for (let i = 0; i < limite; i++) permitirEndpoint("conta-a", "history", t0 + i);
+    expect(permitirEndpoint("conta-a", "history", t0 + limite + 1).ok).toBe(false);
+    expect(permitirEndpoint("conta-b", "history", t0 + limite + 1).ok).toBe(true);
+    expect(permitirEndpoint("conta-a", "heartbeat", t0 + limite + 1).ok).toBe(true);
   });
 });

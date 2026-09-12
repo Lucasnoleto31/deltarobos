@@ -4,7 +4,7 @@ import { corpoHistorySchema, type CorpoHistory } from "@/lib/ingest/schemas";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 30;
+export const maxDuration = 120;
 
 /**
  * POST /api/ingest/history — reconciliação: o EA manda os últimos N dias de
