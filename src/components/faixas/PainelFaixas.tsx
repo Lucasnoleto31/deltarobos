@@ -1,21 +1,21 @@
 "use client";
 
 import { cn } from "cn";
-import { Lightbulb, Zap } from "lucide-react";
+import { Lightbulb, SlidersHorizontal, Zap } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Cell, Pie, PieChart, ResponsiveContainer } from "recharts";
 import { Segmentado } from "@/components/compartilhados/Segmentado";
 import { Valor } from "@/components/compartilhados/Valor";
-import { formatarBRL, formatarNumero, formatarPct } from "@/lib/formato";
+import { formatarBRL, formatarMultiplo, formatarNumero, formatarPct } from "@/lib/formato";
 import {
   DESCRICAO_CLASSE,
   DIAS_UTEIS,
   HORAS,
-  MIN_OPERACOES_FAIXA,
   ROTULO_CLASSE,
   validarFaixas,
   type ClasseFaixa,
   type Faixa,
+  type ParametrosFaixas,
 } from "@/lib/stats/faixas";
 import { dia as diaOp, type OperacaoCompacta } from "@/lib/stats/operacoes";
 import { dentroDoIntervalo, intervaloDe, PERIODOS, type Periodo } from "@/lib/stats/periodos";
@@ -23,6 +23,7 @@ import { dentroDoIntervalo, intervaloDe, PERIODOS, type Periodo } from "@/lib/st
 interface Props {
   ops: OperacaoCompacta[];
   hoje: string;
+  parametros: ParametrosFaixas;
 }
 
 const OPCOES_PERIODO = PERIODOS.filter((p) => p.valor !== "personalizado" && p.valor !== "7d");
@@ -41,15 +42,19 @@ const FUNDO: Record<ClasseFaixa, string> = {
 };
 const DIA_CURTO = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
-/** Aba Faixas: quando ligar cada combinação de dia da semana × hora de entrada. */
-export function PainelFaixas({ ops, hoje }: Props) {
+function rec(v: number | null): string {
+  return v === null ? "∞" : formatarMultiplo(v);
+}
+
+/** Aba Faixas: quando ligar cada combinação de dia da semana × hora de entrada, pelas regras configuradas. */
+export function PainelFaixas({ ops, hoje, parametros }: Props) {
   const [periodo, setPeriodo] = useState<Periodo>("tudo");
   const [filtroClasse, setFiltroClasse] = useState<ClasseFaixa | null>(null);
   const [selecionada, setSelecionada] = useState<Faixa | null>(null);
 
   const intervalo = useMemo(() => intervaloDe(periodo, hoje), [periodo, hoje]);
   const opsF = useMemo(() => ops.filter((op) => dentroDoIntervalo(diaOp(op), intervalo)), [ops, intervalo]);
-  const r = useMemo(() => validarFaixas(opsF), [opsF]);
+  const r = useMemo(() => validarFaixas(opsF, parametros), [opsF, parametros]);
 
   const porCelula = useMemo(() => {
     const m = new Map<string, Faixa>();
@@ -60,6 +65,7 @@ export function PainelFaixas({ ops, hoje }: Props) {
   const totalComDados = r.comDados.length;
   const dadosPizza = CLASSES.map((c) => ({ classe: c, valor: r.contagem[c] })).filter((d) => d.valor > 0);
   const maiorScore = Math.max(1, ...r.melhores.map((f) => f.score));
+  const p = r.parametros;
 
   if (ops.length === 0) {
     return <p className="rounded-2xl border border-dashed p-8 text-center text-muted-foreground">Ainda não há operações fechadas pra validar faixas.</p>;
@@ -73,16 +79,55 @@ export function PainelFaixas({ ops, hoje }: Props) {
             <h2 className="text-2xl font-semibold tracking-tight">Validação de faixas</h2>
             <p className="max-w-prose text-sm text-muted-foreground">
               Classificação cruzada por dia da semana e hora de entrada: em quais faixas vale ligar o robô com lote cheio, onde reduzir e o
-              que desligar. Regra do score na metodologia.
+              que desligar. Regras abaixo e na metodologia.
             </p>
           </div>
           <Segmentado ariaLabel="Período" opcoes={OPCOES_PERIODO} valor={periodo} onChange={setPeriodo} />
         </div>
         <p className="text-sm text-muted-foreground tabular-nums">
-          <strong className="text-foreground">{formatarNumero(r.nOperacoes)}</strong> operações analisadas ·{" "}
-          <strong className="text-foreground">{totalComDados}</strong> faixas com dados · mínimo de {MIN_OPERACOES_FAIXA} operações por faixa
+          <strong className="text-foreground">{formatarNumero(r.nOperacoes)}</strong> operações analisadas · mediana de rebaixamento{" "}
+          <strong className="text-foreground">{formatarBRL(r.medianaDd, { inteiro: r.medianaDd >= 1000 })}</strong> ·{" "}
+          <strong className="text-foreground">{totalComDados}</strong> faixas com dados
         </p>
       </header>
+
+      <section className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10 sm:p-5">
+        <h3 className="inline-flex items-center gap-2 font-semibold">
+          <SlidersHorizontal className="size-4" /> Validação cruzada · parâmetros
+        </h3>
+        <p className="mb-3 text-xs text-muted-foreground">
+          Cada condição de EVITAR é independente: basta uma ser satisfeita. Amostra mínima de {p.amostraMinima} operações por faixa.
+        </p>
+        <div className="grid gap-3 text-sm sm:grid-cols-3">
+          <div className="rounded-lg bg-positivo/8 p-3 ring-1 ring-positivo/25">
+            <p className="text-[11px] font-medium tracking-wide text-positivo uppercase">Ligar</p>
+            <ul className="mt-1 space-y-0.5 tabular-nums">
+              <li>consistência ≥ {formatarPct(p.ligar.acertoMin, 0)}</li>
+              <li>recuperação ≥ {formatarMultiplo(p.ligar.recuperacaoMin)}</li>
+              <li>DD relativo ≤ {formatarMultiplo(p.ligar.ddRelativoMax, 1)}×</li>
+            </ul>
+          </div>
+          <div className="rounded-lg bg-alerta/8 p-3 ring-1 ring-alerta/25">
+            <p className="text-[11px] font-medium tracking-wide text-alerta uppercase">Cautela</p>
+            <ul className="mt-1 space-y-0.5 tabular-nums">
+              <li>consistência ≥ {formatarPct(p.cautela.acertoMin, 0)}</li>
+              <li>recuperação ≥ {formatarMultiplo(p.cautela.recuperacaoMin)}</li>
+            </ul>
+          </div>
+          <div className="rounded-lg bg-negativo/8 p-3 ring-1 ring-negativo/25">
+            <p className="text-[11px] font-medium tracking-wide text-negativo uppercase">Evitar (qualquer uma)</p>
+            <ul className="mt-1 space-y-0.5 tabular-nums">
+              <li>consistência &lt; {formatarPct(p.evitar.acertoMax, 0)}</li>
+              <li>recuperação &lt; {formatarMultiplo(p.evitar.recuperacaoMax)}</li>
+              <li>DD relativo &gt; {formatarMultiplo(p.evitar.ddRelativoMin, 1)}×</li>
+            </ul>
+          </div>
+        </div>
+        <p className="mt-3 text-xs text-muted-foreground">
+          Consistência = taxa de acerto pelo líquido · recuperação = resultado ÷ drawdown da faixa · DD relativo = drawdown da faixa ÷ mediana das
+          faixas. O que não é Ligar, Cautela nem Evitar fica Neutro.
+        </p>
+      </section>
 
       <div className="grid gap-4 lg:grid-cols-[1fr_1.2fr]">
         <section className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10 sm:p-5">
@@ -138,7 +183,7 @@ export function PainelFaixas({ ops, hoje }: Props) {
           <h3 className="inline-flex items-center gap-2 font-semibold">
             <Zap className="size-4 text-positivo" /> Melhores faixas para ligar
           </h3>
-          <p className="mb-3 text-xs text-muted-foreground">maior score com estabilidade confirmada · clique pra ver os detalhes</p>
+          <p className="mb-3 text-xs text-muted-foreground">maior score entre as classificadas como Ligar · clique pra ver os detalhes</p>
           {r.melhores.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">Nenhuma faixa com amostra suficiente.</p>
           ) : (
@@ -156,7 +201,7 @@ export function PainelFaixas({ ops, hoje }: Props) {
                         <div className="h-1 rounded-full bg-positivo" style={{ width: `${Math.round((f.score / maiorScore) * 100)}%` }} />
                       </div>
                       <p className="mt-0.5 text-[11px] text-muted-foreground tabular-nums">
-                        {formatarNumero(f.n)} op · {formatarPct(f.acerto, 0)} acerto · lote {Math.round(f.lote * 100)}%
+                        {formatarNumero(f.n)} op · {formatarPct(f.acerto, 0)} acerto · recuperação {rec(f.recuperacao)} · lote {Math.round(f.lote * 100)}%
                       </p>
                     </div>
                     <div className="text-right">
@@ -235,7 +280,7 @@ export function PainelFaixas({ ops, hoje }: Props) {
                             sel && "ring-2 ring-foreground",
                           )}
                         >
-                          <span className="font-semibold">{f.classe ? ROTULO_CLASSE[f.classe] : "sem dados"}</span>
+                          <span className="font-semibold">{f.classe ? ROTULO_CLASSE[f.classe] : "sem amostra"}</span>
                           <span className="text-[11px] opacity-80 tabular-nums">
                             {f.n} op{f.n > 0 ? ` · ${formatarPct(f.acerto, 0)}` : ""}
                           </span>
@@ -260,19 +305,17 @@ export function PainelFaixas({ ops, hoje }: Props) {
                 score <strong className="text-foreground">{selecionada.score}</strong> · lote {Math.round(selecionada.lote * 100)}%
               </span>
             </div>
-            <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4 lg:grid-cols-7">
+            <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4 lg:grid-cols-8">
               <Item rotulo="Operações" valor={formatarNumero(selecionada.n)} />
-              <Item rotulo="Acerto" valor={formatarPct(selecionada.acerto, 0)} />
+              <Item rotulo="Consistência" valor={formatarPct(selecionada.acerto, 0)} />
+              <Item rotulo="Recuperação" valor={rec(selecionada.recuperacao)} />
+              <Item rotulo="Drawdown" valor={formatarBRL(selecionada.dd, { inteiro: selecionada.dd >= 1000 })} />
+              <Item rotulo="DD relativo" valor={selecionada.ddRelativo === null ? "–" : `${formatarMultiplo(selecionada.ddRelativo, 1)}×`} />
               <Item rotulo="Expectativa / op" valor={<Valor valor={selecionada.expectativa} />} />
               <Item rotulo="Total" valor={<Valor valor={selecionada.total} inteiro={Math.abs(selecionada.total) >= 1000} />} />
               <Item rotulo="Estabilidade" valor={`${selecionada.mesesPositivos} de ${selecionada.mesesComDados} meses`} />
-              <Item rotulo="Percentil" valor={formatarPct(selecionada.percentil, 0)} />
-              <Item rotulo="Confiança" valor={formatarPct(selecionada.confianca, 0)} />
             </dl>
-            <p className="mt-2 text-xs text-muted-foreground">
-              score = 50 × percentil + 30 × estabilidade + 20 × confiança
-              {selecionada.expectativa <= 0 ? ` · expectativa ${formatarBRL(selecionada.expectativa, { sinal: true })} limita a 40` : ""}
-            </p>
+            <p className="mt-2 text-xs text-muted-foreground">Regra: {selecionada.motivo}.</p>
           </div>
         ) : null}
       </section>

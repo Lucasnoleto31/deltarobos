@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { PainelFaixas } from "@/components/faixas/PainelFaixas";
 import { listarOperacoesCompactas } from "@/lib/consultas/operacoes";
-import { buscarRobo } from "@/lib/consultas/publico";
+import { buscarRobo, carregarParametros } from "@/lib/consultas/publico";
 import { hojeSP } from "@/lib/stats/periodos";
 
 export const revalidate = 60;
@@ -16,10 +16,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return { title: robo ? `${robo.nome} · Faixas` : "Faixas" };
 }
 
-/** Aba Faixas: validação por dia da semana × hora de entrada. */
+/** Aba Faixas: validação por dia da semana × hora de entrada, com os parâmetros do banco. */
 export default async function PaginaFaixas({ params }: Props) {
   const { slug } = await params;
-  const [robo, ops] = await Promise.all([buscarRobo(slug), listarOperacoesCompactas(slug)]);
+  const [robo, ops, parametros] = await Promise.all([buscarRobo(slug), listarOperacoesCompactas(slug), carregarParametros()]);
   if (!robo) return null;
-  return <PainelFaixas ops={ops} hoje={hojeSP()} />;
+  return <PainelFaixas ops={ops} hoje={hojeSP()} parametros={parametros.faixas} />;
 }

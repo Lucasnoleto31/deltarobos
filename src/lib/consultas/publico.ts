@@ -1,3 +1,4 @@
+import { PARAMETROS_FAIXAS_PADRAO, type ParametrosFaixas } from "@/lib/stats/faixas";
 import { supabasePublico } from "@/lib/supabase/servidor";
 import type {
   EstatisticaPublica,
@@ -187,7 +188,17 @@ const TEXTOS_PADRAO: Textos = {
 };
 
 export async function carregarParametros(): Promise<Parametros> {
-  const base: Parametros = { links: { ...LINKS_PADRAO }, textos: { ...TEXTOS_PADRAO }, fatorSeguranca: 1.5 };
+  const base: Parametros = {
+    links: { ...LINKS_PADRAO },
+    textos: { ...TEXTOS_PADRAO },
+    fatorSeguranca: 1.5,
+    faixas: {
+      amostraMinima: PARAMETROS_FAIXAS_PADRAO.amostraMinima,
+      ligar: { ...PARAMETROS_FAIXAS_PADRAO.ligar },
+      cautela: { ...PARAMETROS_FAIXAS_PADRAO.cautela },
+      evitar: { ...PARAMETROS_FAIXAS_PADRAO.evitar },
+    },
+  };
   try {
     const { data, error } = await supabasePublico().from("parametros_publico").select("chave, valor");
     if (error) throw error;
@@ -199,6 +210,12 @@ export async function carregarParametros(): Promise<Parametros> {
         base.textos = { ...base.textos, ...(valor as Partial<Textos>) };
       } else if (p.chave === "fator_seguranca" && typeof valor === "number") {
         base.fatorSeguranca = valor;
+      } else if (p.chave === "faixas" && valor && typeof valor === "object") {
+        const v = valor as Partial<ParametrosFaixas>;
+        if (typeof v.amostraMinima === "number") base.faixas.amostraMinima = v.amostraMinima;
+        if (v.ligar) base.faixas.ligar = { ...base.faixas.ligar, ...v.ligar };
+        if (v.cautela) base.faixas.cautela = { ...base.faixas.cautela, ...v.cautela };
+        if (v.evitar) base.faixas.evitar = { ...base.faixas.evitar, ...v.evitar };
       }
     }
   } catch (e) {

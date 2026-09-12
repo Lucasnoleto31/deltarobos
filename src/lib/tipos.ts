@@ -1,3 +1,4 @@
+import type { ParametrosFaixas } from "@/lib/stats/faixas";
 import type { Lado, LinhaDiaria, RoboStatus } from "@/lib/stats/tipos";
 
 /** Linha de robos_publico */
@@ -147,6 +148,8 @@ export interface Parametros {
   links: Links;
   textos: Textos;
   fatorSeguranca: number;
+  /** regras da validação de faixas (chave "faixas" em parametros) */
+  faixas: ParametrosFaixas;
 }
 
 export interface VideoYouTube {

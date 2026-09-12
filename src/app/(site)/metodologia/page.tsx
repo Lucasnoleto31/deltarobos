@@ -193,16 +193,21 @@ export default function PaginaMetodologia() {
         <Secao id="faixas" titulo="Validação de faixas">
           <p>
             Cada combinação de dia da semana (segunda a sexta) e hora de entrada (9h às 17h) é uma faixa. Para cada uma:{" "}
-            <strong>expectativa</strong> = média do resultado líquido por operação; <strong>percentil</strong> = posição da
-            expectativa entre as faixas com pelo menos 10 operações; <strong>estabilidade</strong> = meses positivos ÷ meses
-            com operação; <strong>confiança</strong> = operações ÷ 100, limitada a 1.
+            <strong>consistência</strong> = taxa de acerto pelo líquido; <strong>recuperação</strong> = resultado líquido ÷
+            drawdown máximo da faixa (curva operação a operação); <strong>drawdown relativo</strong> = drawdown da faixa ÷
+            mediana dos drawdowns das faixas com amostra mínima.
           </p>
           <p>
-            <strong>Score = 50 × percentil + 30 × estabilidade + 20 × confiança</strong>, de 0 a 100. Expectativa zero ou
-            negativa limita o score a 40. Classificação: <strong>Ligar</strong> ≥ 75 (lote 100%), <strong>Cautela</strong>{" "}
-            55–74 (lote 60%), <strong>Neutro</strong> 45–54 (lote 35%), <strong>Evitar</strong> abaixo de 45 (lote 0%). Faixa
-            com menos de 10 operações fica sem classificação. Os &quot;insights&quot; são frases geradas por regras fixas a
-            partir desses números.
+            Classificação, com os parâmetros padrão: faixa com menos de <strong>40 operações</strong> fica sem
+            classificação. <strong>Evitar</strong> se qualquer uma valer: acerto abaixo de 38%, recuperação abaixo de 0,40
+            ou drawdown relativo acima de 6×. <strong>Ligar</strong> se acerto ≥ 58%, recuperação ≥ 0,85 e drawdown relativo
+            ≤ 4×. <strong>Cautela</strong> se acerto ≥ 48% e recuperação ≥ 0,60. O resto é <strong>Neutro</strong>. Lote
+            sugerido: 100%, 60%, 35% e 0%. Os parâmetros ficam no banco e podem ser ajustados sem deploy.
+          </p>
+          <p>
+            O <strong>score</strong> de 0 a 100 só ordena o ranking: 50 × percentil da expectativa entre as faixas + 30 ×
+            estabilidade (meses positivos ÷ meses) + 20 × confiança (operações ÷ 100). Os &quot;insights&quot; são frases
+            geradas por regras fixas a partir desses números.
           </p>
         </Secao>
 
