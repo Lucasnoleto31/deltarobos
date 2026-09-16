@@ -167,3 +167,37 @@
     @apply mx-auto w-full max-w-6xl px-4 sm:px-6;
   }
 }
+
+/* botão principal: o degradê metálico do logo, de cima para baixo, com texto marinho nos dois
+   temas (cerca de 7:1). É a variante "default" do Button; as outras seguem os tokens. */
+@utility botao-dourado {
+  background: linear-gradient(180deg, #d1be8f 0%, #c39a5a 55%, #b38a50 100%);
+  color: #00162e;
+}
+
+/* luz atrás do hero da home: duas manchas radiais estáticas, o dourado à esquerda (onde está o
+   título) e um azul um tom acima do fundo à direita. Só CSS, parado, sem parallax. Alfa menor no
+   claro, onde o dourado suja o papel. */
+.hero-luz {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+.hero-luz::before {
+  content: "";
+  position: absolute;
+  inset: -30% -10% -20% -10%;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(55% 60% at 16% 40%, var(--luz-acento) 0%, transparent 70%),
+    radial-gradient(45% 65% at 88% 15%, var(--luz-fundo) 0%, transparent 70%);
+}
+:root {
+  --luz-acento: rgba(179, 138, 80, 0.14);
+  --luz-fundo: rgba(0, 22, 46, 0.06);
+}
+.dark {
+  --luz-acento: rgba(195, 154, 90, 0.16);
+  --luz-fundo: rgba(45, 68, 93, 0.5);
+}

@@ -1,5 +1,6 @@
 "use client";
 
+import { useId } from "react";
 import { Bar, BarChart, CartesianGrid, Cell, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { formatarBRL, formatarPontos } from "@/lib/formato";
 import type { Unidade } from "@/lib/stats/tipos";
@@ -25,6 +26,11 @@ function formatar(v: number, unidade: Unidade, contagem: boolean): string {
 
 /** Barras verticais coloridas pelo sinal (mensal, dia da semana, hora, histograma). */
 export function GraficoBarras({ dados, unidade, altura = 220, contagem = false }: Props) {
+  // um id por gráfico: a página de desempenho tem vários, e os gradientes não podem colidir
+  const idBruto = useId();
+  const id = `barra-${idBruto.replace(/[^a-zA-Z0-9]/g, "")}`;
+  const preenchimento = (v: number) => `url(#${id}-${contagem ? "info" : v >= 0 ? "pos" : "neg"})`;
+
   if (dados.length === 0) {
     return (
       <div className="grid place-items-center text-sm text-muted-foreground" style={{ height: altura }}>
@@ -37,7 +43,23 @@ export function GraficoBarras({ dados, unidade, altura = 220, contagem = false }
     <div style={{ height: altura }} className="w-full">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={dados} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-          <CartesianGrid vertical={false} stroke="var(--border)" />
+          {/* defs direto no gráfico: o Recharts só reconhece filhos diretos. Barra com gradiente no eixo
+              vertical, forte na ponta do valor e esmaecida junto do zero (kit estético, bloco 4). */}
+          <defs>
+            <linearGradient id={`${id}-pos`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--positivo)" stopOpacity={0.95} />
+              <stop offset="100%" stopColor="var(--positivo)" stopOpacity={0.35} />
+            </linearGradient>
+            <linearGradient id={`${id}-neg`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--negativo)" stopOpacity={0.35} />
+              <stop offset="100%" stopColor="var(--negativo)" stopOpacity={0.95} />
+            </linearGradient>
+            <linearGradient id={`${id}-info`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--info)" stopOpacity={0.95} />
+              <stop offset="100%" stopColor="var(--info)" stopOpacity={0.35} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="2 4" />
           <XAxis
             dataKey="rotulo"
             tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
@@ -46,7 +68,7 @@ export function GraficoBarras({ dados, unidade, altura = 220, contagem = false }
             interval="preserveStartEnd"
           />
           <YAxis
-            width={58}
+            width={72}
             tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
             axisLine={false}
             tickLine={false}
@@ -67,11 +89,7 @@ export function GraficoBarras({ dados, unidade, altura = 220, contagem = false }
           <ReferenceLine y={0} stroke="var(--border)" />
           <Bar dataKey="valor" radius={[4, 4, 0, 0]} isAnimationActive={false}>
             {dados.map((d, i) => (
-              <Cell
-                key={i}
-                fill={contagem ? "var(--info)" : d.valor >= 0 ? "var(--positivo)" : "var(--negativo)"}
-                fillOpacity={0.85}
-              />
+              <Cell key={i} fill={preenchimento(d.valor)} />
             ))}
           </Bar>
         </BarChart>
