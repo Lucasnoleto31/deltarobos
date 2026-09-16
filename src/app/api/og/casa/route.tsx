@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 // as mesmas cores dos tokens do tema escuro (globals.css): a imagem não lê CSS
-const FUNDO = "#00162e";
+const FUNDO = "#0a0a0b";
 const TEXTO = "#f8f5ef";
 const MUDO = "#aca496";
 const DOURADO = "#c39a5a";

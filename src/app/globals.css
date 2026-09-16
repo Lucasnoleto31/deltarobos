@@ -2,11 +2,14 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-/* Ficha visual (kit estético do Artur), identidade Delta Flow, 14/09/2026. Mesma ficha do Hub.
-   Só os VALORES dos tokens mudaram; os nomes são os do shadcn e do projeto, então nenhum
-   componente precisou saber da troca.
-   fundo: marinho da marca #00162E no escuro (padrão); papel quente #F7F5F1 no claro
-   acento: o dourado do logo. Escuro #C39A5A (7,6:1 sobre o marinho); claro #86652D, porque o
+/* Ficha visual (kit estético do Artur), identidade Delta Flow, 14/09/2026. Só os VALORES dos
+   tokens mudaram; os nomes são os do shadcn e do projeto, então nenhum componente precisou saber
+   da troca.
+   fundo: preto de cinema #0A0A0B no escuro (padrão), cartão #141416 e popover #1C1C1F. Em
+   16/09/2026 o Artur trocou o marinho da marca (#00162E) por preto ("o azul não gostei muito");
+   é a mesma variante .cinema da área do cliente do Hub. No claro, papel quente #F7F5F1 com texto
+   quase preto #141416.
+   acento: o dourado do logo. Escuro #C39A5A (8,3:1 sobre o preto); claro #86652D, porque o
    dourado da marca sobre branco dá 2,5:1 e reprova. "info" é o mesmo acento: um acento só.
    semânticas: verde positivo, vermelho negativo, laranja alerta (âmbar competia com o dourado)
    tipografia: Inter, números tabulares · raio base 10 (o --radius que já existia) */
@@ -65,19 +68,19 @@
 :root {
   --font-sans: var(--font-inter);
   --background: #f7f5f1;
-  --foreground: #00162e;
+  --foreground: #141416;
   --card: #ffffff;
-  --card-foreground: #00162e;
+  --card-foreground: #141416;
   --popover: #ffffff;
-  --popover-foreground: #00162e;
+  --popover-foreground: #141416;
   --primary: #86652d;
   --primary-foreground: #ffffff;
   --secondary: #efebe4;
-  --secondary-foreground: #00162e;
+  --secondary-foreground: #141416;
   --muted: #efebe4;
   --muted-foreground: #71685c;
   --accent: #efebe4;
-  --accent-foreground: #00162e;
+  --accent-foreground: #141416;
   --destructive: #b22222;
   --border: #e4e0da;
   --input: #d1cbc2;
@@ -89,50 +92,52 @@
   --chart-5: #e8dcc0;
   --radius: 0.625rem;
   --sidebar: #efebe4;
-  --sidebar-foreground: #00162e;
+  --sidebar-foreground: #141416;
   --sidebar-primary: #86652d;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #e4e0da;
-  --sidebar-accent-foreground: #00162e;
+  --sidebar-accent-foreground: #141416;
   --sidebar-border: #e4e0da;
   --sidebar-ring: #86652d;
   --positivo: #2e6f40;
   --negativo: #b22222;
   --alerta: #a14a17;
   --info: #86652d;
+  /* texto sobre o degradê dourado do botão, nos dois temas */
+  --sobre-dourado: #0a0a0b;
 }
 
 .dark {
-  --background: #00162e;
+  --background: #0a0a0b;
   --foreground: #f8f5ef;
-  --card: #0b233d;
+  --card: #141416;
   --card-foreground: #f8f5ef;
-  --popover: #102841;
+  --popover: #1c1c1f;
   --popover-foreground: #f8f5ef;
   --primary: #c39a5a;
-  --primary-foreground: #00162e;
-  --secondary: #1f3247;
+  --primary-foreground: #0a0a0b;
+  --secondary: #1c1c1f;
   --secondary-foreground: #f8f5ef;
-  --muted: #1f3247;
+  --muted: #1c1c1f;
   --muted-foreground: #aca496;
-  --accent: #1f3247;
+  --accent: #1c1c1f;
   --accent-foreground: #f8f5ef;
   --destructive: #e8594b;
-  --border: #1f3247;
-  --input: #2d445d;
+  --border: #2a2a2e;
+  --input: #3a3a40;
   --ring: #c39a5a;
   --chart-1: #d1be8f;
   --chart-2: #c39a5a;
   --chart-3: #b38a50;
   --chart-4: #86652d;
   --chart-5: #5c4520;
-  --sidebar: #0b233d;
+  --sidebar: #141416;
   --sidebar-foreground: #f8f5ef;
   --sidebar-primary: #c39a5a;
-  --sidebar-primary-foreground: #00162e;
-  --sidebar-accent: #1f3247;
+  --sidebar-primary-foreground: #0a0a0b;
+  --sidebar-accent: #1c1c1f;
   --sidebar-accent-foreground: #f8f5ef;
-  --sidebar-border: #1f3247;
+  --sidebar-border: #2a2a2e;
   --sidebar-ring: #c39a5a;
   --positivo: #53b86f;
   --negativo: #e8594b;
@@ -168,15 +173,15 @@
   }
 }
 
-/* botão principal: o degradê metálico do logo, de cima para baixo, com texto marinho nos dois
-   temas (cerca de 7:1). É a variante "default" do Button; as outras seguem os tokens. */
+/* botão principal: o degradê metálico do logo, de cima para baixo, com texto quase preto nos
+   dois temas (cerca de 8:1). É a variante "default" do Button; as outras seguem os tokens. */
 @utility botao-dourado {
   background: linear-gradient(180deg, #d1be8f 0%, #c39a5a 55%, #b38a50 100%);
-  color: #00162e;
+  color: var(--sobre-dourado);
 }
 
 /* luz atrás do hero da home: duas manchas radiais estáticas, o dourado à esquerda (onde está o
-   título) e um azul um tom acima do fundo à direita. Só CSS, parado, sem parallax. Alfa menor no
+   título) e um cinza um tom acima do fundo à direita. Só CSS, parado, sem parallax. Alfa menor no
    claro, onde o dourado suja o papel. */
 .hero-luz {
   position: relative;
@@ -195,9 +200,9 @@
 }
 :root {
   --luz-acento: rgba(179, 138, 80, 0.14);
-  --luz-fundo: rgba(0, 22, 46, 0.06);
+  --luz-fundo: rgba(20, 20, 22, 0.05);
 }
 .dark {
   --luz-acento: rgba(195, 154, 90, 0.16);
-  --luz-fundo: rgba(45, 68, 93, 0.5);
+  --luz-fundo: rgba(255, 255, 255, 0.04);
 }

@@ -37,7 +37,7 @@ const CORES = {
   },
   light: {
     texto: "#71685c",
-    grade: "rgba(0,22,46,0.06)",
+    grade: "rgba(20,20,22,0.06)",
     positivo: "#2e6f40",
     negativo: "#b22222",
     positivoArea: "rgba(46,111,64,0.16)",
