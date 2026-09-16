@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Simbolo } from "@/components/marca/Simbolo";
 import { AlternadorTema } from "./AlternadorTema";
 
 const LINKS = [
@@ -14,12 +15,7 @@ export function Cabecalho() {
     <header className="sticky top-0 z-40 border-b bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70">
       <div className="conteudo flex h-14 items-center justify-between gap-4">
         <Link href="/" className="flex items-center gap-2 font-semibold tracking-tight">
-          <span
-            aria-hidden
-            className="grid size-7 place-items-center rounded-md bg-foreground text-[13px] font-bold text-background"
-          >
-            Δ
-          </span>
+          <Simbolo aria-hidden className="h-7 w-auto" />
           <span>
             Delta <span className="text-muted-foreground">Robôs</span>
           </span>

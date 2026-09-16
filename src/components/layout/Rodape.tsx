@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Simbolo } from "@/components/marca/Simbolo";
 import type { Links, Textos } from "@/lib/tipos";
 
 interface Props {
@@ -30,7 +31,9 @@ export function Rodape({ links, textos }: Props) {
     <footer className="mt-16 border-t">
       <div className="conteudo grid gap-8 py-10 text-sm sm:grid-cols-2 lg:grid-cols-4">
         <div className="space-y-2">
-          <p className="font-semibold">Delta Robôs</p>
+          <p className="flex items-center gap-2 font-semibold">
+            <Simbolo aria-hidden className="h-5 w-auto" /> Delta Robôs
+          </p>
           <p className="text-muted-foreground">
             Performance ao vivo dos robôs de day trade, direto do MetaTrader 5, normalizada por
             contrato.

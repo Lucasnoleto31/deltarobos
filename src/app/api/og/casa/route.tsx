@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import { SIMBOLO_CAMINHOS, SIMBOLO_VIEWBOX } from "@/components/marca/Simbolo";
 import { resumoCasaHoje } from "@/lib/consultas/publico";
 import { formatarBRL, formatarDataLonga, formatarHora } from "@/lib/formato";
 import { hojeSP } from "@/lib/stats/periodos";
@@ -6,12 +7,14 @@ import { hojeSP } from "@/lib/stats/periodos";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const FUNDO = "#0a0a0a";
-const TEXTO = "#fafafa";
-const MUDO = "#a3a3a3";
+// as mesmas cores dos tokens do tema escuro (globals.css): a imagem não lê CSS
+const FUNDO = "#00162e";
+const TEXTO = "#f8f5ef";
+const MUDO = "#aca496";
+const DOURADO = "#c39a5a";
 
 function cor(v: number): string {
-  return v > 0 ? "#4ade80" : v < 0 ? "#f87171" : MUDO;
+  return v > 0 ? "#53b86f" : v < 0 ? "#e8594b" : MUDO;
 }
 
 function brl(v: number): string {
@@ -45,25 +48,14 @@ export async function GET() {
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                width: 44,
-                height: 44,
-                borderRadius: 10,
-                background: TEXTO,
-                color: FUNDO,
-                fontSize: 26,
-                fontWeight: 700,
-              }}
-            >
-              Δ
-            </div>
+            <svg width={40} height={45} viewBox={SIMBOLO_VIEWBOX}>
+              {SIMBOLO_CAMINHOS.map((d, i) => (
+                <path key={i} d={d} fill={DOURADO} />
+              ))}
+            </svg>
             <span style={{ fontSize: 28, fontWeight: 600 }}>Delta Robôs</span>
           </div>
-          <span style={{ fontSize: 22, color: MUDO, textTransform: "capitalize" }}>{formatarDataLonga(hoje)}</span>
+          <span style={{ fontSize: 22, color: MUDO }}>{formatarDataLonga(hoje)}</span>
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
