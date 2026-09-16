@@ -39,7 +39,7 @@ export function Calendario({ linhas, opcoes, feriados, mesesDisponiveis, mesInic
         <Button variant="ghost" size="icon-sm" aria-label="Mês anterior" disabled={!anterior} onClick={() => anterior && setMes(anterior)}>
           <ChevronLeft />
         </Button>
-        <p className="font-medium capitalize tabular-nums">{formatarMesAno(`${mes}-01`)}</p>
+        <p className="font-medium tabular-nums first-letter:uppercase">{formatarMesAno(`${mes}-01`)}</p>
         <Button variant="ghost" size="icon-sm" aria-label="Próximo mês" disabled={!proximo} onClick={() => proximo && setMes(proximo)}>
           <ChevronRight />
         </Button>
