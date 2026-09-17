@@ -15,6 +15,10 @@ import type { OperacaoPublica } from "@/lib/tipos";
 interface Props {
   /** operações fechadas hoje, em ordem de fechamento */
   operacoes: readonly OperacaoPublica[];
+  altura?: number;
+  titulo?: string;
+  /** texto ao lado da amostra da linha; a tela ao vivo usa um mais curto, que fica bem em print */
+  legenda?: string;
 }
 
 // mesmo teto da curva de capital: acima disso cada coluna vira uma fatia de operações
@@ -27,7 +31,12 @@ const reais = (v: number) => formatarBRL(v, { sinal: true });
  * a curva mostra de relance quando subiu, quando devolveu e onde está agora, e cada ponto abre a
  * operação inteira na dica: hora, lado, entrada e saída, duração, pontos, resultado e o acumulado.
  */
-export function CurvaDoDia({ operacoes }: Props) {
+export function CurvaDoDia({
+  operacoes,
+  altura = 190,
+  titulo = "Resultado do dia, operação a operação",
+  legenda = "1 contrato, líquido · passe o mouse ou toque para ver a operação",
+}: Props) {
   const id = `dia-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
 
   const { pontos, rotulosX } = useMemo(() => {
@@ -96,11 +105,11 @@ export function CurvaDoDia({ operacoes }: Props) {
 
   return (
     <MolduraProfit
-      titulo="Resultado do dia, operação a operação"
+      titulo={titulo}
       legenda={
         <span className="inline-flex items-center gap-1.5">
           <AmostraDaLinha cores={CURVA_POR_OPERACAO} />
-          1 contrato, líquido · passe o mouse ou toque para ver a operação
+          {legenda}
         </span>
       }
     >
@@ -108,7 +117,7 @@ export function CurvaDoDia({ operacoes }: Props) {
         id={id}
         pontos={pontos}
         cores={CURVA_POR_OPERACAO}
-        altura={190}
+        altura={altura}
         rotulosX={rotulosX}
         formatarEixo={(v) => formatarNumero(v, 0)}
         rotuloVertical="Saldo do dia (R$)"
