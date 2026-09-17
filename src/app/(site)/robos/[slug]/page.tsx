@@ -1,11 +1,14 @@
 import Link from "next/link";
+import { Faq } from "@/components/compartilhados/Faq";
 import { CurvaCapital } from "@/components/graficos/CurvaCapital";
+import { seriePorDia, seriePorOperacao } from "@/components/graficos/series-da-curva";
 import { Disclaimer } from "@/components/robo/Disclaimer";
 import { KpisRobo } from "@/components/robo/KpisRobo";
 import { PainelHoje } from "@/components/robo/PainelHoje";
 import { Transparencia } from "@/components/robo/Transparencia";
 import { UltimasOperacoes } from "@/components/robo/UltimasOperacoes";
 import { buttonVariants } from "@/components/ui/button";
+import { listarOperacoesCompactas } from "@/lib/consultas/operacoes";
 import {
   buscarRobo,
   carregarParametros,
@@ -24,22 +27,31 @@ interface Props {
 export default async function PaginaRobo({ params }: Props) {
   const { slug } = await params;
   const hoje = hojeSP();
-  const [robo, linhas, ultimas, parametros] = await Promise.all([
+  const [robo, linhas, ultimas, parametros, ops] = await Promise.all([
     buscarRobo(slug),
     listarEstatisticas(slug),
     listarUltimasOperacoes(slug, 20),
     carregarParametros(),
+    // a mesma consulta que a aba Desempenho já faz; aqui ela fica no servidor (ver abaixo)
+    listarOperacoesCompactas(slug),
   ]);
   if (!robo) return null; // o layout já tratou o 404
 
+  // Curva "por operação": as operações (dezenas de milhares) não vão para o navegador. A série é
+  // montada aqui, já reduzida aos 240 pontos do desenho, e só eles seguem para o componente.
+  const opcoesDaCurva = { base: "liquido" as const, unidade: "brl" as const, valorPonto: robo.valor_ponto_brl };
+  const pontosPorOperacao = seriePorOperacao(ops, opcoesDaCurva, seriePorDia(linhas, opcoesDaCurva).dias);
+
   const emBreve = robo.status === "em_breve";
+  // Num dia de muitas operações, as últimas 20 são todas de hoje, e a seção só repetiria o painel
+  // "Hoje ao vivo" logo acima. Ela aparece quando traz alguma coisa de outro dia (17/09/2026).
+  const ultimasSoDeHoje = ultimas.length > 0 && ultimas.every((o) => o.dia_pregao === hoje);
 
   return (
     <div className="space-y-10">
       {emBreve ? (
         <p className="rounded-2xl border border-dashed p-8 text-center text-muted-foreground">
-          Este robô ainda não começou a operar em conta real. As estatísticas aparecem aqui assim
-          que a primeira operação fechar.
+          Este robô ainda não começou a operar em conta real.
         </p>
       ) : (
         <>
@@ -69,14 +81,12 @@ export default async function PaginaRobo({ params }: Props) {
             <h2 id="curva" className="text-lg font-semibold tracking-tight">
               Curva de capital
             </h2>
-            <div className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10 sm:p-5">
-              <CurvaCapital
-                linhas={linhas}
-                opcoes={{ base: "liquido", unidade: "brl", valorPonto: robo.valor_ponto_brl }}
-              />
+            <div className="painel p-4 sm:p-5">
+              <CurvaCapital linhas={linhas} opcoes={opcoesDaCurva} pontosPorOperacao={pontosPorOperacao} />
             </div>
           </section>
 
+          {ultimasSoDeHoje ? null : (
           <section aria-labelledby="ultimas" className="space-y-3">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <h2 id="ultimas" className="text-lg font-semibold tracking-tight">
@@ -91,10 +101,26 @@ export default async function PaginaRobo({ params }: Props) {
             </div>
             <UltimasOperacoes operacoes={ultimas} />
           </section>
+          )}
         </>
       )}
 
       <Transparencia robo={robo} />
+
+      <section aria-labelledby="faq" className="painel-grupo">
+        <div className="painel-cabeca">
+          <h2 id="faq" className="painel-titulo">
+            Perguntas frequentes
+          </h2>
+          <div className="painel-acao">
+            <Link href="/metodologia" className="underline-offset-4 hover:text-foreground hover:underline">
+              Metodologia completa
+            </Link>
+          </div>
+        </div>
+        <Faq />
+      </section>
+
       <Disclaimer
         nomeRobo={robo.nome}
         texto={parametros.textos.disclaimer}

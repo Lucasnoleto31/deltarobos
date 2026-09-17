@@ -180,29 +180,124 @@
   color: var(--sobre-dourado);
 }
 
-/* luz atrás do hero da home: duas manchas radiais estáticas, o dourado à esquerda (onde está o
-   título) e um cinza um tom acima do fundo à direita. Só CSS, parado, sem parallax. Alfa menor no
-   claro, onde o dourado suja o papel. */
-.hero-luz {
-  position: relative;
-  isolation: isolate;
-  overflow: hidden;
-}
-.hero-luz::before {
-  content: "";
-  position: absolute;
-  inset: -30% -10% -20% -10%;
-  z-index: -1;
-  pointer-events: none;
-  background:
-    radial-gradient(55% 60% at 16% 40%, var(--luz-acento) 0%, transparent 70%),
-    radial-gradient(45% 65% at 88% 15%, var(--luz-fundo) 0%, transparent 70%);
-}
+/* ------------------------------------------------------------------------------------------
+   Superfícies no desenho do Habitto (17/09/2026, pedido do Artur: "quero usar estilos dele no
+   delta robôs"). O cartão é chapado: um tom acima do chão e um fio de 1px, sem sombra nem anel
+   forte; o que separa as coisas é o espaço. O rótulo do grupo fica FORA do cartão, em caixa alta
+   e apagado, como nas listas agrupadas do iOS. Vidro só no que flutua (o cabeçalho).
+   Os valores mudam por tema; as classes são as mesmas. */
 :root {
-  --luz-acento: rgba(179, 138, 80, 0.14);
-  --luz-fundo: rgba(20, 20, 22, 0.05);
+  --painel-fundo: #ffffff;
+  --painel-fio: rgba(20, 20, 22, 0.08);
+  --painel-hover: #fbf9f5;
+  --painel-ativo: #f5f2ec;
+  --linha-hover: rgba(20, 20, 22, 0.03);
+  --sep-cor: rgba(20, 20, 22, 0.07);
+  --chao-luz: rgba(179, 138, 80, 0.1);
+  --chao-topo: #fcfbf8;
 }
 .dark {
-  --luz-acento: rgba(195, 154, 90, 0.16);
-  --luz-fundo: rgba(255, 255, 255, 0.04);
+  --painel-fundo: rgba(255, 255, 255, 0.03);
+  --painel-fio: rgba(255, 255, 255, 0.07);
+  --painel-hover: rgba(255, 255, 255, 0.055);
+  --painel-ativo: rgba(255, 255, 255, 0.07);
+  --linha-hover: rgba(255, 255, 255, 0.035);
+  --sep-cor: rgba(255, 255, 255, 0.07);
+  --chao-luz: rgba(195, 154, 90, 0.09);
+  --chao-topo: #121214;
+}
+
+/* O chão do site: uma inclinação de cima para baixo e um único realce dourado no alto à direita,
+   os dois parados. Camada fixa própria, e não background-attachment: fixed, que engasga no iPhone. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    radial-gradient(120% 70% at 84% -10%, var(--chao-luz) 0%, transparent 64%),
+    linear-gradient(180deg, var(--chao-topo) 0%, var(--background) 46%, var(--background) 100%);
+}
+
+@layer components {
+  .painel {
+    position: relative;
+    /* item de grade nasce com min-width auto e cresce com o conteúdo: sem isto, a tabela larga dentro
+       do painel empurra a página inteira no celular em vez de rolar no próprio lugar (lição do Hub) */
+    min-width: 0;
+    border: 1px solid var(--painel-fio);
+    border-radius: calc(var(--radius) + 2px);
+    background: var(--painel-fundo);
+  }
+  /* só para o que é clicável ou navegável */
+  .painel-interativo {
+    transition: background-color 150ms ease-out;
+  }
+  .painel-interativo:hover {
+    background: var(--painel-hover);
+  }
+  .painel-interativo:active {
+    background: var(--painel-ativo);
+  }
+  /* linha clicável DENTRO de um painel (lista agrupada) */
+  .linha-interativa {
+    transition: background-color 150ms ease-out;
+  }
+  .linha-interativa:hover {
+    background: var(--linha-hover);
+  }
+
+  .painel-grupo {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .painel-cabeca {
+    @apply flex flex-wrap items-end justify-between gap-x-3 gap-y-1 px-4 pb-2;
+  }
+  .painel-titulo {
+    @apply text-[11px] font-medium tracking-wide text-muted-foreground uppercase;
+  }
+  .painel-acao {
+    @apply ml-auto flex shrink-0 items-center gap-3 text-xs text-muted-foreground;
+  }
+
+  /* separador encaixado: começa onde o texto começa (--sep), some na última linha */
+  .sep {
+    position: relative;
+  }
+  .sep::after {
+    content: "";
+    position: absolute;
+    left: var(--sep, 16px);
+    right: 0;
+    bottom: 0;
+    height: 1px;
+    background: var(--sep-cor);
+    pointer-events: none;
+  }
+  .sep:last-child::after {
+    display: none;
+  }
+
+  .rotulo-metrica {
+    @apply text-xs font-medium text-muted-foreground;
+  }
+  .valor-metrica {
+    @apply text-2xl leading-none font-semibold tracking-tight tabular-nums;
+  }
+
+  /* cabeçalho fixo: o vidro da barra fina do Habitto */
+  .barra-vidro {
+    border-bottom: 1px solid var(--painel-fio);
+    background: color-mix(in srgb, var(--background) 75%, transparent);
+    -webkit-backdrop-filter: blur(16px) saturate(1.5);
+    backdrop-filter: blur(16px) saturate(1.5);
+  }
+
+  /* a caixa das dicas dos gráficos, a mesma em todos (como no Hub) */
+  .dica-caixa {
+    @apply pointer-events-none absolute z-20 w-max max-w-[15rem] min-w-[10rem] rounded-lg bg-popover px-3 py-2.5 text-left text-[11px] leading-snug font-normal text-popover-foreground shadow-xl ring-1 ring-border;
+  }
 }

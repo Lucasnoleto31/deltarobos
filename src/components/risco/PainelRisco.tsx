@@ -76,13 +76,13 @@ export function PainelRisco({ linhas, ops, hoje, valorPonto, capitalReferencia, 
 
   const tiles: ItemKpi[] = [
     {
-      rotulo: "Queda máxima",
+      rotulo: "Drawdown máximo",
       valor: temCapital ? formatarPct(kpis.drawdownMaximoPct, 1) : <Valor valor={-dd} inteiro={dd >= 1000} />,
       detalhe: temCapital ? formatarBRL(-dd, { inteiro: dd >= 1000, sinal: true }) : "sem capital de referência",
       tom: "negativo",
     },
-    { rotulo: "Calmar", valor: formatarMultiplo(vCalmar), detalhe: "retorno anualizado ÷ queda máxima", tom: (vCalmar ?? 0) >= 1 ? "positivo" : "neutro" },
-    { rotulo: "Recovery factor", valor: formatarMultiplo(vRecovery), detalhe: "resultado ÷ queda máxima", tom: (vRecovery ?? 0) >= 1 ? "positivo" : "neutro" },
+    { rotulo: "Calmar", valor: formatarMultiplo(vCalmar), detalhe: "retorno anualizado ÷ drawdown máximo", tom: (vCalmar ?? 0) >= 1 ? "positivo" : "neutro" },
+    { rotulo: "Recovery factor", valor: formatarMultiplo(vRecovery), detalhe: "resultado ÷ drawdown máximo", tom: (vRecovery ?? 0) >= 1 ? "positivo" : "neutro" },
     { rotulo: "Ulcer index", valor: formatarNumero(vUlcer, 2), detalhe: temCapital ? "profundidade média, em % do capital" : "profundidade média, em R$/contrato", tom: "info" },
     {
       rotulo: "Risco de ruína",
@@ -97,13 +97,13 @@ export function PainelRisco({ linhas, ops, hoje, valorPonto, capitalReferencia, 
     {
       rotulo: "Tempo de recuperação",
       valor: dd === 0 ? "–" : kpis.drawdown.diasAteRecuperar !== null ? `${kpis.drawdown.diasAteRecuperar} dias` : "em recuperação",
-      detalhe: kpis.drawdown.inicio ? `maior queda desde ${formatarData(kpis.drawdown.inicio)}` : undefined,
+      detalhe: kpis.drawdown.inicio ? `maior drawdown desde ${formatarData(kpis.drawdown.inicio)}` : undefined,
       tom: kpis.drawdown.recuperacao || dd === 0 ? "neutro" : "alerta",
     },
     {
       rotulo: "Capital mínimo · 1 contrato",
       valor: capitalMinimo !== null ? formatarBRL(capitalMinimo, { inteiro: true }) : "–",
-      detalhe: capitalMinimo !== null ? `margem ${formatarBRL(margem ?? 0, { inteiro: true })} + queda × ${fatorSeguranca}` : "margem de referência não configurada",
+      detalhe: capitalMinimo !== null ? `margem ${formatarBRL(margem ?? 0, { inteiro: true })} + drawdown × ${fatorSeguranca}` : "margem de referência não configurada",
       tom: capitalMinimo !== null ? "info" : "alerta",
     },
     { rotulo: "Capital de referência", valor: capitalReferencia ? formatarBRL(capitalReferencia, { inteiro: true }) : "–", detalhe: "base dos percentuais", tom: "neutro" },
@@ -122,7 +122,7 @@ export function PainelRisco({ linhas, ops, hoje, valorPonto, capitalReferencia, 
       <CardsKpi itens={tiles} />
       <CardsKpi itens={tiles2} className="lg:grid-cols-3" />
 
-      <section className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10 sm:p-5">
+      <section className="painel p-4 sm:p-5">
         <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
           <div>
             <h3 className="font-semibold">Curva de drawdown</h3>
@@ -164,13 +164,13 @@ export function PainelRisco({ linhas, ops, hoje, valorPonto, capitalReferencia, 
       </section>
 
       <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-        <section className="overflow-x-auto rounded-2xl bg-card ring-1 ring-foreground/10">
+        <section className="overflow-x-auto painel">
           <div className="border-b px-4 py-3">
-            <h3 className="font-semibold">Top 10 maiores quedas</h3>
+            <h3 className="font-semibold">Os 10 maiores drawdowns</h3>
             <p className="text-xs text-muted-foreground">do pico ao fundo</p>
           </div>
           {episodios.length === 0 ? (
-            <p className="px-4 py-8 text-center text-sm text-muted-foreground">Nenhuma queda no período.</p>
+            <p className="px-4 py-8 text-center text-sm text-muted-foreground">Nenhum drawdown no período.</p>
           ) : (
             <table className="w-full text-sm">
               <thead className="text-left text-xs text-muted-foreground">
@@ -207,9 +207,9 @@ export function PainelRisco({ linhas, ops, hoje, valorPonto, capitalReferencia, 
           )}
         </section>
 
-        <section className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10">
+        <section className="painel p-4">
           <h3 className="font-semibold">Distribuição por profundidade</h3>
-          <p className="mb-3 text-xs text-muted-foreground">{episodios.length} quedas no período{temCapital ? ", em % do capital" : ", em R$ por contrato"}</p>
+          <p className="mb-3 text-xs text-muted-foreground">{episodios.length} drawdowns no período{temCapital ? ", em % do capital" : ", em R$ por contrato"}</p>
           <ul className="space-y-2.5 text-sm">
             {profundidade.map((f, i) => {
               const maior = Math.max(1, ...profundidade.map((x) => x.n));
@@ -231,7 +231,7 @@ export function PainelRisco({ linhas, ops, hoje, valorPonto, capitalReferencia, 
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <section className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10">
+        <section className="painel p-4">
           <h3 className="mb-3 font-semibold">5 piores dias</h3>
           <ol className="space-y-2.5">
             {piores.map((p, i) => {
@@ -256,7 +256,7 @@ export function PainelRisco({ linhas, ops, hoje, valorPonto, capitalReferencia, 
           </ol>
         </section>
 
-        <section className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10">
+        <section className="painel p-4">
           <h3 className="mb-3 font-semibold">Resumo diário</h3>
           <dl className="divide-y text-sm">
             <div className="flex items-center justify-between py-2">
@@ -281,7 +281,7 @@ export function PainelRisco({ linhas, ops, hoje, valorPonto, capitalReferencia, 
               <dt className="text-muted-foreground">Recuperação média</dt>
               <dd className="tabular-nums">
                 <strong>{diario.recuperacaoMediaDias !== null ? `${Math.round(diario.recuperacaoMediaDias)} dias` : "–"}</strong>{" "}
-                <span className="text-xs text-muted-foreground">{diario.episodiosRecuperados} quedas recuperadas</span>
+                <span className="text-xs text-muted-foreground">{diario.episodiosRecuperados} drawdowns recuperados</span>
               </dd>
             </div>
           </dl>

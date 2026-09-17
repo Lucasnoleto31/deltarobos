@@ -12,7 +12,7 @@ export function NumeroHero() {
   const temRobos = (resumo?.robos.length ?? 0) > 0;
 
   return (
-    <div className="rounded-2xl bg-card p-6 ring-1 ring-foreground/10 sm:p-8">
+    <div className="painel p-6 sm:p-8">
       <p className="text-sm text-muted-foreground">Resultado de hoje da casa</p>
       <p className="mt-2 text-5xl font-semibold tracking-tight sm:text-6xl">
         {resumo && temRobos ? (
@@ -47,7 +47,7 @@ export function NumeroHero() {
         </dl>
       ) : (
         <p className="mt-6 text-sm text-muted-foreground">
-          Os robôs aparecem aqui assim que entrarem em operação.
+          Nenhum robô em operação.
         </p>
       )}
 

@@ -150,11 +150,11 @@ export function PainelDesempenho({
   }
 
   const cards: ItemKpi[] = [
-    { rotulo: "Operações", valor: formatarNumero(resumo.n), detalhe: `${formatarNumero(resumo.nGain)} gain de ${formatarNumero(resumo.n)}`, tom: "info", icone: <BarChart3 className="size-4" /> },
-    { rotulo: "Taxa de acerto", valor: formatarPct(kpis.taxaAcerto), detalhe: `${resumo.nGain} × ${resumo.nLoss}`, tom: (kpis.taxaAcerto ?? 0) >= 0.5 ? "positivo" : "negativo", icone: <Percent className="size-4" /> },
-    { rotulo: "Fator de lucro", valor: formatarMultiplo(kpis.fatorLucro), detalhe: "gains ÷ losses", tom: (kpis.fatorLucro ?? 0) >= 1 ? "positivo" : "negativo", icone: <Scale className="size-4" /> },
+    { rotulo: "Operações", valor: formatarNumero(resumo.n), detalhe: kpis.nDias > 0 ? `${formatarNumero(Math.round(resumo.n / kpis.nDias))} por dia de pregão` : undefined, tom: "info", icone: <BarChart3 className="size-4" /> },
+    { rotulo: "Taxa de acerto", valor: formatarPct(kpis.taxaAcerto), detalhe: `${formatarNumero(resumo.nGain)} gains · ${formatarNumero(resumo.nLoss)} losses`, tom: (kpis.taxaAcerto ?? 0) >= 0.5 ? "positivo" : "negativo", icone: <Percent className="size-4" /> },
+    { rotulo: "Fator de lucro", valor: formatarMultiplo(kpis.fatorLucro), detalhe: kpis.fatorLucro !== null ? `${formatarMultiplo(kpis.fatorLucro)} de ganho para cada 1 de perda` : undefined, tom: (kpis.fatorLucro ?? 0) >= 1 ? "positivo" : "negativo", icone: <Scale className="size-4" /> },
     {
-      rotulo: "Rebaixamento máx.",
+      rotulo: "Drawdown máx.",
       valor: kpis.drawdownMaximoPct !== null ? formatarPct(kpis.drawdownMaximoPct) : <Valor valor={-kpis.drawdown.valor} unidade={estado.unidade} inteiro={kpis.drawdown.valor >= 1000} />,
       detalhe: kpis.drawdownMaximoPct !== null ? rotuloUnidade(-kpis.drawdown.valor, estado.unidade) : kpis.drawdown.fundo ? `fundo em ${formatarData(kpis.drawdown.fundo)}` : undefined,
       tom: "negativo",
@@ -162,7 +162,7 @@ export function PainelDesempenho({
     },
     { rotulo: "Ganho médio", valor: <Valor valor={resumo.mediaGain} unidade={estado.unidade} />, detalhe: `maior ${rotuloUnidade(resumo.maiorGain, estado.unidade)}`, tom: "positivo", icone: <TrendingUp className="size-4" /> },
     { rotulo: "Perda média", valor: <Valor valor={resumo.mediaLoss} unidade={estado.unidade} />, detalhe: `maior ${rotuloUnidade(resumo.maiorLoss, estado.unidade)}`, tom: "negativo", icone: <TrendingDown className="size-4" /> },
-    { rotulo: "Payoff", valor: formatarMultiplo(kpis.payoff), detalhe: "ganho médio ÷ perda média" },
+    { rotulo: "Payoff", valor: formatarMultiplo(kpis.payoff), detalhe: kpis.payoff !== null ? `o ganho médio é ${formatarPct(kpis.payoff, 0)} da perda média` : undefined },
     { rotulo: "Média mensal", valor: <Valor valor={kpis.mediaMensal} unidade={estado.unidade} inteiro={Math.abs(kpis.mediaMensal) >= 1000} />, detalhe: `${kpis.nMeses} ${kpis.nMeses === 1 ? "mês" : "meses"}` },
     { rotulo: "Melhor dia", valor: kpis.melhorDia ? <Valor valor={kpis.melhorDia.valor} unidade={estado.unidade} inteiro={Math.abs(kpis.melhorDia.valor) >= 1000} /> : "–", detalhe: kpis.melhorDia ? formatarData(kpis.melhorDia.dia) : undefined },
     { rotulo: "Pior dia", valor: kpis.piorDia ? <Valor valor={kpis.piorDia.valor} unidade={estado.unidade} inteiro={Math.abs(kpis.piorDia.valor) >= 1000} /> : "–", detalhe: kpis.piorDia ? formatarData(kpis.piorDia.dia) : undefined },
@@ -205,39 +205,33 @@ export function PainelDesempenho({
 
       <CardsKpi itens={cards} />
 
-      <section className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10 sm:p-5">
+      <section className="painel p-4 sm:p-5">
         <h2 className="mb-3 font-semibold">Curva de capital</h2>
-        <CurvaCapital linhas={linhasF} opcoes={opcoes} />
+        <CurvaCapital linhas={linhasF} opcoes={opcoes} operacoes={opsF} />
       </section>
 
       <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-        <section className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10 sm:p-5">
+        <section className="painel p-4 sm:p-5">
           <h2 className="font-semibold">Resultado mensal</h2>
           <p className="mb-3 text-xs text-muted-foreground">{mensal.length} meses · todo o histórico</p>
-          <GraficoBarras dados={mensal} unidade={estado.unidade} />
+          <GraficoBarras dados={mensal} unidade={estado.unidade} rotuloN="Dias de pregão" />
         </section>
-        <section className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10 sm:p-5">
+        <section className="painel p-4 sm:p-5">
           <h2 className="font-semibold">Resultado por ativo</h2>
           <p className="mb-3 text-xs text-muted-foreground">séries do contrato no período</p>
           <PorSimbolo faixas={simbolos} unidade={estado.unidade} />
         </section>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-        <section className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10 sm:p-5">
-          <h2 className="font-semibold">Ano × mês</h2>
-          <p className="mb-3 text-xs text-muted-foreground">todo o histórico</p>
-          <Heatmap linhas={heatmap} unidade={estado.unidade} />
-        </section>
-        <section className="flex flex-col justify-between rounded-2xl bg-card p-4 ring-1 ring-foreground/10 sm:p-5">
-          <div>
-            <h2 className="font-semibold">Calendário, risco e faixas</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              O dia a dia com detalhe por horário, os índices de risco com a curva de drawdown e a validação de faixas por dia e hora ficam
-              nas abas próprias.
-            </p>
-          </div>
-          <div className="mt-4 flex flex-wrap gap-2">
+      {/* O mapa ocupa a largura toda: ao lado do cartão de atalhos a coluna "Total" não cabia (a tabela tem
+          640 px de mínimo). Os atalhos ficaram numa linha só, sem o parágrafo: as abas em cima já dizem o mesmo. */}
+      <section className="painel p-4 sm:p-5">
+        <h2 className="font-semibold">Ano × mês</h2>
+        <p className="mb-3 text-xs text-muted-foreground">todo o histórico</p>
+        <Heatmap linhas={heatmap} unidade={estado.unidade} />
+        <div className="mt-4 flex flex-wrap items-center gap-2 border-t pt-4">
+          <span className="text-xs text-muted-foreground">O dia a dia, o risco e as faixas em detalhe:</span>
+          <div className="flex flex-wrap gap-2">
             <Link href={`/robos/${slug}/calendario`} className={buttonVariants({ variant: "outline", size: "sm" })}>
               Calendário
             </Link>
@@ -248,21 +242,21 @@ export function PainelDesempenho({
               Validação de faixas
             </Link>
           </div>
-        </section>
-      </div>
+        </div>
+      </section>
 
       <section className="space-y-4">
         <h2 className="text-lg font-semibold tracking-tight">Distribuição</h2>
         <div className="grid gap-4 lg:grid-cols-3">
-          <div className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10">
+          <div className="painel p-4">
             <h3 className="mb-2 text-sm font-medium">Por dia da semana</h3>
             <GraficoBarras dados={porDia.map((f) => ({ rotulo: f.rotulo, valor: f.total, n: f.n }))} unidade={estado.unidade} altura={200} />
           </div>
-          <div className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10">
+          <div className="painel p-4">
             <h3 className="mb-2 text-sm font-medium">Por hora de entrada</h3>
             <GraficoBarras dados={porHoraF.map((f) => ({ rotulo: f.rotulo, valor: f.total, n: f.n }))} unidade={estado.unidade} altura={200} />
           </div>
-          <div className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10">
+          <div className="painel p-4">
             <h3 className="mb-2 text-sm font-medium">Resultado por operação</h3>
             <GraficoBarras
               dados={hist.map((f) => ({ rotulo: rotuloUnidade((f.de + f.ate) / 2, estado.unidade), valor: f.n }))}

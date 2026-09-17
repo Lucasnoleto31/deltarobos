@@ -16,7 +16,7 @@ export function Segmentado<T extends string>({ opcoes, valor, onChange, ariaLabe
     <div
       role="radiogroup"
       aria-label={ariaLabel}
-      className={cn("inline-flex h-8 items-center gap-0.5 rounded-lg bg-muted p-0.5 text-xs", className)}
+      className={cn("inline-flex h-8 max-w-full items-center gap-0.5 overflow-x-auto rounded-lg bg-muted p-0.5 text-xs [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", className)}
     >
       {opcoes.map((o) => {
         const ativo = o.valor === valor;
@@ -28,7 +28,7 @@ export function Segmentado<T extends string>({ opcoes, valor, onChange, ariaLabe
             aria-checked={ativo}
             onClick={() => onChange(o.valor)}
             className={cn(
-              "h-7 rounded-md px-2.5 font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+              "h-7 shrink-0 rounded-md px-2.5 font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
               ativo
                 ? "bg-background text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground",

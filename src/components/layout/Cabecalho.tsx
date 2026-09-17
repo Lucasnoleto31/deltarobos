@@ -12,7 +12,7 @@ const LINKS = [
 
 export function Cabecalho() {
   return (
-    <header className="sticky top-0 z-40 border-b bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+    <header className="sticky top-0 z-40 barra-vidro">
       <div className="conteudo flex h-14 items-center justify-between gap-4">
         <Link href="/" className="flex items-center gap-2 font-semibold tracking-tight">
           <Simbolo aria-hidden className="h-7 w-auto" />

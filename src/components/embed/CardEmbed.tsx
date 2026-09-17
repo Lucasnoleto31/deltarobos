@@ -20,7 +20,7 @@ export function CardEmbed({ robo, resumo, hoje, linkSite }: Props) {
       href={linkSite}
       target="_blank"
       rel="noopener noreferrer"
-      className="block rounded-xl bg-card p-4 ring-1 ring-foreground/10 hover:ring-foreground/25"
+      className="block painel p-4 painel-interativo"
     >
       <div className="flex items-start justify-between gap-2">
         <div>
@@ -35,7 +35,7 @@ export function CardEmbed({ robo, resumo, hoje, linkSite }: Props) {
       </div>
 
       {emBreve ? (
-        <p className="mt-3 text-sm text-muted-foreground">Estatísticas disponíveis assim que o robô entrar em operação.</p>
+        <p className="mt-3 text-sm text-muted-foreground">Sem operações ainda.</p>
       ) : (
         <>
           <dl className="mt-3 grid grid-cols-3 gap-2 text-sm">

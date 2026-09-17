@@ -54,26 +54,26 @@ export function CabecalhoRobo() {
         <BadgeStatusRobo status={status} className="h-6 px-2.5 text-sm" />
       </div>
 
-      <dl className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm sm:flex sm:flex-wrap sm:gap-x-6 sm:gap-y-2">
         {robo.horario_inicio && robo.horario_fim ? (
-          <div className="flex gap-1.5">
+          <div className="flex gap-1.5 max-sm:flex-col max-sm:gap-0">
             <dt className="text-muted-foreground">Horário</dt>
             <dd className="font-medium tabular-nums">
               {normalizarHora(robo.horario_inicio)} – {normalizarHora(robo.horario_fim)}
             </dd>
           </div>
         ) : null}
-        <div className="flex gap-1.5">
+        <div className="flex gap-1.5 max-sm:flex-col max-sm:gap-0">
           <dt className="text-muted-foreground">Contratos padrão</dt>
           <dd className="font-medium tabular-nums">{robo.contratos_padrao}</dd>
         </div>
         {robo.conta_real_desde ? (
-          <div className="flex gap-1.5">
+          <div className="flex gap-1.5 max-sm:flex-col max-sm:gap-0">
             <dt className="text-muted-foreground">Operando desde</dt>
             <dd className="font-medium tabular-nums">{formatarData(robo.conta_real_desde)}</dd>
           </div>
         ) : null}
-        <div className="flex gap-1.5">
+        <div className="flex gap-1.5 max-sm:flex-col max-sm:gap-0">
           <dt className="text-muted-foreground">Última operação</dt>
           <dd className="font-medium tabular-nums">
             {ultimaOperacaoEm && agora ? haQuanto(ultimaOperacaoEm, agora) : "–"}

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Faq } from "@/components/compartilhados/Faq";
 
 export const metadata: Metadata = {
   title: "Metodologia",
@@ -8,6 +9,7 @@ export const metadata: Metadata = {
 };
 
 const SECOES = [
+  { id: "faq", titulo: "Perguntas frequentes" },
   { id: "coleta", titulo: "Como os dados chegam" },
   { id: "normalizacao", titulo: "Por contrato" },
   { id: "custos", titulo: "Bruto e líquido" },
@@ -37,19 +39,35 @@ function Secao({ id, titulo, children }: { id: string; titulo: string; children:
 
 /** Spec §8.7: definição de cada métrica, coleta, custos, normalização e glossário. */
 export default function PaginaMetodologia() {
+  const indice = (
+    <ol className="space-y-1 text-sm">
+      {SECOES.map((s) => (
+        <li key={s.id}>
+          <a href={`#${s.id}`} className="text-muted-foreground hover:text-foreground">
+            {s.titulo}
+          </a>
+        </li>
+      ))}
+    </ol>
+  );
+
   return (
     <div className="conteudo grid gap-10 py-10 lg:grid-cols-[220px_1fr]">
       <nav aria-label="Seções" className="lg:sticky lg:top-20 lg:self-start">
-        <p className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">Nesta página</p>
-        <ol className="space-y-1 text-sm">
-          {SECOES.map((s) => (
-            <li key={s.id}>
-              <a href={`#${s.id}`} className="text-muted-foreground hover:text-foreground">
-                {s.titulo}
-              </a>
-            </li>
-          ))}
-        </ol>
+        {/* no celular o índice de 17 itens ocupava a primeira tela inteira antes do texto: fica recolhido */}
+        <details className="painel group px-4 py-3 lg:hidden">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium [&::-webkit-details-marker]:hidden">
+            Nesta página
+            <span aria-hidden className="text-muted-foreground transition-transform group-open:rotate-45">
+              +
+            </span>
+          </summary>
+          <div className="pt-3">{indice}</div>
+        </details>
+        <div className="hidden lg:block">
+          <p className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">Nesta página</p>
+          {indice}
+        </div>
       </nav>
 
       <article className="max-w-prose space-y-12">
@@ -59,6 +77,12 @@ export default function PaginaMetodologia() {
             Cada número do site pode ser refeito à mão a partir das operações listadas. Aqui está a regra de cada um.
           </p>
         </header>
+
+        {/* as respostas curtas primeiro; a regra de cada número vem nas seções abaixo */}
+        <section id="faq" className="scroll-mt-24 space-y-3">
+          <h2 className="text-xl font-semibold tracking-tight">Perguntas frequentes</h2>
+          <Faq />
+        </section>
 
         <Secao id="coleta" titulo="Como os dados chegam">
           <p>
@@ -164,12 +188,11 @@ export default function PaginaMetodologia() {
 
         <Secao id="indices-risco" titulo="Calmar, recovery factor, Ulcer e tempo em drawdown">
           <p>
-            <strong>Calmar</strong> = retorno anualizado ÷ queda máxima. O retorno anualizado é o resultado do período
-            multiplicado por 252 e dividido pelo número de dias de pregão. Acima de 1, o robô rende por ano mais do que a
-            pior queda que já sofreu.
+            <strong>Calmar</strong> = retorno anualizado ÷ drawdown máximo. O retorno anualizado é o resultado do período
+            multiplicado por 252 e dividido pelo número de dias de pregão. Acima de 1, o robô rende por ano mais do que o maior drawdown que já sofreu.
           </p>
           <p>
-            <strong>Recovery factor</strong> = resultado do período ÷ queda máxima. Quantas vezes o robô já &quot;pagou&quot; o
+            <strong>Recovery factor</strong> = resultado do período ÷ drawdown máximo. Quantas vezes o robô já &quot;pagou&quot; o
             seu maior drawdown.
           </p>
           <p>

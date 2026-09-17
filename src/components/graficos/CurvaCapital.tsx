@@ -1,20 +1,21 @@
 "use client";
 
-import {
-  AreaSeries,
-  ColorType,
-  createChart,
-  HistogramSeries,
-  type IChartApi,
-  type ISeriesApi,
-  type UTCTimestamp,
-} from "lightweight-charts";
-import { useTheme } from "next-themes";
-import { useEffect, useMemo, useRef } from "react";
+import { useId, useMemo, useState } from "react";
 import { Valor } from "@/components/compartilhados/Valor";
-import { formatarBRL, formatarDataCurta, formatarPontos } from "@/lib/formato";
-import { curvaAcumulada, drawdownMaximo } from "@/lib/stats/serie";
+import { formatarNumero, formatarPontos } from "@/lib/formato";
+import type { OperacaoCompacta } from "@/lib/stats/operacoes";
+import { drawdownMaximo } from "@/lib/stats/serie";
 import type { LinhaDiaria, OpcoesSerie } from "@/lib/stats/tipos";
+import {
+  AmostraDaLinha,
+  CURVA_POR_DIA,
+  CURVA_POR_OPERACAO,
+  DesenhoDaCurva,
+  MolduraProfit,
+  PROFIT,
+  type PontoDoDesenho,
+} from "./CurvaProfit";
+import { rotulosDeData, seriePorDia, seriePorOperacao } from "./series-da-curva";
 
 interface Props {
   /** série já filtrada pelo período desejado */
@@ -22,135 +23,60 @@ interface Props {
   opcoes: OpcoesSerie;
   altura?: number;
   mostrarResumo?: boolean;
+  /** operações do mesmo período: liga a aba "Por operação" (a série é montada aqui) */
+  operacoes?: readonly OperacaoCompacta[];
+  /** a série por operação já montada (a visão geral monta no servidor e manda só os pontos) */
+  pontosPorOperacao?: PontoDoDesenho[];
 }
 
-// lightweight-charts não lê variável CSS; cores fixas por tema, as mesmas dos tokens do globals.css
-const CORES = {
-  dark: {
-    texto: "#aca496",
-    grade: "rgba(248,245,239,0.06)",
-    positivo: "#53b86f",
-    negativo: "#e8594b",
-    positivoArea: "rgba(83,184,111,0.22)",
-    negativoArea: "rgba(232,89,75,0.22)",
-    drawdown: "rgba(232,89,75,0.5)",
-  },
-  light: {
-    texto: "#71685c",
-    grade: "rgba(20,20,22,0.06)",
-    positivo: "#2e6f40",
-    negativo: "#b22222",
-    positivoArea: "rgba(46,111,64,0.16)",
-    negativoArea: "rgba(178,34,34,0.16)",
-    drawdown: "rgba(178,34,34,0.45)",
-  },
-};
+type Modo = "operacao" | "dia";
+const MODOS: Array<[Modo, string]> = [
+  ["operacao", "Por operação"],
+  ["dia", "Por dia"],
+];
 
-function diaParaTimestamp(dia: string): UTCTimestamp {
-  return (new Date(`${dia}T00:00:00Z`).getTime() / 1000) as UTCTimestamp;
+/** "5,77 mil" a partir de mil, no padrão brasileiro, como a escala do gráfico do Profit no Hub. */
+function escalaEmReais(v: number): string {
+  return Math.abs(v) >= 1000
+    ? `${formatarNumero(v / 1000, Math.abs(v) % 1000 === 0 ? 0 : 1)} mil`
+    : formatarNumero(v || 0, 0);
 }
 
 /**
- * Curva de capital acumulada por contrato (pane de cima) com drawdown
- * desenhado embaixo. Quem controla período, unidade e base é o pai.
+ * Curva de capital acumulada por contrato, com o drawdown em barras embaixo. Desde 17/09/2026 no
+ * estilo do Gráfico de Patrimônio do Profit, como no Zeve Hub: moldura grafite, cores medidas no
+ * Profit e o agrupamento nas abas do rodapé ("Por operação" e "Por dia"). Os dois agrupamentos
+ * dividem a mesma escala e o mesmo eixo de tempo, então a troca só acrescenta ou tira o sobe e desce
+ * de dentro do dia. Quem controla período, unidade e base é o pai; o resumo em cima continua vindo
+ * de curvaAcumulada e drawdownMaximo, por dia.
  */
-export function CurvaCapital({ linhas, opcoes, altura = 320, mostrarResumo = true }: Props) {
-  const { resolvedTheme } = useTheme();
-  const cores = resolvedTheme === "light" ? CORES.light : CORES.dark;
+export function CurvaCapital({ linhas, opcoes, altura = 320, mostrarResumo = true, operacoes, pontosPorOperacao }: Props) {
+  const id = `curva-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
+  // abre por dia, como no Hub: a linha limpa é a do fechamento de cada pregão
+  const [modo, setModo] = useState<Modo>("dia");
 
-  const curva = useMemo(() => curvaAcumulada(linhas, opcoes), [linhas, opcoes]);
-  const dd = useMemo(() => drawdownMaximo(curva), [curva]);
+  const porDia = useMemo(() => seriePorDia(linhas, opcoes), [linhas, opcoes]);
+  const porOperacao = useMemo(
+    () => pontosPorOperacao ?? (operacoes ? seriePorOperacao(operacoes, opcoes, porDia.dias) : null),
+    [pontosPorOperacao, operacoes, opcoes, porDia.dias],
+  );
+  const dd = useMemo(() => drawdownMaximo(porDia.curva), [porDia.curva]);
+  const rotulosX = useMemo(() => rotulosDeData(porDia.dias), [porDia.dias]);
+
+  const curva = porDia.curva;
   const acumulado = curva.length > 0 ? curva[curva.length - 1].acumulado : 0;
   const unidade = opcoes.unidade;
+  const temAbas = porOperacao !== null && porOperacao.length > 0;
+  const modoAtivo: Modo = temAbas ? modo : "dia";
+  const pontos = modoAtivo === "dia" ? porDia.pontos : (porOperacao ?? []);
+  const cores = modoAtivo === "dia" ? CURVA_POR_DIA : CURVA_POR_OPERACAO;
+  // a escala cobre as duas séries: trocar de aba não muda a régua
+  const escalaDe = [...porDia.pontos.map((p) => p.acumulado), ...(porOperacao ?? []).map((p) => p.acumulado)];
 
-  const containerRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<IChartApi | null>(null);
-  const areaRef = useRef<ISeriesApi<"Area"> | null>(null);
-  const histRef = useRef<ISeriesApi<"Histogram"> | null>(null);
-
-  // cria o gráfico uma vez
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-
-    const chart = createChart(el, {
-      autoSize: true,
-      layout: {
-        background: { type: ColorType.Solid, color: "transparent" },
-        textColor: cores.texto,
-        attributionLogo: false,
-        fontFamily: "inherit",
-      },
-      grid: {
-        vertLines: { color: cores.grade },
-        horzLines: { color: cores.grade },
-      },
-      rightPriceScale: { borderVisible: false },
-      timeScale: { borderVisible: false, timeVisible: false, fixLeftEdge: true, fixRightEdge: true },
-      handleScroll: { vertTouchDrag: false, pressedMouseMove: true, horzTouchDrag: true, mouseWheel: false },
-      handleScale: { axisPressedMouseMove: false, mouseWheel: false, pinch: true },
-      crosshair: { mode: 0 },
-      localization: {
-        locale: "pt-BR",
-        timeFormatter: (t: UTCTimestamp) =>
-          formatarDataCurta(new Date(t * 1000).toISOString().slice(0, 10)),
-      },
-    });
-
-    const area = chart.addSeries(AreaSeries, {
-      lineWidth: 2,
-      priceLineVisible: false,
-      lastValueVisible: true,
-    });
-    const hist = chart.addSeries(
-      HistogramSeries,
-      { priceLineVisible: false, lastValueVisible: false, color: cores.drawdown },
-      1,
-    );
-
-    const painel = chart.panes()[1];
-    if (painel) painel.setHeight(Math.round(altura * 0.28));
-
-    chartRef.current = chart;
-    areaRef.current = area;
-    histRef.current = hist;
-
-    return () => {
-      chart.remove();
-      chartRef.current = null;
-      areaRef.current = null;
-      histRef.current = null;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // tema, unidade e dados
-  useEffect(() => {
-    const chart = chartRef.current;
-    const area = areaRef.current;
-    const hist = histRef.current;
-    if (!chart || !area || !hist) return;
-
-    const positivo = acumulado >= 0;
-    const formatador = (p: number) =>
-      unidade === "brl" ? formatarBRL(p, { inteiro: Math.abs(p) >= 1000 }) : formatarPontos(p);
-
-    chart.applyOptions({
-      layout: { textColor: cores.texto },
-      grid: { vertLines: { color: cores.grade }, horzLines: { color: cores.grade } },
-      localization: { priceFormatter: formatador },
-    });
-    area.applyOptions({
-      lineColor: positivo ? cores.positivo : cores.negativo,
-      topColor: positivo ? cores.positivoArea : cores.negativoArea,
-      bottomColor: "rgba(0,0,0,0)",
-    });
-    hist.applyOptions({ color: cores.drawdown });
-
-    area.setData(curva.map((p) => ({ time: diaParaTimestamp(p.dia), value: p.acumulado })));
-    hist.setData(curva.map((p) => ({ time: diaParaTimestamp(p.dia), value: p.drawdown })));
-    chart.timeScale().fitContent();
-  }, [curva, cores, unidade, acumulado]);
+  const alturaDaCurva = Math.round(altura * 0.66);
+  const alturaDoDrawdown = Math.max(56, Math.round(altura * 0.26));
+  const formatarEixo = (v: number) => (unidade === "brl" ? escalaEmReais(v) : formatarPontos(v));
+  const base = opcoes.base === "liquido" ? "líquido" : "bruto";
 
   return (
     <div className="flex flex-col gap-3">
@@ -182,19 +108,71 @@ export function CurvaCapital({ linhas, opcoes, altura = 320, mostrarResumo = tru
         </dl>
       ) : null}
 
-      <div className="relative">
-        <div ref={containerRef} className="w-full" style={{ height: altura }} />
-        {curva.length === 0 ? (
-          <div className="absolute inset-0 grid place-items-center text-sm text-muted-foreground">
-            Sem operações no período.
-          </div>
-        ) : null}
-      </div>
-      <p className="text-xs text-muted-foreground">
-        Resultado acumulado por {opcoes.contratos ?? 1}{" "}
-        {(opcoes.contratos ?? 1) === 1 ? "contrato" : "contratos"}, dia a dia. Embaixo, a distância
-        até o pico anterior (drawdown).
-      </p>
+      {curva.length === 0 ? (
+        <div className="grid place-items-center text-sm text-muted-foreground" style={{ height: altura }}>
+          Sem operações no período.
+        </div>
+      ) : (
+        <MolduraProfit
+          titulo="Resultado acumulado"
+          legenda={
+            <>
+              <span className="inline-flex items-center gap-1.5">
+                <AmostraDaLinha cores={cores} />
+                {modoAtivo === "dia" ? "Por dia" : "Por operação"} · {opcoes.contratos ?? 1}{" "}
+                {(opcoes.contratos ?? 1) === 1 ? "contrato" : "contratos"}, {base}
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="size-2" style={{ background: PROFIT.baixa, opacity: 0.62 }} />
+                Drawdown
+              </span>
+            </>
+          }
+          abas={
+            temAbas ? (
+              <div
+                role="group"
+                aria-label="Agrupar o gráfico"
+                className="flex items-center gap-1 rounded-b-lg px-1 py-0.5 text-xs"
+                style={{ background: PROFIT.abas, borderTop: `1px solid ${PROFIT.abasBorda}` }}
+              >
+                {MODOS.map(([chave, rotulo], i) => (
+                  <span key={chave} className="contents">
+                    {i > 0 ? (
+                      <span aria-hidden style={{ color: PROFIT.separador }}>
+                        |
+                      </span>
+                    ) : null}
+                    <button
+                      type="button"
+                      aria-pressed={modo === chave}
+                      onClick={() => setModo(chave)}
+                      className="h-7 rounded-[3px] px-4 outline-none focus-visible:outline-2 focus-visible:outline-offset-[-2px]"
+                      style={modo === chave ? { background: PROFIT.abaAtiva, color: PROFIT.titulo } : { color: PROFIT.abaTexto }}
+                    >
+                      {rotulo}
+                    </button>
+                  </span>
+                ))}
+              </div>
+            ) : undefined
+          }
+        >
+          <DesenhoDaCurva
+            key={modoAtivo}
+            id={`${id}-${modoAtivo}`}
+            pontos={pontos}
+            escalaDe={escalaDe}
+            cores={cores}
+            altura={alturaDaCurva}
+            alturaDoDrawdown={alturaDoDrawdown}
+            rotulosX={rotulosX}
+            formatarEixo={formatarEixo}
+            rotuloVertical={unidade === "brl" ? `Saldo ${base} (R$)` : `Saldo ${base} (pts)`}
+            rotuloAria={`Resultado acumulado ${modoAtivo === "dia" ? "dia a dia" : "operação a operação"}, com o drawdown embaixo`}
+          />
+        </MolduraProfit>
+      )}
     </div>
   );
 }

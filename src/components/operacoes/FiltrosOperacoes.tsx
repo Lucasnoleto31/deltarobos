@@ -44,7 +44,7 @@ export function FiltrosOperacoes({ slug, filtros, hoje }: Props) {
   };
 
   return (
-    <form onSubmit={aplicar} className="flex flex-wrap items-end gap-3 rounded-2xl bg-card p-4 ring-1 ring-foreground/10">
+    <form onSubmit={aplicar} className="flex flex-wrap items-end gap-3 painel p-4">
       <label className="flex flex-col gap-1 text-xs text-muted-foreground">
         De
         <input type="date" value={de} max={ate || hoje} onChange={(e) => setDe(e.target.value)} className={campo} />

@@ -1,4 +1,4 @@
-import { FileText } from "lucide-react";
+import { ArrowUpRight, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { formatarBRL } from "@/lib/formato";
 import type { RoboPublico } from "@/lib/tipos";
@@ -7,70 +7,81 @@ interface Props {
   robo: RoboPublico;
 }
 
-/** Como o dado chega aqui, o que está descontado e o relatório do MT5 (spec §8.2, "Transparência"). */
+function Linha({
+  href,
+  externo = false,
+  rotulo,
+  valor,
+}: {
+  href: string;
+  externo?: boolean;
+  rotulo: string;
+  valor: React.ReactNode;
+}) {
+  const classes =
+    "linha-interativa flex min-h-11 items-center justify-between gap-3 px-4 py-2.5 outline-none focus-visible:ring-2 focus-visible:ring-ring/50";
+  const conteudo = (
+    <>
+      <span className="text-sm">{rotulo}</span>
+      <span className="flex min-w-0 items-center gap-1.5 text-right text-sm text-muted-foreground tabular-nums">
+        <span className="min-w-0">{valor}</span>
+        {externo ? (
+          <ArrowUpRight aria-hidden className="size-4 shrink-0 text-foreground/30" />
+        ) : (
+          <ChevronRight aria-hidden className="size-4 shrink-0 text-foreground/30" />
+        )}
+      </span>
+    </>
+  );
+  return (
+    <li className="sep [--sep:16px]">
+      {externo ? (
+        <a href={href} target="_blank" rel="noopener noreferrer" className={classes}>
+          {conteudo}
+        </a>
+      ) : (
+        <Link href={href} className={classes}>
+          {conteudo}
+        </Link>
+      )}
+    </li>
+  );
+}
+
+/**
+ * Transparência do robô (spec §8.2). Eram quatro cartões de parágrafo repetindo, em cada robô, o que
+ * a metodologia já explica (coleta, custos, normalização). Desde 17/09/2026 é uma lista de fatos do
+ * robô, e cada linha leva à explicação: o número fica aqui, o texto fica lá.
+ */
 export function Transparencia({ robo }: Props) {
   return (
-    <section aria-labelledby="transparencia" className="space-y-3">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="transparencia" className="text-lg font-semibold tracking-tight">
+    <section aria-labelledby="transparencia" className="painel-grupo">
+      <div className="painel-cabeca">
+        <h2 id="transparencia" className="painel-titulo">
           Transparência
         </h2>
-        <Link href="/metodologia" className="text-sm text-muted-foreground underline-offset-4 hover:underline">
-          Como calculamos cada número
-        </Link>
       </div>
-      <div className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
-          <p className="font-medium">De onde vem o dado</p>
-          <p className="mt-1 text-muted-foreground">
-            Um coletor roda no MetaTrader 5 da conta da Delta Robôs{robo.conta_tipo === "demo" ? " (conta demo)" : ""} e
-            envia cada operação ao fechar, mais um sinal de vida a cada 3 segundos. Nada é digitado à mão.
-          </p>
-        </div>
-        <div className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
-          <p className="font-medium">Custos considerados</p>
-          <p className="mt-1 text-muted-foreground">
-            {robo.custo_por_contrato > 0 ? (
-              <>
-                <span className="tabular-nums text-foreground">{formatarBRL(robo.custo_por_contrato)}</span> por
-                contrato, por operação (corretagem e emolumentos), já descontados no resultado líquido.
-              </>
-            ) : (
-              "Custos por contrato ainda não configurados: os valores exibidos são brutos."
-            )}
-          </p>
-        </div>
-        <div className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
-          <p className="font-medium">Normalização</p>
-          <p className="mt-1 text-muted-foreground">
-            Tudo está por <span className="text-foreground">1 contrato</span>. Pontos viram R$ a{" "}
-            <span className="tabular-nums text-foreground">{formatarBRL(robo.valor_ponto_brl)}</span> por ponto (
-            {robo.ativo}). Multiplique pela sua quantidade de contratos.
-          </p>
-        </div>
-        <div className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
-          <p className="font-medium">Relatórios mensais</p>
-          <p className="mt-1 text-muted-foreground">
-            <Link
-              href={`/robos/${robo.slug}/relatorios`}
-              className="inline-flex items-center gap-1.5 underline-offset-4 hover:text-foreground hover:underline"
-            >
-              <FileText className="size-4" /> Baixar o PDF ou o CSV de cada mês
-            </Link>
-            , gerados na hora a partir das operações.
-          </p>
-          {robo.relatorio_mt5_url ? (
-            <a
-              href={robo.relatorio_mt5_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-1 block text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-            >
-              Relatório exportado do MetaTrader
-            </a>
-          ) : null}
-        </div>
-      </div>
+      <ul className="painel overflow-hidden">
+        <Linha
+          href="/metodologia#coleta"
+          rotulo="Origem dos dados"
+          valor={robo.conta_tipo === "demo" ? "MetaTrader 5, conta demo" : "MetaTrader 5, ao vivo"}
+        />
+        <Linha
+          href="/metodologia#custos"
+          rotulo="Custo por contrato"
+          valor={robo.custo_por_contrato > 0 ? `${formatarBRL(robo.custo_por_contrato)} por operação` : "não configurado: valores brutos"}
+        />
+        <Linha
+          href="/metodologia#normalizacao"
+          rotulo="Valor do ponto"
+          valor={`${formatarBRL(robo.valor_ponto_brl)} · ${robo.ativo}`}
+        />
+        <Linha href={`/robos/${robo.slug}/relatorios`} rotulo="Relatórios mensais" valor="PDF e CSV" />
+        {robo.relatorio_mt5_url ? (
+          <Linha href={robo.relatorio_mt5_url} externo rotulo="Relatório do MetaTrader" valor="abrir" />
+        ) : null}
+      </ul>
     </section>
   );
 }
