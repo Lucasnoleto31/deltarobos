@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { Faq } from "@/components/compartilhados/Faq";
 import { CurvaCapital } from "@/components/graficos/CurvaCapital";
+import { seriePorDia, seriePorOperacao } from "@/components/graficos/series-da-curva";
 import { Disclaimer } from "@/components/robo/Disclaimer";
 import { KpisRobo } from "@/components/robo/KpisRobo";
 import { PainelHoje } from "@/components/robo/PainelHoje";
 import { Transparencia } from "@/components/robo/Transparencia";
 import { UltimasOperacoes } from "@/components/robo/UltimasOperacoes";
 import { buttonVariants } from "@/components/ui/button";
+import { listarOperacoesCompactas } from "@/lib/consultas/operacoes";
 import {
   buscarRobo,
   carregarParametros,
@@ -25,13 +27,20 @@ interface Props {
 export default async function PaginaRobo({ params }: Props) {
   const { slug } = await params;
   const hoje = hojeSP();
-  const [robo, linhas, ultimas, parametros] = await Promise.all([
+  const [robo, linhas, ultimas, parametros, ops] = await Promise.all([
     buscarRobo(slug),
     listarEstatisticas(slug),
     listarUltimasOperacoes(slug, 20),
     carregarParametros(),
+    // a mesma consulta que a aba Desempenho já faz; aqui ela fica no servidor (ver abaixo)
+    listarOperacoesCompactas(slug),
   ]);
   if (!robo) return null; // o layout já tratou o 404
+
+  // Curva "por operação": as operações (dezenas de milhares) não vão para o navegador. A série é
+  // montada aqui, já reduzida aos 240 pontos do desenho, e só eles seguem para o componente.
+  const opcoesDaCurva = { base: "liquido" as const, unidade: "brl" as const, valorPonto: robo.valor_ponto_brl };
+  const pontosPorOperacao = seriePorOperacao(ops, opcoesDaCurva, seriePorDia(linhas, opcoesDaCurva).dias);
 
   const emBreve = robo.status === "em_breve";
   // Num dia de muitas operações, as últimas 20 são todas de hoje, e a seção só repetiria o painel
@@ -74,10 +83,7 @@ export default async function PaginaRobo({ params }: Props) {
               Curva de capital
             </h2>
             <div className="painel p-4 sm:p-5">
-              <CurvaCapital
-                linhas={linhas}
-                opcoes={{ base: "liquido", unidade: "brl", valorPonto: robo.valor_ponto_brl }}
-              />
+              <CurvaCapital linhas={linhas} opcoes={opcoesDaCurva} pontosPorOperacao={pontosPorOperacao} />
             </div>
           </section>
 

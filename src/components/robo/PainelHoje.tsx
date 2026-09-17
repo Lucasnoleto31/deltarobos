@@ -6,14 +6,16 @@ import { AtualizadoHa } from "@/components/compartilhados/AtualizadoHa";
 import { Valor } from "@/components/compartilhados/Valor";
 import { Badge } from "@/components/ui/badge";
 import { useAgora } from "@/hooks/useAgora";
-import { formatarDataLonga, formatarDuracao, formatarHora, formatarPreco, haQuanto, rotuloLado } from "@/lib/formato";
+import { formatarDataLonga, formatarPreco, haQuanto, rotuloLado } from "@/lib/formato";
 import { brlParaPontos } from "@/lib/stats/normalizacao";
+import { CurvaDoDia } from "./CurvaDoDia";
 import { LinhaOperacao } from "./LinhaOperacao";
 import { useRobo } from "./RoboAoVivoProvider";
 
-// Quantas operações do dia aparecem antes do "mostrar todas". Num dia de 284 operações a lista
-// inteira tinha 16.600 px no celular, e os KPIs só apareciam umas vinte telas abaixo (17/09/2026).
-const VISIVEIS = 8;
+// Quantas operações aparecem em lista antes do "mostrar as outras". O dia inteiro está na curva
+// logo acima; a lista é só o que acabou de acontecer. Num dia de 284 operações a tabela inteira
+// tinha 16.600 px no celular, e os KPIs só apareciam umas vinte telas abaixo (17/09/2026).
+const VISIVEIS = 5;
 
 /** "Hoje ao vivo" (spec §8.2): resultado do dia, posição aberta e operações entrando na hora. */
 export function PainelHoje() {
@@ -45,7 +47,7 @@ export function PainelHoje() {
         <AtualizadoHa em={atualizadoEm} />
       </div>
 
-      <div className="grid gap-5 p-4 sm:p-5 lg:grid-cols-[1fr_1.4fr]">
+      <div className="grid gap-5 p-4 sm:p-5 lg:grid-cols-[1fr_1.5fr]">
         {/* resultado do dia + posição */}
         <div className="space-y-5">
           <div>
@@ -119,81 +121,39 @@ export function PainelHoje() {
           </div>
         </div>
 
-        {/* operações do dia */}
-        <div>
-          <div className="mb-2 flex items-baseline justify-between gap-2">
-            <p className="text-sm font-medium">Operações de hoje</p>
-            {ops.length > VISIVEIS ? (
-              <p className="text-xs text-muted-foreground tabular-nums">
-                {todas ? `todas as ${ops.length}` : `últimas ${mostradas.length} de ${ops.length}`}
-              </p>
-            ) : null}
-          </div>
+        {/* o dia em curva e o que acabou de acontecer */}
+        <div className="min-w-0 space-y-4">
           {ops.length === 0 ? (
             <p className="rounded-lg border border-dashed px-3 py-6 text-center text-sm text-muted-foreground">
               Nenhuma operação fechada hoje ainda.
             </p>
           ) : (
             <>
-              {/* celular: duas linhas por operação */}
-              <ul className="-mx-4 border-y border-(--painel-fio) sm:hidden">
-                {mostradas.map((o) => (
-                  <LinhaOperacao key={o.id} operacao={o} />
-                ))}
-              </ul>
+              <CurvaDoDia operacoes={ops} />
 
-              {/* do tablet para cima: a tabela */}
-              <div className="hidden overflow-x-auto sm:block">
-                <table className="w-full text-sm">
-                  <thead className="text-left text-xs text-muted-foreground">
-                    <tr className="[&>th]:pb-2 [&>th]:font-medium">
-                      <th>Fech.</th>
-                      <th>Lado</th>
-                      <th className="text-right">Entrada</th>
-                      <th className="text-right">Saída</th>
-                      <th className="text-right">Pontos</th>
-                      <th className="text-right">R$ /ct</th>
-                    </tr>
-                  </thead>
-                  <tbody className="[&>tr]:border-t">
-                    {mostradas.map((o) => {
-                      const liq = o.resultado_brl_por_contrato - o.custos_brl_por_contrato;
-                      return (
-                        <tr key={o.id} className="[&>td]:py-2 tabular-nums">
-                          <td className="whitespace-nowrap">
-                            <span className="font-medium">{formatarHora(o.fechamento_em)}</span>
-                            <span className="ml-1 text-xs text-muted-foreground">{formatarDuracao(o.duracao_seg)}</span>
-                          </td>
-                          <td>
-                            <span className={o.lado === "compra" ? "text-positivo" : "text-negativo"}>
-                              {rotuloLado(o.lado)}
-                            </span>
-                          </td>
-                          <td className="text-right">{formatarPreco(o.preco_entrada)}</td>
-                          <td className="text-right">{formatarPreco(o.preco_saida)}</td>
-                          <td className="text-right whitespace-nowrap">
-                            <Valor valor={o.pontos_por_contrato} unidade="pontos" />
-                          </td>
-                          <td className="text-right font-medium whitespace-nowrap">
-                            <Valor valor={liq} />
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+              <div>
+                <div className="mb-2 flex items-baseline justify-between gap-2">
+                  <p className="text-sm font-medium">Últimas operações de hoje</p>
+                  <p className="text-xs text-muted-foreground tabular-nums">
+                    {todas || ops.length <= VISIVEIS ? `${ops.length} no total` : `${mostradas.length} de ${ops.length}`}
+                  </p>
+                </div>
+                <ul className="border-y border-(--painel-fio) max-sm:-mx-4">
+                  {mostradas.map((o) => (
+                    <LinhaOperacao key={o.id} operacao={o} />
+                  ))}
+                </ul>
+                {ops.length > VISIVEIS ? (
+                  <button
+                    type="button"
+                    onClick={() => setTodas((v) => !v)}
+                    aria-expanded={todas}
+                    className="mt-3 w-full rounded-lg border border-(--painel-fio) px-3 py-2 text-sm font-medium text-muted-foreground transition-colors outline-none hover:bg-(--linha-hover) hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+                  >
+                    {todas ? "Mostrar só as últimas" : `Mostrar as outras ${escondidas}`}
+                  </button>
+                ) : null}
               </div>
-
-              {ops.length > VISIVEIS ? (
-                <button
-                  type="button"
-                  onClick={() => setTodas((v) => !v)}
-                  aria-expanded={todas}
-                  className="mt-3 w-full rounded-lg border border-(--painel-fio) px-3 py-2 text-sm font-medium text-muted-foreground transition-colors outline-none hover:bg-(--linha-hover) hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
-                >
-                  {todas ? "Mostrar só as últimas" : `Mostrar as outras ${escondidas}`}
-                </button>
-              ) : null}
             </>
           )}
         </div>
