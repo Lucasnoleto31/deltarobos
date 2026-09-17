@@ -26,6 +26,8 @@ interface Props {
   altura?: number;
   /** barras sempre neutras (histograma de contagem) */
   contagem?: boolean;
+  /** o que o `n` de cada barra conta. Padrão: operações (e aí a dica mostra também a média por operação) */
+  rotuloN?: string;
 }
 
 // a fileira de rótulos embaixo das barras entra na conta da altura pedida
@@ -37,7 +39,7 @@ const ALTURA_DOS_ROTULOS = 22;
  * em todo gráfico (64% da coluna, no máximo 32 px) e dica em cartão ao apontar ou tocar. A interface
  * é a mesma de antes (era Recharts): quem chama não mudou.
  */
-export function GraficoBarras({ dados, unidade, altura = 220, contagem = false }: Props) {
+export function GraficoBarras({ dados, unidade, altura = 220, contagem = false, rotuloN = "Operações" }: Props) {
   const [ativo, setAtivo] = useState<number | null>(null);
   // largura real da área das barras: é ela que diz quantos rótulos cabem embaixo sem se atropelar
   const areaRef = useRef<HTMLDivElement>(null);
@@ -76,6 +78,9 @@ export function GraficoBarras({ dados, unidade, altura = 220, contagem = false }
   const naDica = (v: number) =>
     unidade === "brl" ? formatarBRL(v, { sinal: true, inteiro: Math.abs(v) >= 1000 }) : `${formatarPontos(v, true)} pts`;
 
+  // a média é pequena: sempre com centavos (ou uma casa, em pontos)
+  const naMedia = (v: number) => (unidade === "brl" ? formatarBRL(v, { sinal: true }) : `${formatarPontos(v, true)} pts`);
+
   const dicaDe = (d: DadoBarra): ConteudoDaDica =>
     contagem
       ? { titulo: d.rotulo, linhas: [{ rotulo: "Operações", valor: formatarNumero(Math.round(d.valor)) }] }
@@ -83,7 +88,16 @@ export function GraficoBarras({ dados, unidade, altura = 220, contagem = false }
           titulo: d.rotulo,
           linhas: [
             { rotulo: "Resultado", valor: naDica(d.valor), tom: tomDe(d.valor) },
-            ...(d.n !== undefined ? [{ rotulo: "Operações", valor: formatarNumero(d.n) }] : []),
+            ...(d.n !== undefined ? [{ rotulo: rotuloN, valor: formatarNumero(d.n) }] : []),
+            ...(d.n !== undefined && d.n > 0
+              ? [
+                  {
+                    rotulo: rotuloN === "Operações" ? "Média por operação" : "Média por dia",
+                    valor: naMedia(d.valor / d.n),
+                    tom: tomDe(d.valor),
+                  },
+                ]
+              : []),
           ],
         };
 

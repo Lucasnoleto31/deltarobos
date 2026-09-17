@@ -207,14 +207,14 @@ export function PainelDesempenho({
 
       <section className="painel p-4 sm:p-5">
         <h2 className="mb-3 font-semibold">Curva de capital</h2>
-        <CurvaCapital linhas={linhasF} opcoes={opcoes} />
+        <CurvaCapital linhas={linhasF} opcoes={opcoes} operacoes={opsF} />
       </section>
 
       <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
         <section className="painel p-4 sm:p-5">
           <h2 className="font-semibold">Resultado mensal</h2>
           <p className="mb-3 text-xs text-muted-foreground">{mensal.length} meses · todo o histórico</p>
-          <GraficoBarras dados={mensal} unidade={estado.unidade} />
+          <GraficoBarras dados={mensal} unidade={estado.unidade} rotuloN="Dias de pregão" />
         </section>
         <section className="painel p-4 sm:p-5">
           <h2 className="font-semibold">Resultado por ativo</h2>
@@ -223,21 +223,15 @@ export function PainelDesempenho({
         </section>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-        <section className="painel p-4 sm:p-5">
-          <h2 className="font-semibold">Ano × mês</h2>
-          <p className="mb-3 text-xs text-muted-foreground">todo o histórico</p>
-          <Heatmap linhas={heatmap} unidade={estado.unidade} />
-        </section>
-        <section className="flex flex-col justify-between painel p-4 sm:p-5">
-          <div>
-            <h2 className="font-semibold">Calendário, risco e faixas</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              O dia a dia com detalhe por horário, os índices de risco com a curva de drawdown e a validação de faixas por dia e hora ficam
-              nas abas próprias.
-            </p>
-          </div>
-          <div className="mt-4 flex flex-wrap gap-2">
+      {/* O mapa ocupa a largura toda: ao lado do cartão de atalhos a coluna "Total" não cabia (a tabela tem
+          640 px de mínimo). Os atalhos ficaram numa linha só, sem o parágrafo: as abas em cima já dizem o mesmo. */}
+      <section className="painel p-4 sm:p-5">
+        <h2 className="font-semibold">Ano × mês</h2>
+        <p className="mb-3 text-xs text-muted-foreground">todo o histórico</p>
+        <Heatmap linhas={heatmap} unidade={estado.unidade} />
+        <div className="mt-4 flex flex-wrap items-center gap-2 border-t pt-4">
+          <span className="text-xs text-muted-foreground">O dia a dia, o risco e as faixas em detalhe:</span>
+          <div className="flex flex-wrap gap-2">
             <Link href={`/robos/${slug}/calendario`} className={buttonVariants({ variant: "outline", size: "sm" })}>
               Calendário
             </Link>
@@ -248,8 +242,8 @@ export function PainelDesempenho({
               Validação de faixas
             </Link>
           </div>
-        </section>
-      </div>
+        </div>
+      </section>
 
       <section className="space-y-4">
         <h2 className="text-lg font-semibold tracking-tight">Distribuição</h2>
