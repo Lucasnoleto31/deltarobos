@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Faq } from "@/components/compartilhados/Faq";
 import { CurvaCapital } from "@/components/graficos/CurvaCapital";
 import { Disclaimer } from "@/components/robo/Disclaimer";
 import { KpisRobo } from "@/components/robo/KpisRobo";
@@ -33,6 +34,9 @@ export default async function PaginaRobo({ params }: Props) {
   if (!robo) return null; // o layout já tratou o 404
 
   const emBreve = robo.status === "em_breve";
+  // Num dia de muitas operações, as últimas 20 são todas de hoje, e a seção só repetiria o painel
+  // "Hoje ao vivo" logo acima. Ela aparece quando traz alguma coisa de outro dia (17/09/2026).
+  const ultimasSoDeHoje = ultimas.length > 0 && ultimas.every((o) => o.dia_pregao === hoje);
 
   return (
     <div className="space-y-10">
@@ -77,6 +81,7 @@ export default async function PaginaRobo({ params }: Props) {
             </div>
           </section>
 
+          {ultimasSoDeHoje ? null : (
           <section aria-labelledby="ultimas" className="space-y-3">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <h2 id="ultimas" className="text-lg font-semibold tracking-tight">
@@ -91,10 +96,26 @@ export default async function PaginaRobo({ params }: Props) {
             </div>
             <UltimasOperacoes operacoes={ultimas} />
           </section>
+          )}
         </>
       )}
 
       <Transparencia robo={robo} />
+
+      <section aria-labelledby="faq" className="painel-grupo">
+        <div className="painel-cabeca">
+          <h2 id="faq" className="painel-titulo">
+            Perguntas frequentes
+          </h2>
+          <div className="painel-acao">
+            <Link href="/metodologia" className="underline-offset-4 hover:text-foreground hover:underline">
+              Metodologia completa
+            </Link>
+          </div>
+        </div>
+        <Faq />
+      </section>
+
       <Disclaimer
         nomeRobo={robo.nome}
         texto={parametros.textos.disclaimer}
