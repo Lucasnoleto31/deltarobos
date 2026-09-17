@@ -143,3 +143,17 @@ export function indiceApontado(e: ReactPointerEvent<HTMLDivElement>, total: numb
   const x = (e.clientX - caixa.left) / (caixa.width || 1);
   return Math.min(total - 1, Math.max(0, Math.floor(x * total)));
 }
+
+/**
+ * A força de 0 a 1 de cada valor, para pintar calendário e mapas (lição do Hub). O teto é o 9º décimo
+ * dos valores absolutos, e não o maior: com o maior dia como régua, um dia fora da curva deixava
+ * todos os outros no tom mais fraco, e o calendário inteiro ficava da mesma cor. Acima do teto, cor cheia.
+ */
+export function escalaDeForca(valores: number[]): (valor: number) => number {
+  const absolutos = valores
+    .map((v) => Math.abs(v))
+    .filter((v) => v > 0)
+    .sort((a, b) => a - b);
+  const teto = absolutos[Math.floor((absolutos.length - 1) * 0.9)] ?? 0;
+  return (valor) => (teto > 0 ? Math.min(1, Math.abs(valor) / teto) : 0);
+}

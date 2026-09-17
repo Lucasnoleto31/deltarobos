@@ -1,13 +1,15 @@
 "use client";
 
 import { cn } from "cn";
-import { ChevronLeft, ChevronRight, Clock } from "lucide-react";
-import { useMemo, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useId, useMemo, useRef, useState } from "react";
 import { Valor } from "@/components/compartilhados/Valor";
-import { GraficoBarras } from "@/components/desempenho/GraficoBarras";
 import { Heatmap } from "@/components/desempenho/Heatmap";
+import { escalaDeForca, mistura } from "@/components/graficos/base";
+import { AmostraDaLinha, CURVA_POR_OPERACAO, DesenhoDaCurva, MolduraProfit } from "@/components/graficos/CurvaProfit";
+import { seriePorOperacao } from "@/components/graficos/series-da-curva";
 import { Button } from "@/components/ui/button";
-import { formatarBRL, formatarData, formatarDataLonga, formatarMesAno, formatarNumero, formatarPct } from "@/lib/formato";
+import { formatarData, formatarDataLonga, formatarMesAno, formatarNumero, formatarPct } from "@/lib/formato";
 import { gradeMes, heatmapAnoMes, mesesComDados } from "@/lib/stats/calendario";
 import { dia as diaOp, porDiaSemana, porHora, valorOperacao, type OperacaoCompacta } from "@/lib/stats/operacoes";
 import { mesDe, somarMeses } from "@/lib/stats/periodos";
@@ -24,20 +26,76 @@ interface Props {
 }
 
 const CABECALHO = ["Seg", "Ter", "Qua", "Qui", "Sex"];
+// quantos dias as listas de melhores e piores mostram antes do "mostrar os 10"
+const NO_TOPO = 5;
 
+/** O valor dentro da casa do dia: sem "R$" e sem espaço depois do sinal, para caber em 60 px no celular. */
 function curto(v: number): string {
-  return formatarBRL(v, { inteiro: Math.abs(v) >= 100, sinal: true }).replace("R$", "").trim();
+  const a = Math.abs(v);
+  return `${v > 0 ? "+" : v < 0 ? "-" : ""}${formatarNumero(a, a >= 100 ? 0 : 2)}`;
 }
 
-/** Aba Calendário: mês com detalhe do dia por horário, dia da semana, melhores/piores dias e heatmap. */
+/** Três números lado a lado num painel só, com o rótulo embaixo: cabe em 390 px sem um invadir o outro. */
+function Trio({ itens }: { itens: Array<{ rotulo: string; valor: React.ReactNode; apoio?: React.ReactNode }> }) {
+  return (
+    <dl className="grid grid-cols-3 divide-x divide-(--painel-fio)">
+      {itens.map((i) => (
+        <div key={i.rotulo} className="min-w-0 px-2 py-3 text-center sm:px-3">
+          <dd className="truncate text-base leading-none font-semibold tabular-nums sm:text-xl">{i.valor}</dd>
+          <dt className="mt-1.5 text-[11px] text-muted-foreground">{i.rotulo}</dt>
+          {i.apoio ? <dd className="truncate text-[11px] text-muted-foreground tabular-nums">{i.apoio}</dd> : null}
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+/**
+ * Aba Calendário: o mês com o detalhe do dia, o resultado por dia da semana, os melhores e piores
+ * dias e o mapa de meses. Refeita em 17/09/2026 (os números são os mesmos, das mesmas funções):
+ * - no celular, tocar num dia não mostrava nada, porque o detalhe ficava uma tela abaixo: agora a
+ *   página rola até ele, e o calendário já abre com o último pregão escolhido em vez de um painel
+ *   vazio de 540 px dizendo "nenhum dia selecionado";
+ * - os três números do mês colidiam em 390 px e "- 12.224" quebrava em duas linhas na casa do dia;
+ * - todo dia positivo tinha o mesmo verde: a cor agora segue o tamanho do resultado, como no Hub;
+ * - o detalhe do dia mostrava a mesma coisa duas vezes (barras por hora e a lista por hora): as
+ *   barras deram lugar ao dia em curva, operação a operação, no estilo Profit.
+ */
 export function PainelCalendario({ linhas, ops, feriados, hoje, valorPonto, capitalReferencia }: Props) {
+  const idCurva = `cal-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   const opcoes = useMemo<OpcoesSerie>(() => ({ base: "liquido", unidade: "brl", valorPonto }), [valorPonto]);
   const meses = useMemo(() => mesesComDados(linhas), [linhas]);
   const primeiroMes = meses[0] ?? mesDe(hoje);
   const mesAtual = mesDe(hoje);
 
-  const [mes, setMes] = useState(() => (meses.includes(mesAtual) ? mesAtual : (meses[meses.length - 1] ?? mesAtual)));
-  const [diaSel, setDiaSel] = useState<string | null>(null);
+  /** o último pregão com operação dentro de um mês: é o dia que o detalhe abre mostrando */
+  const ultimoDiaDe = (m: string): string | null => {
+    const doMes = linhas.filter((l) => mesDe(l.dia) === m).map((l) => l.dia);
+    return doMes.length > 0 ? doMes.reduce((a, b) => (a > b ? a : b)) : null;
+  };
+
+  const mesInicial = meses.includes(mesAtual) ? mesAtual : (meses[meses.length - 1] ?? mesAtual);
+  const [mes, setMes] = useState(mesInicial);
+  const [diaSel, setDiaSel] = useState<string | null>(() => ultimoDiaDe(mesInicial));
+  const [todosOsDias, setTodosOsDias] = useState(false);
+  const detalheRef = useRef<HTMLElement>(null);
+  const mesRef = useRef<HTMLDivElement>(null);
+
+  const trocarMes = (m: string) => {
+    setMes(m);
+    setDiaSel(ultimoDiaDe(m));
+  };
+
+  const escolherDia = (d: string, vindoDaLista = false) => {
+    setDiaSel(d);
+    if (typeof window === "undefined") return;
+    const estreito = window.matchMedia("(max-width: 1023px)").matches;
+    const suave = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    // Do tablet para baixo o detalhe fica embaixo do calendário, fora da tela: a página vai até ele.
+    // No computador os dois ficam lado a lado, então só quem vem das listas lá de baixo precisa subir.
+    const alvo = estreito ? detalheRef.current : vindoDaLista ? mesRef.current : null;
+    if (alvo) requestAnimationFrame(() => alvo.scrollIntoView({ behavior: suave ? "smooth" : "auto", block: "start" }));
+  };
 
   const grade = useMemo(() => gradeMes(linhas, mes, opcoes, feriados), [linhas, mes, opcoes, feriados]);
   const semanasUteis = useMemo(() => grade.semanas.map((s) => s.slice(1, 6)), [grade]);
@@ -53,6 +111,8 @@ export function PainelCalendario({ linhas, ops, feriados, hoje, valorPonto, capi
     () => linhas.map((l) => ({ dia: l.dia, valor: valorDia(l, opcoes), n: l.n_operacoes })),
     [linhas, opcoes],
   );
+  // a régua da cor é o histórico inteiro, para um mês poder ser comparado com outro
+  const forca = useMemo(() => escalaDeForca(diasValor.map((d) => d.valor)), [diasValor]);
   const melhores = useMemo(() => [...diasValor].sort((a, b) => b.valor - a.valor).slice(0, 10), [diasValor]);
   const piores = useMemo(() => [...diasValor].sort((a, b) => a.valor - b.valor).slice(0, 10), [diasValor]);
   const melhorGeral = melhores[0];
@@ -66,6 +126,22 @@ export function PainelCalendario({ linhas, ops, feriados, hoje, valorPonto, capi
   const totalDia = opsDia.reduce((s, op) => s + valorOperacao(op, opcoes), 0);
   const gainsDia = opsDia.filter((op) => op[4] - op[5] > 0).length;
   const horasDia = useMemo(() => porHora(opsDia, opcoes).filter((f) => f.n > 0), [opsDia, opcoes]);
+  const maiorHora = Math.max(1, ...horasDia.map((f) => Math.abs(f.total)));
+
+  // o dia em curva, operação a operação (as operações compactas já vêm em ordem de fechamento)
+  const curvaDoDia = useMemo(() => (diaSel ? seriePorOperacao(opsDia, opcoes, [diaSel]) : []), [opsDia, opcoes, diaSel]);
+  // O eixo de baixo é a ordem de fechamento, e é isso que ele diz: "1ª", "31ª"... A única hora que a
+  // operação compacta guarda é a de ABERTURA, e rotular por ela engana: em 02/09/2026 as posições
+  // abertas às 10h só fecharam no fim do dia, e o eixo saía "9h 11h 13h 10h".
+  const ordemNoEixo = useMemo(() => {
+    const n = opsDia.length;
+    const quantas = Math.min(5, n);
+    const marcas = Array.from({ length: quantas }, (_, i) => {
+      const f = i / quantas;
+      return { x: f * 100, rotulo: `${formatarNumero(Math.min(n, Math.floor(f * n) + 1))}ª` };
+    });
+    return marcas.filter((m, i) => i === 0 || m.rotulo !== marcas[i - 1].rotulo);
+  }, [opsDia]);
 
   const mesAnterior = mesDe(somarMeses(`${mes}-01`, -1));
   const mesSeguinte = mesDe(somarMeses(`${mes}-01`, 1));
@@ -74,7 +150,7 @@ export function PainelCalendario({ linhas, ops, feriados, hoje, valorPonto, capi
 
   const irHoje = () => {
     setMes(mesAtual);
-    setDiaSel(linhas.some((l) => l.dia === hoje) ? hoje : null);
+    setDiaSel(linhas.some((l) => l.dia === hoje) ? hoje : ultimoDiaDe(mesAtual));
   };
 
   if (linhas.length === 0) {
@@ -88,112 +164,111 @@ export function PainelCalendario({ linhas, ops, feriados, hoje, valorPonto, capi
   return (
     <div className="space-y-6">
       <header className="space-y-1">
-        <h2 className="text-2xl font-semibold tracking-tight">Calendário de resultados</h2>
-        <p className="text-sm text-muted-foreground">
-          O resultado de cada pregão, o detalhe por horário e os padrões por dia da semana, mês e ano. Líquido, por 1 contrato.
-        </p>
-        <p className="flex flex-wrap gap-x-3 pt-1 text-sm text-muted-foreground tabular-nums">
+        <h2 className="text-2xl font-semibold tracking-tight">Calendário</h2>
+        <p className="flex flex-wrap gap-x-3 text-sm text-muted-foreground tabular-nums">
           <span>
-            <strong className="text-foreground">{formatarNumero(linhas.length)}</strong> pregões
+            <strong className="text-foreground">{formatarNumero(linhas.length)}</strong> pregões, líquido por 1 contrato
           </span>
           {melhorGeral ? (
             <span>
-              · melhor dia <Valor valor={melhorGeral.valor} inteiro className="font-semibold" />
+              melhor dia <Valor valor={melhorGeral.valor} inteiro className="font-semibold" />
             </span>
           ) : null}
           {piorGeral ? (
             <span>
-              · pior dia <Valor valor={piorGeral.valor} inteiro className="font-semibold" />
+              pior dia <Valor valor={piorGeral.valor} inteiro className="font-semibold" />
             </span>
           ) : null}
         </p>
       </header>
 
-      <div className="grid gap-4 lg:grid-cols-[1.35fr_1fr]">
+      <div ref={mesRef} className="grid scroll-mt-20 items-start gap-4 lg:grid-cols-[1.35fr_1fr]">
         {/* mês */}
         <section className="painel">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
-            <div>
+          <div className="flex items-center justify-between gap-2 border-b px-4 py-3">
+            <div className="min-w-0">
               <h3 className="font-semibold first-letter:uppercase">{formatarMesAno(`${mes}-01`)}</h3>
-              <p className="text-xs text-muted-foreground tabular-nums">
-                {grade.nDias} {grade.nDias === 1 ? "pregão" : "pregões"} · {grade.nPositivos} positivos · clique num dia
+              <p className="truncate text-xs text-muted-foreground tabular-nums">
+                {grade.nDias} {grade.nDias === 1 ? "pregão" : "pregões"} · escolha um dia
               </p>
             </div>
-            <div className="flex items-center gap-1">
-              <Button variant="outline" size="icon-sm" aria-label="Mês anterior" disabled={!podeVoltar} onClick={() => setMes(mesAnterior)}>
+            <div className="flex shrink-0 items-center gap-1">
+              <Button variant="outline" size="icon-sm" aria-label="Mês anterior" disabled={!podeVoltar} onClick={() => trocarMes(mesAnterior)}>
                 <ChevronLeft />
               </Button>
               <Button variant="outline" size="sm" onClick={irHoje}>
                 Hoje
               </Button>
-              <Button variant="outline" size="icon-sm" aria-label="Próximo mês" disabled={!podeAvancar} onClick={() => setMes(mesSeguinte)}>
+              <Button variant="outline" size="icon-sm" aria-label="Próximo mês" disabled={!podeAvancar} onClick={() => trocarMes(mesSeguinte)}>
                 <ChevronRight />
               </Button>
             </div>
           </div>
 
-          <dl className="grid grid-cols-3 gap-3 border-b px-4 py-3 text-sm">
-            <div>
-              <dt className="text-[11px] tracking-wide text-muted-foreground uppercase">Resultado do mês</dt>
-              <dd className="text-xl font-semibold">
-                <Valor valor={grade.total} inteiro={Math.abs(grade.total) >= 1000} />
-              </dd>
-              {capitalReferencia ? (
-                <dd className="text-xs text-muted-foreground tabular-nums">{formatarPct(grade.total / capitalReferencia, 2)} do capital</dd>
-              ) : null}
-            </div>
-            <div>
-              <dt className="text-[11px] tracking-wide text-muted-foreground uppercase">Dias positivos</dt>
-              <dd className="text-xl font-semibold tabular-nums">{grade.nDias > 0 ? formatarPct(grade.nPositivos / grade.nDias, 0) : "–"}</dd>
-              <dd className="text-xs text-muted-foreground tabular-nums">
-                {grade.nPositivos} de {grade.nDias} pregões
-              </dd>
-            </div>
-            <div>
-              <dt className="text-[11px] tracking-wide text-muted-foreground uppercase">Melhor dia do mês</dt>
-              <dd className="text-xl font-semibold">{melhorDoMes ? <Valor valor={melhorDoMes.valor} inteiro={Math.abs(melhorDoMes.valor) >= 1000} /> : "–"}</dd>
-              {melhorDoMes ? <dd className="text-xs text-muted-foreground tabular-nums">{formatarData(melhorDoMes.dia)}</dd> : null}
-            </div>
-          </dl>
+          <div className="border-b">
+            <Trio
+              itens={[
+                {
+                  rotulo: "resultado do mês",
+                  valor: <Valor valor={grade.total} inteiro={Math.abs(grade.total) >= 1000} />,
+                  apoio: capitalReferencia ? `${formatarPct(grade.total / capitalReferencia, 1)} do capital` : undefined,
+                },
+                {
+                  rotulo: "dias positivos",
+                  valor: grade.nDias > 0 ? formatarPct(grade.nPositivos / grade.nDias, 0) : "–",
+                  apoio: `${grade.nPositivos} de ${grade.nDias}`,
+                },
+                {
+                  rotulo: "melhor dia do mês",
+                  valor: melhorDoMes ? <Valor valor={melhorDoMes.valor} inteiro={Math.abs(melhorDoMes.valor) >= 1000} /> : "–",
+                  apoio: melhorDoMes ? formatarData(melhorDoMes.dia) : undefined,
+                },
+              ]}
+            />
+          </div>
 
-          <div className="p-3">
-            <div className="mb-1 grid grid-cols-5 gap-1.5 text-center text-[11px] text-muted-foreground uppercase">
+          <div className="p-2 sm:p-3">
+            <div className="mb-1 grid grid-cols-5 gap-1 text-center text-[11px] text-muted-foreground uppercase sm:gap-1.5">
               {CABECALHO.map((c) => (
                 <span key={c}>{c}</span>
               ))}
             </div>
-            <div className="grid grid-cols-5 gap-1.5">
+            <div className="grid grid-cols-5 gap-1 sm:gap-1.5">
               {semanasUteis.flat().map((d) => {
                 const semDado = d.valor === null;
                 const selecionado = d.dia === diaSel;
-                const tom = semDado
-                  ? d.pregao
-                    ? "bg-muted/40 text-muted-foreground"
-                    : "bg-transparent text-muted-foreground/40"
-                  : d.valor! > 0
-                    ? "bg-positivo/15 text-positivo ring-1 ring-positivo/30 hover:ring-positivo/60"
-                    : d.valor! < 0
-                      ? "bg-negativo/15 text-negativo ring-1 ring-negativo/30 hover:ring-negativo/60"
-                      : "bg-muted text-foreground";
+                const positivo = !semDado && d.valor! > 0;
+                const negativo = !semDado && d.valor! < 0;
+                // a cor segue o tamanho do resultado: de 8% a 34% do verde ou do vermelho
+                const fundo =
+                  positivo || negativo
+                    ? mistura(positivo ? "--positivo" : "--negativo", 8 + Math.round(26 * forca(d.valor!)))
+                    : undefined;
                 return (
                   <button
                     key={d.dia}
                     type="button"
                     disabled={semDado}
-                    onClick={() => setDiaSel(d.dia)}
+                    onClick={() => escolherDia(d.dia)}
                     aria-pressed={selecionado}
+                    aria-label={semDado ? undefined : `${formatarData(d.dia)}: ${curto(d.valor!)} reais em ${d.nOperacoes} operações`}
+                    style={{ background: fundo }}
                     className={cn(
-                      "flex min-h-16 flex-col items-start rounded-lg p-2 text-left text-xs tabular-nums transition-shadow disabled:cursor-default",
-                      tom,
+                      "flex min-h-14 min-w-0 flex-col items-start rounded-lg p-1.5 text-left tabular-nums outline-none transition-shadow disabled:cursor-default sm:min-h-16 sm:p-2",
+                      "focus-visible:ring-2 focus-visible:ring-ring/60",
+                      semDado && (d.pregao ? "bg-muted/40 text-muted-foreground" : "bg-transparent text-muted-foreground/40"),
+                      positivo && "text-positivo",
+                      negativo && "text-negativo",
+                      !semDado && !positivo && !negativo && "bg-muted text-foreground",
                       d.foraDoMes && "invisible",
-                      selecionado && "ring-2 ring-foreground",
+                      selecionado ? "ring-2 ring-primary" : !semDado && "ring-1 ring-(--painel-fio) hover:ring-foreground/30",
                     )}
                   >
-                    <span className="font-semibold">{d.diaDoMes}</span>
+                    <span className="text-[11px] font-medium text-foreground/70 sm:text-xs">{d.diaDoMes}</span>
                     {!semDado ? (
                       <>
-                        <span className="mt-0.5 text-sm font-semibold">{curto(d.valor!)}</span>
-                        <span className="text-[10px] opacity-70">{d.nOperacoes} op</span>
+                        <span className="mt-0.5 max-w-full truncate text-[11px] leading-tight font-semibold sm:text-sm">{curto(d.valor!)}</span>
+                        <span className="text-[10px] leading-tight text-foreground/50">{d.nOperacoes} op</span>
                       </>
                     ) : null}
                   </button>
@@ -204,66 +279,94 @@ export function PainelCalendario({ linhas, ops, feriados, hoje, valorPonto, capi
         </section>
 
         {/* detalhe do dia */}
-        <section className="painel">
+        <section ref={detalheRef} className="painel scroll-mt-20">
           <div className="border-b px-4 py-3">
             <h3 className="font-semibold">Detalhe do dia</h3>
-            <p className="text-xs text-muted-foreground">{diaSel ? formatarDataLonga(diaSel) : "Clique num pregão do calendário"}</p>
+            <p className="text-xs text-muted-foreground first-letter:uppercase">
+              {diaSel ? formatarDataLonga(diaSel) : "Nenhum pregão com operação neste mês."}
+            </p>
           </div>
-          {diaSel === null ? (
-            <div className="flex flex-col items-center justify-center gap-2 px-4 py-16 text-center text-sm text-muted-foreground">
-              <Clock className="size-5" />
-              <p className="font-medium text-foreground">Nenhum dia selecionado</p>
-              <p>O detalhamento por horário aparece aqui.</p>
-            </div>
-          ) : (
-            <div className="space-y-4 p-4">
-              <dl className="grid grid-cols-3 gap-3 text-sm">
-                <div>
-                  <dt className="text-[11px] tracking-wide text-muted-foreground uppercase">Resultado</dt>
-                  <dd className="text-xl font-semibold">
-                    <Valor valor={totalDia} inteiro={Math.abs(totalDia) >= 1000} />
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-[11px] tracking-wide text-muted-foreground uppercase">Operações</dt>
-                  <dd className="text-xl font-semibold tabular-nums">{opsDia.length}</dd>
-                </div>
-                <div>
-                  <dt className="text-[11px] tracking-wide text-muted-foreground uppercase">Acerto</dt>
-                  <dd className="text-xl font-semibold tabular-nums">{opsDia.length > 0 ? formatarPct(gainsDia / opsDia.length, 0) : "–"}</dd>
-                </div>
-              </dl>
-              <div>
-                <p className="mb-1 text-xs font-medium">Por hora de entrada</p>
-                <GraficoBarras dados={horasDia.map((f) => ({ rotulo: f.rotulo, valor: f.total, n: f.n }))} unidade="brl" altura={180} />
+          {diaSel === null ? null : (
+            <>
+              <div className="border-b">
+                <Trio
+                  itens={[
+                    { rotulo: "resultado", valor: <Valor valor={totalDia} inteiro={Math.abs(totalDia) >= 1000} /> },
+                    { rotulo: opsDia.length === 1 ? "operação" : "operações", valor: formatarNumero(opsDia.length) },
+                    {
+                      rotulo: opsDia.length > 0 ? `acerto · ${formatarNumero(gainsDia)} gain` : "acerto",
+                      valor: opsDia.length > 0 ? formatarPct(gainsDia / opsDia.length, 0) : "–",
+                    },
+                  ]}
+                />
               </div>
-              <ul className="divide-y text-sm">
-                {horasDia.map((f) => (
-                  <li key={f.chave} className="flex items-center justify-between py-1.5 tabular-nums">
-                    <span className="text-muted-foreground">{f.rotulo}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {f.n} op · {f.n > 0 ? Math.round((f.nGain / f.n) * 100) : 0}%
-                    </span>
-                    <Valor valor={f.total} className="font-medium" />
-                  </li>
-                ))}
-              </ul>
-            </div>
+
+              <div className="space-y-4 p-3 sm:p-4">
+                {curvaDoDia.length > 0 ? (
+                  <MolduraProfit
+                    titulo="O dia, operação a operação"
+                    legenda={
+                      <span className="inline-flex items-center gap-1.5">
+                        <AmostraDaLinha cores={CURVA_POR_OPERACAO} />1 contrato, líquido, por ordem de fechamento
+                      </span>
+                    }
+                  >
+                    <DesenhoDaCurva
+                      key={diaSel}
+                      id={idCurva}
+                      pontos={curvaDoDia}
+                      cores={CURVA_POR_OPERACAO}
+                      altura={170}
+                      rotulosX={ordemNoEixo}
+                      formatarEixo={(v) => formatarNumero(v, 0)}
+                      rotuloVertical="Saldo do dia (R$)"
+                      rotuloAria={`Resultado acumulado de ${formatarData(diaSel)}, operação a operação`}
+                    />
+                  </MolduraProfit>
+                ) : null}
+
+                {/* por hora de entrada: a barra dá o tamanho, o texto dá o número */}
+                <div className="painel-grupo">
+                  <div className="painel-cabeca px-0">
+                    <h4 className="painel-titulo">Por hora de entrada</h4>
+                  </div>
+                  <ul>
+                    {horasDia.map((f) => (
+                      <li key={f.chave} className="sep [--sep:0px] grid grid-cols-[2.25rem_minmax(0,1fr)_auto] items-center gap-3 py-2 text-sm tabular-nums">
+                        <span className="text-muted-foreground">{f.rotulo}</span>
+                        <div className="min-w-0">
+                          <div className="h-1 rounded-full bg-muted">
+                            <div
+                              className={cn("h-1 rounded-full", f.total >= 0 ? "bg-positivo" : "bg-negativo")}
+                              style={{ width: `${Math.max(3, Math.round((Math.abs(f.total) / maiorHora) * 100))}%` }}
+                            />
+                          </div>
+                          <p className="mt-1 text-[11px] text-muted-foreground">
+                            {formatarNumero(f.n)} op · {f.n > 0 ? Math.round((f.nGain / f.n) * 100) : 0}% de acerto
+                          </p>
+                        </div>
+                        <Valor valor={f.total} className="font-medium" />
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </>
           )}
         </section>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid items-start gap-4 lg:grid-cols-3">
         <section className="painel p-4">
           <h3 className="font-semibold">Por dia da semana</h3>
-          <p className="mb-3 text-xs text-muted-foreground">resultado consolidado</p>
+          <p className="mb-3 text-xs text-muted-foreground">todo o histórico</p>
           <ul className="space-y-3">
             {porDia.map((f) => (
               <li key={f.chave} className="flex items-center gap-3 text-sm">
                 <span className="w-8 font-medium">{f.rotulo}</span>
-                <div className="h-1.5 flex-1 rounded-full bg-muted">
+                <div className="h-1 flex-1 rounded-full bg-muted">
                   <div
-                    className={cn("h-1.5 rounded-full", f.total >= 0 ? "bg-positivo" : "bg-negativo")}
+                    className={cn("h-1 rounded-full", f.total >= 0 ? "bg-positivo" : "bg-negativo")}
                     style={{ width: `${Math.max(3, Math.round((Math.abs(f.total) / maiorDia) * 100))}%` }}
                   />
                 </div>
@@ -278,9 +381,17 @@ export function PainelCalendario({ linhas, ops, feriados, hoje, valorPonto, capi
           </ul>
         </section>
 
-        <ListaDias titulo="Melhores dias" sub="Top 10 do período" itens={melhores} positivo />
-        <ListaDias titulo="Piores dias" sub="Top 10 do período" itens={piores} />
+        <ListaDias titulo="Melhores dias" itens={melhores} positivo todos={todosOsDias} aoEscolher={(d) => { trocarMes(mesDe(d)); escolherDia(d, true); }} />
+        <ListaDias titulo="Piores dias" itens={piores} todos={todosOsDias} aoEscolher={(d) => { trocarMes(mesDe(d)); escolherDia(d, true); }} />
       </div>
+
+      {melhores.length > NO_TOPO ? (
+        <div className="flex justify-center lg:justify-end">
+          <Button variant="outline" size="sm" onClick={() => setTodosOsDias((v) => !v)} aria-expanded={todosOsDias}>
+            {todosOsDias ? `Mostrar só os ${NO_TOPO} primeiros` : `Mostrar os ${melhores.length} melhores e piores`}
+          </Button>
+        </div>
+      ) : null}
 
       <section className="painel p-4 sm:p-5">
         <h3 className="font-semibold">Resultado mensal por ano</h3>
@@ -293,38 +404,48 @@ export function PainelCalendario({ linhas, ops, feriados, hoje, valorPonto, capi
 
 function ListaDias({
   titulo,
-  sub,
   itens,
   positivo = false,
+  todos,
+  aoEscolher,
 }: {
   titulo: string;
-  sub: string;
   itens: { dia: string; valor: number; n: number }[];
   positivo?: boolean;
+  todos: boolean;
+  /** tocar num dia da lista abre esse dia no calendário */
+  aoEscolher: (dia: string) => void;
 }) {
   const maior = Math.max(1, ...itens.map((i) => Math.abs(i.valor)));
+  const mostrados = todos ? itens : itens.slice(0, NO_TOPO);
   return (
     <section className="painel p-4">
       <h3 className="font-semibold">{titulo}</h3>
-      <p className="mb-3 text-xs text-muted-foreground">{sub}</p>
-      <ol className="space-y-2.5">
-        {itens.map((i, idx) => (
-          <li key={i.dia} className="flex items-center gap-3 text-sm">
-            <span className="w-5 text-xs text-muted-foreground tabular-nums">{String(idx + 1).padStart(2, "0")}</span>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="font-medium tabular-nums">
-                  {formatarData(i.dia)} <span className="text-xs font-normal text-muted-foreground">{i.n} op</span>
-                </span>
-                <Valor valor={i.valor} inteiro={Math.abs(i.valor) >= 1000} className="font-semibold" />
+      <p className="mb-2 text-xs text-muted-foreground">os {mostrados.length} primeiros do histórico · cada linha abre o dia no calendário</p>
+      <ol>
+        {mostrados.map((i, idx) => (
+          <li key={i.dia}>
+            <button
+              type="button"
+              onClick={() => aoEscolher(i.dia)}
+              className="linha-interativa -mx-2 flex w-[calc(100%+1rem)] items-center gap-3 rounded-lg px-2 py-1.5 text-left text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            >
+              <span className="w-5 text-xs text-muted-foreground tabular-nums">{String(idx + 1).padStart(2, "0")}</span>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="font-medium tabular-nums">
+                    {formatarData(i.dia)} <span className="text-xs font-normal text-muted-foreground">{formatarNumero(i.n)} op</span>
+                  </span>
+                  <Valor valor={i.valor} inteiro={Math.abs(i.valor) >= 1000} className="font-semibold" />
+                </div>
+                <div className="mt-1 h-1 rounded-full bg-muted">
+                  <div
+                    className={cn("h-1 rounded-full", positivo ? "bg-positivo" : "bg-negativo")}
+                    style={{ width: `${Math.max(3, Math.round((Math.abs(i.valor) / maior) * 100))}%` }}
+                  />
+                </div>
               </div>
-              <div className="mt-1 h-1 rounded-full bg-muted">
-                <div
-                  className={cn("h-1 rounded-full", positivo ? "bg-positivo" : "bg-negativo")}
-                  style={{ width: `${Math.max(3, Math.round((Math.abs(i.valor) / maior) * 100))}%` }}
-                />
-              </div>
-            </div>
+            </button>
           </li>
         ))}
       </ol>
