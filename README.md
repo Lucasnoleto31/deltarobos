@@ -70,15 +70,25 @@ Um robô novo é só mais um `insert into robos` + mapeamento de magic: ele apar
 
 Se o magic já tinha deals antes do mapeamento: `select reatribuir_magic('<conta>', 1001);`.
 
-### Histórico importado (origem manual) e data de corte
+### Histórico importado (origem manual) e fonte por dia
 
 O histórico anterior ao coletor veio do projeto antigo (Quantsrobos, tabela `trades`) por
 `scripts/importar-antigo.py`, que lê pela CLI (`--project-ref`) e grava em `operacoes` com
 `origem = 'manual'` e `id_externo` (idempotente). Sem preços de entrada/saída, só resultado.
 
-Cada robô tem `robos.historico_manual_ate`: até essa data os números públicos usam o manual;
-depois, só o MT5 da conta principal. Hoje é `2026-06-30` para Apollo e Orion (o MT5 bate com o
-antigo mês a mês a partir de julho). Trocar a data recalcula a série inteira pelo trigger.
+A fonte é decidida por dia (migration 0014): se um (robô, dia) tem operação manual, o site
+mostra só ela; se não tem, vale o MT5 da conta principal. Importar um dia substitui o MT5 daquele
+dia inteiro, então importe o dia completo. `robos.historico_manual_ate` não tem mais efeito.
+
+Operações do Profit (Nelogica) entram por `scripts/importar-profit.py`, que lê o CSV da aba
+Operações do Relatório de Performance ou o CSV da Lista de Ordens (casa as ordens executadas
+no modelo netting), normaliza por contrato e grava com `id_externo` (repetir é seguro):
+
+```bash
+python scripts/importar-profit.py operacoes.csv --slug apollo --dry-run   # confere sem gravar
+python scripts/importar-profit.py operacoes.csv --slug apollo             # grava
+python scripts/importar-profit.py operacoes.csv --slug apollo --substituir  # refaz os dias do arquivo
+```
 
 ```bash
 python scripts/importar-antigo.py --dry-run   # só conta na origem
