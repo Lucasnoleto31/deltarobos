@@ -22,7 +22,7 @@ export function CardRobo({ card, status }: Props) {
     <Link
       href={`/robos/${card.slug}`}
       className={cn(
-        "group flex h-full flex-col gap-4 rounded-xl bg-card p-4 ring-1 ring-foreground/10 transition-shadow hover:ring-foreground/25 focus-visible:ring-2 focus-visible:ring-ring/50 outline-none",
+        "group flex h-full flex-col gap-4 painel p-4 painel-interativo focus-visible:ring-2 focus-visible:ring-ring/50 outline-none",
         emBreve && "opacity-80",
       )}
     >

@@ -13,7 +13,7 @@ export default function CarregandoRobo() {
         <Skeleton className="h-4 w-full max-w-prose" />
         <Skeleton className="h-4 w-2/3 max-w-prose" />
       </div>
-      <div className="rounded-2xl bg-card p-5 ring-1 ring-foreground/10">
+      <div className="painel p-5">
         <div className="grid gap-5 lg:grid-cols-[1fr_1.4fr]">
           <div className="space-y-4">
             <Skeleton className="h-4 w-40" />

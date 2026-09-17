@@ -31,8 +31,8 @@ export function ComoComecar({ links }: Props) {
 
       <ol className="grid gap-4 sm:grid-cols-3">
         {PASSOS.map((p, i) => (
-          <li key={p.titulo} className="flex gap-4 rounded-xl bg-card p-5 ring-1 ring-foreground/10">
-            <span className="grid size-8 shrink-0 place-items-center rounded-full bg-foreground text-sm font-semibold text-background tabular-nums">
+          <li key={p.titulo} className="flex gap-4 painel p-5">
+            <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary/15 text-sm font-semibold text-primary tabular-nums">
               {i + 1}
             </span>
             <div>

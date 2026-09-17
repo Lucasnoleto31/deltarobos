@@ -24,7 +24,7 @@ export function PainelHoje() {
   const atualizadoEm = estado.ultimaMensagemEm ?? estado.ultimoHeartbeatEm;
 
   return (
-    <section aria-labelledby="hoje" className="rounded-2xl bg-card ring-1 ring-foreground/10">
+    <section aria-labelledby="hoje" className="painel">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b px-5 py-3">
         <h2 id="hoje" className="font-semibold">
           Hoje ao vivo{" "}

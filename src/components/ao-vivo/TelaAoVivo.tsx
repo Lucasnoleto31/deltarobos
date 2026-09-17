@@ -101,7 +101,7 @@ export function TelaAoVivo() {
             Nenhuma operação fechada hoje ainda.
           </p>
         ) : (
-          <ul className="divide-y rounded-xl bg-card ring-1 ring-foreground/10">
+          <ul className="divide-y painel">
             {[...ops]
               .reverse()
               .slice(0, 10)

@@ -85,7 +85,7 @@ export function Risco({
       <CardsKpi itens={itens} className="lg:grid-cols-4" />
 
       {episodios.length > 0 ? (
-        <div className="overflow-x-auto rounded-xl bg-card ring-1 ring-foreground/10">
+        <div className="overflow-x-auto painel">
           <table className="w-full text-sm">
             <caption className="px-3 py-2 text-left text-xs text-muted-foreground">
               Maiores quedas do período, do pico até voltar ao pico

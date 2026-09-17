@@ -11,7 +11,7 @@ interface Props {
 export function Disclaimer({ nomeRobo, texto, linkCta }: Props) {
   return (
     <section className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-card p-6 ring-1 ring-foreground/10">
+      <div className="flex flex-wrap items-center justify-between gap-4 painel p-6">
         <div>
           <h2 className="text-lg font-semibold tracking-tight">Quer o {nomeRobo} rodando na sua conta?</h2>
           <p className="text-sm text-muted-foreground">

@@ -20,7 +20,7 @@ function CardKpi({
   detalhe?: React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
+    <div className="painel p-4">
       <p className="text-xs text-muted-foreground">{rotulo}</p>
       <p className="mt-1 text-xl font-semibold tracking-tight tabular-nums">{children}</p>
       {detalhe ? <p className="mt-0.5 text-xs text-muted-foreground">{detalhe}</p> : null}

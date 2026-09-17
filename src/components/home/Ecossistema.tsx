@@ -43,9 +43,9 @@ export function Ecossistema({ links }: Props) {
             href={c.href}
             target="_blank"
             rel="noopener noreferrer"
-            className="group flex flex-col gap-3 rounded-xl bg-card p-5 ring-1 ring-foreground/10 transition-shadow hover:ring-foreground/25"
+            className="group flex flex-col gap-3 painel p-5 painel-interativo"
           >
-            <span className="grid size-9 place-items-center rounded-lg bg-muted">{c.icone}</span>
+            <span className="grid size-9 place-items-center rounded-lg bg-primary/15 text-primary">{c.icone}</span>
             <div className="flex-1">
               <h3 className="font-semibold">{c.titulo}</h3>
               <p className="text-sm text-muted-foreground">{c.texto}</p>

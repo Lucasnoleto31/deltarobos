@@ -17,7 +17,7 @@ export function UltimasOperacoes({ operacoes }: Props) {
   }
 
   return (
-    <div className="overflow-x-auto rounded-xl bg-card ring-1 ring-foreground/10">
+    <div className="overflow-x-auto painel">
       <table className="w-full text-sm">
         <thead className="text-left text-xs text-muted-foreground">
           <tr className="[&>th]:px-3 [&>th]:py-2 [&>th]:font-medium">

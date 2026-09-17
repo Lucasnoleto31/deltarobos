@@ -37,7 +37,7 @@ const PERGUNTAS = [
 export function TransparenciaFaq({ textos }: Props) {
   return (
     <section id="transparencia" className="conteudo scroll-mt-20 py-8">
-      <div className="grid gap-6 lg:grid-cols-[1fr_1.4fr]">
+      <div className="grid items-start gap-6 lg:grid-cols-[1fr_1.4fr]">
         <div className="space-y-3">
           <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">Transparência</h2>
           <p className="text-muted-foreground">
@@ -49,9 +49,9 @@ export function TransparenciaFaq({ textos }: Props) {
           <p className="pt-4 text-xs text-muted-foreground">{textos.disclaimer}</p>
         </div>
 
-        <dl className="divide-y rounded-2xl bg-card ring-1 ring-foreground/10">
+        <dl className="painel overflow-hidden">
           {PERGUNTAS.map((item) => (
-            <details key={item.p} className="group px-5 py-3">
+            <details key={item.p} className="sep [--sep:20px] group px-5 py-3">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium [&::-webkit-details-marker]:hidden">
                 <dt>{item.p}</dt>
                 <span aria-hidden className="text-muted-foreground transition-transform group-open:rotate-45">

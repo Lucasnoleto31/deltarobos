@@ -111,7 +111,7 @@ export function PainelCalendario({ linhas, ops, feriados, hoje, valorPonto, capi
 
       <div className="grid gap-4 lg:grid-cols-[1.35fr_1fr]">
         {/* mês */}
-        <section className="rounded-2xl bg-card ring-1 ring-foreground/10">
+        <section className="painel">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
             <div>
               <h3 className="font-semibold first-letter:uppercase">{formatarMesAno(`${mes}-01`)}</h3>
@@ -204,7 +204,7 @@ export function PainelCalendario({ linhas, ops, feriados, hoje, valorPonto, capi
         </section>
 
         {/* detalhe do dia */}
-        <section className="rounded-2xl bg-card ring-1 ring-foreground/10">
+        <section className="painel">
           <div className="border-b px-4 py-3">
             <h3 className="font-semibold">Detalhe do dia</h3>
             <p className="text-xs text-muted-foreground">{diaSel ? formatarDataLonga(diaSel) : "Clique num pregão do calendário"}</p>
@@ -254,7 +254,7 @@ export function PainelCalendario({ linhas, ops, feriados, hoje, valorPonto, capi
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <section className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10">
+        <section className="painel p-4">
           <h3 className="font-semibold">Por dia da semana</h3>
           <p className="mb-3 text-xs text-muted-foreground">resultado consolidado</p>
           <ul className="space-y-3">
@@ -282,7 +282,7 @@ export function PainelCalendario({ linhas, ops, feriados, hoje, valorPonto, capi
         <ListaDias titulo="Piores dias" sub="Top 10 do período" itens={piores} />
       </div>
 
-      <section className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10 sm:p-5">
+      <section className="painel p-4 sm:p-5">
         <h3 className="font-semibold">Resultado mensal por ano</h3>
         <p className="mb-3 text-xs text-muted-foreground">cada célula é o consolidado do mês</p>
         <Heatmap linhas={heatmap} unidade="brl" />
@@ -304,7 +304,7 @@ function ListaDias({
 }) {
   const maior = Math.max(1, ...itens.map((i) => Math.abs(i.valor)));
   return (
-    <section className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10">
+    <section className="painel p-4">
       <h3 className="font-semibold">{titulo}</h3>
       <p className="mb-3 text-xs text-muted-foreground">{sub}</p>
       <ol className="space-y-2.5">

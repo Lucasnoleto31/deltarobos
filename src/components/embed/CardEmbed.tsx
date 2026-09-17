@@ -20,7 +20,7 @@ export function CardEmbed({ robo, resumo, hoje, linkSite }: Props) {
       href={linkSite}
       target="_blank"
       rel="noopener noreferrer"
-      className="block rounded-xl bg-card p-4 ring-1 ring-foreground/10 hover:ring-foreground/25"
+      className="block painel p-4 painel-interativo"
     >
       <div className="flex items-start justify-between gap-2">
         <div>

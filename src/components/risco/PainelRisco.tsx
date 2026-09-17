@@ -122,7 +122,7 @@ export function PainelRisco({ linhas, ops, hoje, valorPonto, capitalReferencia, 
       <CardsKpi itens={tiles} />
       <CardsKpi itens={tiles2} className="lg:grid-cols-3" />
 
-      <section className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10 sm:p-5">
+      <section className="painel p-4 sm:p-5">
         <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
           <div>
             <h3 className="font-semibold">Curva de drawdown</h3>
@@ -164,7 +164,7 @@ export function PainelRisco({ linhas, ops, hoje, valorPonto, capitalReferencia, 
       </section>
 
       <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-        <section className="overflow-x-auto rounded-2xl bg-card ring-1 ring-foreground/10">
+        <section className="overflow-x-auto painel">
           <div className="border-b px-4 py-3">
             <h3 className="font-semibold">Top 10 maiores quedas</h3>
             <p className="text-xs text-muted-foreground">do pico ao fundo</p>
@@ -207,7 +207,7 @@ export function PainelRisco({ linhas, ops, hoje, valorPonto, capitalReferencia, 
           )}
         </section>
 
-        <section className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10">
+        <section className="painel p-4">
           <h3 className="font-semibold">Distribuição por profundidade</h3>
           <p className="mb-3 text-xs text-muted-foreground">{episodios.length} quedas no período{temCapital ? ", em % do capital" : ", em R$ por contrato"}</p>
           <ul className="space-y-2.5 text-sm">
@@ -231,7 +231,7 @@ export function PainelRisco({ linhas, ops, hoje, valorPonto, capitalReferencia, 
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <section className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10">
+        <section className="painel p-4">
           <h3 className="mb-3 font-semibold">5 piores dias</h3>
           <ol className="space-y-2.5">
             {piores.map((p, i) => {
@@ -256,7 +256,7 @@ export function PainelRisco({ linhas, ops, hoje, valorPonto, capitalReferencia, 
           </ol>
         </section>
 
-        <section className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10">
+        <section className="painel p-4">
           <h3 className="mb-3 font-semibold">Resumo diário</h3>
           <dl className="divide-y text-sm">
             <div className="flex items-center justify-between py-2">

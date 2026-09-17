@@ -20,14 +20,14 @@ export function Transparencia({ robo }: Props) {
         </Link>
       </div>
       <div className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
+        <div className="painel p-4">
           <p className="font-medium">De onde vem o dado</p>
           <p className="mt-1 text-muted-foreground">
             Um coletor roda no MetaTrader 5 da conta da Delta Robôs{robo.conta_tipo === "demo" ? " (conta demo)" : ""} e
             envia cada operação ao fechar, mais um sinal de vida a cada 3 segundos. Nada é digitado à mão.
           </p>
         </div>
-        <div className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
+        <div className="painel p-4">
           <p className="font-medium">Custos considerados</p>
           <p className="mt-1 text-muted-foreground">
             {robo.custo_por_contrato > 0 ? (
@@ -40,7 +40,7 @@ export function Transparencia({ robo }: Props) {
             )}
           </p>
         </div>
-        <div className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
+        <div className="painel p-4">
           <p className="font-medium">Normalização</p>
           <p className="mt-1 text-muted-foreground">
             Tudo está por <span className="text-foreground">1 contrato</span>. Pontos viram R$ a{" "}
@@ -48,7 +48,7 @@ export function Transparencia({ robo }: Props) {
             {robo.ativo}). Multiplique pela sua quantidade de contratos.
           </p>
         </div>
-        <div className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
+        <div className="painel p-4">
           <p className="font-medium">Relatórios mensais</p>
           <p className="mt-1 text-muted-foreground">
             <Link

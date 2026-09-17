@@ -27,7 +27,7 @@ export function ResumoDoDia() {
 
   return (
     <section id="resumo-do-dia" className="conteudo scroll-mt-20 py-8">
-      <div className="rounded-2xl bg-card p-5 ring-1 ring-foreground/10 sm:p-6">
+      <div className="painel p-5 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
             <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">

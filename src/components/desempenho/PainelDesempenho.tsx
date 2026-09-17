@@ -205,18 +205,18 @@ export function PainelDesempenho({
 
       <CardsKpi itens={cards} />
 
-      <section className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10 sm:p-5">
+      <section className="painel p-4 sm:p-5">
         <h2 className="mb-3 font-semibold">Curva de capital</h2>
         <CurvaCapital linhas={linhasF} opcoes={opcoes} />
       </section>
 
       <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-        <section className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10 sm:p-5">
+        <section className="painel p-4 sm:p-5">
           <h2 className="font-semibold">Resultado mensal</h2>
           <p className="mb-3 text-xs text-muted-foreground">{mensal.length} meses · todo o histórico</p>
           <GraficoBarras dados={mensal} unidade={estado.unidade} />
         </section>
-        <section className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10 sm:p-5">
+        <section className="painel p-4 sm:p-5">
           <h2 className="font-semibold">Resultado por ativo</h2>
           <p className="mb-3 text-xs text-muted-foreground">séries do contrato no período</p>
           <PorSimbolo faixas={simbolos} unidade={estado.unidade} />
@@ -224,12 +224,12 @@ export function PainelDesempenho({
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-        <section className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10 sm:p-5">
+        <section className="painel p-4 sm:p-5">
           <h2 className="font-semibold">Ano × mês</h2>
           <p className="mb-3 text-xs text-muted-foreground">todo o histórico</p>
           <Heatmap linhas={heatmap} unidade={estado.unidade} />
         </section>
-        <section className="flex flex-col justify-between rounded-2xl bg-card p-4 ring-1 ring-foreground/10 sm:p-5">
+        <section className="flex flex-col justify-between painel p-4 sm:p-5">
           <div>
             <h2 className="font-semibold">Calendário, risco e faixas</h2>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -254,15 +254,15 @@ export function PainelDesempenho({
       <section className="space-y-4">
         <h2 className="text-lg font-semibold tracking-tight">Distribuição</h2>
         <div className="grid gap-4 lg:grid-cols-3">
-          <div className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10">
+          <div className="painel p-4">
             <h3 className="mb-2 text-sm font-medium">Por dia da semana</h3>
             <GraficoBarras dados={porDia.map((f) => ({ rotulo: f.rotulo, valor: f.total, n: f.n }))} unidade={estado.unidade} altura={200} />
           </div>
-          <div className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10">
+          <div className="painel p-4">
             <h3 className="mb-2 text-sm font-medium">Por hora de entrada</h3>
             <GraficoBarras dados={porHoraF.map((f) => ({ rotulo: f.rotulo, valor: f.total, n: f.n }))} unidade={estado.unidade} altura={200} />
           </div>
-          <div className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10">
+          <div className="painel p-4">
             <h3 className="mb-2 text-sm font-medium">Resultado por operação</h3>
             <GraficoBarras
               dados={hist.map((f) => ({ rotulo: rotuloUnidade((f.de + f.ate) / 2, estado.unidade), valor: f.n }))}

@@ -13,7 +13,7 @@ export function SkeletonBarra() {
 
 export function SkeletonCardRobo() {
   return (
-    <div className="flex flex-col gap-4 rounded-xl bg-card p-4 ring-1 ring-foreground/10">
+    <div className="flex flex-col gap-4 painel p-4">
       <div className="flex items-center justify-between">
         <Skeleton className="h-5 w-24" />
         <Skeleton className="h-5 w-20 rounded-full" />
@@ -32,7 +32,7 @@ export function SkeletonKpis({ quantidade = 8 }: { quantidade?: number }) {
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
       {Array.from({ length: quantidade }).map((_, i) => (
-        <div key={i} className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
+        <div key={i} className="painel p-4">
           <Skeleton className="mb-2 h-3 w-20" />
           <Skeleton className="h-6 w-28" />
         </div>
@@ -43,7 +43,7 @@ export function SkeletonKpis({ quantidade = 8 }: { quantidade?: number }) {
 
 export function SkeletonCurva() {
   return (
-    <div className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
+    <div className="painel p-4">
       <div className="mb-3 flex gap-2">
         <Skeleton className="h-7 w-48" />
         <Skeleton className="ml-auto h-7 w-32" />

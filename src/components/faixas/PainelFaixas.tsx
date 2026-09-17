@@ -91,7 +91,7 @@ export function PainelFaixas({ ops, hoje, parametros }: Props) {
         </p>
       </header>
 
-      <section className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10 sm:p-5">
+      <section className="painel p-4 sm:p-5">
         <h3 className="inline-flex items-center gap-2 font-semibold">
           <SlidersHorizontal className="size-4" /> Validação cruzada · parâmetros
         </h3>
@@ -130,7 +130,7 @@ export function PainelFaixas({ ops, hoje, parametros }: Props) {
       </section>
 
       <div className="grid gap-4 lg:grid-cols-[1fr_1.2fr]">
-        <section className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10 sm:p-5">
+        <section className="painel p-4 sm:p-5">
           <h3 className="font-semibold">Distribuição das faixas</h3>
           <p className="mb-3 text-xs text-muted-foreground">clique numa classificação pra filtrar o mapa</p>
           <div className="flex items-center gap-4">
@@ -179,7 +179,7 @@ export function PainelFaixas({ ops, hoje, parametros }: Props) {
           </div>
         </section>
 
-        <section className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10 sm:p-5">
+        <section className="painel p-4 sm:p-5">
           <h3 className="inline-flex items-center gap-2 font-semibold">
             <Zap className="size-4 text-positivo" /> Melhores faixas para ligar
           </h3>
@@ -217,7 +217,7 @@ export function PainelFaixas({ ops, hoje, parametros }: Props) {
       </div>
 
       {r.insights.length > 0 ? (
-        <section className="rounded-2xl bg-card ring-1 ring-foreground/10">
+        <section className="painel">
           <div className="border-b px-4 py-3">
             <h3 className="font-semibold">Insights automáticos</h3>
             <p className="text-xs text-muted-foreground">{r.insights.length} observações geradas pelas regras da metodologia</p>
@@ -233,7 +233,7 @@ export function PainelFaixas({ ops, hoje, parametros }: Props) {
         </section>
       ) : null}
 
-      <section className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10 sm:p-5">
+      <section className="painel p-4 sm:p-5">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div>
             <h3 className="font-semibold">Mapa de faixas</h3>

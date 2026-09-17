@@ -39,7 +39,7 @@ export default async function PaginaRelatorios({ params }: Props) {
       {meses.length === 0 ? (
         <p className="rounded-2xl border border-dashed p-8 text-center text-muted-foreground">Ainda não há mês com operações fechadas.</p>
       ) : (
-        <div className="overflow-x-auto rounded-2xl bg-card ring-1 ring-foreground/10">
+        <div className="overflow-x-auto painel">
           <table className="w-full text-sm">
             <thead className="text-left text-xs text-muted-foreground">
               <tr className="[&>th]:px-4 [&>th]:py-2.5 [&>th]:font-medium">

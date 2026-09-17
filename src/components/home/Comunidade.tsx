@@ -1,6 +1,5 @@
 // lucide-react 1.x não traz ícones de marca: usa genéricos
-import { Camera, MessageCircle, Play, Radio } from "lucide-react";
-import { buttonVariants } from "@/components/ui/button";
+import { ArrowUpRight, Camera, MessageCircle, Radio } from "lucide-react";
 import type { Links, VideoYouTube } from "@/lib/tipos";
 
 interface Props {
@@ -8,40 +7,44 @@ interface Props {
   videos: VideoYouTube[];
 }
 
-function CardLink({
+/**
+ * Linha de canal, no desenho da lista agrupada do iOS (Habitto): quadradinho de ícone tintado no
+ * acento, título e apoio, e a seta de quem sai do site. A linha inteira é o alvo do clique.
+ */
+function LinhaCanal({
   href,
   icone,
   titulo,
   descricao,
-  acao,
 }: {
   href: string;
   icone: React.ReactNode;
   titulo: string;
   descricao: string;
-  acao: string;
 }) {
   return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="group flex flex-col gap-3 rounded-xl bg-card p-5 ring-1 ring-foreground/10 transition-shadow hover:ring-foreground/25"
-    >
-      <span className="grid size-9 place-items-center rounded-lg bg-muted text-foreground">{icone}</span>
-      <div className="flex-1">
-        <h3 className="font-semibold">{titulo}</h3>
-        <p className="text-sm text-muted-foreground">{descricao}</p>
-      </div>
-      <span className="text-sm font-medium underline-offset-4 group-hover:underline">{acao} →</span>
-    </a>
+    <li className="sep [--sep:64px]">
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="linha-interativa flex min-h-[64px] items-center gap-3 px-4 py-3 outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+      >
+        <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/15 text-primary">{icone}</span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-medium leading-tight">{titulo}</span>
+          <span className="mt-0.5 block text-sm text-muted-foreground">{descricao}</span>
+        </span>
+        <ArrowUpRight aria-hidden className="size-4 shrink-0 text-foreground/30" />
+      </a>
+    </li>
   );
 }
 
 /** Item 8 da home: WhatsApp, YouTube (3 últimos vídeos), Instagram e Sala ao Vivo. */
 export function Comunidade({ links, videos }: Props) {
-  const temAlgo =
-    links.whatsapp || links.youtube || links.instagram || links.sala_ao_vivo || videos.length > 0;
+  const temCanais = Boolean(links.whatsapp || links.sala_ao_vivo || links.instagram);
+  const temVideos = Boolean(links.youtube || videos.length > 0);
 
   return (
     <section id="comunidade" className="conteudo scroll-mt-20 py-8">
@@ -52,55 +55,59 @@ export function Comunidade({ links, videos }: Props) {
         </p>
       </div>
 
-      {!temAlgo ? (
+      {!temCanais && !temVideos ? (
         <p className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
           Links da comunidade em breve.
         </p>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-3">
-          <div className="grid gap-4 sm:grid-cols-2 lg:col-span-1 lg:grid-cols-1">
-            {links.whatsapp ? (
-              <CardLink
-                href={links.whatsapp}
-                icone={<MessageCircle className="size-5" />}
-                titulo="Grupo no WhatsApp"
-                descricao="Avisos de operação, resumo do dia e suporte."
-                acao="Entrar no grupo"
-              />
-            ) : null}
-            {links.sala_ao_vivo ? (
-              <CardLink
-                href={links.sala_ao_vivo}
-                icone={<Radio className="size-5" />}
-                titulo="Sala ao vivo"
-                descricao="Acompanhe o pregão em tempo real com a equipe."
-                acao="Acessar a sala"
-              />
-            ) : null}
-            {links.instagram ? (
-              <CardLink
-                href={links.instagram}
-                icone={<Camera className="size-5" />}
-                titulo="Instagram"
-                descricao="Bastidores, fechamentos e novidades."
-                acao="Seguir"
-              />
-            ) : null}
-          </div>
+        // As duas colunas têm altura parecida por construção: três linhas de canal de um lado, uma
+        // fileira de vídeos do outro. Nada estica para preencher (era o vazio do painel de vídeos).
+        <div className="grid items-start gap-x-4 gap-y-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.8fr)]">
+          {temCanais ? (
+            <div className="painel-grupo">
+              <div className="painel-cabeca">
+                <h3 className="painel-titulo">Canais</h3>
+              </div>
+              <ul className="painel overflow-hidden">
+                {links.whatsapp ? (
+                  <LinhaCanal
+                    href={links.whatsapp}
+                    icone={<MessageCircle className="size-5" />}
+                    titulo="Grupo no WhatsApp"
+                    descricao="Avisos de operação, resumo do dia e suporte."
+                  />
+                ) : null}
+                {links.sala_ao_vivo ? (
+                  <LinhaCanal
+                    href={links.sala_ao_vivo}
+                    icone={<Radio className="size-5" />}
+                    titulo="Sala ao vivo"
+                    descricao="O pregão em tempo real com a equipe."
+                  />
+                ) : null}
+                {links.instagram ? (
+                  <LinhaCanal
+                    href={links.instagram}
+                    icone={<Camera className="size-5" />}
+                    titulo="Instagram"
+                    descricao="Bastidores, fechamentos e novidades."
+                  />
+                ) : null}
+              </ul>
+            </div>
+          ) : null}
 
-          {links.youtube || videos.length > 0 ? (
-            <div className="flex flex-col gap-3 rounded-xl bg-card p-5 ring-1 ring-foreground/10 lg:col-span-2">
-              <div className="flex items-center justify-between gap-2">
-                <h3 className="inline-flex items-center gap-2 font-semibold">
-                  <Play className="size-5" /> Últimos vídeos
-                </h3>
-                <div className="flex gap-2">
+          {temVideos ? (
+            <div className="painel-grupo">
+              <div className="painel-cabeca">
+                <h3 className="painel-titulo">Últimos vídeos</h3>
+                <div className="painel-acao">
                   {links.proxima_live ? (
                     <a
                       href={links.proxima_live}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className={buttonVariants({ size: "sm" })}
+                      className="font-medium text-primary underline-offset-4 hover:underline"
                     >
                       Próxima live
                     </a>
@@ -110,39 +117,45 @@ export function Comunidade({ links, videos }: Props) {
                       href={links.youtube}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className={buttonVariants({ size: "sm", variant: "outline" })}
+                      className="inline-flex items-center gap-0.5 underline-offset-4 hover:text-foreground hover:underline"
                     >
-                      Ver canal
+                      Ver canal <ArrowUpRight aria-hidden className="size-3.5" />
                     </a>
                   ) : null}
                 </div>
               </div>
 
-              {videos.length > 0 ? (
-                <ul className="grid gap-3 sm:grid-cols-3">
-                  {videos.map((v) => (
-                    <li key={v.id}>
-                      <a
-                        href={v.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="group block overflow-hidden rounded-lg ring-1 ring-foreground/10"
-                      >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={v.thumb}
-                          alt=""
-                          loading="lazy"
-                          className="aspect-video w-full object-cover transition-transform group-hover:scale-[1.02]"
-                        />
-                        <p className="line-clamp-2 p-2 text-xs font-medium leading-snug">{v.titulo}</p>
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-sm text-muted-foreground">Os vídeos mais recentes aparecem aqui.</p>
-              )}
+              <div className="painel p-3 sm:p-4">
+                {videos.length > 0 ? (
+                  <ul className="grid gap-3 sm:grid-cols-3">
+                    {videos.map((v) => (
+                      <li key={v.id}>
+                        <a
+                          href={v.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="group block rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                        >
+                          <span className="block overflow-hidden rounded-lg border border-(--painel-fio)">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={v.thumb}
+                              alt=""
+                              loading="lazy"
+                              className="aspect-video w-full object-cover transition-opacity group-hover:opacity-85"
+                            />
+                          </span>
+                          <span className="mt-2 line-clamp-2 block text-xs font-medium leading-snug text-muted-foreground transition-colors group-hover:text-foreground">
+                            {v.titulo}
+                          </span>
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="py-6 text-center text-sm text-muted-foreground">Nenhum vídeo publicado ainda.</p>
+                )}
+              </div>
             </div>
           ) : null}
         </div>

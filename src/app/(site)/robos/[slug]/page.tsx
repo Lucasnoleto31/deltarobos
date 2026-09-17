@@ -69,7 +69,7 @@ export default async function PaginaRobo({ params }: Props) {
             <h2 id="curva" className="text-lg font-semibold tracking-tight">
               Curva de capital
             </h2>
-            <div className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10 sm:p-5">
+            <div className="painel p-4 sm:p-5">
               <CurvaCapital
                 linhas={linhas}
                 opcoes={{ base: "liquido", unidade: "brl", valorPonto: robo.valor_ponto_brl }}
