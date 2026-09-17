@@ -23,7 +23,7 @@ export function NumeroHero() {
       </p>
       <p className="mt-2 text-sm text-muted-foreground">
         por contrato, líquido de custos, somando todos os robôs ·{" "}
-        <span className="capitalize">{formatarDataLonga(resumo?.dia ?? hoje)}</span>
+        <span>{formatarDataLonga(resumo?.dia ?? hoje)}</span>
       </p>
 
       {resumo && temRobos ? (

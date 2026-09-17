@@ -1,6 +1,7 @@
 import { ImageResponse } from "next/og";
+import { SIMBOLO_CAMINHOS, SIMBOLO_VIEWBOX } from "@/components/marca/Simbolo";
 import { buscarRobo, listarEstatisticas } from "@/lib/consultas/publico";
-import { formatarBRL, formatarHora, formatarPct } from "@/lib/formato";
+import { formatarBRL, formatarHora, formatarNumero, formatarPct } from "@/lib/formato";
 import { calcularKpis } from "@/lib/stats/kpis";
 import { hojeSP } from "@/lib/stats/periodos";
 import { resumirCardRobo } from "@/lib/stats/resumo-robo";
@@ -8,12 +9,14 @@ import { resumirCardRobo } from "@/lib/stats/resumo-robo";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const FUNDO = "#0a0a0a";
-const TEXTO = "#fafafa";
-const MUDO = "#a3a3a3";
+// as mesmas cores dos tokens do tema escuro (globals.css): a imagem não lê CSS
+const FUNDO = "#0a0a0b";
+const TEXTO = "#f8f5ef";
+const MUDO = "#aca496";
+const DOURADO = "#c39a5a";
 
 function cor(v: number): string {
-  return v > 0 ? "#4ade80" : v < 0 ? "#f87171" : MUDO;
+  return v > 0 ? "#53b86f" : v < 0 ? "#e8594b" : MUDO;
 }
 
 function brl(v: number): string {
@@ -57,22 +60,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug: s
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                width: 44,
-                height: 44,
-                borderRadius: 10,
-                background: TEXTO,
-                color: FUNDO,
-                fontSize: 26,
-                fontWeight: 700,
-              }}
-            >
-              Δ
-            </div>
+            <svg width={40} height={45} viewBox={SIMBOLO_VIEWBOX}>
+              {SIMBOLO_CAMINHOS.map((d, i) => (
+                <path key={i} d={d} fill={DOURADO} />
+              ))}
+            </svg>
             <span style={{ fontSize: 28, fontWeight: 600 }}>Delta Robôs</span>
           </div>
           <span style={{ fontSize: 22, color: MUDO }}>
@@ -92,12 +84,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug: s
         {emBreve ? (
           <span style={{ fontSize: 24, color: MUDO }}>Estatísticas assim que a primeira operação fechar.</span>
         ) : (
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
             <div style={{ display: "flex", gap: 56 }}>
               <Stat rotulo="Mês" valor={brl(r.mes)} tom={cor(r.mes)} />
               <Stat rotulo="Acumulado" valor={brl(r.acumulado)} tom={cor(r.acumulado)} />
               <Stat rotulo="Acerto" valor={formatarPct(k.taxaAcerto, 0)} tom={TEXTO} />
-              <Stat rotulo="Operações" valor={String(k.nOperacoes)} tom={TEXTO} />
+              <Stat rotulo="Operações" valor={formatarNumero(k.nOperacoes)} tom={TEXTO} />
             </div>
             <span style={{ fontSize: 20, color: MUDO }}>líquido de custos · {formatarHora(new Date())}</span>
           </div>

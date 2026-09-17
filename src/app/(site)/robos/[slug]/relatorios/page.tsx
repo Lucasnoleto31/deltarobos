@@ -54,7 +54,7 @@ export default async function PaginaRelatorios({ params }: Props) {
             <tbody className="[&>tr]:border-t">
               {meses.map((m) => (
                 <tr key={m.mes} className="tabular-nums [&>td]:px-4 [&>td]:py-2.5">
-                  <td className="font-medium capitalize">{formatarMesAno(`${m.mes}-01`)}</td>
+                  <td className="font-medium first-letter:uppercase">{formatarMesAno(`${m.mes}-01`)}</td>
                   <td className="text-right">{m.nDias}</td>
                   <td className="text-right">{formatarNumero(m.nOperacoes)}</td>
                   <td className="text-right">

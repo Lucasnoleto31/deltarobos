@@ -24,25 +24,25 @@ interface Props {
   mostrarResumo?: boolean;
 }
 
-// lightweight-charts não entende oklch(); cores fixas por tema
+// lightweight-charts não lê variável CSS; cores fixas por tema, as mesmas dos tokens do globals.css
 const CORES = {
   dark: {
-    texto: "#a3a3a3",
-    grade: "rgba(255,255,255,0.06)",
-    positivo: "#4ade80",
-    negativo: "#f87171",
-    positivoArea: "rgba(74,222,128,0.25)",
-    negativoArea: "rgba(248,113,113,0.25)",
-    drawdown: "rgba(248,113,113,0.55)",
+    texto: "#aca496",
+    grade: "rgba(248,245,239,0.06)",
+    positivo: "#53b86f",
+    negativo: "#e8594b",
+    positivoArea: "rgba(83,184,111,0.22)",
+    negativoArea: "rgba(232,89,75,0.22)",
+    drawdown: "rgba(232,89,75,0.5)",
   },
   light: {
-    texto: "#6b7280",
-    grade: "rgba(0,0,0,0.06)",
-    positivo: "#16a34a",
-    negativo: "#dc2626",
-    positivoArea: "rgba(22,163,74,0.18)",
-    negativoArea: "rgba(220,38,38,0.18)",
-    drawdown: "rgba(220,38,38,0.5)",
+    texto: "#71685c",
+    grade: "rgba(20,20,22,0.06)",
+    positivo: "#2e6f40",
+    negativo: "#b22222",
+    positivoArea: "rgba(46,111,64,0.16)",
+    negativoArea: "rgba(178,34,34,0.16)",
+    drawdown: "rgba(178,34,34,0.45)",
   },
 };
 

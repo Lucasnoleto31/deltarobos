@@ -33,7 +33,7 @@ export function ResumoDoDia() {
             <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">
               {fechamento ? "Fechamento de hoje" : "Resumo do dia"}
             </h2>
-            <p className="text-sm text-muted-foreground capitalize">{formatarDataLonga(resumo.dia ?? hoje)}</p>
+            <p className="text-sm text-muted-foreground first-letter:uppercase">{formatarDataLonga(resumo.dia ?? hoje)}</p>
           </div>
           <AtualizadoHa em={estado.ultimaMensagemEm ?? resumo.gerado_em} />
         </div>

@@ -21,14 +21,14 @@ interface Props {
   geradoEm: string;
 }
 
-const VERDE = "#15803d";
-const VERMELHO = "#b91c1c";
-const CINZA = "#6b7280";
-const LINHA = "#e5e7eb";
+const VERDE = "#2e6f40";
+const VERMELHO = "#b22222";
+const CINZA = "#71685c";
+const LINHA = "#e4e0da";
 
 const s = StyleSheet.create({
-  page: { padding: 32, paddingBottom: 44, fontSize: 8.5, fontFamily: "Helvetica", color: "#111827" },
-  cabecalho: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 14, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: "#111827" },
+  page: { padding: 32, paddingBottom: 44, fontSize: 8.5, fontFamily: "Helvetica", color: "#141416" },
+  cabecalho: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 14, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: "#b38a50" },
   marca: { fontSize: 11, fontFamily: "Helvetica-Bold" },
   titulo: { fontSize: 18, fontFamily: "Helvetica-Bold", marginTop: 2 },
   sub: { fontSize: 9, color: CINZA, marginTop: 2 },
@@ -39,7 +39,7 @@ const s = StyleSheet.create({
   kpiValor: { fontSize: 12, fontFamily: "Helvetica-Bold" },
   kpiDetalhe: { fontSize: 7, color: CINZA, marginTop: 1 },
   linha: { flexDirection: "row", borderBottomWidth: 0.5, borderBottomColor: LINHA, paddingVertical: 3 },
-  cabTabela: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#111827", paddingVertical: 3, fontFamily: "Helvetica-Bold", color: CINZA, fontSize: 7.5 },
+  cabTabela: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#141416", paddingVertical: 3, fontFamily: "Helvetica-Bold", color: CINZA, fontSize: 7.5 },
   cel: { paddingHorizontal: 2 },
   dir: { textAlign: "right" },
   rodape: { position: "absolute", left: 32, right: 32, bottom: 18, flexDirection: "row", justifyContent: "space-between", fontSize: 7, color: CINZA },
@@ -101,7 +101,7 @@ export function RelatorioMensal({ robo, mes, ultimoDia, linhas, ops, totalOps, p
           {kpis.map((item) => (
             <View key={item.rotulo} style={s.kpi}>
               <Text style={s.kpiRotulo}>{item.rotulo}</Text>
-              <Text style={[s.kpiValor, { color: item.cor ?? "#111827" }]}>{item.valor}</Text>
+              <Text style={[s.kpiValor, { color: item.cor ?? "#141416" }]}>{item.valor}</Text>
               {item.detalhe ? <Text style={s.kpiDetalhe}>{item.detalhe}</Text> : null}
             </View>
           ))}

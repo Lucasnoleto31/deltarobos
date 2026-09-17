@@ -114,7 +114,7 @@ export function PainelCalendario({ linhas, ops, feriados, hoje, valorPonto, capi
         <section className="rounded-2xl bg-card ring-1 ring-foreground/10">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
             <div>
-              <h3 className="font-semibold capitalize">{formatarMesAno(`${mes}-01`)}</h3>
+              <h3 className="font-semibold first-letter:uppercase">{formatarMesAno(`${mes}-01`)}</h3>
               <p className="text-xs text-muted-foreground tabular-nums">
                 {grade.nDias} {grade.nDias === 1 ? "pregão" : "pregões"} · {grade.nPositivos} positivos · clique num dia
               </p>

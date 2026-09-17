@@ -2,6 +2,18 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+/* Ficha visual (kit estético do Artur), identidade Delta Flow, 14/09/2026. Só os VALORES dos
+   tokens mudaram; os nomes são os do shadcn e do projeto, então nenhum componente precisou saber
+   da troca.
+   fundo: preto de cinema #0A0A0B no escuro (padrão), cartão #141416 e popover #1C1C1F. Em
+   16/09/2026 o Artur trocou o marinho da marca (#00162E) por preto ("o azul não gostei muito");
+   é a mesma variante .cinema da área do cliente do Hub. No claro, papel quente #F7F5F1 com texto
+   quase preto #141416.
+   acento: o dourado do logo. Escuro #C39A5A (8,3:1 sobre o preto); claro #86652D, porque o
+   dourado da marca sobre branco dá 2,5:1 e reprova. "info" é o mesmo acento: um acento só.
+   semânticas: verde positivo, vermelho negativo, laranja alerta (âmbar competia com o dourado)
+   tipografia: Inter, números tabulares · raio base 10 (o --radius que já existia) */
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
@@ -39,7 +51,7 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  /* semântica Delta: verde positivo, vermelho negativo, âmbar alerta, azul info */
+  /* semântica Delta: verde positivo, vermelho negativo, laranja alerta, dourado info */
   --color-positivo: var(--positivo);
   --color-negativo: var(--negativo);
   --color-alerta: var(--alerta);
@@ -54,81 +66,83 @@
 }
 
 :root {
-  --font-sans: var(--font-geist-sans);
-  --background: oklch(0.99 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.965 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.965 0 0);
-  --muted-foreground: oklch(0.5 0 0);
-  --accent: oklch(0.965 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.91 0 0);
-  --input: oklch(0.91 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
+  --font-sans: var(--font-inter);
+  --background: #f7f5f1;
+  --foreground: #141416;
+  --card: #ffffff;
+  --card-foreground: #141416;
+  --popover: #ffffff;
+  --popover-foreground: #141416;
+  --primary: #86652d;
+  --primary-foreground: #ffffff;
+  --secondary: #efebe4;
+  --secondary-foreground: #141416;
+  --muted: #efebe4;
+  --muted-foreground: #71685c;
+  --accent: #efebe4;
+  --accent-foreground: #141416;
+  --destructive: #b22222;
+  --border: #e4e0da;
+  --input: #d1cbc2;
+  --ring: #86652d;
+  --chart-1: #86652d;
+  --chart-2: #b38a50;
+  --chart-3: #c39a5a;
+  --chart-4: #d1be8f;
+  --chart-5: #e8dcc0;
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-  --positivo: oklch(0.58 0.17 150);
-  --negativo: oklch(0.58 0.21 25);
-  --alerta: oklch(0.7 0.15 75);
-  --info: oklch(0.58 0.16 250);
+  --sidebar: #efebe4;
+  --sidebar-foreground: #141416;
+  --sidebar-primary: #86652d;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e4e0da;
+  --sidebar-accent-foreground: #141416;
+  --sidebar-border: #e4e0da;
+  --sidebar-ring: #86652d;
+  --positivo: #2e6f40;
+  --negativo: #b22222;
+  --alerta: #a14a17;
+  --info: #86652d;
+  /* texto sobre o degradê dourado do botão, nos dois temas */
+  --sobre-dourado: #0a0a0b;
 }
 
 .dark {
-  --background: oklch(0.13 0 0);
-  --foreground: oklch(0.97 0 0);
-  --card: oklch(0.17 0 0);
-  --card-foreground: oklch(0.97 0 0);
-  --popover: oklch(0.17 0 0);
-  --popover-foreground: oklch(0.97 0 0);
-  --primary: oklch(0.93 0 0);
-  --primary-foreground: oklch(0.17 0 0);
-  --secondary: oklch(0.24 0 0);
-  --secondary-foreground: oklch(0.97 0 0);
-  --muted: oklch(0.24 0 0);
-  --muted-foreground: oklch(0.68 0 0);
-  --accent: oklch(0.24 0 0);
-  --accent-foreground: oklch(0.97 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.17 0 0);
-  --sidebar-foreground: oklch(0.97 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.24 0 0);
-  --sidebar-accent-foreground: oklch(0.97 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
-  --positivo: oklch(0.78 0.17 152);
-  --negativo: oklch(0.72 0.19 22);
-  --alerta: oklch(0.8 0.15 80);
-  --info: oklch(0.72 0.14 250);
+  --background: #0a0a0b;
+  --foreground: #f8f5ef;
+  --card: #141416;
+  --card-foreground: #f8f5ef;
+  --popover: #1c1c1f;
+  --popover-foreground: #f8f5ef;
+  --primary: #c39a5a;
+  --primary-foreground: #0a0a0b;
+  --secondary: #1c1c1f;
+  --secondary-foreground: #f8f5ef;
+  --muted: #1c1c1f;
+  --muted-foreground: #aca496;
+  --accent: #1c1c1f;
+  --accent-foreground: #f8f5ef;
+  --destructive: #e8594b;
+  --border: #2a2a2e;
+  --input: #3a3a40;
+  --ring: #c39a5a;
+  --chart-1: #d1be8f;
+  --chart-2: #c39a5a;
+  --chart-3: #b38a50;
+  --chart-4: #86652d;
+  --chart-5: #5c4520;
+  --sidebar: #141416;
+  --sidebar-foreground: #f8f5ef;
+  --sidebar-primary: #c39a5a;
+  --sidebar-primary-foreground: #0a0a0b;
+  --sidebar-accent: #1c1c1f;
+  --sidebar-accent-foreground: #f8f5ef;
+  --sidebar-border: #2a2a2e;
+  --sidebar-ring: #c39a5a;
+  --positivo: #53b86f;
+  --negativo: #e8594b;
+  --alerta: #f08a4b;
+  --info: #c39a5a;
 }
 
 @layer base {
@@ -144,7 +158,8 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-feature-settings: "tnum", "cv11";
+    /* cv11 saiu com a troca para Inter: nela é o "a" de um andar só */
+    font-feature-settings: "tnum";
   }
   .tabular-nums {
     font-variant-numeric: tabular-nums;
@@ -156,4 +171,38 @@
   .conteudo {
     @apply mx-auto w-full max-w-6xl px-4 sm:px-6;
   }
+}
+
+/* botão principal: o degradê metálico do logo, de cima para baixo, com texto quase preto nos
+   dois temas (cerca de 8:1). É a variante "default" do Button; as outras seguem os tokens. */
+@utility botao-dourado {
+  background: linear-gradient(180deg, #d1be8f 0%, #c39a5a 55%, #b38a50 100%);
+  color: var(--sobre-dourado);
+}
+
+/* luz atrás do hero da home: duas manchas radiais estáticas, o dourado à esquerda (onde está o
+   título) e um cinza um tom acima do fundo à direita. Só CSS, parado, sem parallax. Alfa menor no
+   claro, onde o dourado suja o papel. */
+.hero-luz {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+.hero-luz::before {
+  content: "";
+  position: absolute;
+  inset: -30% -10% -20% -10%;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(55% 60% at 16% 40%, var(--luz-acento) 0%, transparent 70%),
+    radial-gradient(45% 65% at 88% 15%, var(--luz-fundo) 0%, transparent 70%);
+}
+:root {
+  --luz-acento: rgba(179, 138, 80, 0.14);
+  --luz-fundo: rgba(20, 20, 22, 0.05);
+}
+.dark {
+  --luz-acento: rgba(195, 154, 90, 0.16);
+  --luz-fundo: rgba(255, 255, 255, 0.04);
 }

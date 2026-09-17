@@ -56,7 +56,7 @@ export function TelaAoVivo() {
       </header>
 
       <section className="flex flex-1 flex-col justify-center py-10 text-center">
-        <p className="text-sm text-muted-foreground capitalize">{formatarDataLonga(hoje)}</p>
+        <p className="text-sm text-muted-foreground first-letter:uppercase">{formatarDataLonga(hoje)}</p>
         <p className="mt-3 text-6xl font-semibold tracking-tight sm:text-7xl">
           <Valor valor={liquido} />
         </p>
