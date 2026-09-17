@@ -31,8 +31,7 @@ export default async function PaginaRelatorios({ params }: Props) {
       <header className="space-y-1">
         <h2 className="text-2xl font-semibold tracking-tight">Relatórios mensais</h2>
         <p className="max-w-prose text-sm text-muted-foreground">
-          Cada mês tem um PDF com resumo, resultado por dia, por série do contrato e a lista completa de operações, e um CSV com as
-          mesmas operações pra abrir na planilha. Tudo por 1 contrato, com bruto, custos e líquido.
+          PDF com resumo, resultado por dia, por série do contrato e as operações; CSV com as mesmas operações. Por 1 contrato, com bruto, custos e líquido.
         </p>
       </header>
 
@@ -81,7 +80,7 @@ export default async function PaginaRelatorios({ params }: Props) {
       )}
 
       <p className="text-xs text-muted-foreground">
-        Os relatórios são gerados na hora a partir do banco, então o mês corrente muda ao longo do dia. Meses fechados ficam em cache.
+        O mês corrente muda ao longo do dia.
       </p>
     </div>
   );

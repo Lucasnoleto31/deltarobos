@@ -188,12 +188,11 @@ export default function PaginaMetodologia() {
 
         <Secao id="indices-risco" titulo="Calmar, recovery factor, Ulcer e tempo em drawdown">
           <p>
-            <strong>Calmar</strong> = retorno anualizado ÷ queda máxima. O retorno anualizado é o resultado do período
-            multiplicado por 252 e dividido pelo número de dias de pregão. Acima de 1, o robô rende por ano mais do que a
-            pior queda que já sofreu.
+            <strong>Calmar</strong> = retorno anualizado ÷ drawdown máximo. O retorno anualizado é o resultado do período
+            multiplicado por 252 e dividido pelo número de dias de pregão. Acima de 1, o robô rende por ano mais do que o maior drawdown que já sofreu.
           </p>
           <p>
-            <strong>Recovery factor</strong> = resultado do período ÷ queda máxima. Quantas vezes o robô já &quot;pagou&quot; o
+            <strong>Recovery factor</strong> = resultado do período ÷ drawdown máximo. Quantas vezes o robô já &quot;pagou&quot; o
             seu maior drawdown.
           </p>
           <p>

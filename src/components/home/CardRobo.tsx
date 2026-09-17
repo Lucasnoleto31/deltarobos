@@ -39,7 +39,7 @@ export function CardRobo({ card, status }: Props) {
       {emBreve ? (
         <div className="flex flex-1 flex-col justify-between gap-3">
           <p className="text-sm text-muted-foreground">
-            {card.descricao ?? "Estatísticas disponíveis assim que o robô entrar em operação."}
+            {card.descricao ?? "Sem operações ainda."}
           </p>
           <Badge variant="outline" className="w-fit">
             Em breve

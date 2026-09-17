@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
 import type { Links, Textos } from "@/lib/tipos";
 import { NumeroHero } from "./NumeroHero";
@@ -8,7 +7,12 @@ interface Props {
   links: Links;
 }
 
-/** Item 2 da home: frase curta, número grande do dia e os dois botões. */
+/**
+ * Item 2 da home: frase curta, número grande do dia e o botão da comunidade. O "Ver os robôs" saiu
+ * em 17/09/2026 (Artur: "que botão redundante, já estou na página de robôs"): os robôs são a seção
+ * logo abaixo, na mesma página. Pelo mesmo motivo, sem link do WhatsApp não há botão nenhum, em vez
+ * de um que só rola a página até a seção Comunidade. O rótulo diz para onde o botão leva.
+ */
 export function Hero({ textos, links }: Props) {
   return (
     <section className="conteudo grid gap-8 py-10 sm:py-14 lg:grid-cols-[1.2fr_1fr] lg:items-center">
@@ -19,25 +23,11 @@ export function Hero({ textos, links }: Props) {
         <p className="max-w-prose text-pretty text-base text-muted-foreground sm:text-lg">
           {textos.hero_subtitulo}
         </p>
-        <div className="flex flex-wrap gap-3">
-          <Link href="/#robos" className={buttonVariants({ size: "lg" })}>
-            Ver os robôs
-          </Link>
-          {links.whatsapp ? (
-            <a
-              href={links.whatsapp}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={buttonVariants({ size: "lg", variant: "outline" })}
-            >
-              Entrar na comunidade
-            </a>
-          ) : (
-            <Link href="/#comunidade" className={buttonVariants({ size: "lg", variant: "outline" })}>
-              Entrar na comunidade
-            </Link>
-          )}
-        </div>
+        {links.whatsapp ? (
+          <a href={links.whatsapp} target="_blank" rel="noopener noreferrer" className={buttonVariants({ size: "lg" })}>
+            Entrar no grupo do WhatsApp
+          </a>
+        ) : null}
       </div>
 
       <NumeroHero />

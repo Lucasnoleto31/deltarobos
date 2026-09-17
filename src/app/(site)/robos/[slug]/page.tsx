@@ -51,8 +51,7 @@ export default async function PaginaRobo({ params }: Props) {
     <div className="space-y-10">
       {emBreve ? (
         <p className="rounded-2xl border border-dashed p-8 text-center text-muted-foreground">
-          Este robô ainda não começou a operar em conta real. As estatísticas aparecem aqui assim
-          que a primeira operação fechar.
+          Este robô ainda não começou a operar em conta real.
         </p>
       ) : (
         <>

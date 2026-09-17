@@ -47,7 +47,7 @@ export function NumeroHero() {
         </dl>
       ) : (
         <p className="mt-6 text-sm text-muted-foreground">
-          Os robôs aparecem aqui assim que entrarem em operação.
+          Nenhum robô em operação.
         </p>
       )}
 

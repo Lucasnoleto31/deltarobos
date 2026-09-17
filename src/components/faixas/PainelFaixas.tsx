@@ -85,7 +85,7 @@ export function PainelFaixas({ ops, hoje, parametros }: Props) {
           <Segmentado ariaLabel="Período" opcoes={OPCOES_PERIODO} valor={periodo} onChange={setPeriodo} />
         </div>
         <p className="text-sm text-muted-foreground tabular-nums">
-          <strong className="text-foreground">{formatarNumero(r.nOperacoes)}</strong> operações analisadas · mediana de rebaixamento{" "}
+          <strong className="text-foreground">{formatarNumero(r.nOperacoes)}</strong> operações analisadas · mediana de drawdown{" "}
           <strong className="text-foreground">{formatarBRL(r.medianaDd, { inteiro: r.medianaDd >= 1000 })}</strong> ·{" "}
           <strong className="text-foreground">{totalComDados}</strong> faixas com dados
         </p>

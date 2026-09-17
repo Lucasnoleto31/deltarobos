@@ -421,7 +421,7 @@ function ListaDias({
   return (
     <section className="painel p-4">
       <h3 className="font-semibold">{titulo}</h3>
-      <p className="mb-2 text-xs text-muted-foreground">os {mostrados.length} primeiros do histórico · cada linha abre o dia no calendário</p>
+      <p className="mb-2 text-xs text-muted-foreground">os {mostrados.length} primeiros do histórico</p>
       <ol>
         {mostrados.map((i, idx) => (
           <li key={i.dia}>

@@ -1,4 +1,4 @@
-import { Gift, GraduationCap, LineChart } from "lucide-react";
+import { ArrowUpRight, Gift, GraduationCap, LineChart } from "lucide-react";
 import type { Links } from "@/lib/tipos";
 
 interface Props {
@@ -12,7 +12,7 @@ export function Ecossistema({ links }: Props) {
       href: links.treinamentos,
       icone: <GraduationCap className="size-5" />,
       titulo: "Treinamentos",
-      texto: "Cursos e mentorias da Delta pra operar com método.",
+      texto: "Cursos e mentorias da Delta.",
     },
     {
       href: links.painel_mercado,
@@ -34,7 +34,6 @@ export function Ecossistema({ links }: Props) {
     <section id="ecossistema" className="conteudo scroll-mt-20 py-8">
       <div className="mb-4">
         <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">Ecossistema Delta</h2>
-        <p className="text-sm text-muted-foreground">Mais do que robôs.</p>
       </div>
       <div className="grid gap-4 sm:grid-cols-3">
         {cards.map((c) => (
@@ -43,14 +42,14 @@ export function Ecossistema({ links }: Props) {
             href={c.href}
             target="_blank"
             rel="noopener noreferrer"
-            className="group flex flex-col gap-3 painel p-5 painel-interativo"
+            className="flex items-start gap-3 painel p-5 painel-interativo"
           >
-            <span className="grid size-9 place-items-center rounded-lg bg-primary/15 text-primary">{c.icone}</span>
-            <div className="flex-1">
+            <span className="mt-0.5 shrink-0 text-primary">{c.icone}</span>
+            <div className="min-w-0 flex-1">
               <h3 className="font-semibold">{c.titulo}</h3>
               <p className="text-sm text-muted-foreground">{c.texto}</p>
             </div>
-            <span className="text-sm font-medium underline-offset-4 group-hover:underline">Conhecer →</span>
+            <ArrowUpRight aria-hidden className="mt-1 size-4 shrink-0 text-foreground/30" />
           </a>
         ))}
       </div>

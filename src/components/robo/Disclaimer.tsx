@@ -16,9 +16,9 @@ export function Disclaimer({ nomeRobo, linkCta }: Props) {
     <section className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-4 painel p-5 sm:p-6">
         <div>
-          <h2 className="text-lg font-semibold tracking-tight">Quer o {nomeRobo} rodando na sua conta?</h2>
+          <h2 className="text-lg font-semibold tracking-tight">Licença do {nomeRobo}</h2>
           <p className="text-sm text-muted-foreground">
-            Fale com a equipe da Delta Robôs e libere a licença em poucos passos.
+            A equipe da Delta Robôs libera a licença e configura o robô na sua conta.
           </p>
         </div>
         {linkCta ? (

@@ -8,8 +8,9 @@ interface Props {
 }
 
 /**
- * Linha de canal, no desenho da lista agrupada do iOS (Habitto): quadradinho de ícone tintado no
- * acento, título e apoio, e a seta de quem sai do site. A linha inteira é o alvo do clique.
+ * Linha de canal, no desenho da lista agrupada do iOS (Habitto): ícone solto no acento, título e
+ * apoio, e a seta de quem sai do site. A linha inteira é o alvo do clique. O ícone não tem caixa
+ * tintada atrás: é marca que o Artur já tirou do Habitto e do Hub (14/09/2026).
  */
 function LinhaCanal({
   href,
@@ -23,14 +24,14 @@ function LinhaCanal({
   descricao: string;
 }) {
   return (
-    <li className="sep [--sep:64px]">
+    <li className="sep [--sep:52px]">
       <a
         href={href}
         target="_blank"
         rel="noopener noreferrer"
         className="linha-interativa flex min-h-[64px] items-center gap-3 px-4 py-3 outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
       >
-        <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/15 text-primary">{icone}</span>
+        <span className="grid w-6 shrink-0 place-items-center text-primary">{icone}</span>
         <span className="min-w-0 flex-1">
           <span className="block font-medium leading-tight">{titulo}</span>
           <span className="mt-0.5 block text-sm text-muted-foreground">{descricao}</span>
@@ -50,9 +51,6 @@ export function Comunidade({ links, videos }: Props) {
     <section id="comunidade" className="conteudo scroll-mt-20 py-8">
       <div className="mb-4">
         <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">Comunidade</h2>
-        <p className="text-sm text-muted-foreground">
-          Acompanhe os robôs junto com quem opera todo dia.
-        </p>
       </div>
 
       {!temCanais && !temVideos ? (
@@ -90,7 +88,7 @@ export function Comunidade({ links, videos }: Props) {
                     href={links.instagram}
                     icone={<Camera className="size-5" />}
                     titulo="Instagram"
-                    descricao="Bastidores, fechamentos e novidades."
+                    descricao="Bastidores e fechamentos."
                   />
                 ) : null}
               </ul>

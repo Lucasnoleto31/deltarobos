@@ -35,7 +35,7 @@ export function CurvaDoDia({
   operacoes,
   altura = 190,
   titulo = "Resultado do dia, operação a operação",
-  legenda = "1 contrato, líquido · passe o mouse ou toque para ver a operação",
+  legenda = "1 contrato, líquido de custos",
 }: Props) {
   const id = `dia-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
 

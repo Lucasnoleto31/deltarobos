@@ -88,14 +88,14 @@ export function Risco({
         <div className="overflow-x-auto painel">
           <table className="w-full text-sm">
             <caption className="px-3 py-2 text-left text-xs text-muted-foreground">
-              Maiores quedas do período, do pico até voltar ao pico
+              Maiores drawdowns do período, do pico até voltar ao pico
             </caption>
             <thead className="text-left text-xs text-muted-foreground">
               <tr className="[&>th]:px-3 [&>th]:py-2 [&>th]:font-medium">
                 <th>Início</th>
                 <th>Fundo</th>
                 <th>Recuperação</th>
-                <th className="text-right">Queda</th>
+                <th className="text-right">Drawdown</th>
                 <th className="text-right">Dias</th>
               </tr>
             </thead>

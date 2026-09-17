@@ -35,7 +35,7 @@ export function CardEmbed({ robo, resumo, hoje, linkSite }: Props) {
       </div>
 
       {emBreve ? (
-        <p className="mt-3 text-sm text-muted-foreground">Estatísticas disponíveis assim que o robô entrar em operação.</p>
+        <p className="mt-3 text-sm text-muted-foreground">Sem operações ainda.</p>
       ) : (
         <>
           <dl className="mt-3 grid grid-cols-3 gap-2 text-sm">

@@ -15,7 +15,7 @@ export const revalidate = 60;
 
 export const metadata: Metadata = {
   title: "Comparativo",
-  description: "Todos os robôs da Delta Robôs lado a lado: resultado, acerto, queda máxima e risco de ruína, por contrato.",
+  description: "Todos os robôs da Delta Robôs lado a lado: resultado, acerto, drawdown máximo e risco de ruína, por contrato.",
 };
 
 const OPCOES: OpcoesSerie = { base: "liquido", unidade: "brl", valorPonto: 1 };
@@ -88,7 +88,7 @@ export default async function PaginaComparativo() {
     { rotulo: "Mês", valor: <Valor valor={kCasa.mes} inteiro={Math.abs(kCasa.mes) >= 1000} />, tom: "neutro" },
     { rotulo: "Operações", valor: formatarNumero(kCasa.nOperacoes), detalhe: `${comDados.length} ${comDados.length === 1 ? "robô" : "robôs"} com dados`, tom: "info" },
     { rotulo: "Acerto", valor: formatarPct(kCasa.taxaAcerto), tom: "neutro" },
-    { rotulo: "Queda máxima", valor: <Valor valor={-kCasa.drawdown.valor} inteiro={kCasa.drawdown.valor >= 1000} />, detalhe: "carteira somada", tom: "negativo" },
+    { rotulo: "Drawdown máximo", valor: <Valor valor={-kCasa.drawdown.valor} inteiro={kCasa.drawdown.valor >= 1000} />, detalhe: "carteira somada", tom: "negativo" },
     { rotulo: "Dias de pregão", valor: formatarNumero(kCasa.nDias), tom: "neutro" },
   ];
 
@@ -118,8 +118,8 @@ export default async function PaginaComparativo() {
                   <th className="text-right">Resultado</th>
                   <th className="text-right">Acerto</th>
                   <th className="text-right">Fator de lucro</th>
-                  <th className="text-right">Queda máx %</th>
-                  <th className="text-right">Queda máx R$</th>
+                  <th className="text-right">Drawdown %</th>
+                  <th className="text-right">Drawdown R$</th>
                   <th className="text-right">Risco de ruína</th>
                   <th className="text-right">Desde</th>
                 </tr>

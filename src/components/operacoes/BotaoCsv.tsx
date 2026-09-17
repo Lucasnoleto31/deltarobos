@@ -86,7 +86,7 @@ export function BotaoCsv({ slug, filtros, total }: Props) {
       URL.revokeObjectURL(url);
     } catch (e) {
       console.error("[csv] falha ao exportar", e);
-      window.alert("Não foi possível gerar o CSV agora. Tente de novo.");
+      window.alert("Não conseguimos gerar o CSV. Tente de novo.");
     } finally {
       setOcupado(false);
     }

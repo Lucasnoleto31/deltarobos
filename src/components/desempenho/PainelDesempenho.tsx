@@ -150,11 +150,11 @@ export function PainelDesempenho({
   }
 
   const cards: ItemKpi[] = [
-    { rotulo: "Operações", valor: formatarNumero(resumo.n), detalhe: `${formatarNumero(resumo.nGain)} gain de ${formatarNumero(resumo.n)}`, tom: "info", icone: <BarChart3 className="size-4" /> },
-    { rotulo: "Taxa de acerto", valor: formatarPct(kpis.taxaAcerto), detalhe: `${resumo.nGain} × ${resumo.nLoss}`, tom: (kpis.taxaAcerto ?? 0) >= 0.5 ? "positivo" : "negativo", icone: <Percent className="size-4" /> },
-    { rotulo: "Fator de lucro", valor: formatarMultiplo(kpis.fatorLucro), detalhe: "gains ÷ losses", tom: (kpis.fatorLucro ?? 0) >= 1 ? "positivo" : "negativo", icone: <Scale className="size-4" /> },
+    { rotulo: "Operações", valor: formatarNumero(resumo.n), detalhe: kpis.nDias > 0 ? `${formatarNumero(Math.round(resumo.n / kpis.nDias))} por dia de pregão` : undefined, tom: "info", icone: <BarChart3 className="size-4" /> },
+    { rotulo: "Taxa de acerto", valor: formatarPct(kpis.taxaAcerto), detalhe: `${formatarNumero(resumo.nGain)} gains · ${formatarNumero(resumo.nLoss)} losses`, tom: (kpis.taxaAcerto ?? 0) >= 0.5 ? "positivo" : "negativo", icone: <Percent className="size-4" /> },
+    { rotulo: "Fator de lucro", valor: formatarMultiplo(kpis.fatorLucro), detalhe: kpis.fatorLucro !== null ? `${formatarMultiplo(kpis.fatorLucro)} de ganho para cada 1 de perda` : undefined, tom: (kpis.fatorLucro ?? 0) >= 1 ? "positivo" : "negativo", icone: <Scale className="size-4" /> },
     {
-      rotulo: "Rebaixamento máx.",
+      rotulo: "Drawdown máx.",
       valor: kpis.drawdownMaximoPct !== null ? formatarPct(kpis.drawdownMaximoPct) : <Valor valor={-kpis.drawdown.valor} unidade={estado.unidade} inteiro={kpis.drawdown.valor >= 1000} />,
       detalhe: kpis.drawdownMaximoPct !== null ? rotuloUnidade(-kpis.drawdown.valor, estado.unidade) : kpis.drawdown.fundo ? `fundo em ${formatarData(kpis.drawdown.fundo)}` : undefined,
       tom: "negativo",
@@ -162,7 +162,7 @@ export function PainelDesempenho({
     },
     { rotulo: "Ganho médio", valor: <Valor valor={resumo.mediaGain} unidade={estado.unidade} />, detalhe: `maior ${rotuloUnidade(resumo.maiorGain, estado.unidade)}`, tom: "positivo", icone: <TrendingUp className="size-4" /> },
     { rotulo: "Perda média", valor: <Valor valor={resumo.mediaLoss} unidade={estado.unidade} />, detalhe: `maior ${rotuloUnidade(resumo.maiorLoss, estado.unidade)}`, tom: "negativo", icone: <TrendingDown className="size-4" /> },
-    { rotulo: "Payoff", valor: formatarMultiplo(kpis.payoff), detalhe: "ganho médio ÷ perda média" },
+    { rotulo: "Payoff", valor: formatarMultiplo(kpis.payoff), detalhe: kpis.payoff !== null ? `o ganho médio é ${formatarPct(kpis.payoff, 0)} da perda média` : undefined },
     { rotulo: "Média mensal", valor: <Valor valor={kpis.mediaMensal} unidade={estado.unidade} inteiro={Math.abs(kpis.mediaMensal) >= 1000} />, detalhe: `${kpis.nMeses} ${kpis.nMeses === 1 ? "mês" : "meses"}` },
     { rotulo: "Melhor dia", valor: kpis.melhorDia ? <Valor valor={kpis.melhorDia.valor} unidade={estado.unidade} inteiro={Math.abs(kpis.melhorDia.valor) >= 1000} /> : "–", detalhe: kpis.melhorDia ? formatarData(kpis.melhorDia.dia) : undefined },
     { rotulo: "Pior dia", valor: kpis.piorDia ? <Valor valor={kpis.piorDia.valor} unidade={estado.unidade} inteiro={Math.abs(kpis.piorDia.valor) >= 1000} /> : "–", detalhe: kpis.piorDia ? formatarData(kpis.piorDia.dia) : undefined },
