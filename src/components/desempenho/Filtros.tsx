@@ -39,9 +39,9 @@ export function Filtros({ estado, onChange, hoje, linkOperacoes }: Props) {
     : "outro";
 
   return (
-    <div className="space-y-4 rounded-2xl bg-card p-4 ring-1 ring-foreground/10 sm:p-5">
+    <div className="space-y-4 painel p-4 sm:p-5">
       <div className="flex flex-wrap items-end gap-3">
-        <div className="space-y-1.5">
+        <div className="max-w-full min-w-0 space-y-1.5">
           <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">Período</p>
           <div className="flex flex-wrap items-center gap-2">
             <Segmentado
@@ -81,7 +81,7 @@ export function Filtros({ estado, onChange, hoje, linkOperacoes }: Props) {
       </div>
 
       <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
-        <div className="space-y-1.5">
+        <div className="max-w-full min-w-0 space-y-1.5">
           <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">Unidade</p>
           <Segmentado
             ariaLabel="Unidade"
@@ -90,7 +90,7 @@ export function Filtros({ estado, onChange, hoje, linkOperacoes }: Props) {
             onChange={(unidade) => onChange({ unidade })}
           />
         </div>
-        <div className="space-y-1.5">
+        <div className="max-w-full min-w-0 space-y-1.5">
           <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">Custos</p>
           <Segmentado
             ariaLabel="Bruto ou líquido"
@@ -99,7 +99,7 @@ export function Filtros({ estado, onChange, hoje, linkOperacoes }: Props) {
             onChange={(base) => onChange({ base })}
           />
         </div>
-        <div className="space-y-1.5">
+        <div className="max-w-full min-w-0 space-y-1.5">
           <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
             Contratos <span className="normal-case">(com N contratos seria…)</span>
           </p>
