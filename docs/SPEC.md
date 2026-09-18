@@ -115,6 +115,7 @@
 - Curva de capital acumulada por contrato, ponto a ponto por dia, com drawdown desenhado embaixo.
 - Períodos: 7d, 30d, 3m, 12m, ano atual, tudo, personalizado.
 - Calendário diário (verde/vermelho) e heatmap ano x mês.
+- **MEP e MEN do dia.** MEP = máxima exposição positiva do dia = o maior valor positivo que o saldo líquido acumulado do dia atingiu, por 1 contrato, medido a cada fechamento de operação (sem o resultado não realizado); MEN = máxima exposição negativa = o menor valor negativo do mesmo acumulado. Se o acumulado nunca ficou positivo, MEP = 0 e não há operação do MEP; idem para o MEN. Em empate vale a primeira operação em que o extremo ocorreu. É sempre igual ou menor (em módulo) que o MEP/MEN do Profit, que acompanha tick a tick; a interface e a Metodologia dizem isso com honestidade, sem fingir que é o número do Profit.
 - Carteira: soma das séries diárias dos robôs escolhidos com pesos em contratos, drawdown conjunto e correlação dos retornos diários.
 - Dia de pregão em Brasília; sábado, domingo e `feriados_b3` não contam.
 
@@ -145,7 +146,7 @@ No celular, os itens 1, 2, 3 e 8 ficam acima da dobra. Na v1 entram 1, 2, 3, 8, 
 - KPIs (cards): acumulado, mês, média mensal, drawdown máximo, taxa de acerto, fator de lucro, payoff, nº de operações, melhor e pior dia, dias positivos x negativos, maior sequência de perdas
 - Curva de capital com drawdown, filtros de período, toggle pontos/R$, toggle bruto/líquido, seletor de contratos ("com 5 contratos seria...")
 - Mensal: heatmap ano x mês
-- Diário: calendário do mês
+- Diário: calendário do mês; o detalhe do dia mostra MEP e MEN (regra na seção 7)
 - Distribuição: dia da semana, hora do dia, histograma por operação
 - Risco: drawdown em R$ e %, tempo de recuperação, capital mínimo recomendado por contrato
 - Últimas 50 operações com link pra lista completa
