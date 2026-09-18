@@ -4,6 +4,7 @@ import { Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Segmentado } from "@/components/compartilhados/Segmentado";
 import { useAgora } from "@/hooks/useAgora";
+import { formatarBRL } from "@/lib/formato";
 import { pregaoAberto } from "@/lib/stats/pregao";
 import { statusAoVivo } from "@/lib/stats/status-robo";
 import { CardRobo } from "./CardRobo";
@@ -22,7 +23,7 @@ const LIMITE_FILTROS = 6;
  * filtro por ativo e busca. Nada de robô hardcoded.
  */
 export function GradeRobos({ cards }: Props) {
-  const { estado, feriados, pregaoPorAtivo, pregaoGeral } = useCasa();
+  const { estado, feriados, pregaoPorAtivo, pregaoGeral, hoje: hojeDaCasa } = useCasa();
   const agora = useAgora(5000);
   const [ativo, setAtivo] = useState<string>("todos");
   const [busca, setBusca] = useState("");
@@ -63,14 +64,25 @@ export function GradeRobos({ cards }: Props) {
 
   const mostrarFiltros = cards.length > LIMITE_FILTROS;
 
+  // o subtítulo é o fato do mês, não a descrição da seção ("Resultado por 1 contrato... ordenado pelo mês"
+  // o Artur achou descritivo demais, 18/09/2026). A regra do por contrato e do líquido está no hero.
+  const lider = mesclados
+    .filter((c) => c.status !== "em_breve" && c.nDias > 0)
+    .reduce<(typeof mesclados)[number] | null>((m, c) => (m === null || c.mes > m.mes ? c : m), null);
+  const nomeDoMes = new Date(`${hojeDaCasa}T12:00:00Z`).toLocaleDateString("pt-BR", { month: "long", timeZone: "UTC" });
+  const subtitulo =
+    lider && lider.mes > 0
+      ? `${lider.nome} lidera ${nomeDoMes}: ${formatarBRL(lider.mes, { sinal: true, inteiro: Math.abs(lider.mes) >= 1000 })} por contrato.`
+      : lider
+        ? `Em ${nomeDoMes}, ninguém no positivo até agora.`
+        : "Resultado por 1 contrato, líquido de custos.";
+
   return (
     <section id="robos" className="conteudo scroll-mt-20 py-8">
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">Os robôs</h2>
-          <p className="text-sm text-muted-foreground">
-            Resultado por 1 contrato, líquido de custos. Ordenado pelo mês.
-          </p>
+          <p className="text-sm text-muted-foreground">{subtitulo}</p>
         </div>
 
         {mostrarFiltros ? (
