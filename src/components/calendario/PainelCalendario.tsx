@@ -2,17 +2,18 @@
 
 import { cn } from "cn";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import Link from "next/link";
 import { useId, useMemo, useRef, useState } from "react";
 import { desempacotar, type OpsEmpacotadas } from "@/components/compartilhados/ops-codec";
 import { Valor } from "@/components/compartilhados/Valor";
 import { Heatmap } from "@/components/desempenho/Heatmap";
 import { escalaDeForca, mistura } from "@/components/graficos/base";
-import { AmostraDaLinha, CURVA_POR_OPERACAO, DesenhoDaCurva, MolduraProfit } from "@/components/graficos/CurvaProfit";
+import { AmostraDaLinha, CURVA_POR_OPERACAO, DesenhoDaCurva, MolduraProfit, type MarcadorDaCurva } from "@/components/graficos/CurvaProfit";
 import { seriePorOperacao } from "@/components/graficos/series-da-curva";
 import { Button } from "@/components/ui/button";
 import { formatarData, formatarDataLonga, formatarMesAno, formatarNumero, formatarPct } from "@/lib/formato";
 import { gradeMes, heatmapAnoMes, mesesComDados } from "@/lib/stats/calendario";
-import { dia as diaOp, porDiaSemana, porHora, valorOperacao } from "@/lib/stats/operacoes";
+import { dia as diaOp, excursaoDoDia, porDiaSemana, porHora, valorOperacao } from "@/lib/stats/operacoes";
 import { mesDe, somarMeses } from "@/lib/stats/periodos";
 import { valorDia } from "@/lib/stats/serie";
 import type { LinhaDiaria, OpcoesSerie } from "@/lib/stats/tipos";
@@ -37,10 +38,13 @@ function curto(v: number): string {
   return `${v > 0 ? "+" : v < 0 ? "-" : ""}${formatarNumero(a, a >= 100 ? 0 : 2)}`;
 }
 
-/** Três números lado a lado num painel só, com o rótulo embaixo: cabe em 390 px sem um invadir o outro. */
-function Trio({ itens }: { itens: Array<{ rotulo: string; valor: React.ReactNode; apoio?: React.ReactNode }> }) {
+/**
+ * Dois ou três números lado a lado num painel só, com o rótulo embaixo: cabe em 390 px sem um invadir o
+ * outro. Três já é o limite nessa largura; o que não couber num trio vai numa fileira de dois embaixo.
+ */
+function Fileira({ itens, colunas = 3 }: { itens: Array<{ rotulo: string; valor: React.ReactNode; apoio?: React.ReactNode }>; colunas?: 2 | 3 }) {
   return (
-    <dl className="grid grid-cols-3 divide-x divide-(--painel-fio)">
+    <dl className={cn("grid divide-x divide-(--painel-fio)", colunas === 2 ? "grid-cols-2" : "grid-cols-3")}>
       {itens.map((i) => (
         <div key={i.rotulo} className="min-w-0 px-2 py-3 text-center sm:px-3">
           <dd className="truncate text-base leading-none font-semibold tabular-nums sm:text-xl">{i.valor}</dd>
@@ -133,6 +137,16 @@ export function PainelCalendario({ linhas, pacote, feriados, hoje, valorPonto, c
 
   // o dia em curva, operação a operação (as operações compactas já vêm em ordem de fechamento)
   const curvaDoDia = useMemo(() => (diaSel ? seriePorOperacao(opsDia, opcoes, [diaSel]) : []), [opsDia, opcoes, diaSel]);
+  // MEP e MEN do dia sobre TODAS as operações (a curva desenhada é fatiada em até 240 pontos e pode
+  // não passar pelo pico); a posição de cada marcador é a mesma régua da série: n-ésima operação / total
+  const excursao = useMemo(() => excursaoDoDia(opsDia, opcoes), [opsDia, opcoes]);
+  const marcadoresDoDia = useMemo(() => {
+    const lista: MarcadorDaCurva[] = [];
+    const n = excursao.nOperacoes || 1;
+    if (excursao.operacaoMep !== null) lista.push({ posicao: excursao.operacaoMep / n, valor: excursao.mep, rotulo: "MEP", tom: "positivo" });
+    if (excursao.operacaoMen !== null) lista.push({ posicao: excursao.operacaoMen / n, valor: excursao.men, rotulo: "MEN", tom: "negativo" });
+    return lista;
+  }, [excursao]);
   // O eixo de baixo é a ordem de fechamento, e é isso que ele diz: "1ª", "31ª"... A única hora que a
   // operação compacta guarda é a de ABERTURA, e rotular por ela engana: em 02/09/2026 as posições
   // abertas às 10h só fecharam no fim do dia, e o eixo saía "9h 11h 13h 10h".
@@ -209,7 +223,7 @@ export function PainelCalendario({ linhas, pacote, feriados, hoje, valorPonto, c
           </div>
 
           <div className="border-b">
-            <Trio
+            <Fileira
               itens={[
                 {
                   rotulo: "resultado do mês",
@@ -292,7 +306,7 @@ export function PainelCalendario({ linhas, pacote, feriados, hoje, valorPonto, c
           {diaSel === null ? null : (
             <>
               <div className="border-b">
-                <Trio
+                <Fileira
                   itens={[
                     { rotulo: "resultado", valor: <Valor valor={totalDia} inteiro={Math.abs(totalDia) >= 1000} /> },
                     { rotulo: opsDia.length === 1 ? "operação" : "operações", valor: formatarNumero(opsDia.length) },
@@ -302,6 +316,43 @@ export function PainelCalendario({ linhas, pacote, feriados, hoje, valorPonto, c
                     },
                   ]}
                 />
+              </div>
+
+              {/* MEP e MEN: o pico e o vale do saldo do dia, medidos só nos fechamentos. Não é o número do
+                  Profit, que acompanha tick a tick com a posição aberta; por isso o texto de apoio diz como
+                  é medido, avisa que nunca passa do número do Profit e aponta para a metodologia. */}
+              <div className="border-b">
+                <Fileira
+                  colunas={2}
+                  itens={[
+                    {
+                      rotulo: "exposição positiva (MEP)",
+                      valor: opsDia.length > 0 ? <Valor valor={excursao.mep} inteiro={Math.abs(excursao.mep) >= 1000} /> : "–",
+                      apoio:
+                        opsDia.length === 0
+                          ? undefined
+                          : excursao.operacaoMep !== null
+                            ? `na ${formatarNumero(excursao.operacaoMep)}ª operação`
+                            : "não ficou positivo",
+                    },
+                    {
+                      rotulo: "exposição negativa (MEN)",
+                      valor: opsDia.length > 0 ? <Valor valor={excursao.men} inteiro={Math.abs(excursao.men) >= 1000} /> : "–",
+                      apoio:
+                        opsDia.length === 0
+                          ? undefined
+                          : excursao.operacaoMen !== null
+                            ? `na ${formatarNumero(excursao.operacaoMen)}ª operação`
+                            : "não ficou negativo",
+                    },
+                  ]}
+                />
+                <p className="px-3 pb-3 text-center text-xs text-muted-foreground">
+                  medidos a cada fechamento, sem a posição em aberto, por isso nunca passam do MEP/MEN do Profit ·{" "}
+                  <Link href="/metodologia#mep-men" className="underline underline-offset-4 hover:text-foreground">
+                    metodologia
+                  </Link>
+                </p>
               </div>
 
               <div className="space-y-4 p-3 sm:p-4">
@@ -320,6 +371,7 @@ export function PainelCalendario({ linhas, pacote, feriados, hoje, valorPonto, c
                       pontos={curvaDoDia}
                       cores={CURVA_POR_OPERACAO}
                       altura={170}
+                      marcadores={marcadoresDoDia}
                       rotulosX={ordemNoEixo}
                       formatarEixo={(v) => formatarNumero(v, 0)}
                       rotuloVertical="Saldo do dia (R$)"

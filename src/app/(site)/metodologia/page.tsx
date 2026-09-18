@@ -14,6 +14,7 @@ const SECOES = [
   { id: "custos", titulo: "Bruto e líquido" },
   { id: "operacao", titulo: "O que é uma operação" },
   { id: "resultado", titulo: "Resultado do dia, mês, ano e acumulado" },
+  { id: "mep-men", titulo: "MEP e MEN do dia" },
   { id: "drawdown", titulo: "Drawdown e recuperação" },
   { id: "taxa-acerto", titulo: "Taxa de acerto" },
   { id: "fator-lucro", titulo: "Fator de lucro" },
@@ -131,6 +132,20 @@ export default function PaginaMetodologia() {
           </p>
         </Secao>
 
+        <Secao id="mep-men" titulo="MEP e MEN do dia">
+          <p>
+            <strong>MEP</strong> (máxima exposição positiva) é o maior valor positivo que o resultado acumulado do dia
+            atingiu; <strong>MEN</strong> (máxima exposição negativa) é o menor valor negativo desse mesmo acumulado. Os
+            dois são medidos <strong>a cada fechamento de operação</strong>, líquidos de custos e por 1 contrato. Se o
+            acumulado nunca ficou positivo, o MEP é zero e não há operação do MEP; o mesmo vale para o MEN. Em empate, o
+            site aponta a primeira operação em que o extremo ocorreu.
+          </p>
+          <p>
+            Como só olha os fechamentos, sem a posição aberta, o número fica sempre <strong>igual ou menor, em módulo</strong>,
+            que o MEP/MEN do Profit, que acompanha o resultado tick a tick incluindo a posição em andamento.
+          </p>
+        </Secao>
+
         <Secao id="drawdown" titulo="Drawdown e recuperação">
           <p>
             A curva de capital acumula o resultado dia a dia. <strong>Drawdown</strong> é a distância entre a curva e o maior
@@ -243,6 +258,8 @@ export default function PaginaMetodologia() {
             <dd>O robô tem posição aberta neste momento.</dd>
             <dt className="font-medium text-foreground">Flutuante</dt>
             <dd>Resultado da posição aberta se fosse fechada agora, por contrato.</dd>
+            <dt className="font-medium text-foreground">MEP / MEN</dt>
+            <dd>Máxima exposição positiva e negativa do dia: o ponto mais alto e o mais baixo do acumulado do dia, medidos a cada fechamento de operação.</dd>
           </dl>
         </Secao>
 
