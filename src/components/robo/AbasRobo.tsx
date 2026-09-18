@@ -9,7 +9,7 @@ interface Props {
   slug: string;
 }
 
-/** Abas da página do robô: visão geral, desempenho, operações e atalho pro ao vivo. */
+/** Abas da página do robô em pílulas (18/09/2026): a ativa em branco, as outras apagadas, o ao vivo à direita. */
 export function AbasRobo({ slug }: Props) {
   const pathname = usePathname();
   const base = `/robos/${slug}`;
@@ -24,7 +24,10 @@ export function AbasRobo({ slug }: Props) {
   ];
 
   return (
-    <nav aria-label="Seções do robô" className="flex items-center gap-1 overflow-x-auto border-b [scrollbar-width:none]">
+    <nav
+      aria-label="Seções do robô"
+      className="painel flex items-center gap-1 overflow-x-auto rounded-full p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+    >
       {abas.map((a) => {
         const ativo = a.exato ? pathname === a.href : pathname.startsWith(a.href);
         return (
@@ -33,10 +36,10 @@ export function AbasRobo({ slug }: Props) {
             href={a.href}
             aria-current={ativo ? "page" : undefined}
             className={cn(
-              "-mb-px border-b-2 px-3 py-2.5 text-sm whitespace-nowrap transition-colors",
+              "h-8 shrink-0 rounded-full px-3.5 text-sm leading-8 whitespace-nowrap transition-colors",
               ativo
-                ? "border-foreground font-medium text-foreground"
-                : "border-transparent text-muted-foreground hover:text-foreground",
+                ? "bg-foreground font-medium text-background"
+                : "text-muted-foreground hover:bg-(--linha-hover) hover:text-foreground",
             )}
           >
             {a.rotulo}
@@ -45,7 +48,7 @@ export function AbasRobo({ slug }: Props) {
       })}
       <Link
         href={`${base}/ao-vivo`}
-        className="ml-auto inline-flex items-center gap-1.5 px-3 py-2.5 text-sm whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground"
+        className="ml-auto inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-(--painel-fio-forte) px-3.5 text-sm whitespace-nowrap text-foreground transition-colors hover:bg-(--linha-hover)"
       >
         <Radio className="size-4" /> Ao vivo
       </Link>

@@ -65,7 +65,7 @@ export function MenuRobos({ robos }: Props) {
         <div
           role="menu"
           aria-label="Robôs"
-          className="absolute right-0 z-50 mt-1 w-56 overflow-hidden rounded-lg bg-popover py-1 text-sm shadow-xl ring-1 ring-border"
+          className="absolute right-0 z-50 mt-1 w-56 overflow-hidden rounded-xl bg-popover py-1 text-sm shadow-xl ring-1 ring-border motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-150"
         >
           {robos.map((r) => {
             const atual = pathname.startsWith(`/robos/${r.slug}`);

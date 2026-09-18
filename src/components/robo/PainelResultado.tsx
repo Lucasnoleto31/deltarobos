@@ -129,7 +129,7 @@ function ResultadoDoPeriodo({
   const bruto = recorte.reduce((s, l) => s + l.resultado_brl_por_contrato, 0);
 
   return (
-    <div className="grid gap-5 p-4 sm:p-5 lg:grid-cols-[1fr_1.6fr] lg:items-start">
+    <div className="grid gap-5 p-4 sm:p-5 lg:grid-cols-[1fr_1.6fr] lg:items-start motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-300">
       <div className="space-y-5">
         <div>
           <p className="text-sm text-muted-foreground">

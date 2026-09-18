@@ -100,7 +100,7 @@ export function GradeRobos({ cards }: Props) {
         </p>
       ) : (
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {visiveis.map((card) => {
+          {visiveis.map((card, i) => {
             const pregao = pregaoPorAtivo[card.ativo] ?? pregaoGeral;
             const aberto = agora ? pregaoAberto(agora, pregao, feriados) : false;
             const status = statusAoVivo({
@@ -115,7 +115,7 @@ export function GradeRobos({ cards }: Props) {
             });
             return (
               <li key={card.slug}>
-                <CardRobo card={card} status={status} />
+                <CardRobo card={card} status={status} atraso={Math.min(i, 8) * 70} />
               </li>
             );
           })}

@@ -7,7 +7,7 @@ export default async function LayoutSite({ children }: { children: React.ReactNo
 
   return (
     <>
-      <Cabecalho />
+      <Cabecalho links={parametros.links} />
       <main className="flex-1">{children}</main>
       <Rodape links={parametros.links} textos={parametros.textos} />
     </>

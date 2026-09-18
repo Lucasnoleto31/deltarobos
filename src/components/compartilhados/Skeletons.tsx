@@ -13,17 +13,14 @@ export function SkeletonBarra() {
 
 export function SkeletonCardRobo() {
   return (
-    <div className="flex flex-col gap-4 painel p-4">
+    <div className="flex flex-col gap-4 painel p-5">
       <div className="flex items-center justify-between">
         <Skeleton className="h-5 w-24" />
         <Skeleton className="h-5 w-20 rounded-full" />
       </div>
-      <div className="grid grid-cols-3 gap-3">
-        <Skeleton className="h-10" />
-        <Skeleton className="h-10" />
-        <Skeleton className="h-10" />
-      </div>
-      <Skeleton className="h-12 w-full" />
+      <Skeleton className="h-9 w-32" />
+      <Skeleton className="h-4 w-48" />
+      <Skeleton className="h-16 w-full" />
     </div>
   );
 }
