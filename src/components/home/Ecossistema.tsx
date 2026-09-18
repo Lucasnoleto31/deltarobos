@@ -44,7 +44,7 @@ export function Ecossistema({ links }: Props) {
             rel="noopener noreferrer"
             className="flex items-start gap-3 painel p-5 painel-interativo"
           >
-            <span className="mt-0.5 shrink-0 text-primary">{c.icone}</span>
+            <span className="mt-0.5 shrink-0 text-muted-foreground">{c.icone}</span>
             <div className="min-w-0 flex-1">
               <h3 className="font-semibold">{c.titulo}</h3>
               <p className="text-sm text-muted-foreground">{c.texto}</p>

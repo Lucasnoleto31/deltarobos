@@ -141,14 +141,12 @@ export function TelaAoVivo() {
             {estado.posicoes.map((p) => (
               <li
                 key={`${p.simbolo}-${p.lado}`}
-                className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 ${
-                  p.lado === "compra" ? "border-positivo/40 bg-positivo/5" : "border-negativo/40 bg-negativo/5"
-                }`}
+                className="flex items-center justify-between gap-3 rounded-xl border px-4 py-3"
               >
                 <div className="flex min-w-0 items-center gap-2">
-                  <Badge variant="secondary" className={p.lado === "compra" ? "bg-positivo/15 text-positivo" : "bg-negativo/15 text-negativo"}>
+                  <span className={`text-sm font-medium ${p.lado === "compra" ? "text-positivo" : "text-negativo"}`}>
                     {rotuloLado(p.lado)}
-                  </Badge>
+                  </span>
                   <span className="text-sm font-medium">{p.simbolo}</span>
                   <span className="truncate text-sm text-muted-foreground tabular-nums">@ {formatarPreco(p.preco_abertura)}</span>
                 </div>

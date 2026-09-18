@@ -30,7 +30,7 @@ export function Segmentado<T extends string>({ opcoes, valor, onChange, ariaLabe
             className={cn(
               "h-7 shrink-0 rounded-md px-2.5 font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
               ativo
-                ? "bg-background text-foreground shadow-sm"
+                ? "bg-foreground/12 text-foreground"
                 : "text-muted-foreground hover:text-foreground",
             )}
           >

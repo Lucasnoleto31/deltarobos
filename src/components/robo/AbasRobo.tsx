@@ -35,7 +35,7 @@ export function AbasRobo({ slug }: Props) {
             className={cn(
               "-mb-px border-b-2 px-3 py-2.5 text-sm whitespace-nowrap transition-colors",
               ativo
-                ? "border-primary font-medium text-foreground"
+                ? "border-foreground font-medium text-foreground"
                 : "border-transparent text-muted-foreground hover:text-foreground",
             )}
           >

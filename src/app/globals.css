@@ -5,7 +5,7 @@
 /* Ficha visual (kit estético do Artur), identidade Delta Flow, 14/09/2026. Só os VALORES dos
    tokens mudaram; os nomes são os do shadcn e do projeto, então nenhum componente precisou saber
    da troca.
-   fundo: preto de cinema #0A0A0B no escuro (padrão), cartão #141416 e popover #1C1C1F. Em
+   fundo: preto de cinema #0A0A0B no escuro (padrão), cartão só com fio (18/09) e popover #1C1C1F. Em
    16/09/2026 o Artur trocou o marinho da marca (#00162E) por preto ("o azul não gostei muito");
    é a mesma variante .cinema da área do cliente do Hub. No claro, papel quente #F7F5F1 com texto
    quase preto #141416.
@@ -82,7 +82,7 @@
   --accent: #efebe4;
   --accent-foreground: #141416;
   --destructive: #b22222;
-  --border: #e4e0da;
+  --border: #d8d2c8;
   --input: #d1cbc2;
   --ring: #86652d;
   --chart-1: #86652d;
@@ -110,7 +110,7 @@
 .dark {
   --background: #0a0a0b;
   --foreground: #f8f5ef;
-  --card: #141416;
+  --card: #0a0a0b;
   --card-foreground: #f8f5ef;
   --popover: #1c1c1f;
   --popover-foreground: #f8f5ef;
@@ -186,38 +186,26 @@
    forte; o que separa as coisas é o espaço. O rótulo do grupo fica FORA do cartão, em caixa alta
    e apagado, como nas listas agrupadas do iOS. Vidro só no que flutua (o cabeçalho).
    Os valores mudam por tema; as classes são as mesmas. */
+/* 18/09/2026, Artur: "o dourado de fundo da página com esse cinza não está legal". O realce dourado
+   do chão saiu e o cartão escuro deixou de ter fundo: é só o fio sobre o preto, como ele escolheu no
+   Hub ("dourado sobre preto, não sobre cinza"). O chão é a cor de fundo, sem gradiente. */
 :root {
   --painel-fundo: #ffffff;
   --painel-fio: rgba(20, 20, 22, 0.08);
+  --painel-fio-forte: rgba(20, 20, 22, 0.22);
   --painel-hover: #fbf9f5;
   --painel-ativo: #f5f2ec;
   --linha-hover: rgba(20, 20, 22, 0.03);
   --sep-cor: rgba(20, 20, 22, 0.07);
-  --chao-luz: rgba(179, 138, 80, 0.1);
-  --chao-topo: #fcfbf8;
 }
 .dark {
-  --painel-fundo: rgba(255, 255, 255, 0.03);
-  --painel-fio: rgba(255, 255, 255, 0.07);
-  --painel-hover: rgba(255, 255, 255, 0.055);
-  --painel-ativo: rgba(255, 255, 255, 0.07);
+  --painel-fundo: transparent;
+  --painel-fio: rgba(255, 255, 255, 0.1);
+  --painel-fio-forte: rgba(255, 255, 255, 0.26);
+  --painel-hover: rgba(255, 255, 255, 0.04);
+  --painel-ativo: rgba(255, 255, 255, 0.06);
   --linha-hover: rgba(255, 255, 255, 0.035);
-  --sep-cor: rgba(255, 255, 255, 0.07);
-  --chao-luz: rgba(195, 154, 90, 0.09);
-  --chao-topo: #121214;
-}
-
-/* O chão do site: uma inclinação de cima para baixo e um único realce dourado no alto à direita,
-   os dois parados. Camada fixa própria, e não background-attachment: fixed, que engasga no iPhone. */
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background-image:
-    radial-gradient(120% 70% at 84% -10%, var(--chao-luz) 0%, transparent 64%),
-    linear-gradient(180deg, var(--chao-topo) 0%, var(--background) 46%, var(--background) 100%);
+  --sep-cor: rgba(255, 255, 255, 0.08);
 }
 
 @layer components {
@@ -230,12 +218,15 @@ body::before {
     border-radius: calc(var(--radius) + 2px);
     background: var(--painel-fundo);
   }
-  /* só para o que é clicável ou navegável */
+  /* só para o que é clicável ou navegável: o fio acende junto com o fundo */
   .painel-interativo {
-    transition: background-color 150ms ease-out;
+    transition:
+      background-color 150ms ease-out,
+      border-color 150ms ease-out;
   }
   .painel-interativo:hover {
     background: var(--painel-hover);
+    border-color: var(--painel-fio-forte);
   }
   .painel-interativo:active {
     background: var(--painel-ativo);

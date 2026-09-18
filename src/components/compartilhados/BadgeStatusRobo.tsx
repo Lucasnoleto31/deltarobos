@@ -7,12 +7,14 @@ import {
   type TomStatus,
 } from "@/lib/stats/status-robo";
 
+// Só o fio e a cor do texto: sem fundo tingido, sem bolinha e sem pulso (18/09/2026, "remova tudo
+// que parece i.a"). O que diz o estado é a palavra; a cor só a reforça.
 const CLASSES: Record<TomStatus, string> = {
-  positivo: "bg-positivo/15 text-positivo",
-  negativo: "bg-negativo/15 text-negativo",
-  neutro: "bg-muted text-muted-foreground",
-  alerta: "bg-alerta/15 text-alerta",
-  info: "bg-info/15 text-info",
+  positivo: "border-positivo/50 text-positivo",
+  negativo: "border-negativo/50 text-negativo",
+  neutro: "border-border text-muted-foreground",
+  alerta: "border-alerta/50 text-alerta",
+  info: "border-(--painel-fio-forte) text-foreground",
 };
 
 export function BadgeStatusRobo({
@@ -22,10 +24,8 @@ export function BadgeStatusRobo({
   status: StatusAoVivo;
   className?: string;
 }) {
-  const pulsa = status === "operando" || status === "posicionado";
   return (
-    <Badge variant="secondary" className={cn(CLASSES[TOM_STATUS[status]], className)}>
-      {pulsa ? <span className="size-1.5 rounded-full bg-current animate-pulse" aria-hidden /> : null}
+    <Badge variant="outline" className={cn(CLASSES[TOM_STATUS[status]], className)}>
       {ROTULO_STATUS[status]}
     </Badge>
   );

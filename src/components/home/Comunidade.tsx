@@ -10,7 +10,7 @@ interface Props {
 /**
  * Linha de canal, no desenho da lista agrupada do iOS (Habitto): ícone solto no acento, título e
  * apoio, e a seta de quem sai do site. A linha inteira é o alvo do clique. O ícone não tem caixa
- * tintada atrás: é marca que o Artur já tirou do Habitto e do Hub (14/09/2026).
+ * tintada atrás nem cor de acento: o dourado fica para a marca e o botão principal (18/09/2026).
  */
 function LinhaCanal({
   href,
@@ -31,7 +31,7 @@ function LinhaCanal({
         rel="noopener noreferrer"
         className="linha-interativa flex min-h-[64px] items-center gap-3 px-4 py-3 outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
       >
-        <span className="grid w-6 shrink-0 place-items-center text-primary">{icone}</span>
+        <span className="grid w-6 shrink-0 place-items-center text-muted-foreground">{icone}</span>
         <span className="min-w-0 flex-1">
           <span className="block font-medium leading-tight">{titulo}</span>
           <span className="mt-0.5 block text-sm text-muted-foreground">{descricao}</span>
@@ -105,7 +105,7 @@ export function Comunidade({ links, videos }: Props) {
                       href={links.proxima_live}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="font-medium text-primary underline-offset-4 hover:underline"
+                      className="font-medium text-foreground underline-offset-4 hover:underline"
                     >
                       Próxima live
                     </a>

@@ -6,7 +6,6 @@ import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YA
 import { Segmentado } from "@/components/compartilhados/Segmentado";
 import { Valor } from "@/components/compartilhados/Valor";
 import { CardsKpi, type ItemKpi } from "@/components/desempenho/CardsKpi";
-import { Badge } from "@/components/ui/badge";
 import { formatarBRL, formatarData, formatarDataCurta, formatarMultiplo, formatarNumero, formatarPct } from "@/lib/formato";
 import { calcularKpis } from "@/lib/stats/kpis";
 import { dia as diaOp, resumoOperacoes, type OperacaoCompacta } from "@/lib/stats/operacoes";
@@ -195,9 +194,9 @@ export function PainelRisco({ linhas, ops, hoje, valorPonto, capitalReferencia, 
                     {temCapital ? <td className="text-right text-negativo">{formatarPct(e.valor / (capitalReferencia as number), 1)}</td> : null}
                     <td className="text-right">
                       {e.recuperacao ? (
-                        <Badge variant="secondary" className="bg-positivo/15 text-positivo">Recuperado</Badge>
+                        <span className="text-positivo">Recuperado</span>
                       ) : (
-                        <Badge variant="secondary" className="bg-alerta/15 text-alerta">Aberto</Badge>
+                        <span className="text-alerta">Aberto</span>
                       )}
                     </td>
                   </tr>
