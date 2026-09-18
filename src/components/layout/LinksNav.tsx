@@ -24,7 +24,7 @@ export function LinksNav() {
             href={l.href}
             aria-current={atual ? "page" : undefined}
             className={cn(
-              "hidden h-8 items-center rounded-full px-3 transition-colors sm:inline-flex",
+              "hidden h-8 shrink-0 items-center rounded-full px-3 whitespace-nowrap transition-colors sm:inline-flex",
               atual ? "bg-(--linha-hover) text-foreground" : "text-muted-foreground hover:text-foreground",
             )}
           >
