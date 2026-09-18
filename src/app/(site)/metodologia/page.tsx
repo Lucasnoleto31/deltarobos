@@ -98,6 +98,11 @@ export default function PaginaMetodologia() {
             Cada robô tem uma <strong>conta principal</strong>, que alimenta as estatísticas públicas. Quando essa conta é
             demo, o site mostra um selo &quot;conta demo&quot; ao lado do nome.
           </p>
+          <p>
+            Um robô pode ter um <strong>horário mínimo de operação</strong>. Operações abertas antes desse horário ficam
+            fora do site e das estatísticas, embora continuem registradas. O horário vale para todo o histórico do robô,
+            então a curva, os KPIs e os relatórios usam o mesmo conjunto de operações.
+          </p>
         </Secao>
 
         <Secao id="normalizacao" titulo="Por contrato">
