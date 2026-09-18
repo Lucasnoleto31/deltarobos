@@ -1,14 +1,12 @@
 import Link from "next/link";
 import { Faq } from "@/components/compartilhados/Faq";
 import { buttonVariants } from "@/components/ui/button";
-import type { Textos } from "@/lib/tipos";
 
-interface Props {
-  textos: Textos;
-}
-
-/** Item 14 da home: transparência, FAQ e disclaimer. As perguntas são as mesmas da página do robô e da metodologia. */
-export function TransparenciaFaq({ textos }: Props) {
+/**
+ * Item 14 da home: transparência e FAQ. As perguntas são as mesmas da página do robô e da metodologia.
+ * O aviso legal fica só no rodapé, logo abaixo (aparecia duas vezes na mesma tela até 18/09/2026).
+ */
+export function TransparenciaFaq() {
   return (
     <section id="transparencia" className="conteudo scroll-mt-20 py-8">
       <div className="grid items-start gap-6 lg:grid-cols-[1fr_1.4fr]">
@@ -20,7 +18,6 @@ export function TransparenciaFaq({ textos }: Props) {
           <Link href="/metodologia" className={buttonVariants({ variant: "outline" })}>
             Ler a metodologia
           </Link>
-          <p className="pt-4 text-xs text-muted-foreground">{textos.disclaimer}</p>
         </div>
 
         <Faq />

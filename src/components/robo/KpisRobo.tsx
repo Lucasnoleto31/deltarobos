@@ -92,7 +92,7 @@ export function KpisRobo({ linhas, valorPonto, capitalReferencia, hoje }: Props)
         >
           <Valor valor={-k.drawdown.valor} inteiro={k.drawdown.valor >= 1000} />
         </CardKpi>
-        <CardKpi rotulo="Taxa de acerto" detalhe={`${formatarNumero(k.nGain)} gain · ${formatarNumero(k.nLoss)} loss`}>
+        <CardKpi rotulo="Taxa de acerto" detalhe={`${formatarNumero(k.nGain)} gains · ${formatarNumero(k.nLoss)} losses`}>
           {formatarPct(k.taxaAcerto)}
         </CardKpi>
       </div>
