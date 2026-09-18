@@ -80,6 +80,12 @@ A fonte é decidida por dia (migration 0014): se um (robô, dia) tem operação 
 mostra só ela; se não tem, vale o MT5 da conta principal. Importar um dia substitui o MT5 daquele
 dia inteiro, então importe o dia completo. `robos.historico_manual_ate` não tem mais efeito.
 
+Cada robô pode ter `robos.hora_minima_operacao` (migration 0016): operação aberta antes dessa hora
+(Brasília) não aparece no site nem nas estatísticas, mas continua no banco. Apollo e Orion usam
+`09:10`; Alaska & Square fica nulo porque o histórico importado não tem hora real. Mudar a hora
+recalcula a série pelo trigger; `update robos set hora_minima_operacao = null where slug = 'apollo'`
+volta atrás.
+
 Operações do Profit (Nelogica) entram por `scripts/importar-profit.py`, que lê o CSV da aba
 Operações do Relatório de Performance ou o CSV da Lista de Ordens (casa as ordens executadas
 no modelo netting), normaliza por contrato e grava com `id_externo` (repetir é seguro):
