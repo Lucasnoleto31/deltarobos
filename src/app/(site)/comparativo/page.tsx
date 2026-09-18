@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Valor } from "@/components/compartilhados/Valor";
 import { CardsKpi, type ItemKpi } from "@/components/desempenho/CardsKpi";
 import { CurvaCapital } from "@/components/graficos/CurvaCapital";
+import { Voltar } from "@/components/layout/Voltar";
 import { listarEstatisticas, listarRobos } from "@/lib/consultas/publico";
 import { formatarBRL, formatarData, formatarMultiplo, formatarNumero, formatarPct } from "@/lib/formato";
 import { calcularKpis } from "@/lib/stats/kpis";
@@ -94,6 +95,7 @@ export default async function PaginaComparativo() {
 
   return (
     <div className="conteudo space-y-8 py-8">
+      <Voltar href="/">Início</Voltar>
       <header className="space-y-1">
         <h1 className="text-3xl font-semibold tracking-tight">Comparativo dos robôs</h1>
         <p className="text-muted-foreground">Todos lado a lado, por 1 contrato e líquido de custos. Clique no nome pra abrir o robô.</p>

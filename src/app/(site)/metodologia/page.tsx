@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Faq } from "@/components/compartilhados/Faq";
+import { Voltar } from "@/components/layout/Voltar";
 
 export const metadata: Metadata = {
   title: "Metodologia",
@@ -72,6 +73,7 @@ export default function PaginaMetodologia() {
 
       <article className="max-w-prose space-y-12">
         <header className="space-y-3">
+          <Voltar href="/">Início</Voltar>
           <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Metodologia</h1>
           <p className="text-lg text-muted-foreground">
             Cada número do site pode ser refeito à mão a partir das operações listadas. Aqui está a regra de cada um.
