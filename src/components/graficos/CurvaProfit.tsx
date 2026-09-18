@@ -68,6 +68,17 @@ export interface PontoDoDesenho {
   dica: ConteudoDaDica;
 }
 
+/** Um ponto marcado em cima da curva (o MEP e o MEN do dia, por exemplo), com um rótulo curto ao lado. */
+export interface MarcadorDaCurva {
+  /** de 0 a 1 no eixo de baixo, na mesma régua dos pontos */
+  posicao: number;
+  /** o valor no eixo vertical, na mesma unidade do acumulado */
+  valor: number;
+  /** curto, cabe ao lado do ponto: "MEP", "MEN" */
+  rotulo: string;
+  tom: "positivo" | "negativo";
+}
+
 /** Escala da curva: só 5% além do maior valor e, quando passa abaixo do zero, 5% abaixo do menor. */
 function escalaDaCurva(valores: number[]) {
   const max = valores.reduce((m, v) => Math.max(m, v), 0);
@@ -133,6 +144,8 @@ interface Props {
   formatarEixo: (v: number) => string;
   rotuloVertical: string;
   rotuloAria: string;
+  /** pontos marcados em cima da curva, com rótulo; entram na escala vertical para nunca ficarem fora do desenho */
+  marcadores?: ReadonlyArray<MarcadorDaCurva>;
 }
 
 /** Linha com área em degradê até o zero, verde acima e vermelha abaixo, e o drawdown em barras no mesmo eixo de tempo. */
@@ -147,13 +160,15 @@ export function DesenhoDaCurva({
   formatarEixo,
   rotuloVertical,
   rotuloAria,
+  marcadores = [],
 }: Props) {
   const [ativo, setAtivo] = useState<number | null>(null);
   const n = pontos.length;
   if (n === 0) return null;
 
   const x = (i: number) => pontos[i].posicao * 100;
-  const { marcas, y } = escalaDaCurva(escalaDe ?? pontos.map((p) => p.acumulado));
+  // os marcadores entram na escala: em série fatiada o pico real pode não estar entre os pontos desenhados
+  const { marcas, y } = escalaDaCurva([...(escalaDe ?? pontos.map((p) => p.acumulado)), ...marcadores.map((m) => m.valor)]);
   const zero = y(0);
   // a linha nasce no zero, na borda esquerda, antes do primeiro ponto
   const tracado = `M0,${zero.toFixed(2)}${pontos.map((p, i) => `L${x(i).toFixed(2)},${y(p.acumulado).toFixed(2)}`).join("")}`;
@@ -212,6 +227,33 @@ export function DesenhoDaCurva({
           <path d={tracado} fill="none" stroke={cores.alta} strokeWidth={cores.linha} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" clipPath={`url(#${id}-acima)`} />
           <path d={tracado} fill="none" stroke={cores.baixa} strokeWidth={cores.linha} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" clipPath={`url(#${id}-abaixo)`} />
         </svg>
+        {/* Marcadores em HTML, como o ponto ativo: dentro do SVG esticado o círculo viraria uma elipse. Ficam antes
+            do ponto ativo no DOM para nunca cobrirem o ponto ativo, e o círculo some quando o hover cai no ponto
+            desenhado mais perto dele (em série fatiada o marcador pode não coincidir com nenhum ponto). O rótulo
+            vira para dentro perto da borda direita para não invadir o eixo, e fica do lado oposto ao da linha:
+            num pico a linha só desce, então o rótulo vai para cima; num vale só sobe, então vai para baixo. */}
+        {marcadores.map((m, i) => {
+          const px = m.posicao * 100;
+          const cor = m.tom === "positivo" ? cores.alta : cores.baixa;
+          const maisPerto = pontos.reduce((k, p, j) => (Math.abs(p.posicao - m.posicao) < Math.abs(pontos[k].posicao - m.posicao) ? j : k), 0);
+          const sobOAtivo = ativo === maisPerto;
+          return (
+            <div key={`${m.rotulo}-${i}`} aria-hidden className="pointer-events-none absolute" style={{ left: `${px}%`, top: `${y(m.valor)}%` }}>
+              {sobOAtivo ? null : (
+                <div
+                  className="absolute top-0 left-0 size-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full"
+                  style={{ background: cor, boxShadow: `0 0 0 1.5px ${PROFIT.fundo}` }}
+                />
+              )}
+              <span
+                className={`absolute text-[10px] leading-none font-semibold whitespace-nowrap ${m.tom === "positivo" ? "bottom-px" : "top-px"} ${px > 85 ? "right-2" : "left-2"}`}
+                style={{ color: cor }}
+              >
+                {m.rotulo}
+              </span>
+            </div>
+          );
+        })}
         {atual && ativo !== null ? (
           <>
             <div aria-hidden className="absolute inset-y-0 border-l border-dashed" style={{ left: `${x(ativo)}%`, borderColor: PROFIT.textoFraco }} />
