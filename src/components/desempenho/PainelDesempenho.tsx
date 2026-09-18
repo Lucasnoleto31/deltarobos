@@ -118,13 +118,21 @@ export function PainelDesempenho({
   );
   const heatmap = useMemo(() => heatmapAnoMes(linhas, opcoes), [linhas, opcoes]);
   const mensal = useMemo(
-    () => heatmap.flatMap((l) => l.meses.filter((m): m is NonNullable<typeof m> => m !== null)).map((m) => ({ rotulo: formatarMesAno(`${m.mes}-01`), valor: m.total, n: m.nDias })),
+    () => heatmap.flatMap((l) => l.meses.filter((m): m is NonNullable<typeof m> => m !== null)).map((m) => ({ rotulo: formatarMesAno(`${m.mes}-01`), valor: m.total, n: m.nDias, mes: m.mes })),
     [heatmap],
   );
   const porDia = useMemo(() => porDiaSemana(opsF, opcoes), [opsF, opcoes]);
   const porHoraF = useMemo(() => porHora(opsF, opcoes), [opsF, opcoes]);
   const hist = useMemo(() => histograma(opsF, opcoes, 12), [opsF, opcoes]);
   const simbolos = useMemo(() => porSimbolo(opsF, opcoes), [opsF, opcoes]);
+
+  // clicar num mês, nas barras ou no mapa, filtra o painel inteiro naquele mês
+  const verMes = (mes: string) => {
+    const [ano, m] = mes.split("-").map(Number);
+    const ultimo = new Date(Date.UTC(ano, m, 0)).toISOString().slice(0, 10);
+    setEstado((s) => ({ ...s, periodo: "personalizado", de: `${mes}-01`, ate: ultimo < hoje ? ultimo : hoje }));
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   const retornoPct =
     estado.unidade === "brl" && capitalReferencia && capitalReferencia > 0
@@ -212,7 +220,7 @@ export function PainelDesempenho({
         <section className="painel p-4 sm:p-5">
           <h2 className="font-semibold">Resultado mensal</h2>
           <p className="mb-3 text-xs text-muted-foreground">{mensal.length} meses · todo o histórico</p>
-          <GraficoBarras dados={mensal} unidade={estado.unidade} rotuloN="Dias de pregão" />
+          <GraficoBarras dados={mensal} unidade={estado.unidade} rotuloN="Dias de pregão" aoEscolher={(i) => verMes(mensal[i].mes)} />
         </section>
         <section className="painel p-4 sm:p-5">
           <h2 className="font-semibold">Resultado por ativo</h2>
@@ -226,7 +234,7 @@ export function PainelDesempenho({
       <section className="painel p-4 sm:p-5">
         <h2 className="font-semibold">Ano × mês</h2>
         <p className="mb-3 text-xs text-muted-foreground">todo o histórico</p>
-        <Heatmap linhas={heatmap} unidade={estado.unidade} />
+        <Heatmap linhas={heatmap} unidade={estado.unidade} aoEscolher={verMes} />
       </section>
 
       <section className="space-y-4">

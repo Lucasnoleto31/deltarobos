@@ -71,17 +71,37 @@ export function CurvaCapital({
     [pontosPorOperacao, operacoes, opcoes, porDia.dias],
   );
   const dd = useMemo(() => drawdownMaximo(porDia.curva), [porDia.curva]);
-  const rotulosX = useMemo(() => rotulosDeData(porDia.dias), [porDia.dias]);
+
+  // Zoom: um trecho do eixo, em frações; arrastar na curva escolhe, "Ver tudo" desfaz. Só o desenho
+  // muda (os pontos fora saem e os de dentro se espalham); o resumo em cima continua o do período.
+  // o zoom vale só para a série em que foi feito: trocar período, unidade ou base volta a mostrar tudo
+  const [zoomDaSerie, setZoomDaSerie] = useState<{ linhas: readonly LinhaDiaria[]; de: number; ate: number } | null>(null);
+  const zoom = zoomDaSerie && zoomDaSerie.linhas === linhas ? zoomDaSerie : null;
+  const setZoom = (z: { de: number; ate: number } | null | ((atual: { de: number; ate: number } | null) => { de: number; ate: number } | null)) => {
+    const novo = typeof z === "function" ? z(zoom) : z;
+    setZoomDaSerie(novo ? { linhas, ...novo } : null);
+  };
+  const recortar = (ps: PontoDoDesenho[]) =>
+    zoom ? ps.filter((p) => p.posicao >= zoom.de && p.posicao <= zoom.ate).map((p) => ({ ...p, posicao: (p.posicao - zoom.de) / (zoom.ate - zoom.de) })) : ps;
+  const pontosDia = useMemo(() => recortar(porDia.pontos), [porDia.pontos, zoom]); // eslint-disable-line react-hooks/exhaustive-deps
+  const pontosOperacao = useMemo(() => (porOperacao ? recortar(porOperacao) : null), [porOperacao, zoom]); // eslint-disable-line react-hooks/exhaustive-deps
+  const rotulosX = useMemo(() => {
+    const dias = porDia.dias;
+    if (!zoom) return rotulosDeData(dias);
+    const de = Math.floor(zoom.de * dias.length);
+    const ate = Math.max(de + 1, Math.ceil(zoom.ate * dias.length));
+    return rotulosDeData(dias.slice(de, ate));
+  }, [porDia.dias, zoom]);
 
   const curva = porDia.curva;
   const acumulado = curva.length > 0 ? curva[curva.length - 1].acumulado : 0;
   const unidade = opcoes.unidade;
   const temAbas = porOperacao !== null && porOperacao.length > 0;
   const modoAtivo: Modo = temAbas ? modo : "dia";
-  const pontos = modoAtivo === "dia" ? porDia.pontos : (porOperacao ?? []);
+  const pontos = modoAtivo === "dia" ? pontosDia : (pontosOperacao ?? []);
   const cores = modoAtivo === "dia" ? CURVA_POR_DIA : CURVA_POR_OPERACAO;
   // a escala cobre as duas séries: trocar de aba não muda a régua
-  const escalaDe = [...porDia.pontos.map((p) => p.acumulado), ...(porOperacao ?? []).map((p) => p.acumulado)];
+  const escalaDe = [...pontosDia.map((p) => p.acumulado), ...(pontosOperacao ?? []).map((p) => p.acumulado)];
 
   const alturaDaCurva = Math.round(altura * 0.66);
   const alturaDoDrawdown = Math.max(56, Math.round(altura * 0.26));
@@ -118,7 +138,14 @@ export function CurvaCapital({
         </dl>
       ) : null}
 
-      {curva.length === 0 ? (
+      {pontos.length === 0 && zoom ? (
+        <div className="grid place-items-center gap-2 text-sm text-muted-foreground" style={{ height: altura }}>
+          Nenhum ponto nesse trecho.
+          <button type="button" onClick={() => setZoom(null)} className="rounded-full border px-3 py-1 text-xs font-medium text-foreground">
+            Ver tudo
+          </button>
+        </div>
+      ) : curva.length === 0 ? (
         <div className="grid place-items-center text-sm text-muted-foreground" style={{ height: altura }}>
           Sem operações no período.
         </div>
@@ -136,6 +163,16 @@ export function CurvaCapital({
                 <span className="size-2" style={{ background: PROFIT.baixa, opacity: 0.62 }} />
                 Drawdown
               </span>
+              {zoom ? (
+                <button
+                  type="button"
+                  onClick={() => setZoom(null)}
+                  className="rounded-full border px-2 py-0.5 text-[11px] font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                  style={{ borderColor: PROFIT.abasBorda, color: PROFIT.titulo }}
+                >
+                  Ver tudo
+                </button>
+              ) : null}
             </>
           }
           abas={
@@ -169,9 +206,10 @@ export function CurvaCapital({
           }
         >
           <DesenhoDaCurva
-            key={modoAtivo}
+            key={`${modoAtivo}-${zoom ? `${zoom.de}-${zoom.ate}` : "tudo"}`}
             id={`${id}-${modoAtivo}`}
             pontos={pontos}
+            aoSelecionar={(de, ate) => setZoom((z) => (z ? { de: z.de + de * (z.ate - z.de), ate: z.de + ate * (z.ate - z.de) } : { de, ate }))}
             escalaDe={escalaDe}
             cores={cores}
             altura={alturaDaCurva}

@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { Valor } from "@/components/compartilhados/Valor";
 import { formatarBRL, formatarPontos } from "@/lib/formato";
 import type { LinhaHeatmap } from "@/lib/stats/calendario";
@@ -6,6 +7,8 @@ import type { Unidade } from "@/lib/stats/tipos";
 interface Props {
   linhas: LinhaHeatmap[];
   unidade: Unidade;
+  /** clicar num mês chama isto com "YYYY-MM" */
+  aoEscolher?: (mes: string) => void;
 }
 
 const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
@@ -16,7 +19,7 @@ function curto(v: number, unidade: Unidade): string {
 }
 
 /** Heatmap ano x mês: intensidade da cor proporcional ao resultado do mês. */
-export function Heatmap({ linhas, unidade }: Props) {
+export function Heatmap({ linhas, unidade, aoEscolher }: Props) {
   if (linhas.length === 0) {
     return <p className="py-8 text-center text-sm text-muted-foreground">Sem meses com operação.</p>;
   }
@@ -50,9 +53,10 @@ export function Heatmap({ linhas, unidade }: Props) {
                   <td
                     key={i}
                     // texto branco em cima da cor: verde sobre verde forte não se lia (18/09/2026)
-                    className="h-10 rounded-md text-center font-medium text-foreground tabular-nums"
+                    className={cn("h-10 rounded-md text-center font-medium text-foreground tabular-nums", aoEscolher && "cursor-pointer hover:ring-2 hover:ring-foreground/60")}
                     style={{ backgroundColor: `color-mix(in oklch, ${cor} ${pct}%, transparent)` }}
                     title={`${MESES[i]}/${l.ano}: ${m.nDias} dias`}
+                    onClick={aoEscolher ? () => aoEscolher(m.mes) : undefined}
                   >
                     {curto(m.total, unidade)}
                   </td>

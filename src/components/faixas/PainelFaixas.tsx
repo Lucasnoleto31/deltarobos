@@ -1,11 +1,10 @@
 "use client";
 
 import { cn } from "cn";
-import { Lightbulb, SlidersHorizontal, Zap } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Cell, Pie, PieChart, ResponsiveContainer } from "recharts";
 import { Segmentado } from "@/components/compartilhados/Segmentado";
 import { Valor } from "@/components/compartilhados/Valor";
+import { inicioDoPeriodo, type PeriodoFechado } from "@/components/robo/periodos-resumo";
 import { formatarBRL, formatarMultiplo, formatarNumero, formatarPct } from "@/lib/formato";
 import {
   DESCRICAO_CLASSE,
@@ -18,7 +17,7 @@ import {
   type ParametrosFaixas,
 } from "@/lib/stats/faixas";
 import { dia as diaOp, type OperacaoCompacta } from "@/lib/stats/operacoes";
-import { dentroDoIntervalo, intervaloDe, PERIODOS, type Periodo } from "@/lib/stats/periodos";
+import { dentroDoIntervalo, type Intervalo } from "@/lib/stats/periodos";
 
 interface Props {
   ops: OperacaoCompacta[];
@@ -26,7 +25,11 @@ interface Props {
   parametros: ParametrosFaixas;
 }
 
-const OPCOES_PERIODO = PERIODOS.filter((p) => p.valor !== "personalizado" && p.valor !== "7d");
+const OPCOES_PERIODO: ReadonlyArray<{ valor: PeriodoFechado; rotulo: string }> = [
+  { valor: "mes", rotulo: "Mês" },
+  { valor: "ano", rotulo: "Ano" },
+  { valor: "tudo", rotulo: "Tudo" },
+];
 const CLASSES: ClasseFaixa[] = ["ligar", "cautela", "neutro", "evitar"];
 const COR: Record<ClasseFaixa, string> = {
   ligar: "var(--positivo)",
@@ -46,13 +49,19 @@ function rec(v: number | null): string {
   return v === null ? "∞" : formatarMultiplo(v);
 }
 
-/** Aba Faixas: quando ligar cada combinação de dia da semana × hora de entrada, pelas regras configuradas. */
+/**
+ * Aba Faixas: quando ligar cada combinação de dia da semana × hora de entrada, pelas regras
+ * configuradas. Refeita em 18/09/2026 à noite ("essas faixas pode melhorar"): sem o parágrafo de
+ * apresentação, sem ícones de lâmpada e raio, sem o gráfico de pizza (a distribuição virou uma
+ * barra empilhada e a lista), as regras numa linha por classe e o período nos mesmos atalhos das
+ * outras abas. Os números continuam vindo de validarFaixas.
+ */
 export function PainelFaixas({ ops, hoje, parametros }: Props) {
-  const [periodo, setPeriodo] = useState<Periodo>("tudo");
+  const [periodo, setPeriodo] = useState<PeriodoFechado>("tudo");
   const [filtroClasse, setFiltroClasse] = useState<ClasseFaixa | null>(null);
   const [selecionada, setSelecionada] = useState<Faixa | null>(null);
 
-  const intervalo = useMemo(() => intervaloDe(periodo, hoje), [periodo, hoje]);
+  const intervalo = useMemo<Intervalo>(() => ({ de: inicioDoPeriodo(periodo, hoje), ate: hoje }), [periodo, hoje]);
   const opsF = useMemo(() => ops.filter((op) => dentroDoIntervalo(diaOp(op), intervalo)), [ops, intervalo]);
   const r = useMemo(() => validarFaixas(opsF, parametros), [opsF, parametros]);
 
@@ -63,139 +72,118 @@ export function PainelFaixas({ ops, hoje, parametros }: Props) {
   }, [r]);
 
   const totalComDados = r.comDados.length;
-  const dadosPizza = CLASSES.map((c) => ({ classe: c, valor: r.contagem[c] })).filter((d) => d.valor > 0);
   const maiorScore = Math.max(1, ...r.melhores.map((f) => f.score));
   const p = r.parametros;
 
   if (ops.length === 0) {
-    return <p className="rounded-2xl border border-dashed p-8 text-center text-muted-foreground">Ainda não há operações fechadas pra validar faixas.</p>;
+    return <p className="rounded-2xl border border-dashed p-8 text-center text-muted-foreground">Ainda não há operações fechadas para validar faixas.</p>;
   }
 
   return (
     <div className="space-y-6">
-      <header className="space-y-2">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 className="text-2xl font-semibold tracking-tight">Validação de faixas</h2>
-            <p className="max-w-prose text-sm text-muted-foreground">
-              Classificação cruzada por dia da semana e hora de entrada: em quais faixas vale ligar o robô com lote cheio, onde reduzir e o
-              que desligar. Regras abaixo e na metodologia.
-            </p>
-          </div>
-          <Segmentado ariaLabel="Período" opcoes={OPCOES_PERIODO} valor={periodo} onChange={setPeriodo} />
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-2xl font-semibold tracking-tight">Faixas</h2>
+          <p className="text-sm text-muted-foreground tabular-nums">
+            <strong className="text-foreground">{formatarNumero(r.nOperacoes)}</strong> operações em{" "}
+            <strong className="text-foreground">{totalComDados}</strong> faixas de dia × hora · mediana de drawdown{" "}
+            <strong className="text-foreground">{formatarBRL(r.medianaDd, { inteiro: r.medianaDd >= 1000 })}</strong>
+          </p>
         </div>
-        <p className="text-sm text-muted-foreground tabular-nums">
-          <strong className="text-foreground">{formatarNumero(r.nOperacoes)}</strong> operações analisadas · mediana de drawdown{" "}
-          <strong className="text-foreground">{formatarBRL(r.medianaDd, { inteiro: r.medianaDd >= 1000 })}</strong> ·{" "}
-          <strong className="text-foreground">{totalComDados}</strong> faixas com dados
-        </p>
+        <Segmentado ariaLabel="Período" opcoes={OPCOES_PERIODO} valor={periodo} onChange={setPeriodo} />
       </header>
 
-      <section className="painel p-4 sm:p-5">
-        <h3 className="inline-flex items-center gap-2 font-semibold">
-          <SlidersHorizontal className="size-4" /> Validação cruzada · parâmetros
-        </h3>
-        <p className="mb-3 text-xs text-muted-foreground">
-          Cada condição de EVITAR é independente: basta uma ser satisfeita. Amostra mínima de {p.amostraMinima} operações por faixa.
-        </p>
-        <div className="grid gap-3 text-sm sm:grid-cols-3">
-          <div className="rounded-lg bg-positivo/8 p-3 ring-1 ring-positivo/25">
-            <p className="text-[11px] font-medium tracking-wide text-positivo uppercase">Ligar</p>
-            <ul className="mt-1 space-y-0.5 tabular-nums">
-              <li>consistência ≥ {formatarPct(p.ligar.acertoMin, 0)}</li>
-              <li>recuperação ≥ {formatarMultiplo(p.ligar.recuperacaoMin)}</li>
-              <li>DD relativo ≤ {formatarMultiplo(p.ligar.ddRelativoMax, 1)}×</li>
-            </ul>
-          </div>
-          <div className="rounded-lg bg-alerta/8 p-3 ring-1 ring-alerta/25">
-            <p className="text-[11px] font-medium tracking-wide text-alerta uppercase">Cautela</p>
-            <ul className="mt-1 space-y-0.5 tabular-nums">
-              <li>consistência ≥ {formatarPct(p.cautela.acertoMin, 0)}</li>
-              <li>recuperação ≥ {formatarMultiplo(p.cautela.recuperacaoMin)}</li>
-            </ul>
-          </div>
-          <div className="rounded-lg bg-negativo/8 p-3 ring-1 ring-negativo/25">
-            <p className="text-[11px] font-medium tracking-wide text-negativo uppercase">Evitar (qualquer uma)</p>
-            <ul className="mt-1 space-y-0.5 tabular-nums">
-              <li>consistência &lt; {formatarPct(p.evitar.acertoMax, 0)}</li>
-              <li>recuperação &lt; {formatarMultiplo(p.evitar.recuperacaoMax)}</li>
-              <li>DD relativo &gt; {formatarMultiplo(p.evitar.ddRelativoMin, 1)}×</li>
-            </ul>
-          </div>
+      {/* as regras, uma linha por classe; a definição de cada termo está na metodologia */}
+      <section className="painel">
+        <div className="border-b px-4 py-3 sm:px-5">
+          <h3 className="font-semibold">Regras</h3>
+          <p className="text-xs text-muted-foreground">amostra mínima de {p.amostraMinima} operações por faixa</p>
         </div>
-        <p className="mt-3 text-xs text-muted-foreground">
-          Consistência = taxa de acerto pelo líquido · recuperação = resultado ÷ drawdown da faixa · DD relativo = drawdown da faixa ÷ mediana das
-          faixas. O que não é Ligar, Cautela nem Evitar fica Neutro.
-        </p>
+        <dl className="grid divide-y divide-(--painel-fio) text-sm sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+          <div className="px-4 py-3 sm:px-5">
+            <dt className="font-medium text-positivo">Ligar</dt>
+            <dd className="mt-1 text-muted-foreground tabular-nums">
+              acerto ≥ {formatarPct(p.ligar.acertoMin, 0)} · recuperação ≥ {formatarMultiplo(p.ligar.recuperacaoMin)} · drawdown ≤{" "}
+              {formatarMultiplo(p.ligar.ddRelativoMax, 1)}× a mediana
+            </dd>
+          </div>
+          <div className="px-4 py-3 sm:px-5">
+            <dt className="font-medium text-alerta">Cautela</dt>
+            <dd className="mt-1 text-muted-foreground tabular-nums">
+              acerto ≥ {formatarPct(p.cautela.acertoMin, 0)} · recuperação ≥ {formatarMultiplo(p.cautela.recuperacaoMin)}
+            </dd>
+          </div>
+          <div className="px-4 py-3 sm:px-5">
+            <dt className="font-medium text-negativo">Evitar</dt>
+            <dd className="mt-1 text-muted-foreground tabular-nums">
+              acerto &lt; {formatarPct(p.evitar.acertoMax, 0)} ou recuperação &lt; {formatarMultiplo(p.evitar.recuperacaoMax)} ou drawdown &gt;{" "}
+              {formatarMultiplo(p.evitar.ddRelativoMin, 1)}× a mediana
+            </dd>
+          </div>
+        </dl>
       </section>
 
       <div className="grid gap-4 lg:grid-cols-[1fr_1.2fr]">
+        {/* distribuição: uma barra empilhada e a lista; tocar numa classe filtra o mapa */}
         <section className="painel p-4 sm:p-5">
           <h3 className="font-semibold">Distribuição das faixas</h3>
-          <div className="flex items-center gap-4">
-            <div className="relative size-36 shrink-0">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={dadosPizza} dataKey="valor" nameKey="classe" innerRadius={44} outerRadius={64} paddingAngle={2} isAnimationActive={false} stroke="none">
-                    {dadosPizza.map((d) => (
-                      <Cell key={d.classe} fill={COR[d.classe]} />
-                    ))}
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-2xl font-semibold tabular-nums">{totalComDados}</span>
-                <span className="text-[10px] tracking-wide text-muted-foreground uppercase">faixas</span>
-              </div>
-            </div>
-            <ul className="flex-1 space-y-2">
-              {CLASSES.map((c) => (
-                <li key={c}>
-                  <button
-                    type="button"
-                    onClick={() => setFiltroClasse((f) => (f === c ? null : c))}
-                    aria-pressed={filtroClasse === c}
-                    className={cn(
-                      "flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted/60",
-                      filtroClasse === c && "bg-muted",
-                    )}
-                  >
-                    <span className="size-2.5 rounded-full" style={{ background: COR[c] }} />
-                    <span className="flex-1">
-                      <span className="font-medium">{ROTULO_CLASSE[c]}</span>
-                      <span className="block text-xs text-muted-foreground">{DESCRICAO_CLASSE[c]}</span>
-                    </span>
-                    <span className="font-semibold tabular-nums" style={{ color: COR[c] }}>
-                      {r.contagem[c]}
-                    </span>
-                    <span className="w-9 text-right text-xs text-muted-foreground tabular-nums">
-                      {totalComDados > 0 ? formatarPct(r.contagem[c] / totalComDados, 0) : "0%"}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
+          <div className="mt-3 flex h-2.5 overflow-hidden rounded-full bg-muted">
+            {CLASSES.map((c) =>
+              r.contagem[c] > 0 ? (
+                <div
+                  key={c}
+                  className="h-full transition-[width] duration-500"
+                  style={{ width: `${(r.contagem[c] / Math.max(1, totalComDados)) * 100}%`, background: COR[c], opacity: filtroClasse && filtroClasse !== c ? 0.3 : 1 }}
+                />
+              ) : null,
+            )}
           </div>
+          <ul className="mt-3 space-y-1">
+            {CLASSES.map((c) => (
+              <li key={c}>
+                <button
+                  type="button"
+                  onClick={() => setFiltroClasse((f) => (f === c ? null : c))}
+                  aria-pressed={filtroClasse === c}
+                  className={cn(
+                    "flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-left text-sm transition-colors hover:bg-(--linha-hover)",
+                    filtroClasse === c && "bg-(--linha-hover)",
+                  )}
+                >
+                  <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: COR[c] }} />
+                  <span className="flex-1">
+                    <span className="font-medium">{ROTULO_CLASSE[c]}</span>
+                    <span className="block text-xs text-muted-foreground">{DESCRICAO_CLASSE[c]}</span>
+                  </span>
+                  <span className="font-semibold tabular-nums" style={{ color: COR[c] }}>
+                    {r.contagem[c]}
+                  </span>
+                  <span className="w-9 text-right text-xs text-muted-foreground tabular-nums">
+                    {totalComDados > 0 ? formatarPct(r.contagem[c] / totalComDados, 0) : "0%"}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
         </section>
 
         <section className="painel p-4 sm:p-5">
-          <h3 className="inline-flex items-center gap-2 font-semibold">
-            <Zap className="size-4 text-positivo" /> Melhores faixas para ligar
-          </h3>
-          <p className="mb-3 text-xs text-muted-foreground">maior score entre as classificadas como Ligar</p>
+          <h3 className="font-semibold">Melhores faixas para ligar</h3>
+          <p className="mb-3 text-xs text-muted-foreground">pelo score, entre as classificadas como Ligar</p>
           {r.melhores.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">Nenhuma faixa com amostra suficiente.</p>
           ) : (
             <ol className="space-y-3">
               {r.melhores.map((f, i) => (
                 <li key={f.rotulo}>
-                  <button type="button" onClick={() => setSelecionada(f)} className="flex w-full items-center gap-3 text-left text-sm">
+                  <button
+                    type="button"
+                    onClick={() => setSelecionada(f)}
+                    className="flex w-full items-center gap-3 rounded-lg text-left text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                  >
                     <span className="w-5 text-xs text-muted-foreground tabular-nums">{String(i + 1).padStart(2, "0")}</span>
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">{f.rotulo}</span>
-                        {f.classe ? <span className={cn("rounded-md px-1.5 py-0.5 text-[10px] ring-1", FUNDO[f.classe])}>{ROTULO_CLASSE[f.classe]}</span> : null}
-                      </div>
+                      <span className="font-medium">{f.rotulo}</span>
                       <div className="mt-1 h-1 rounded-full bg-muted">
                         <div className="h-1 rounded-full bg-positivo" style={{ width: `${Math.round((f.score / maiorScore) * 100)}%` }} />
                       </div>
@@ -215,23 +203,6 @@ export function PainelFaixas({ ops, hoje, parametros }: Props) {
         </section>
       </div>
 
-      {r.insights.length > 0 ? (
-        <section className="painel">
-          <div className="border-b px-4 py-3">
-            <h3 className="font-semibold">Insights automáticos</h3>
-            <p className="text-xs text-muted-foreground">{r.insights.length} observações geradas pelas regras da metodologia</p>
-          </div>
-          <ul className="divide-y">
-            {r.insights.map((i) => (
-              <li key={i.chave} className="flex items-start gap-3 px-4 py-2.5 text-sm">
-                <Lightbulb className="mt-0.5 size-4 shrink-0 text-positivo" />
-                <span>{i.texto}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-
       <section className="painel p-4 sm:p-5">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div>
@@ -241,7 +212,7 @@ export function PainelFaixas({ ops, hoje, parametros }: Props) {
           <ul className="flex flex-wrap gap-3 text-xs text-muted-foreground">
             {CLASSES.map((c) => (
               <li key={c} className="inline-flex items-center gap-1.5">
-                <span className="size-2 rounded-full" style={{ background: COR[c] }} /> {ROTULO_CLASSE[c]}
+                <span className="h-2 w-2 rounded-sm" style={{ background: COR[c] }} /> {ROTULO_CLASSE[c]}
               </li>
             ))}
           </ul>
@@ -306,18 +277,33 @@ export function PainelFaixas({ ops, hoje, parametros }: Props) {
             </div>
             <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4 lg:grid-cols-8">
               <Item rotulo="Operações" valor={formatarNumero(selecionada.n)} />
-              <Item rotulo="Consistência" valor={formatarPct(selecionada.acerto, 0)} />
+              <Item rotulo="Acerto" valor={formatarPct(selecionada.acerto, 0)} />
               <Item rotulo="Recuperação" valor={rec(selecionada.recuperacao)} />
               <Item rotulo="Drawdown" valor={formatarBRL(selecionada.dd, { inteiro: selecionada.dd >= 1000 })} />
               <Item rotulo="DD relativo" valor={selecionada.ddRelativo === null ? "–" : `${formatarMultiplo(selecionada.ddRelativo, 1)}×`} />
               <Item rotulo="Expectativa / op" valor={<Valor valor={selecionada.expectativa} />} />
               <Item rotulo="Total" valor={<Valor valor={selecionada.total} inteiro={Math.abs(selecionada.total) >= 1000} />} />
-              <Item rotulo="Estabilidade" valor={`${selecionada.mesesPositivos} de ${selecionada.mesesComDados} meses`} />
+              <Item rotulo="Meses positivos" valor={`${selecionada.mesesPositivos} de ${selecionada.mesesComDados}`} />
             </dl>
-            <p className="mt-2 text-xs text-muted-foreground">Regra: {selecionada.motivo}.</p>
+            <p className="mt-2 text-xs text-muted-foreground">{selecionada.motivo}.</p>
           </div>
         ) : null}
       </section>
+
+      {r.insights.length > 0 ? (
+        <section className="painel">
+          <div className="border-b px-4 py-3 sm:px-5">
+            <h3 className="font-semibold">O que as regras apontam</h3>
+          </div>
+          <ul className="divide-y divide-(--painel-fio)">
+            {r.insights.map((i) => (
+              <li key={i.chave} className="px-4 py-2.5 text-sm sm:px-5">
+                {i.texto}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
     </div>
   );
 }

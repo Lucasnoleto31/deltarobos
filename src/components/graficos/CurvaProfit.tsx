@@ -7,7 +7,7 @@
 // dia, 14/09/2026) e valem nos dois temas do site, como no Hub. Aqui só se desenha: cada ponto chega
 // com a posição, o acumulado, o drawdown e a dica já montados.
 
-import { useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Dica, passo, type ConteudoDaDica } from "./base";
 
 export const PROFIT = {
@@ -133,9 +133,15 @@ interface Props {
   formatarEixo: (v: number) => string;
   rotuloVertical: string;
   rotuloAria: string;
+  /** arrastar com o mouse seleciona um trecho (frações de 0 a 1 do eixo) e chama isto */
+  aoSelecionar?: (de: number, ate: number) => void;
 }
 
-/** Linha com área em degradê até o zero, verde acima e vermelha abaixo, e o drawdown em barras no mesmo eixo de tempo. */
+/**
+ * Linha com área em degradê até o zero, verde acima e vermelha abaixo, e o drawdown em barras no mesmo
+ * eixo de tempo. Apontar mostra a dica e o valor no eixo; com `aoSelecionar`, arrastar com o mouse
+ * marca um trecho para dar zoom (18/09/2026, "os gráficos são pouco interativos").
+ */
 export function DesenhoDaCurva({
   id,
   pontos,
@@ -147,8 +153,14 @@ export function DesenhoDaCurva({
   formatarEixo,
   rotuloVertical,
   rotuloAria,
+  aoSelecionar,
 }: Props) {
   const [ativo, setAtivo] = useState<number | null>(null);
+  // trecho sendo arrastado, em frações do eixo; só com mouse, para não brigar com a rolagem no toque
+  const [selecao, setSelecao] = useState<{ de: number; ate: number } | null>(null);
+  const inicioDoArrasto = useRef<number | null>(null);
+  // a seleção também numa ref: o soltar pode vir antes do React redesenhar o último arrasto
+  const selecaoRef = useRef<{ de: number; ate: number } | null>(null);
   const n = pontos.length;
   if (n === 0) return null;
 
@@ -174,7 +186,35 @@ export function DesenhoDaCurva({
     });
     setAtivo(perto);
   };
-  const atual = ativo !== null ? pontos[ativo] : null;
+  // o índice apontado pode ter ficado de uma série mais longa (troca de período com o ponteiro parado)
+  const atual = ativo !== null && ativo < n ? pontos[ativo] : null;
+
+  const fracaoDe = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const caixa = e.currentTarget.getBoundingClientRect();
+    return Math.min(1, Math.max(0, (e.clientX - caixa.left) / (caixa.width || 1)));
+  };
+  const comecarArrasto = (e: ReactPointerEvent<HTMLDivElement>) => {
+    apontar(e);
+    if (!aoSelecionar || e.pointerType !== "mouse") return;
+    inicioDoArrasto.current = fracaoDe(e);
+    selecaoRef.current = null;
+    setSelecao(null);
+  };
+  const arrastar = (e: ReactPointerEvent<HTMLDivElement>) => {
+    apontar(e);
+    if (inicioDoArrasto.current === null) return;
+    const f = fracaoDe(e);
+    const nova = { de: Math.min(inicioDoArrasto.current, f), ate: Math.max(inicioDoArrasto.current, f) };
+    selecaoRef.current = nova;
+    setSelecao(nova);
+  };
+  const soltar = () => {
+    const sel = selecaoRef.current;
+    inicioDoArrasto.current = null;
+    selecaoRef.current = null;
+    setSelecao(null);
+    if (sel && aoSelecionar && sel.ate - sel.de > 0.02) aoSelecionar(sel.de, sel.ate);
+  };
 
   return (
     <div
@@ -183,7 +223,13 @@ export function DesenhoDaCurva({
       className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-x-2"
       onPointerLeave={() => setAtivo(null)}
     >
-      <div className="relative touch-pan-y" style={{ height: altura }} onPointerMove={apontar} onPointerDown={apontar}>
+      <div
+        className={`relative touch-pan-y ${aoSelecionar ? "cursor-crosshair" : ""}`}
+        style={{ height: altura }}
+        onPointerMove={arrastar}
+        onPointerDown={comecarArrasto}
+        onPointerUp={soltar}
+      >
         {marcas
           .filter((m) => m !== 0)
           .map((m) => (
@@ -212,9 +258,23 @@ export function DesenhoDaCurva({
           <path d={tracado} fill="none" stroke={cores.alta} strokeWidth={cores.linha} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" clipPath={`url(#${id}-acima)`} />
           <path d={tracado} fill="none" stroke={cores.baixa} strokeWidth={cores.linha} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" clipPath={`url(#${id}-abaixo)`} />
         </svg>
-        {atual && ativo !== null ? (
+        {selecao ? (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-y-0 border-x"
+            style={{ left: `${selecao.de * 100}%`, width: `${(selecao.ate - selecao.de) * 100}%`, background: "rgba(255,255,255,0.08)", borderColor: PROFIT.textoFraco }}
+          />
+        ) : null}
+        {atual && ativo !== null && ativo < n ? (
           <>
             <div aria-hidden className="absolute inset-y-0 border-l border-dashed" style={{ left: `${x(ativo)}%`, borderColor: PROFIT.textoFraco }} />
+            <span
+              aria-hidden
+              className="absolute right-0 -translate-y-1/2 rounded-[3px] px-1.5 py-0.5 text-[11px] font-medium tabular-nums"
+              style={{ top: `${y(atual.acumulado)}%`, background: atual.acumulado >= 0 ? cores.alta : cores.baixa, color: PROFIT.fundo }}
+            >
+              {formatarEixo(atual.acumulado)}
+            </span>
             <div
               aria-hidden
               className="absolute size-2 -translate-x-1/2 -translate-y-1/2 rounded-full"
@@ -250,12 +310,12 @@ export function DesenhoDaCurva({
                     width={larguraDaBarra.toFixed(3)}
                     height={escalaDD.y(p.drawdown).toFixed(2)}
                     fill={PROFIT.baixa}
-                    fillOpacity={ativo === i ? 0.95 : 0.62}
+                    fillOpacity={atual && ativo === i ? 0.95 : 0.62}
                   />
                 ) : null,
               )}
             </svg>
-            {ativo !== null ? (
+            {atual && ativo !== null ? (
               <div aria-hidden className="absolute inset-y-0 border-l border-dashed" style={{ left: `${x(ativo)}%`, borderColor: PROFIT.textoFraco }} />
             ) : null}
           </div>

@@ -30,6 +30,8 @@ interface Props {
   contagem?: boolean;
   /** o que o `n` de cada barra conta. Padrão: operações (e aí a dica mostra também a média por operação) */
   rotuloN?: string;
+  /** clicar numa barra chama isto com o índice dela (o cursor vira mão) */
+  aoEscolher?: (indice: number) => void;
 }
 
 // a fileira de rótulos embaixo das barras entra na conta da altura pedida
@@ -41,7 +43,7 @@ const ALTURA_DOS_ROTULOS = 22;
  * em todo gráfico (64% da coluna, no máximo 32 px) e dica em cartão ao apontar ou tocar. A interface
  * é a mesma de antes (era Recharts): quem chama não mudou.
  */
-export function GraficoBarras({ dados, unidade, altura = 220, contagem = false, rotuloN = "Operações" }: Props) {
+export function GraficoBarras({ dados, unidade, altura = 220, contagem = false, rotuloN = "Operações", aoEscolher }: Props) {
   const [ativo, setAtivo] = useState<number | null>(null);
   // largura real da área das barras: é ela que diz quantos rótulos cabem embaixo sem se atropelar
   const areaRef = useRef<HTMLDivElement>(null);
@@ -110,11 +112,17 @@ export function GraficoBarras({ dados, unidade, altura = 220, contagem = false, 
       <Eixo marcas={marcas} y={y} altura={area} formatar={noEixo} />
       <div
         ref={areaRef}
-        className="relative touch-pan-y"
+        className={`relative touch-pan-y ${aoEscolher ? "cursor-pointer" : ""}`}
         style={{ height: area }}
         onPointerMove={(e) => setAtivo(indiceApontado(e, dados.length))}
         onPointerDown={(e) => setAtivo(indiceApontado(e, dados.length))}
         onPointerLeave={() => setAtivo(null)}
+        onClick={(e) => {
+          if (!aoEscolher) return;
+          const caixa = e.currentTarget.getBoundingClientRect();
+          const i = Math.min(dados.length - 1, Math.max(0, Math.floor(((e.clientX - caixa.left) / (caixa.width || 1)) * dados.length)));
+          aoEscolher(i);
+        }}
       >
         <Guias marcas={marcas} y={y} />
         <div className="absolute inset-0 flex">
