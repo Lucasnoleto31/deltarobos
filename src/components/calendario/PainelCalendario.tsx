@@ -189,7 +189,7 @@ export function PainelCalendario({ linhas, ops, feriados, hoje, valorPonto, capi
             <div className="min-w-0">
               <h3 className="font-semibold first-letter:uppercase">{formatarMesAno(`${mes}-01`)}</h3>
               <p className="truncate text-xs text-muted-foreground tabular-nums">
-                {grade.nDias} {grade.nDias === 1 ? "pregão" : "pregões"} · escolha um dia
+                {grade.nDias} {grade.nDias === 1 ? "pregão" : "pregões"}
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-1">

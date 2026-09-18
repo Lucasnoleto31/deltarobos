@@ -8,7 +8,8 @@ import { CardsKpi, type ItemKpi } from "@/components/desempenho/CardsKpi";
 import { formatarBRL, formatarData, formatarMultiplo, formatarNumero, formatarPct } from "@/lib/formato";
 import { calcularKpis } from "@/lib/stats/kpis";
 import { dia as diaOp, resumoOperacoes, type OperacaoCompacta } from "@/lib/stats/operacoes";
-import { dentroDoIntervalo, filtrarIntervalo, intervaloDe, PERIODOS, type Periodo } from "@/lib/stats/periodos";
+import { inicioDoPeriodo, type PeriodoFechado } from "@/components/robo/periodos-resumo";
+import { dentroDoIntervalo, filtrarIntervalo, type Intervalo } from "@/lib/stats/periodos";
 import {
   calmar,
   capitalMinimoRecomendado,
@@ -22,7 +23,7 @@ import {
 } from "@/lib/stats/risco";
 import { curvaAcumulada, valorDia } from "@/lib/stats/serie";
 import type { LinhaDiaria, OpcoesSerie } from "@/lib/stats/tipos";
-import { LinhaDoTempoDrawdowns } from "./LinhaDoTempoDrawdowns";
+import { AbaixoDoPico } from "./AbaixoDoPico";
 
 interface Props {
   linhas: LinhaDiaria[];
@@ -34,13 +35,18 @@ interface Props {
   fatorSeguranca: number;
 }
 
-const OPCOES_PERIODO = PERIODOS.filter((p) => p.valor !== "personalizado" && p.valor !== "7d");
+// os mesmos atalhos das outras abas; sem "hoje" e "semana", que não têm drawdown para medir
+const OPCOES_PERIODO: ReadonlyArray<{ valor: PeriodoFechado; rotulo: string }> = [
+  { valor: "mes", rotulo: "Mês" },
+  { valor: "ano", rotulo: "Ano" },
+  { valor: "tudo", rotulo: "Tudo" },
+];
 
 /** Aba Risco: índices de risco, curva de drawdown, maiores quedas, profundidade, piores dias e resumo diário. */
 export function PainelRisco({ linhas, ops, hoje, valorPonto, capitalReferencia, margem, fatorSeguranca }: Props) {
-  const [periodo, setPeriodo] = useState<Periodo>("tudo");
+  const [periodo, setPeriodo] = useState<PeriodoFechado>("tudo");
   const opcoes = useMemo<OpcoesSerie>(() => ({ base: "liquido", unidade: "brl", valorPonto }), [valorPonto]);
-  const intervalo = useMemo(() => intervaloDe(periodo, hoje), [periodo, hoje]);
+  const intervalo = useMemo<Intervalo>(() => ({ de: inicioDoPeriodo(periodo, hoje), ate: hoje }), [periodo, hoje]);
   const linhasF = useMemo(() => filtrarIntervalo(linhas, intervalo), [linhas, intervalo]);
   const opsF = useMemo(() => ops.filter((op) => dentroDoIntervalo(diaOp(op), intervalo)), [ops, intervalo]);
 
@@ -119,8 +125,8 @@ export function PainelRisco({ linhas, ops, hoje, valorPonto, capitalReferencia, 
       <section className="painel p-4 sm:p-5">
         <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
           <div>
-            <h3 className="font-semibold">Drawdowns no tempo</h3>
-            <p className="text-xs text-muted-foreground">{temCapital ? `cada bloco é um drawdown: a largura é a duração, a altura a profundidade em % do capital de ${formatarBRL(capitalReferencia ?? 0, { inteiro: true })}` : "cada bloco é um drawdown: a largura é a duração, a altura a profundidade em R$ por contrato"}</p>
+            <h3 className="font-semibold">Abaixo do pico, dia a dia</h3>
+            <p className="text-xs text-muted-foreground">{temCapital ? `em % do capital de ${formatarBRL(capitalReferencia ?? 0, { inteiro: true })}` : "em R$ por contrato"}</p>
           </div>
           <p className="text-xs text-muted-foreground tabular-nums">
             máx <strong className="text-negativo">{temCapital ? formatarPct(kpis.drawdownMaximoPct, 1) : formatarBRL(dd, { inteiro: true })}</strong>
@@ -128,12 +134,7 @@ export function PainelRisco({ linhas, ops, hoje, valorPonto, capitalReferencia, 
             <strong className="text-foreground">{diario.recuperacaoMediaDias !== null ? `${Math.round(diario.recuperacaoMediaDias)} dias` : "–"}</strong>
           </p>
         </div>
-        <LinhaDoTempoDrawdowns
-          episodios={episodios}
-          de={curva[0]?.dia ?? hoje}
-          ate={curva[curva.length - 1]?.dia ?? hoje}
-          capitalReferencia={capitalReferencia}
-        />
+        <AbaixoDoPico curva={curva} capitalReferencia={capitalReferencia} />
       </section>
 
       <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">

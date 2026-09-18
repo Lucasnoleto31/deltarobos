@@ -132,7 +132,6 @@ export function PainelFaixas({ ops, hoje, parametros }: Props) {
       <div className="grid gap-4 lg:grid-cols-[1fr_1.2fr]">
         <section className="painel p-4 sm:p-5">
           <h3 className="font-semibold">Distribuição das faixas</h3>
-          <p className="mb-3 text-xs text-muted-foreground">clique numa classificação pra filtrar o mapa</p>
           <div className="flex items-center gap-4">
             <div className="relative size-36 shrink-0">
               <ResponsiveContainer width="100%" height="100%">
@@ -183,7 +182,7 @@ export function PainelFaixas({ ops, hoje, parametros }: Props) {
           <h3 className="inline-flex items-center gap-2 font-semibold">
             <Zap className="size-4 text-positivo" /> Melhores faixas para ligar
           </h3>
-          <p className="mb-3 text-xs text-muted-foreground">maior score entre as classificadas como Ligar · clique pra ver os detalhes</p>
+          <p className="mb-3 text-xs text-muted-foreground">maior score entre as classificadas como Ligar</p>
           {r.melhores.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">Nenhuma faixa com amostra suficiente.</p>
           ) : (
@@ -237,7 +236,7 @@ export function PainelFaixas({ ops, hoje, parametros }: Props) {
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div>
             <h3 className="font-semibold">Mapa de faixas</h3>
-            <p className="text-xs text-muted-foreground">dia da semana × hora de entrada · clique numa célula pra ver os detalhes</p>
+            <p className="text-xs text-muted-foreground">dia da semana × hora de entrada</p>
           </div>
           <ul className="flex flex-wrap gap-3 text-xs text-muted-foreground">
             {CLASSES.map((c) => (

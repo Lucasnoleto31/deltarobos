@@ -181,7 +181,6 @@ export default async function PaginaComparativo() {
           <section className="painel overflow-x-auto">
             <div className="border-b px-4 py-3 sm:px-5">
               <h2 className="font-semibold">Lado a lado</h2>
-              <p className="text-xs text-muted-foreground">o melhor de cada linha fica marcado</p>
             </div>
             <table className="w-full min-w-[40rem] text-sm">
               <thead>

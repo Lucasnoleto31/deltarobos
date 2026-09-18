@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { Segmentado } from "@/components/compartilhados/Segmentado";
 import { buttonVariants } from "@/components/ui/button";
-import { PERIODOS, type Periodo } from "@/lib/stats/periodos";
+import type { Periodo } from "@/lib/stats/periodos";
 import type { Base, Unidade } from "@/lib/stats/tipos";
+import { PRESETS, estadoDoPreset, presetAtivo } from "./presets-periodo";
 
 export interface EstadoFiltros {
   periodo: Periodo;
@@ -46,9 +47,9 @@ export function Filtros({ estado, onChange, hoje, linkOperacoes }: Props) {
           <div className="flex flex-wrap items-center gap-2">
             <Segmentado
               ariaLabel="Período"
-              opcoes={PERIODOS}
-              valor={estado.periodo}
-              onChange={(periodo) => onChange({ periodo })}
+              opcoes={PRESETS}
+              valor={presetAtivo(estado, hoje)}
+              onChange={(preset) => onChange(estadoDoPreset(preset, hoje, estado))}
             />
             {estado.periodo === "personalizado" ? (
               <div className="flex items-center gap-1.5 text-xs">
@@ -101,7 +102,7 @@ export function Filtros({ estado, onChange, hoje, linkOperacoes }: Props) {
         </div>
         <div className="max-w-full min-w-0 space-y-1.5">
           <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
-            Contratos <span className="normal-case">(com N contratos seria…)</span>
+            Contratos
           </p>
           <div className="flex items-center gap-2">
             <Segmentado
