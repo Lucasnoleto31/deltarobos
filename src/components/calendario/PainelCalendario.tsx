@@ -182,9 +182,9 @@ export function PainelCalendario({ linhas, ops, feriados, hoje, valorPonto, capi
         </p>
       </header>
 
-      <div ref={mesRef} className="grid scroll-mt-20 items-start gap-4 lg:grid-cols-[1.35fr_1fr]">
-        {/* mês */}
-        <section className="painel">
+      <div ref={mesRef} className="grid scroll-mt-20 items-stretch gap-4 lg:grid-cols-[1.35fr_1fr]">
+        {/* mês: a grade estica até a altura do detalhe ao lado, para as duas colunas terminarem juntas */}
+        <section className="painel flex flex-col">
           <div className="flex items-center justify-between gap-2 border-b px-4 py-3">
             <div className="min-w-0">
               <h3 className="font-semibold first-letter:uppercase">{formatarMesAno(`${mes}-01`)}</h3>
@@ -227,22 +227,23 @@ export function PainelCalendario({ linhas, ops, feriados, hoje, valorPonto, capi
             />
           </div>
 
-          <div className="p-2 sm:p-3">
+          <div className="flex flex-1 flex-col p-2 sm:p-3">
             <div className="mb-1 grid grid-cols-5 gap-1 text-center text-[11px] text-muted-foreground uppercase sm:gap-1.5">
               {CABECALHO.map((c) => (
                 <span key={c}>{c}</span>
               ))}
             </div>
-            <div className="grid grid-cols-5 gap-1 sm:gap-1.5">
+            <div className="grid flex-1 auto-rows-fr grid-cols-5 gap-1 sm:gap-1.5">
               {semanasUteis.flat().map((d) => {
                 const semDado = d.valor === null;
                 const selecionado = d.dia === diaSel;
                 const positivo = !semDado && d.valor! > 0;
                 const negativo = !semDado && d.valor! < 0;
-                // a cor segue o tamanho do resultado: de 8% a 34% do verde ou do vermelho
+                // a cor segue o tamanho do resultado: de 14% a 50% do verde ou do vermelho; o texto fica
+                // branco em cima (verde sobre verde não se lia, 18/09/2026)
                 const fundo =
                   positivo || negativo
-                    ? mistura(positivo ? "--positivo" : "--negativo", 8 + Math.round(26 * forca(d.valor!)))
+                    ? mistura(positivo ? "--positivo" : "--negativo", 14 + Math.round(36 * forca(d.valor!)))
                     : undefined;
                 return (
                   <button
@@ -257,18 +258,17 @@ export function PainelCalendario({ linhas, ops, feriados, hoje, valorPonto, capi
                       "flex min-h-14 min-w-0 flex-col items-start rounded-lg p-1.5 text-left tabular-nums outline-none transition-shadow disabled:cursor-default sm:min-h-16 sm:p-2",
                       "focus-visible:ring-2 focus-visible:ring-ring/60",
                       semDado && (d.pregao ? "bg-muted/40 text-muted-foreground" : "bg-transparent text-muted-foreground/40"),
-                      positivo && "text-positivo",
-                      negativo && "text-negativo",
+                      (positivo || negativo) && "text-foreground",
                       !semDado && !positivo && !negativo && "bg-muted text-foreground",
                       d.foraDoMes && "invisible",
-                      selecionado ? "ring-2 ring-primary" : !semDado && "ring-1 ring-(--painel-fio) hover:ring-foreground/30",
+                      selecionado ? "ring-2 ring-foreground" : !semDado && "ring-1 ring-(--painel-fio) hover:ring-foreground/40",
                     )}
                   >
-                    <span className="text-[11px] font-medium text-foreground/70 sm:text-xs">{d.diaDoMes}</span>
+                    <span className="text-[11px] font-medium text-foreground/75 sm:text-xs">{d.diaDoMes}</span>
                     {!semDado ? (
                       <>
                         <span className="mt-0.5 max-w-full truncate text-[11px] leading-tight font-semibold sm:text-sm">{curto(d.valor!)}</span>
-                        <span className="text-[10px] leading-tight text-foreground/50">{d.nOperacoes} op</span>
+                        <span className="text-[10px] leading-tight text-foreground/65">{d.nOperacoes} op</span>
                       </>
                     ) : null}
                   </button>

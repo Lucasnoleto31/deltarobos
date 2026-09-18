@@ -2,8 +2,8 @@ import Link from "next/link";
 import { Simbolo } from "@/components/marca/Simbolo";
 import { AlternadorTema } from "./AlternadorTema";
 
+// Sem "Robôs": os robôs são a home, e o logo já leva lá (18/09/2026, "o botão robôs está redundante").
 const LINKS = [
-  { href: "/#robos", rotulo: "Robôs" },
   { href: "/comparativo", rotulo: "Comparativo" },
   { href: "/metodologia", rotulo: "Metodologia" },
   { href: "/#comunidade", rotulo: "Comunidade" },
