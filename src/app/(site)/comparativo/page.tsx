@@ -160,10 +160,10 @@ export default async function PaginaComparativo() {
     .map((m) => ({ rotulo: formatarMesAno(`${m.mes}-01`), valor: m.total, n: m.nDias }));
 
   const tiles: ItemKpi[] = [
-    { rotulo: "Resultado da casa", valor: <Valor valor={kCasa.acumulado} inteiro />, detalhe: `${colunas.length} ${colunas.length === 1 ? "robô" : "robôs"}, 1 contrato de cada` },
+    { rotulo: "Desde o início", valor: <Valor valor={kCasa.acumulado} inteiro />, detalhe: `${formatarNumero(kCasa.nDias)} dias de pregão` },
     { rotulo: "Mês atual", valor: <Valor valor={kCasa.mes} inteiro={Math.abs(kCasa.mes) >= 1000} /> },
-    { rotulo: "Drawdown máximo", valor: <Valor valor={-kCasa.drawdown.valor} inteiro />, detalhe: "carteira somada" },
-    { rotulo: "Operações", valor: formatarNumero(kCasa.nOperacoes), detalhe: `${formatarNumero(kCasa.nDias)} dias de pregão` },
+    { rotulo: "Drawdown máximo", valor: <Valor valor={-kCasa.drawdown.valor} inteiro />, detalhe: kCasa.drawdownMaximoPct !== null ? undefined : kCasa.drawdown.fundo ? `fundo em ${formatarData(kCasa.drawdown.fundo)}` : undefined },
+    { rotulo: "Operações", valor: formatarNumero(kCasa.nOperacoes), detalhe: `${formatarPct(kCasa.taxaAcerto)} de acerto` },
   ];
 
   return (
@@ -221,8 +221,8 @@ export default async function PaginaComparativo() {
 
           <section className="space-y-3">
             <div>
-              <h2 className="text-lg font-semibold tracking-tight">A casa somada</h2>
-              <p className="text-sm text-muted-foreground">1 contrato de cada robô, no mesmo dia</p>
+              <h2 className="text-lg font-semibold tracking-tight">Todos juntos</h2>
+              <p className="text-sm text-muted-foreground">{colunas.map((c) => c.robo.nome).join(" + ")}, 1 contrato de cada</p>
             </div>
             <CardsKpi itens={tiles} className="lg:grid-cols-4" />
             <div className="painel p-4 sm:p-5">

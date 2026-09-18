@@ -34,10 +34,6 @@ export function Rodape({ links, textos }: Props) {
           <p className="flex items-center gap-2 font-semibold">
             <Simbolo aria-hidden className="h-5 w-auto" /> Delta Robôs
           </p>
-          <p className="text-muted-foreground">
-            Performance ao vivo dos robôs de day trade, direto do MetaTrader 5, normalizada por
-            contrato.
-          </p>
         </div>
 
         <div className="space-y-2">

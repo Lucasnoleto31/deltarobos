@@ -100,7 +100,7 @@ export default async function Home() {
       <Comunidade links={parametros.links} videos={videos} />
       <Ecossistema links={parametros.links} />
       <ComoComecar links={parametros.links} />
-      <TransparenciaFaq />
+      <TransparenciaFaq totalOperacoes={estatisticas.reduce((s, e) => s + e.n_operacoes, 0)} />
     </CasaAoVivoProvider>
   );
 }

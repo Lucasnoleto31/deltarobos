@@ -222,6 +222,56 @@
       inset 0 1px 0 var(--painel-brilho),
       var(--painel-sombra);
   }
+  /* Vidro ("liquid glass", pedido do Artur em 18/09/2026 à noite): translúcido, desfoca o que está
+     atrás, brilho na borda de cima e um reflexo suave no canto. Só faz sentido com uma luz atrás:
+     a .aura, um borrão na cor do resultado (verde ou vermelho), que fica embaixo do vidro. */
+  .vidro {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.085) 0%, rgba(255, 255, 255, 0.03) 60%, rgba(255, 255, 255, 0.05) 100%);
+    border-color: rgba(255, 255, 255, 0.13);
+    -webkit-backdrop-filter: blur(28px) saturate(1.5);
+    backdrop-filter: blur(28px) saturate(1.5);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.16),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.04),
+      0 24px 60px -36px rgba(0, 0, 0, 0.9);
+    isolation: isolate;
+    overflow: hidden;
+  }
+  .vidro::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: radial-gradient(120% 70% at 12% -10%, rgba(255, 255, 255, 0.12) 0%, transparent 55%);
+    pointer-events: none;
+  }
+  html:not(.dark) .vidro {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0.6) 100%);
+    border-color: rgba(20, 20, 22, 0.1);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.9),
+      0 20px 40px -28px rgba(20, 20, 22, 0.35);
+  }
+  .vidro.painel-interativo:hover {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.05) 60%, rgba(255, 255, 255, 0.07) 100%);
+  }
+  html:not(.dark) .vidro.painel-interativo:hover {
+    background: rgba(255, 255, 255, 0.95);
+  }
+  .aura {
+    position: absolute;
+    inset: -30% -20% auto -20%;
+    height: 90%;
+    z-index: -1;
+    border-radius: 999px;
+    background: radial-gradient(closest-side, color-mix(in srgb, var(--aura) 34%, transparent), transparent);
+    filter: blur(48px);
+    pointer-events: none;
+  }
+  html:not(.dark) .aura {
+    background: radial-gradient(closest-side, color-mix(in srgb, var(--aura) 22%, transparent), transparent);
+  }
+
   /* só para o que é clicável ou navegável: o fio acende junto com o fundo */
   .painel-interativo {
     transition:

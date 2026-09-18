@@ -7,35 +7,43 @@ import { BadgeStatusRobo } from "@/components/compartilhados/BadgeStatusRobo";
 import { Valor } from "@/components/compartilhados/Valor";
 import { MiniCurva } from "@/components/graficos/MiniCurva";
 import { Badge } from "@/components/ui/badge";
+import { formatarNumero, formatarPct } from "@/lib/formato";
 import type { StatusAoVivo } from "@/lib/stats/status-robo";
 import type { DadosCardRobo } from "./tipos";
 
 interface Props {
   card: DadosCardRobo;
   status: StatusAoVivo;
+  /** operações e gains de hoje, do resumo ao vivo (quando há) */
+  hojeOperacoes?: number;
+  hojeGains?: number;
   /** ms de atraso da entrada, para a grade aparecer em cascata */
   atraso?: number;
 }
 
 /**
- * O cartão do robô na home, refeito em 18/09/2026 ("os cards ainda estão feios"): um número por vez.
- * Em cima o nome e o estado; no meio o resultado de HOJE, grande, com o mês e o acumulado embaixo em
- * apoio; a curva dos 30 dias ocupa a largura toda; no pé, o drawdown máximo e o botão redondo que leva
- * ao robô. O cartão inteiro é o link. Entra com um leve deslize de baixo para cima, em cascata.
+ * O cartão do robô na home. Em 18/09/2026 à noite virou vidro ("liquid glass", pedido do Artur): a
+ * superfície é translúcida com brilho na borda de cima e, atrás dela, uma luz na cor do resultado de
+ * hoje: verde quando está no positivo, vermelha no negativo, nenhuma quando ainda não operou. Um
+ * número por vez: o de hoje grande, com operações e acerto do dia embaixo; mês e acumulado em apoio;
+ * a curva dos 30 dias na largura toda; no pé, o drawdown máximo e o botão redondo que leva ao robô.
  */
-export function CardRobo({ card, status, atraso = 0 }: Props) {
+export function CardRobo({ card, status, hojeOperacoes, hojeGains, atraso = 0 }: Props) {
   const emBreve = card.status === "em_breve";
+  const aura = card.hoje > 0 ? "var(--positivo)" : card.hoje < 0 ? "var(--negativo)" : null;
 
   return (
     <Link
       href={`/robos/${card.slug}`}
       style={{ animationDelay: `${atraso}ms` }}
       className={cn(
-        "group flex h-full flex-col painel painel-interativo p-5 outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+        "group relative flex h-full flex-col painel vidro painel-interativo p-5 outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
         "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:fill-mode-both motion-safe:duration-500",
         emBreve && "opacity-80",
       )}
     >
+      {aura ? <span aria-hidden className="aura" style={{ "--aura": aura } as React.CSSProperties} /> : null}
+
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="truncate text-lg font-semibold leading-tight">{card.nome}</h3>
@@ -60,6 +68,14 @@ export function CardRobo({ card, status, atraso = 0 }: Props) {
             <p className="mt-1 text-3xl font-semibold tracking-tight">
               <Valor valor={card.hoje} inteiro={Math.abs(card.hoje) >= 10_000} />
             </p>
+            {hojeOperacoes ? (
+              <p className="mt-1 text-xs text-muted-foreground tabular-nums">
+                {formatarNumero(hojeOperacoes)} {hojeOperacoes === 1 ? "operação" : "operações"}
+                {hojeGains !== undefined ? ` · ${formatarPct(hojeGains / hojeOperacoes, 0)} de acerto` : ""}
+              </p>
+            ) : (
+              <p className="mt-1 text-xs text-muted-foreground">sem operação fechada hoje</p>
+            )}
           </div>
 
           <dl className="mt-3 flex gap-5 text-sm">

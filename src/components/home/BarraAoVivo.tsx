@@ -71,7 +71,7 @@ export function BarraAoVivo() {
           <>
             <Separador />
             <span className="inline-flex items-center gap-1">
-              Casa hoje
+              Todos hoje
               <Valor valor={resumo.resultado_liquido_por_contrato} className="font-semibold" />
               <span className="text-muted-foreground">/ct</span>
             </span>

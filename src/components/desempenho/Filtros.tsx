@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { Segmentado } from "@/components/compartilhados/Segmentado";
 import { buttonVariants } from "@/components/ui/button";
 import type { Periodo } from "@/lib/stats/periodos";
@@ -35,9 +36,10 @@ const CONTRATOS_RAPIDOS = ["1", "2", "3", "5", "10"] as const;
 
 /** Barra de filtros da aba Desempenho: período, unidade, bruto/líquido, contratos. */
 export function Filtros({ estado, onChange, hoje, linkOperacoes }: Props) {
-  const contratosRapido = CONTRATOS_RAPIDOS.includes(String(estado.contratos) as (typeof CONTRATOS_RAPIDOS)[number])
-    ? String(estado.contratos)
-    : "outro";
+  const ehRapido = CONTRATOS_RAPIDOS.includes(String(estado.contratos) as (typeof CONTRATOS_RAPIDOS)[number]);
+  // "Outro" abre o campo; o campo fica aberto enquanto o valor não for um dos rápidos
+  const [outroAberto, setOutroAberto] = useState(!ehRapido);
+  const contratosRapido = outroAberto || !ehRapido ? "outro" : String(estado.contratos);
 
   return (
     <div className="space-y-4 painel p-4 sm:p-5">
@@ -110,7 +112,12 @@ export function Filtros({ estado, onChange, hoje, linkOperacoes }: Props) {
               opcoes={[...CONTRATOS_RAPIDOS.map((c) => ({ valor: c, rotulo: c })), { valor: "outro", rotulo: "Outro" }]}
               valor={contratosRapido}
               onChange={(v) => {
-                if (v !== "outro") onChange({ contratos: Number(v) });
+                if (v === "outro") {
+                  setOutroAberto(true);
+                } else {
+                  setOutroAberto(false);
+                  onChange({ contratos: Number(v) });
+                }
               }}
             />
             {contratosRapido === "outro" ? (
@@ -119,6 +126,7 @@ export function Filtros({ estado, onChange, hoje, linkOperacoes }: Props) {
                 min={1}
                 max={1000}
                 step={1}
+                autoFocus
                 aria-label="Quantidade de contratos"
                 value={estado.contratos}
                 onChange={(e) => {
@@ -127,15 +135,7 @@ export function Filtros({ estado, onChange, hoje, linkOperacoes }: Props) {
                 }}
                 className="h-8 w-20 rounded-lg border bg-background px-2 text-xs tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
               />
-            ) : (
-              <button
-                type="button"
-                onClick={() => onChange({ contratos: 4 })}
-                className="text-xs text-muted-foreground underline-offset-4 hover:underline"
-              >
-                outro valor
-              </button>
-            )}
+            ) : null}
           </div>
         </div>
       </div>

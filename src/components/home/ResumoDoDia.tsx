@@ -27,7 +27,7 @@ export function ResumoDoDia() {
 
   return (
     <section id="resumo-do-dia" className="conteudo scroll-mt-20 py-8">
-      <div className="painel p-5 sm:p-6">
+      <div className="painel vidro p-5 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
             <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">
@@ -40,7 +40,7 @@ export function ResumoDoDia() {
 
         <dl className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-4">
           <div>
-            <dt className="text-xs text-muted-foreground">Casa, por contrato</dt>
+            <dt className="text-xs text-muted-foreground">Todos os robôs, por contrato</dt>
             <dd className="text-2xl font-semibold">
               <Valor valor={resumo.resultado_liquido_por_contrato} />
             </dd>

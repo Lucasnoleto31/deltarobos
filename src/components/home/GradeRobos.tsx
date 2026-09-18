@@ -38,6 +38,8 @@ export function GradeRobos({ cards }: Props) {
       return {
         ...card,
         hoje,
+        hojeOperacoes: vivo?.n_operacoes,
+        hojeGains: vivo?.n_gain,
         mes: card.mes + delta,
         acumulado: card.acumulado + delta,
         posicionado: coleta?.posicionado ?? vivo?.posicionado ?? card.posicionado,
@@ -115,7 +117,7 @@ export function GradeRobos({ cards }: Props) {
             });
             return (
               <li key={card.slug}>
-                <CardRobo card={card} status={status} atraso={Math.min(i, 8) * 70} />
+                <CardRobo card={card} status={status} hojeOperacoes={card.hojeOperacoes} hojeGains={card.hojeGains} atraso={Math.min(i, 8) * 70} />
               </li>
             );
           })}

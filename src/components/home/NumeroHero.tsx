@@ -10,10 +10,13 @@ export function NumeroHero() {
   const { estado, hoje } = useCasa();
   const resumo = estado.resumo;
   const temRobos = (resumo?.robos.length ?? 0) > 0;
+  const valor = resumo?.resultado_liquido_por_contrato ?? 0;
+  const aura = temRobos && valor > 0 ? "var(--positivo)" : temRobos && valor < 0 ? "var(--negativo)" : null;
 
   return (
-    <div className="painel p-6 sm:p-8">
-      <p className="text-sm text-muted-foreground">Resultado de hoje da casa</p>
+    <div className="relative painel vidro p-6 sm:p-8">
+      {aura ? <span aria-hidden className="aura" style={{ "--aura": aura } as React.CSSProperties} /> : null}
+      <p className="text-sm text-muted-foreground">Hoje, todos os robôs</p>
       <p className="mt-2 text-5xl font-semibold tracking-tight sm:text-6xl">
         {resumo && temRobos ? (
           <Valor valor={resumo.resultado_liquido_por_contrato} inteiro={false} />
