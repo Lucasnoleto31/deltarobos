@@ -7,14 +7,15 @@ import {
   type TomStatus,
 } from "@/lib/stats/status-robo";
 
-// Só o fio e a cor do texto: sem fundo tingido, sem bolinha e sem pulso (18/09/2026, "remova tudo
-// que parece i.a"). O que diz o estado é a palavra; a cor só a reforça.
+// Pílula colorida pelo estado (18/09/2026 à noite, Artur: "na pílula de aviso pode ser colorido"): fundo
+// tingido e texto na cor, sem bolinha e sem pulso. Operando verde, posicionado dourado (um dos poucos
+// detalhes em dourado), pausado laranja, sem atualização vermelho, o resto cinza.
 const CLASSES: Record<TomStatus, string> = {
-  positivo: "border-positivo/50 text-positivo",
-  negativo: "border-negativo/50 text-negativo",
-  neutro: "border-border text-muted-foreground",
-  alerta: "border-alerta/50 text-alerta",
-  info: "border-(--painel-fio-forte) text-foreground",
+  positivo: "border-positivo/30 bg-positivo/15 text-positivo",
+  negativo: "border-negativo/30 bg-negativo/15 text-negativo",
+  neutro: "border-(--painel-fio) bg-muted text-muted-foreground",
+  alerta: "border-alerta/30 bg-alerta/15 text-alerta",
+  info: "border-info/30 bg-info/15 text-info",
 };
 
 export function BadgeStatusRobo({
