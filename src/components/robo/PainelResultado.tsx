@@ -90,14 +90,13 @@ function Subtitulo({ linhas }: { linhas: LinhaDiaria[] }) {
   );
 }
 
-function Linha({ rotulo, detalhe, children }: { rotulo: string; detalhe?: string; children: React.ReactNode }) {
+/** Um azulejo por número, como nos painéis de trading: rótulo pequeno, valor, apoio embaixo. */
+function Azulejo({ rotulo, detalhe, children, className }: { rotulo: string; detalhe?: string; children: React.ReactNode; className?: string }) {
   return (
-    <div className="sep [--sep:0px] flex items-center justify-between gap-3 py-2.5">
-      <dt className="min-w-0">
-        <span className="block text-sm">{rotulo}</span>
-        {detalhe ? <span className="block text-xs text-muted-foreground tabular-nums">{detalhe}</span> : null}
-      </dt>
-      <dd className="shrink-0 text-sm font-semibold tabular-nums">{children}</dd>
+    <div className={`rounded-xl border border-(--painel-fio) px-3 py-2.5 ${className ?? ""}`}>
+      <dt className="text-xs text-muted-foreground">{rotulo}</dt>
+      <dd className="mt-1 text-base font-semibold tabular-nums">{children}</dd>
+      {detalhe ? <dd className="text-[11px] text-muted-foreground tabular-nums">{detalhe}</dd> : null}
     </div>
   );
 }
@@ -156,33 +155,33 @@ function ResultadoDoPeriodo({
           </p>
         </div>
 
-        <dl>
-          <Linha
+        <dl className="grid grid-cols-2 gap-2">
+          <Azulejo
             rotulo="Drawdown máximo"
             detalhe={
-              k.drawdownMaximoPct !== null
+              k.drawdownMaximoPct !== null && k.drawdown.valor > 0
                 ? `${formatarPct(k.drawdownMaximoPct)} do capital de referência`
                 : k.drawdown.fundo
                   ? `fundo em ${formatarData(k.drawdown.fundo)}`
                   : undefined
             }
           >
-            <Valor valor={-k.drawdown.valor} inteiro={k.drawdown.valor >= 1000} />
-          </Linha>
-          <Linha rotulo="Taxa de acerto" detalhe={`${formatarNumero(k.nGain)} gains · ${formatarNumero(k.nLoss)} losses`}>
+            {k.drawdown.valor > 0 ? <Valor valor={-k.drawdown.valor} inteiro={k.drawdown.valor >= 1000} /> : <span className="text-muted-foreground">nenhum</span>}
+          </Azulejo>
+          <Azulejo rotulo="Taxa de acerto" detalhe={`${formatarNumero(k.nGain)} gains · ${formatarNumero(k.nLoss)} losses`}>
             {formatarPct(k.taxaAcerto)}
-          </Linha>
-          <Linha rotulo="Dias positivos × negativos" detalhe={`${formatarNumero(k.nDias)} ${k.nDias === 1 ? "pregão" : "pregões"}`}>
+          </Azulejo>
+          <Azulejo rotulo="Melhor dia" detalhe={k.melhorDia ? formatarData(k.melhorDia.dia) : undefined}>
+            {k.melhorDia ? <Valor valor={k.melhorDia.valor} /> : "–"}
+          </Azulejo>
+          <Azulejo rotulo="Pior dia" detalhe={k.piorDia ? formatarData(k.piorDia.dia) : undefined}>
+            {k.piorDia ? <Valor valor={k.piorDia.valor} /> : "–"}
+          </Azulejo>
+          <Azulejo rotulo="Dias positivos × negativos" detalhe={`${formatarNumero(k.nDias)} ${k.nDias === 1 ? "pregão" : "pregões"}`} className="col-span-2">
             <span className="text-positivo">{k.diasPositivos}</span>
             <span className="text-muted-foreground"> × </span>
             <span className="text-negativo">{k.diasNegativos}</span>
-          </Linha>
-          <Linha rotulo="Melhor dia" detalhe={k.melhorDia ? formatarData(k.melhorDia.dia) : undefined}>
-            {k.melhorDia ? <Valor valor={k.melhorDia.valor} /> : "–"}
-          </Linha>
-          <Linha rotulo="Pior dia" detalhe={k.piorDia ? formatarData(k.piorDia.dia) : undefined}>
-            {k.piorDia ? <Valor valor={k.piorDia.valor} /> : "–"}
-          </Linha>
+          </Azulejo>
         </dl>
       </div>
 

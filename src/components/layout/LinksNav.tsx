@@ -8,7 +8,6 @@ const LINKS = [
   { href: "/comparativo", rotulo: "Comparativo" },
   { href: "/metodologia", rotulo: "Metodologia" },
   { href: "/#comunidade", rotulo: "Comunidade" },
-  { href: "/#como-comecar", rotulo: "Como começar" },
 ];
 
 /** Os links do cabeçalho, com a página atual marcada. Escondidos no celular (o menu de robôs fica). */

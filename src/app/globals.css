@@ -173,12 +173,6 @@
   }
 }
 
-/* botão principal: o degradê metálico do logo, de cima para baixo, com texto quase preto nos
-   dois temas (cerca de 8:1). É a variante "default" do Button; as outras seguem os tokens. */
-@utility botao-dourado {
-  background: linear-gradient(180deg, #d1be8f 0%, #c39a5a 55%, #b38a50 100%);
-  color: var(--sobre-dourado);
-}
 
 /* ------------------------------------------------------------------------------------------
    Superfícies no desenho do Habitto (17/09/2026, pedido do Artur: "quero usar estilos dele no
@@ -204,8 +198,8 @@
   --sep-cor: rgba(20, 20, 22, 0.07);
 }
 .dark {
-  --painel-fundo: linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.015) 100%);
-  --painel-brilho: rgba(255, 255, 255, 0.07);
+  --painel-fundo: linear-gradient(180deg, rgba(255, 255, 255, 0.065) 0%, rgba(255, 255, 255, 0.025) 100%);
+  --painel-brilho: rgba(255, 255, 255, 0.09);
   --painel-sombra: none;
   --painel-fio: rgba(255, 255, 255, 0.1);
   --painel-fio-forte: rgba(255, 255, 255, 0.26);

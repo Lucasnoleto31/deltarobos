@@ -53,11 +53,7 @@ export function Rodape({ links, textos }: Props) {
                 Comunidade
               </Link>
             </li>
-            <li>
-              <Link href="/#como-comecar" className="text-muted-foreground hover:text-foreground">
-                Como começar
-              </Link>
-            </li>
+            <LinkExterno href={links.whatsapp}>Como começar</LinkExterno>
           </ul>
         </div>
 

@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { Faq } from "@/components/compartilhados/Faq";
 import { seriePorDia, seriePorOperacao } from "@/components/graficos/series-da-curva";
 import { Disclaimer } from "@/components/robo/Disclaimer";
 import { KpisRobo } from "@/components/robo/KpisRobo";
@@ -115,20 +114,6 @@ export default async function PaginaRobo({ params }: Props) {
       )}
 
       <Transparencia robo={robo} />
-
-      <section aria-labelledby="faq" className="painel-grupo">
-        <div className="painel-cabeca">
-          <h2 id="faq" className="painel-titulo">
-            Perguntas frequentes
-          </h2>
-          <div className="painel-acao">
-            <Link href="/metodologia" className="underline-offset-4 hover:text-foreground hover:underline">
-              Metodologia completa
-            </Link>
-          </div>
-        </div>
-        <Faq />
-      </section>
 
       <Disclaimer
         nomeRobo={robo.nome}

@@ -1,4 +1,5 @@
 import { cn } from "cn";
+import { ChevronDown } from "lucide-react";
 
 export interface PerguntaFaq {
   p: string;
@@ -47,14 +48,12 @@ export function Faq({ perguntas = PERGUNTAS_FREQUENTES, className }: Props) {
   return (
     <dl className={cn("painel overflow-hidden", className)}>
       {perguntas.map((item) => (
-        <details key={item.p} className="sep [--sep:20px] group px-5 py-3">
+        <details key={item.p} className="sep [--sep:20px] group px-5 py-3.5">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium [&::-webkit-details-marker]:hidden">
             <dt>{item.p}</dt>
-            <span aria-hidden className="text-muted-foreground transition-transform group-open:rotate-45">
-              +
-            </span>
+            <ChevronDown aria-hidden className="size-4 shrink-0 text-muted-foreground transition-transform duration-200 group-open:rotate-180" />
           </summary>
-          <dd className="pt-2 text-sm text-muted-foreground">{item.r}</dd>
+          <dd className="pt-2 pr-8 text-sm leading-relaxed text-muted-foreground">{item.r}</dd>
         </details>
       ))}
     </dl>

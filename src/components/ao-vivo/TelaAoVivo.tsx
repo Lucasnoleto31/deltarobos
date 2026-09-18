@@ -34,7 +34,8 @@ function Numero({ rotulo, children }: { rotulo: string; children: React.ReactNod
  * 17/09/2026: no celular o número grande passava da borda ("+R$ 9.864,75" cortado), metade da tela era
  * uma tabela de dez operações e o print não levava marca nenhuma. Agora a marca e o robô abrem a tela,
  * o número se ajusta à largura pelo tamanho do próprio texto, o dia aparece em curva no estilo Profit e
- * só as três últimas operações ficam em lista.
+ * só as três últimas operações ficam em lista. No computador (18/09/2026) vira duas colunas: número,
+ * apoio e posição à esquerda; o dia em curva e as últimas operações à direita.
  */
 export function TelaAoVivo() {
   const { estado, robo, pregao, feriados, hoje } = useRobo();
@@ -75,9 +76,9 @@ export function TelaAoVivo() {
   };
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col gap-5 px-5 py-4">
+    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col gap-5 px-5 py-4 lg:grid lg:max-w-5xl lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:content-start lg:gap-x-10 lg:px-8 lg:py-6">
       {/* a marca abre a tela: é ela que diz, num print, de quem é o número */}
-      <header className="flex items-center justify-between gap-2">
+      <header className="flex items-center justify-between gap-2 lg:col-span-2">
         <div className="flex items-center gap-1">
           <Link
             href={`/robos/${robo.slug}`}
@@ -94,6 +95,7 @@ export function TelaAoVivo() {
         <BadgeStatusRobo status={status} />
       </header>
 
+      <div className="contents lg:flex lg:flex-col lg:gap-5">
       <section className="text-center">
         <h1 className="flex flex-wrap items-center justify-center gap-2 text-2xl font-semibold tracking-tight">
           {robo.nome}
@@ -121,17 +123,6 @@ export function TelaAoVivo() {
         </Numero>
       </dl>
 
-      {ops.length > 0 ? (
-        <CurvaDoDia operacoes={ops} altura={200} titulo="O dia, operação a operação" legenda="por contrato, líquido de custos" />
-      ) : (
-        <p className="rounded-xl border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-          {/* robô sem coletor (só histórico importado) não tem dia ao vivo: a tela diz isso, em vez de parecer parada */}
-          {robo.tem_coletor
-            ? "Nenhuma operação fechada hoje ainda."
-            : "Este robô só tem histórico importado. Não há operações ao vivo."}
-        </p>
-      )}
-
       {estado.posicoes.length > 0 ? (
         <section className="painel-grupo">
           <div className="painel-cabeca">
@@ -156,6 +147,20 @@ export function TelaAoVivo() {
           </ul>
         </section>
       ) : null}
+      </div>
+
+      <div className="contents lg:flex lg:flex-col lg:gap-5">
+      {ops.length > 0 ? (
+        <CurvaDoDia operacoes={ops} altura={200} titulo="O dia, operação a operação" legenda="por contrato, líquido de custos" />
+      ) : (
+        <p className="rounded-xl border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
+          {/* robô sem coletor (só histórico importado) não tem dia ao vivo: a tela diz isso, em vez de parecer parada */}
+          {robo.tem_coletor
+            ? "Nenhuma operação fechada hoje ainda."
+            : "Este robô só tem histórico importado. Não há operações ao vivo."}
+        </p>
+      )}
+
 
       {ops.length > 0 ? (
         <section className="painel-grupo">
@@ -180,8 +185,9 @@ export function TelaAoVivo() {
           </ul>
         </section>
       ) : null}
+      </div>
 
-      <footer className="mt-auto flex items-center justify-between gap-2 pt-1 text-xs text-muted-foreground">
+      <footer className="mt-auto flex items-center justify-between gap-2 pt-1 text-xs text-muted-foreground lg:col-span-2">
         {/* o endereço só existe no navegador: aparece depois de montar, para o print dizer de onde veio */}
         <span className="truncate">
           {robo.tem_coletor ? "direto do MetaTrader 5" : "histórico importado"}

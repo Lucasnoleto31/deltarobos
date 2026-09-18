@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Faq } from "@/components/compartilhados/Faq";
 import { Voltar } from "@/components/layout/Voltar";
 
 export const metadata: Metadata = {
@@ -10,7 +9,6 @@ export const metadata: Metadata = {
 };
 
 const SECOES = [
-  { id: "faq", titulo: "Perguntas frequentes" },
   { id: "coleta", titulo: "Como os dados chegam" },
   { id: "normalizacao", titulo: "Por contrato" },
   { id: "custos", titulo: "Bruto e líquido" },
@@ -53,22 +51,11 @@ export default function PaginaMetodologia() {
   );
 
   return (
-    <div className="conteudo grid gap-10 py-10 lg:grid-cols-[220px_1fr]">
-      <nav aria-label="Seções" className="lg:sticky lg:top-20 lg:self-start">
-        {/* no celular o índice de 17 itens ocupava a primeira tela inteira antes do texto: fica recolhido */}
-        <details className="painel group px-4 py-3 lg:hidden">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium [&::-webkit-details-marker]:hidden">
-            Nesta página
-            <span aria-hidden className="text-muted-foreground transition-transform group-open:rotate-45">
-              +
-            </span>
-          </summary>
-          <div className="pt-3">{indice}</div>
-        </details>
-        <div className="hidden lg:block">
-          <p className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">Nesta página</p>
-          {indice}
-        </div>
+    <div className="conteudo grid gap-8 py-8 lg:grid-cols-[220px_1fr] lg:gap-10 lg:py-10">
+      {/* o índice só no computador, na lateral; no celular a página se lê de cima a baixo (18/09/2026) */}
+      <nav aria-label="Seções" className="hidden lg:sticky lg:top-20 lg:block lg:self-start">
+        <p className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">Seções</p>
+        {indice}
       </nav>
 
       <article className="max-w-prose space-y-12">
@@ -79,12 +66,6 @@ export default function PaginaMetodologia() {
             Cada número do site pode ser refeito à mão a partir das operações listadas. Aqui está a regra de cada um.
           </p>
         </header>
-
-        {/* as respostas curtas primeiro; a regra de cada número vem nas seções abaixo */}
-        <section id="faq" className="scroll-mt-24 space-y-3">
-          <h2 className="text-xl font-semibold tracking-tight">Perguntas frequentes</h2>
-          <Faq />
-        </section>
 
         <Secao id="coleta" titulo="Como os dados chegam">
           <p>
