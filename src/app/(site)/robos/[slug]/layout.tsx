@@ -10,12 +10,23 @@ import {
   listarMercado,
   listarOperacoesDoDia,
   listarPosicoes,
+  listarRobos,
 } from "@/lib/consultas/publico";
 import { hojeSP } from "@/lib/stats/periodos";
 
 // Slug novo cadastrado no banco funciona sem deploy: nada de lista fixa.
 export const revalidate = 60;
 export const dynamicParams = true;
+
+/**
+ * Sem generateStaticParams o Next trata a rota como dinâmica e renderiza a cada visita, ignorando
+ * o revalidate (18/09/2026: 5 a 24 s por página). Com a lista, cada robô é pré-renderizado e
+ * revalidado a cada 60 s; robô cadastrado depois do deploy entra na primeira visita (dynamicParams).
+ */
+export async function generateStaticParams() {
+  const robos = await listarRobos();
+  return robos.map((r) => ({ slug: r.slug }));
+}
 
 interface Props {
   children: React.ReactNode;
