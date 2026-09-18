@@ -222,9 +222,9 @@
       inset 0 1px 0 var(--painel-brilho),
       var(--painel-sombra);
   }
-  /* Vidro ("liquid glass", pedido do Artur em 18/09/2026 à noite): translúcido, desfoca o que está
-     atrás, brilho na borda de cima e um reflexo suave no canto. Só faz sentido com uma luz atrás:
-     a .aura, um borrão na cor do resultado (verde ou vermelho), que fica embaixo do vidro. */
+  /* Vidro ("liquid glass", pedido do Artur em 18/09/2026 à noite): translúcido, brilho na borda de
+     cima e um reflexo suave no canto. A luz colorida atrás dele (.aura) saiu no mesmo dia: o Artur não
+     gostou do verde atrás do cartão. */
   .vidro {
     background: linear-gradient(135deg, rgba(255, 255, 255, 0.085) 0%, rgba(255, 255, 255, 0.03) 60%, rgba(255, 255, 255, 0.05) 100%);
     border-color: rgba(255, 255, 255, 0.13);
@@ -257,19 +257,6 @@
   }
   html:not(.dark) .vidro.painel-interativo:hover {
     background: rgba(255, 255, 255, 0.95);
-  }
-  .aura {
-    position: absolute;
-    inset: -30% -20% auto -20%;
-    height: 90%;
-    z-index: -1;
-    border-radius: 999px;
-    background: radial-gradient(closest-side, color-mix(in srgb, var(--aura) 34%, transparent), transparent);
-    filter: blur(48px);
-    pointer-events: none;
-  }
-  html:not(.dark) .aura {
-    background: radial-gradient(closest-side, color-mix(in srgb, var(--aura) 22%, transparent), transparent);
   }
 
   /* só para o que é clicável ou navegável: o fio acende junto com o fundo */

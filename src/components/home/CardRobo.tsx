@@ -24,8 +24,8 @@ interface Props {
 
 /**
  * O cartão do robô na home. Em 18/09/2026 à noite virou vidro ("liquid glass", pedido do Artur): a
- * superfície é translúcida com brilho na borda de cima e, atrás dela, uma luz na cor do resultado de
- * hoje: verde quando está no positivo, vermelha no negativo, nenhuma quando ainda não operou. Um
+ * superfície é translúcida com brilho na borda de cima. A luz verde ou vermelha que ficava atrás do
+ * vidro saiu no mesmo dia ("não gostei desse verde atrás do card"): a cor fica só nos números. Um
  * número por vez: o de hoje grande, com operações e acerto do dia embaixo; mês e acumulado em apoio;
  * a curva dos 30 dias na largura toda; no pé, o drawdown máximo e o botão redondo que leva ao robô.
  * Com memo (18/09/2026): a grade recalcula o status a cada 5 s, mas as props são primitivas ou
@@ -33,7 +33,6 @@ interface Props {
  */
 export const CardRobo = memo(function CardRobo({ card, status, hojeOperacoes, hojeGains, atraso = 0 }: Props) {
   const emBreve = card.status === "em_breve";
-  const aura = card.hoje > 0 ? "var(--positivo)" : card.hoje < 0 ? "var(--negativo)" : null;
 
   return (
     <Link
@@ -45,8 +44,6 @@ export const CardRobo = memo(function CardRobo({ card, status, hojeOperacoes, ho
         emBreve && "opacity-80",
       )}
     >
-      {aura ? <span aria-hidden className="aura" style={{ "--aura": aura } as React.CSSProperties} /> : null}
-
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="truncate text-lg font-semibold leading-tight">{card.nome}</h3>
