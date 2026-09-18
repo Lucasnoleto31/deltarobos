@@ -75,24 +75,35 @@ export async function listarOperacoesCompactas(
 ): Promise<OperacaoCompacta[]> {
   try {
     const sb = supabasePublico();
-    const passo = 1000;
-    const linhas: Array<Parameters<typeof compactar>[0]> = [];
-    for (let de = 0; de < limite; de += passo) {
-      const ate = Math.min(de + passo, limite) - 1;
-      const { data, error } = await sb
-        .from("operacoes_publico")
-        .select(
-          "dia_pregao, abertura_em, pontos_por_contrato, resultado_brl_por_contrato, custos_brl_por_contrato, duracao_seg, lado, simbolo",
-        )
-        .eq("slug", slug)
-        .order("fechamento_em", { ascending: false })
-        .range(de, ate);
-      if (error) throw error;
-      const lote = (data ?? []) as Array<Parameters<typeof compactar>[0]>;
-      linhas.push(...lote);
-      if (lote.length < ate - de + 1) break;
-    }
-    return linhas.reverse().map(compactar);
+    const passo = 1000; // teto do PostgREST por requisição
+    const colunas =
+      "dia_pregao, abertura_em, pontos_por_contrato, resultado_brl_por_contrato, custos_brl_por_contrato, duracao_seg, lado, simbolo";
+
+    // Quantas páginas existem? Uma consulta só de contagem, depois todas as páginas em paralelo:
+    // dezenas de milhares de operações deixam de custar uma ida ao banco por página.
+    const { count, error: erroContagem } = await sb
+      .from("operacoes_publico")
+      .select("id", { count: "exact", head: true })
+      .eq("slug", slug);
+    if (erroContagem) throw erroContagem;
+    const total = Math.min(count ?? 0, limite);
+    if (total === 0) return [];
+
+    const inicios = Array.from({ length: Math.ceil(total / passo) }, (_, i) => i * passo);
+    const paginas = await Promise.all(
+      inicios.map(async (de) => {
+        const { data, error } = await sb
+          .from("operacoes_publico")
+          .select(colunas)
+          .eq("slug", slug)
+          .order("fechamento_em", { ascending: false })
+          .order("id", { ascending: false })
+          .range(de, Math.min(de + passo, total) - 1);
+        if (error) throw error;
+        return (data ?? []) as Array<Parameters<typeof compactar>[0]>;
+      }),
+    );
+    return paginas.flat().reverse().map(compactar);
   } catch (e) {
     avisar("listarOperacoesCompactas", e);
     return [];
