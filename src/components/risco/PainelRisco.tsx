@@ -7,9 +7,9 @@ import { Valor } from "@/components/compartilhados/Valor";
 import { CardsKpi, type ItemKpi } from "@/components/desempenho/CardsKpi";
 import { formatarBRL, formatarData, formatarMultiplo, formatarNumero, formatarPct } from "@/lib/formato";
 import { calcularKpis } from "@/lib/stats/kpis";
-import { dia as diaOp, resumoOperacoes, type OperacaoCompacta } from "@/lib/stats/operacoes";
-import { inicioDoPeriodo, type PeriodoFechado } from "@/components/robo/periodos-resumo";
-import { dentroDoIntervalo, filtrarIntervalo, type Intervalo } from "@/lib/stats/periodos";
+import type { PeriodoPainel } from "@/components/robo/ops-por-periodo";
+import { inicioDoPeriodo } from "@/components/robo/periodos-resumo";
+import { filtrarIntervalo, type Intervalo } from "@/lib/stats/periodos";
 import {
   calmar,
   capitalMinimoRecomendado,
@@ -27,7 +27,8 @@ import { AbaixoDoPico } from "./AbaixoDoPico";
 
 interface Props {
   linhas: LinhaDiaria[];
-  ops: OperacaoCompacta[];
+  /** perda média por operação (resumoOperacoes().mediaLoss) de cada período, calculada na página */
+  perdaMedia: Record<PeriodoPainel, number>;
   hoje: string;
   valorPonto: number;
   capitalReferencia: number | null;
@@ -36,24 +37,23 @@ interface Props {
 }
 
 // os mesmos atalhos das outras abas; sem "hoje" e "semana", que não têm drawdown para medir
-const OPCOES_PERIODO: ReadonlyArray<{ valor: PeriodoFechado; rotulo: string }> = [
+const OPCOES_PERIODO: ReadonlyArray<{ valor: PeriodoPainel; rotulo: string }> = [
   { valor: "mes", rotulo: "Mês" },
   { valor: "ano", rotulo: "Ano" },
   { valor: "tudo", rotulo: "Tudo" },
 ];
 
 /** Aba Risco: índices de risco, curva de drawdown, maiores quedas, profundidade, piores dias e resumo diário. */
-export function PainelRisco({ linhas, ops, hoje, valorPonto, capitalReferencia, margem, fatorSeguranca }: Props) {
-  const [periodo, setPeriodo] = useState<PeriodoFechado>("tudo");
+export function PainelRisco({ linhas, perdaMedia, hoje, valorPonto, capitalReferencia, margem, fatorSeguranca }: Props) {
+  const [periodo, setPeriodo] = useState<PeriodoPainel>("tudo");
   const opcoes = useMemo<OpcoesSerie>(() => ({ base: "liquido", unidade: "brl", valorPonto }), [valorPonto]);
   const intervalo = useMemo<Intervalo>(() => ({ de: inicioDoPeriodo(periodo, hoje), ate: hoje }), [periodo, hoje]);
   const linhasF = useMemo(() => filtrarIntervalo(linhas, intervalo), [linhas, intervalo]);
-  const opsF = useMemo(() => ops.filter((op) => dentroDoIntervalo(diaOp(op), intervalo)), [ops, intervalo]);
 
   const kpis = useMemo(() => calcularKpis(linhasF, opcoes, { hoje, capitalReferencia }), [linhasF, opcoes, hoje, capitalReferencia]);
   const curva = useMemo(() => curvaAcumulada(linhasF, opcoes), [linhasF, opcoes]);
   const episodios = useMemo(() => episodiosDrawdown(curva, Infinity), [curva]);
-  const resumoOps = useMemo(() => resumoOperacoes(opsF, opcoes), [opsF, opcoes]);
+  const mediaLoss = perdaMedia[periodo];
   const diario = useMemo(() => resumoDiario(curva, episodios), [curva, episodios]);
   const profundidade = useMemo(() => distribuicaoProfundidade(episodios, capitalReferencia), [episodios, capitalReferencia]);
   const piores = useMemo(
@@ -67,7 +67,7 @@ export function PainelRisco({ linhas, ops, hoje, valorPonto, capitalReferencia, 
   const vRecovery = recoveryFactor(kpis.acumulado, dd);
   const vUlcer = ulcerIndex(curva, capitalReferencia);
   const vTempo = tempoEmDrawdown(curva);
-  const vRuina = riscoDeRuina({ taxaAcerto: kpis.taxaAcerto, payoff: kpis.payoff, capital: capitalReferencia, perdaMedia: resumoOps.mediaLoss });
+  const vRuina = riscoDeRuina({ taxaAcerto: kpis.taxaAcerto, payoff: kpis.payoff, capital: capitalReferencia, perdaMedia: mediaLoss });
   const capitalMinimo = margem !== null ? capitalMinimoRecomendado(margem, dd, fatorSeguranca) : null;
 
   if (linhas.length === 0) {
@@ -87,7 +87,7 @@ export function PainelRisco({ linhas, ops, hoje, valorPonto, capitalReferencia, 
     {
       rotulo: "Risco de ruína",
       valor: vRuina === null ? "–" : formatarPct(vRuina, 1),
-      detalhe: vRuina === null ? "precisa de capital de referência" : `capital ${formatarBRL(capitalReferencia ?? 0, { inteiro: true })} · perda média ${formatarBRL(resumoOps.mediaLoss, { inteiro: Math.abs(resumoOps.mediaLoss) >= 1000 })}`,
+      detalhe: vRuina === null ? "precisa de capital de referência" : `capital ${formatarBRL(capitalReferencia ?? 0, { inteiro: true })} · perda média ${formatarBRL(mediaLoss, { inteiro: Math.abs(mediaLoss) >= 1000 })}`,
       tom: vRuina === null ? "alerta" : vRuina >= 0.5 ? "negativo" : vRuina > 0.05 ? "alerta" : "positivo",
     },
     { rotulo: "Tempo em drawdown", valor: formatarPct(vTempo, 0), detalhe: `${curva.filter((p) => p.drawdown < 0).length} de ${curva.length} pregões abaixo do pico`, tom: vTempo > 0.5 ? "alerta" : "neutro" },

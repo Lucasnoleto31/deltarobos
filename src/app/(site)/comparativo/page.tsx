@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { BarrasPorRobo } from "@/components/comparativo/BarrasPorRobo";
+import { resumirPorPeriodo } from "@/components/comparativo/resumo-por-periodo";
 import { Valor } from "@/components/compartilhados/Valor";
 import { CardsKpi, type ItemKpi } from "@/components/desempenho/CardsKpi";
 import { GraficoBarras } from "@/components/desempenho/GraficoBarras";
@@ -214,9 +215,14 @@ export default async function PaginaComparativo() {
             </table>
           </section>
 
+          {/* os totais por período saem prontos daqui: a série diária de cada robô era 85% do HTML (18/09/2026) */}
           <BarrasPorRobo
-            robos={colunas.map((c) => ({ slug: c.robo.slug, nome: c.robo.nome, ativo: c.robo.ativo, valorPonto: c.robo.valor_ponto_brl, linhas: c.linhas }))}
-            hoje={hoje}
+            robos={colunas.map((c) => ({
+              slug: c.robo.slug,
+              nome: c.robo.nome,
+              ativo: c.robo.ativo,
+              porPeriodo: resumirPorPeriodo(c.linhas, c.robo.valor_ponto_brl, hoje),
+            }))}
           />
 
           <section className="space-y-3">

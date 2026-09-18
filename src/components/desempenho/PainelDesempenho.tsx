@@ -3,6 +3,7 @@
 import { Activity, BarChart3, Percent, Scale, TrendingDown, TrendingUp } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { desempacotar, type OpsEmpacotadas } from "@/components/compartilhados/ops-codec";
 import { Valor } from "@/components/compartilhados/Valor";
 import { CurvaCapital } from "@/components/graficos/CurvaCapital";
 import { formatarBRL, formatarData, formatarDuracao, formatarMesAno, formatarMultiplo, formatarNumero, formatarPct, formatarPontos } from "@/lib/formato";
@@ -16,7 +17,6 @@ import {
   porSimbolo,
   resumoOperacoes,
   sequencias,
-  type OperacaoCompacta,
 } from "@/lib/stats/operacoes";
 import { dentroDoIntervalo, ehDia, ehPeriodo, filtrarIntervalo, intervaloDe, type Periodo } from "@/lib/stats/periodos";
 import { episodiosDrawdown } from "@/lib/stats/risco";
@@ -32,7 +32,8 @@ import { Risco } from "./Risco";
 interface Props {
   slug: string;
   linhas: LinhaDiaria[];
-  ops: OperacaoCompacta[];
+  /** as operações empacotadas por ops-codec: 158 KB em vez de 699 KB no HTML (18/09/2026) */
+  pacote: OpsEmpacotadas;
   feriados: string[];
   hoje: string;
   valorPonto: number;
@@ -76,13 +77,14 @@ function rotuloUnidade(v: number, unidade: Unidade): string {
 export function PainelDesempenho({
   slug,
   linhas,
-  ops,
+  pacote,
   hoje,
   valorPonto,
   capitalReferencia,
   margem,
   fatorSeguranca,
 }: Props) {
+  const ops = useMemo(() => desempacotar(pacote), [pacote]);
   const sp = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();

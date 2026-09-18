@@ -5,22 +5,20 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Segmentado } from "@/components/compartilhados/Segmentado";
 import { Valor } from "@/components/compartilhados/Valor";
-import { PERIODOS_RESUMO, noPeriodo, type PeriodoFechado } from "@/components/robo/periodos-resumo";
+import { PERIODOS_RESUMO, type PeriodoFechado } from "@/components/robo/periodos-resumo";
 import { formatarNumero } from "@/lib/formato";
-import { valorDia } from "@/lib/stats/serie";
-import type { LinhaDiaria } from "@/lib/stats/tipos";
+import type { ResumoPorPeriodo } from "./resumo-por-periodo";
 
 export interface RoboParaBarras {
   slug: string;
   nome: string;
   ativo: string;
-  valorPonto: number;
-  linhas: LinhaDiaria[];
+  /** já somado no servidor: a série diária não desce ao navegador (18/09/2026) */
+  porPeriodo: ResumoPorPeriodo;
 }
 
 interface Props {
   robos: RoboParaBarras[];
-  hoje: string;
 }
 
 const OPCOES = PERIODOS_RESUMO.filter((p) => p.valor !== "hoje") as ReadonlyArray<{ valor: PeriodoFechado; rotulo: string }>;
@@ -30,20 +28,13 @@ const OPCOES = PERIODOS_RESUMO.filter((p) => p.valor !== "hoje") as ReadonlyArra
  * barra por robô, do maior para o menor, com o resultado, as operações e os pregões do recorte. Sem
  * curva: aqui a pergunta é "qual rendeu mais neste mês", e a barra responde de relance.
  */
-export function BarrasPorRobo({ robos, hoje }: Props) {
+export function BarrasPorRobo({ robos }: Props) {
   const [periodo, setPeriodo] = useState<PeriodoFechado>("mes");
 
-  const linhas = useMemo(() => {
-    return robos
-      .map((r) => {
-        const recorte = noPeriodo(r.linhas, periodo, hoje);
-        const opcoes = { base: "liquido" as const, unidade: "brl" as const, valorPonto: r.valorPonto };
-        const total = recorte.reduce((s, l) => s + valorDia(l, opcoes), 0);
-        const nOps = recorte.reduce((s, l) => s + l.n_operacoes, 0);
-        return { ...r, total, nOps, nDias: recorte.length };
-      })
-      .sort((a, b) => b.total - a.total);
-  }, [robos, periodo, hoje]);
+  const linhas = useMemo(
+    () => robos.map((r) => ({ ...r, ...r.porPeriodo[periodo] })).sort((a, b) => b.total - a.total),
+    [robos, periodo],
+  );
 
   const maior = Math.max(1, ...linhas.map((l) => Math.abs(l.total)));
 

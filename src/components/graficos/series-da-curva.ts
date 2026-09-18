@@ -1,7 +1,7 @@
 // As duas séries da curva de capital (por dia e por operação), prontas para o desenho: posição no eixo,
 // acumulado, drawdown e a dica de cada ponto. Arquivo sem "use client" de propósito: a visão geral do
 // robô monta a série por operação no servidor e manda para o navegador só os 240 pontos do desenho, em
-// vez das dezenas de milhares de operações. Os números vêm das funções da lib (curvaAcumulada,
+// vez das dezenas de milhares de operações, e só os números deles (SerieCompacta). Os números vêm das funções da lib (curvaAcumulada,
 // curvaPorOperacao, valorOperacao); aqui só se decide onde cada ponto cai e o que a dica diz.
 
 import { formatarBRL, formatarData, formatarDataCurta, formatarNumero, formatarPct, formatarPontos } from "@/lib/formato";
@@ -14,14 +14,17 @@ import type { PontoDoDesenho } from "./CurvaProfit";
 // acima disso a barra do drawdown viraria um fio de menos de 3 px: cada fatia vira uma coluna
 const MAX_COLUNAS = 240;
 
+/** Onde começa e onde termina (exclusivo) a fatia `k` de uma lista de `n` itens dividida em no máximo `max`. */
+function limitesDaFatia(k: number, n: number, max = MAX_COLUNAS): [number, number] {
+  if (n <= max) return [k, k + 1];
+  const tamanho = n / max;
+  const de = Math.floor(k * tamanho);
+  return [de, Math.max(de + 1, Math.floor((k + 1) * tamanho))];
+}
+
 /** Divide a lista em no máximo `max` fatias de tamanho parecido, em ordem. */
 function fatiar<T>(itens: T[], max = MAX_COLUNAS): T[][] {
-  if (itens.length <= max) return itens.map((i) => [i]);
-  const tamanho = itens.length / max;
-  return Array.from({ length: max }, (_, k) => {
-    const de = Math.floor(k * tamanho);
-    return itens.slice(de, Math.max(de + 1, Math.floor((k + 1) * tamanho)));
-  });
+  return Array.from({ length: Math.min(itens.length, max) }, (_, k) => itens.slice(...limitesDaFatia(k, itens.length, max)));
 }
 
 const soma = (xs: number[]) => xs.reduce((s, v) => s + v, 0);
@@ -86,17 +89,45 @@ export function seriePorDia(linhas: readonly LinhaDiaria[], opcoes: OpcoesSerie)
 }
 
 /**
+ * Um ponto da série por operação só com números, na ordem: posição no eixo, acumulado, drawdown, valor
+ * da fatia, índice (em `SerieCompacta.dias`) do primeiro e do último dia da fatia e, só quando a fatia
+ * é de uma operação, a hora de abertura. O número das operações não vai: sai da posição do ponto e do
+ * total, pela mesma divisão em fatias.
+ */
+export type PontoCompacto =
+  | [number, number, number, number, number, number]
+  | [number, number, number, number, number, number, number];
+
+/**
+ * A série por operação como a visão geral manda para o navegador (18/09/2026): antes cada um dos 240
+ * pontos levava a dica já escrita, e as quatro séries eram 54% do HTML da página. Agora vão os números
+ * e o navegador escreve a dica com as mesmas funções (expandirSerie).
+ */
+export interface SerieCompacta {
+  /** os dias que as dicas citam, uma vez cada */
+  dias: string[];
+  /** quantas operações a série tem: o "de N" da dica */
+  total: number;
+  pontos: PontoCompacto[];
+}
+
+/**
  * Um ponto por operação (ou por fatia de operações). Cada dia ocupa a mesma largura que tem na série por
  * dia e as operações se espalham dentro do dia delas: trocar o agrupamento só acrescenta ou tira o sobe
  * e desce de dentro do dia, sem mudar o resto do gráfico. O drawdown aqui é operação a operação, por
  * isso pode passar do drawdown por dia, que só olha o fechamento.
+ *
+ * Com `arredondar` (o que a página serializa), a posição vai com 5 casas (fração de 240 colunas, muito
+ * abaixo de um pixel) e o dinheiro com 2, mas só quando o número arredondado escreve a mesma coisa na
+ * dica, com o mesmo tom; senão vai inteiro. Sem arredondar, é a base de seriePorOperacao.
  */
-export function seriePorOperacao(
+export function seriePorOperacaoCompacta(
   ops: readonly OperacaoCompacta[],
   opcoes: OpcoesSerie,
   dias: readonly string[],
-): PontoDoDesenho[] {
-  if (ops.length === 0) return [];
+  { arredondar = true }: { arredondar?: boolean } = {},
+): SerieCompacta {
+  if (ops.length === 0) return { dias: [], total: 0, pontos: [] };
   const fmt = formatador(opcoes);
   const curva = curvaPorOperacao(ops, opcoes);
   const total = curva.length;
@@ -122,7 +153,6 @@ export function seriePorOperacao(
       : (i + 1) / total;
     return {
       dia: p.dia,
-      ordem: p.indice,
       hora: horaDaOperacao(ops[i]),
       valor: p.acumulado - (i > 0 ? curva[i - 1].acumulado : 0),
       acumulado: p.acumulado,
@@ -131,29 +161,83 @@ export function seriePorOperacao(
     };
   });
 
-  return fatiar(brutos).map((fatia): PontoDoDesenho => {
+  const posicaoEnxuta = (v: number) => (arredondar ? Math.round(v * 1e5) / 1e5 : v);
+  const dinheiroEnxuto = (v: number) => {
+    if (!arredondar) return v;
+    const r = Math.round(v * 100) / 100;
+    if (r === v) return r;
+    // resíduo em volta de número redondo (múltiplo de R$ 0,05) vai inteiro: é ele que decide o fundo da
+    // escala do drawdown e o "2,0 mil" contra "2 mil" do eixo, que não passam pela dica
+    if (Math.round(r * 100) % 5 === 0) return v;
+    return fmt(r) === fmt(v) && tomDe(r) === tomDe(v) ? r : v;
+  };
+
+  const diasCitados: string[] = [];
+  const indiceCitado = new Map<string, number>();
+  const citar = (dia: string) => {
+    let k = indiceCitado.get(dia);
+    if (k === undefined) {
+      k = diasCitados.push(dia) - 1;
+      indiceCitado.set(dia, k);
+    }
+    return k;
+  };
+
+  const pontos = fatiar(brutos).map((fatia): PontoCompacto => {
     const primeiro = fatia[0];
     const ultimo = fatia[fatia.length - 1];
     const valor = soma(fatia.map((p) => p.valor));
     const drawdown = fatia.reduce((m, p) => Math.min(m, p.drawdown), 0);
-    const uma = fatia.length === 1;
+    const numeros: [number, number, number, number, number, number] = [
+      posicaoEnxuta(ultimo.posicao),
+      dinheiroEnxuto(ultimo.acumulado),
+      dinheiroEnxuto(drawdown),
+      dinheiroEnxuto(valor),
+      citar(primeiro.dia),
+      citar(ultimo.dia),
+    ];
+    return fatia.length === 1 ? [...numeros, ultimo.hora] : numeros;
+  });
+
+  return { dias: diasCitados, total, pontos };
+}
+
+/** Os pontos do desenho a partir da série compacta, com a dica de cada um escrita aqui. */
+export function expandirSerie(serie: SerieCompacta, opcoes: OpcoesSerie): PontoDoDesenho[] {
+  const fmt = formatador(opcoes);
+  const { dias, total } = serie;
+  return serie.pontos.map(([posicao, acumulado, drawdown, valor, iDe, iAte, hora], k): PontoDoDesenho => {
+    // o número das operações de cada ponto sai da mesma divisão em fatias que montou a série
+    const [de, ate] = limitesDaFatia(k, total);
+    const uma = ate - de === 1;
+    const diaDe = dias[iDe];
+    const diaAte = dias[iAte];
     const dica: ConteudoDaDica = {
       titulo: uma
-        ? `${formatarData(ultimo.dia)} · aberta às ${ultimo.hora}h`
-        : primeiro.dia === ultimo.dia
-          ? formatarData(ultimo.dia)
-          : `${formatarData(primeiro.dia)} a ${formatarData(ultimo.dia)}`,
+        ? `${formatarData(diaAte)} · aberta às ${hora}h`
+        : diaDe === diaAte
+          ? formatarData(diaAte)
+          : `${formatarData(diaDe)} a ${formatarData(diaAte)}`,
       subtitulo: uma
-        ? `Operação ${formatarNumero(ultimo.ordem)} de ${formatarNumero(total)}`
-        : `Operações ${formatarNumero(primeiro.ordem)} a ${formatarNumero(ultimo.ordem)} de ${formatarNumero(total)}`,
+        ? `Operação ${formatarNumero(ate)} de ${formatarNumero(total)}`
+        : `Operações ${formatarNumero(de + 1)} a ${formatarNumero(ate)} de ${formatarNumero(total)}`,
       linhas: [
         { rotulo: uma ? "Na operação" : "Neste trecho", valor: fmt(valor), tom: tomDe(valor) },
-        { rotulo: "Acumulado", valor: fmt(ultimo.acumulado), tom: tomDe(ultimo.acumulado) },
+        { rotulo: "Acumulado", valor: fmt(acumulado), tom: tomDe(acumulado) },
         linhaDoDrawdown(drawdown, fmt),
       ],
     };
-    return { posicao: ultimo.posicao, acumulado: ultimo.acumulado, drawdown, dica };
+    return { posicao, acumulado, drawdown, dica };
   });
+}
+
+/** A série por operação já com as dicas e sem arredondar: a do calendário e a da curva que recebe as operações. */
+export function seriePorOperacao(
+  ops: readonly OperacaoCompacta[],
+  opcoes: OpcoesSerie,
+  dias: readonly string[],
+): PontoDoDesenho[] {
+  return expandirSerie(seriePorOperacaoCompacta(ops, opcoes, dias, { arredondar: false }), opcoes);
 }
 
 /** Datas espaçadas por igual no eixo de baixo: cada rótulo marca o começo do dia dele, igual nos dois agrupamentos. */

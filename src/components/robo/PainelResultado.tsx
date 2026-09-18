@@ -5,7 +5,7 @@ import { AtualizadoHa } from "@/components/compartilhados/AtualizadoHa";
 import { Segmentado } from "@/components/compartilhados/Segmentado";
 import { Valor } from "@/components/compartilhados/Valor";
 import { CurvaCapital } from "@/components/graficos/CurvaCapital";
-import type { PontoDoDesenho } from "@/components/graficos/CurvaProfit";
+import { expandirSerie, type SerieCompacta } from "@/components/graficos/series-da-curva";
 import { formatarData, formatarDataLonga, formatarNumero, formatarPct } from "@/lib/formato";
 import { calcularKpis } from "@/lib/stats/kpis";
 import type { LinhaDiaria, OpcoesSerie } from "@/lib/stats/tipos";
@@ -23,8 +23,8 @@ import { useRobo } from "./RoboAoVivoProvider";
 interface Props {
   /** a série diária inteira; o recorte por período é feito aqui */
   linhas: LinhaDiaria[];
-  /** a curva por operação de cada período, já reduzida aos pontos do desenho (montada no servidor) */
-  pontosPorOperacao: Record<PeriodoFechado, PontoDoDesenho[]>;
+  /** a curva por operação de cada período, já reduzida aos pontos do desenho (montada no servidor, só os números) */
+  pontosPorOperacao: Record<PeriodoFechado, SerieCompacta>;
   valorPonto: number;
   capitalReferencia: number | null;
 }
@@ -67,7 +67,7 @@ export function PainelResultado({ linhas, pontosPorOperacao, valorPonto, capital
           key={periodo}
           periodo={periodo}
           linhas={linhas}
-          pontos={pontosPorOperacao[periodo]}
+          serie={pontosPorOperacao[periodo]}
           valorPonto={valorPonto}
           capitalReferencia={capitalReferencia}
           hoje={hoje}
@@ -104,14 +104,14 @@ function Azulejo({ rotulo, detalhe, children, className }: { rotulo: string; det
 function ResultadoDoPeriodo({
   periodo,
   linhas,
-  pontos,
+  serie,
   valorPonto,
   capitalReferencia,
   hoje,
 }: {
   periodo: PeriodoFechado;
   linhas: LinhaDiaria[];
-  pontos: PontoDoDesenho[];
+  serie: SerieCompacta;
   valorPonto: number;
   capitalReferencia: number | null;
   hoje: string;
@@ -119,6 +119,8 @@ function ResultadoDoPeriodo({
   const opcoes = useMemo<OpcoesSerie>(() => ({ base: "liquido", unidade: "brl", valorPonto }), [valorPonto]);
   const recorte = useMemo(() => noPeriodo(linhas, periodo, hoje), [linhas, periodo, hoje]);
   const k = useMemo(() => calcularKpis(recorte, opcoes, { hoje, capitalReferencia }), [recorte, opcoes, hoje, capitalReferencia]);
+  // a dica de cada ponto é escrita aqui, com as mesmas funções que o servidor usava (240 pontos, custo nulo)
+  const pontos = useMemo(() => expandirSerie(serie, opcoes), [serie, opcoes]);
 
   if (recorte.length === 0) {
     return <p className="px-4 py-10 text-center text-sm text-muted-foreground">{VAZIO_DO_PERIODO[periodo]}</p>;

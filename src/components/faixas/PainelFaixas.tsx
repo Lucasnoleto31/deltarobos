@@ -4,28 +4,24 @@ import { cn } from "cn";
 import { useMemo, useState } from "react";
 import { Segmentado } from "@/components/compartilhados/Segmentado";
 import { Valor } from "@/components/compartilhados/Valor";
-import { inicioDoPeriodo, type PeriodoFechado } from "@/components/robo/periodos-resumo";
+import type { PeriodoPainel } from "@/components/robo/ops-por-periodo";
 import { formatarBRL, formatarMultiplo, formatarNumero, formatarPct } from "@/lib/formato";
 import {
   DESCRICAO_CLASSE,
   DIAS_UTEIS,
   HORAS,
   ROTULO_CLASSE,
-  validarFaixas,
   type ClasseFaixa,
   type Faixa,
-  type ParametrosFaixas,
+  type ResultadoFaixas,
 } from "@/lib/stats/faixas";
-import { dia as diaOp, type OperacaoCompacta } from "@/lib/stats/operacoes";
-import { dentroDoIntervalo, type Intervalo } from "@/lib/stats/periodos";
 
 interface Props {
-  ops: OperacaoCompacta[];
-  hoje: string;
-  parametros: ParametrosFaixas;
+  /** validarFaixas de cada período, calculado na página (18/09/2026: as operações não vêm mais) */
+  resultados: Record<PeriodoPainel, ResultadoFaixas>;
 }
 
-const OPCOES_PERIODO: ReadonlyArray<{ valor: PeriodoFechado; rotulo: string }> = [
+const OPCOES_PERIODO: ReadonlyArray<{ valor: PeriodoPainel; rotulo: string }> = [
   { valor: "mes", rotulo: "Mês" },
   { valor: "ano", rotulo: "Ano" },
   { valor: "tudo", rotulo: "Tudo" },
@@ -56,14 +52,12 @@ function rec(v: number | null): string {
  * barra empilhada e a lista), as regras numa linha por classe e o período nos mesmos atalhos das
  * outras abas. Os números continuam vindo de validarFaixas.
  */
-export function PainelFaixas({ ops, hoje, parametros }: Props) {
-  const [periodo, setPeriodo] = useState<PeriodoFechado>("tudo");
+export function PainelFaixas({ resultados }: Props) {
+  const [periodo, setPeriodo] = useState<PeriodoPainel>("tudo");
   const [filtroClasse, setFiltroClasse] = useState<ClasseFaixa | null>(null);
   const [selecionada, setSelecionada] = useState<Faixa | null>(null);
 
-  const intervalo = useMemo<Intervalo>(() => ({ de: inicioDoPeriodo(periodo, hoje), ate: hoje }), [periodo, hoje]);
-  const opsF = useMemo(() => ops.filter((op) => dentroDoIntervalo(diaOp(op), intervalo)), [ops, intervalo]);
-  const r = useMemo(() => validarFaixas(opsF, parametros), [opsF, parametros]);
+  const r = resultados[periodo];
 
   const porCelula = useMemo(() => {
     const m = new Map<string, Faixa>();
@@ -75,7 +69,7 @@ export function PainelFaixas({ ops, hoje, parametros }: Props) {
   const maiorScore = Math.max(1, ...r.melhores.map((f) => f.score));
   const p = r.parametros;
 
-  if (ops.length === 0) {
+  if (resultados.tudo.nOperacoes === 0) {
     return <p className="rounded-2xl border border-dashed p-8 text-center text-muted-foreground">Ainda não há operações fechadas para validar faixas.</p>;
   }
 

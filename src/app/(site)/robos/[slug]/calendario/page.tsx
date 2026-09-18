@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { PainelCalendario } from "@/components/calendario/PainelCalendario";
+import { empacotar, soLinhaDiaria } from "@/components/compartilhados/ops-codec";
 import { listarOperacoesCompactas } from "@/lib/consultas/operacoes";
 import { buscarRobo, listarEstatisticas, listarFeriados } from "@/lib/consultas/publico";
 import { hojeSP } from "@/lib/stats/periodos";
@@ -30,8 +31,8 @@ export default async function PaginaCalendario({ params }: Props) {
 
   return (
     <PainelCalendario
-      linhas={linhas}
-      ops={ops}
+      linhas={soLinhaDiaria(linhas)}
+      pacote={empacotar(ops)}
       feriados={feriados}
       hoje={hoje}
       valorPonto={robo.valor_ponto_brl}

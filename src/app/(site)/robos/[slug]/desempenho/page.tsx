@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { empacotar, soLinhaDiaria } from "@/components/compartilhados/ops-codec";
 import { SkeletonCurva, SkeletonKpis } from "@/components/compartilhados/Skeletons";
 import { PainelDesempenho } from "@/components/desempenho/PainelDesempenho";
 import { listarOperacoesCompactas } from "@/lib/consultas/operacoes";
@@ -51,8 +52,8 @@ export default async function PaginaDesempenho({ params }: Props) {
     >
       <PainelDesempenho
         slug={slug}
-        linhas={linhas}
-        ops={ops}
+        linhas={soLinhaDiaria(linhas)}
+        pacote={empacotar(ops)}
         feriados={feriados}
         hoje={hoje}
         valorPonto={robo.valor_ponto_brl}

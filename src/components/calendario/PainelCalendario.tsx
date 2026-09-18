@@ -3,6 +3,7 @@
 import { cn } from "cn";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useId, useMemo, useRef, useState } from "react";
+import { desempacotar, type OpsEmpacotadas } from "@/components/compartilhados/ops-codec";
 import { Valor } from "@/components/compartilhados/Valor";
 import { Heatmap } from "@/components/desempenho/Heatmap";
 import { escalaDeForca, mistura } from "@/components/graficos/base";
@@ -11,14 +12,15 @@ import { seriePorOperacao } from "@/components/graficos/series-da-curva";
 import { Button } from "@/components/ui/button";
 import { formatarData, formatarDataLonga, formatarMesAno, formatarNumero, formatarPct } from "@/lib/formato";
 import { gradeMes, heatmapAnoMes, mesesComDados } from "@/lib/stats/calendario";
-import { dia as diaOp, porDiaSemana, porHora, valorOperacao, type OperacaoCompacta } from "@/lib/stats/operacoes";
+import { dia as diaOp, porDiaSemana, porHora, valorOperacao } from "@/lib/stats/operacoes";
 import { mesDe, somarMeses } from "@/lib/stats/periodos";
 import { valorDia } from "@/lib/stats/serie";
 import type { LinhaDiaria, OpcoesSerie } from "@/lib/stats/tipos";
 
 interface Props {
   linhas: LinhaDiaria[];
-  ops: OperacaoCompacta[];
+  /** as operações empacotadas por ops-codec: 158 KB em vez de 699 KB no HTML (18/09/2026) */
+  pacote: OpsEmpacotadas;
   feriados: string[];
   hoje: string;
   valorPonto: number;
@@ -61,7 +63,8 @@ function Trio({ itens }: { itens: Array<{ rotulo: string; valor: React.ReactNode
  * - o detalhe do dia mostrava a mesma coisa duas vezes (barras por hora e a lista por hora): as
  *   barras deram lugar ao dia em curva, operação a operação, no estilo Profit.
  */
-export function PainelCalendario({ linhas, ops, feriados, hoje, valorPonto, capitalReferencia }: Props) {
+export function PainelCalendario({ linhas, pacote, feriados, hoje, valorPonto, capitalReferencia }: Props) {
+  const ops = useMemo(() => desempacotar(pacote), [pacote]);
   const idCurva = `cal-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   const opcoes = useMemo<OpcoesSerie>(() => ({ base: "liquido", unidade: "brl", valorPonto }), [valorPonto]);
   const meses = useMemo(() => mesesComDados(linhas), [linhas]);

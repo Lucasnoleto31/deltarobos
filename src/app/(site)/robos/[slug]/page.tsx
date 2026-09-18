@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { seriePorDia, seriePorOperacao } from "@/components/graficos/series-da-curva";
+import { seriePorDia, seriePorOperacaoCompacta, type SerieCompacta } from "@/components/graficos/series-da-curva";
 import { Disclaimer } from "@/components/robo/Disclaimer";
 import { KpisRobo } from "@/components/robo/KpisRobo";
 import { PainelResultado } from "@/components/robo/PainelResultado";
@@ -21,6 +21,7 @@ import {
 } from "@/lib/consultas/publico";
 import { dia as diaDaOperacao } from "@/lib/stats/operacoes";
 import { hojeSP } from "@/lib/stats/periodos";
+import type { LinhaDiaria } from "@/lib/stats/tipos";
 
 export const revalidate = 60;
 
@@ -43,16 +44,41 @@ export default async function PaginaRobo({ params }: Props) {
   if (!robo) return null; // o layout já tratou o 404
 
   // Curva "por operação": as operações (dezenas de milhares) não vão para o navegador. A série de
-  // cada período é montada aqui, já reduzida aos 240 pontos do desenho, e só eles seguem.
+  // cada período é montada aqui, já reduzida aos 240 pontos do desenho, e só os números deles seguem;
+  // a dica é escrita no navegador (18/09/2026: com ela pronta, as quatro séries eram 54% do HTML).
   const opcoesDaCurva = { base: "liquido" as const, unidade: "brl" as const, valorPonto: robo.valor_ponto_brl };
+  // Os períodos se encaixam (semana dentro do mês, do ano, de tudo) e todos terminam hoje: mesma contagem
+  // de operações e de dias é o mesmo recorte. Aí vai o mesmo objeto, que o React serializa uma vez só
+  // ("ano" e "tudo" enquanto o robô tiver começado no ano corrente).
+  const jaMontadas = new Map<string, SerieCompacta>();
   const pontosPorOperacao = Object.fromEntries(
     PERIODOS_FECHADOS.map((periodo) => {
       const inicio = inicioDoPeriodo(periodo, hoje);
       const opsDoPeriodo = ops.filter((op) => diaDaOperacao(op) <= hoje && (inicio === null || diaDaOperacao(op) >= inicio));
       const dias = seriePorDia(noPeriodo(linhas, periodo, hoje), opcoesDaCurva).dias;
-      return [periodo, seriePorOperacao(opsDoPeriodo, opcoesDaCurva, dias)];
+      const chave = `${opsDoPeriodo.length}:${dias.length}`;
+      const serie = jaMontadas.get(chave) ?? seriePorOperacaoCompacta(opsDoPeriodo, opcoesDaCurva, dias);
+      jaMontadas.set(chave, serie);
+      return [periodo, serie];
     }),
-  ) as Record<PeriodoFechado, ReturnType<typeof seriePorOperacao>>;
+  ) as Record<PeriodoFechado, SerieCompacta>;
+
+  // O painel é client: vão só os campos da série diária, sem robo_id, slug e atualizado_em em cada linha.
+  const linhasDoPainel = linhas.map(
+    (l): LinhaDiaria => ({
+      dia: l.dia,
+      pontos_por_contrato: l.pontos_por_contrato,
+      resultado_brl_por_contrato: l.resultado_brl_por_contrato,
+      custos_brl_por_contrato: l.custos_brl_por_contrato,
+      n_operacoes: l.n_operacoes,
+      n_gain: l.n_gain,
+      n_loss: l.n_loss,
+      soma_gain_brl_por_contrato: l.soma_gain_brl_por_contrato,
+      soma_loss_brl_por_contrato: l.soma_loss_brl_por_contrato,
+      maior_gain_brl_por_contrato: l.maior_gain_brl_por_contrato,
+      maior_loss_brl_por_contrato: l.maior_loss_brl_por_contrato,
+    }),
+  );
 
   const emBreve = robo.status === "em_breve";
   // Num dia de muitas operações, as últimas 20 são todas de hoje, e a seção só repetiria o painel
@@ -68,7 +94,7 @@ export default async function PaginaRobo({ params }: Props) {
       ) : (
         <>
           <PainelResultado
-            linhas={linhas}
+            linhas={linhasDoPainel}
             pontosPorOperacao={pontosPorOperacao}
             valorPonto={robo.valor_ponto_brl}
             capitalReferencia={robo.capital_referencia}
