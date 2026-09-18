@@ -18,6 +18,8 @@ export interface DadoBarra {
   rotulo: string;
   valor: number;
   n?: number;
+  /** no histograma de contagem: a cor da faixa pelo sinal do resultado que ela agrupa */
+  tom?: "positivo" | "negativo";
 }
 
 interface Props {
@@ -119,7 +121,15 @@ export function GraficoBarras({ dados, unidade, altura = 220, contagem = false, 
           {dados.map((d, i) => {
             const alto = (Math.abs(d.valor) / (topo - fundo)) * 100;
             const positivo = d.valor >= 0;
-            const token = contagem ? "--info" : positivo ? "--positivo" : "--negativo";
+            const token = contagem
+              ? d.tom === "positivo"
+                ? "--positivo"
+                : d.tom === "negativo"
+                  ? "--negativo"
+                  : "--foreground"
+              : positivo
+                ? "--positivo"
+                : "--negativo";
             const forte = mistura(token, ativo === i ? 100 : 88);
             return (
               <div key={i} className="relative min-w-0 flex-1">

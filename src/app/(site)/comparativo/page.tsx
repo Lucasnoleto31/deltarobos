@@ -1,15 +1,18 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { BarrasPorRobo } from "@/components/comparativo/BarrasPorRobo";
 import { Valor } from "@/components/compartilhados/Valor";
 import { CardsKpi, type ItemKpi } from "@/components/desempenho/CardsKpi";
-import { CurvaCapital } from "@/components/graficos/CurvaCapital";
+import { GraficoBarras } from "@/components/desempenho/GraficoBarras";
+import { Voltar } from "@/components/layout/Voltar";
 import { listarEstatisticas, listarRobos } from "@/lib/consultas/publico";
-import { formatarBRL, formatarData, formatarMultiplo, formatarNumero, formatarPct } from "@/lib/formato";
-import { calcularKpis } from "@/lib/stats/kpis";
+import { formatarBRL, formatarData, formatarMesAno, formatarMultiplo, formatarNumero, formatarPct } from "@/lib/formato";
+import { heatmapAnoMes } from "@/lib/stats/calendario";
+import { calcularKpis, type Kpis } from "@/lib/stats/kpis";
 import { hojeSP } from "@/lib/stats/periodos";
 import { riscoDeRuina } from "@/lib/stats/risco";
 import type { LinhaDiaria, OpcoesSerie } from "@/lib/stats/tipos";
-import type { EstatisticaPublica } from "@/lib/tipos";
+import type { EstatisticaPublica, RoboPublico } from "@/lib/tipos";
 
 export const revalidate = 60;
 
@@ -54,7 +57,76 @@ function somarSeries(series: LinhaDiaria[][]): LinhaDiaria[] {
   return [...porDia.values()].sort((a, b) => (a.dia < b.dia ? -1 : 1));
 }
 
-/** Página da casa: todos os robôs lado a lado e a curva somada (1 contrato de cada). */
+interface Coluna {
+  robo: RoboPublico;
+  k: Kpis;
+  ruina: number | null;
+  linhas: LinhaDiaria[];
+}
+
+/** Uma linha da tabela lado a lado: o rótulo, como se lê cada robô e qual deles é o melhor (se faz sentido). */
+interface Metrica {
+  rotulo: string;
+  valor: (c: Coluna) => React.ReactNode;
+  /** número usado para achar o melhor; undefined = a linha não tem "melhor" */
+  chave?: (c: Coluna) => number | null;
+  /** "maior" (padrão) ou "menor" ganha */
+  ganha?: "maior" | "menor";
+}
+
+const METRICAS: Metrica[] = [
+  { rotulo: "Resultado desde o início", valor: (c) => <Valor valor={c.k.acumulado} inteiro className="font-semibold" />, chave: (c) => c.k.acumulado },
+  { rotulo: "Mês atual", valor: (c) => <Valor valor={c.k.mes} inteiro={Math.abs(c.k.mes) >= 1000} />, chave: (c) => c.k.mes },
+  { rotulo: "Média mensal", valor: (c) => <Valor valor={c.k.mediaMensal} inteiro={Math.abs(c.k.mediaMensal) >= 1000} />, chave: (c) => c.k.mediaMensal },
+  { rotulo: "Taxa de acerto", valor: (c) => formatarPct(c.k.taxaAcerto), chave: (c) => c.k.taxaAcerto },
+  { rotulo: "Fator de lucro", valor: (c) => formatarMultiplo(c.k.fatorLucro), chave: (c) => c.k.fatorLucro },
+  { rotulo: "Payoff", valor: (c) => formatarMultiplo(c.k.payoff), chave: (c) => c.k.payoff },
+  {
+    rotulo: "Drawdown máximo",
+    valor: (c) => (c.k.drawdown.valor > 0 ? <Valor valor={-c.k.drawdown.valor} inteiro={c.k.drawdown.valor >= 1000} /> : "–"),
+    chave: (c) => c.k.drawdown.valor,
+    ganha: "menor",
+  },
+  {
+    rotulo: "Drawdown máximo, % do capital",
+    valor: (c) => (c.k.drawdownMaximoPct !== null ? <span className="text-negativo">{formatarPct(c.k.drawdownMaximoPct, 1)}</span> : "–"),
+    chave: (c) => c.k.drawdownMaximoPct,
+    ganha: "menor",
+  },
+  {
+    rotulo: "Risco de ruína",
+    valor: (c) =>
+      c.ruina === null ? "–" : <span className={c.ruina >= 0.5 ? "text-negativo" : c.ruina > 0.05 ? "text-alerta" : ""}>{formatarPct(c.ruina, 1)}</span>,
+    chave: (c) => c.ruina,
+    ganha: "menor",
+  },
+  { rotulo: "Operações", valor: (c) => formatarNumero(c.k.nOperacoes) },
+  { rotulo: "Dias de pregão", valor: (c) => formatarNumero(c.k.nDias) },
+  { rotulo: "Capital de referência", valor: (c) => (c.robo.capital_referencia ? formatarBRL(c.robo.capital_referencia, { inteiro: true }) : "–") },
+  { rotulo: "Operando desde", valor: (c) => (c.robo.conta_real_desde ? formatarData(c.robo.conta_real_desde) : "–") },
+];
+
+/** O índice da coluna que ganha na linha, ou null quando a linha não compara. */
+function melhorDe(m: Metrica, colunas: Coluna[]): number | null {
+  if (!m.chave) return null;
+  let melhor: number | null = null;
+  let valorMelhor = 0;
+  colunas.forEach((c, i) => {
+    const v = m.chave!(c);
+    if (v === null || !Number.isFinite(v)) return;
+    if (melhor === null || (m.ganha === "menor" ? v < valorMelhor : v > valorMelhor)) {
+      melhor = i;
+      valorMelhor = v;
+    }
+  });
+  return melhor;
+}
+
+/**
+ * Comparativo (18/09/2026, "mais intuitivo e útil"): a tabela virou de lado, um robô por coluna e uma
+ * métrica por linha, com o melhor de cada linha marcado; embaixo, quem rendeu mais no período em barras;
+ * por fim, a casa somada mês a mês. A curva da casa saiu: era mais um gráfico de linha.
+ */
 export default async function PaginaComparativo() {
   const hoje = hojeSP();
   const [robos, estatisticas] = await Promise.all([listarRobos(), listarEstatisticas()]);
@@ -66,7 +138,7 @@ export default async function PaginaComparativo() {
     porRobo.set(e.slug, lista);
   }
 
-  const linhasRobos = robos
+  const colunas: Coluna[] = robos
     .filter((r) => r.status !== "arquivado")
     .map((r) => {
       const linhas = porRobo.get(r.slug) ?? [];
@@ -77,85 +149,87 @@ export default async function PaginaComparativo() {
       const ruina = riscoDeRuina({ taxaAcerto: k.taxaAcerto, payoff: k.payoff, capital: r.capital_referencia, perdaMedia });
       return { robo: r, k, ruina, linhas };
     })
+    .filter((c) => c.linhas.length > 0)
     .sort((a, b) => b.k.acumulado - a.k.acumulado);
 
-  const comDados = linhasRobos.filter((x) => x.linhas.length > 0);
-  const casa = somarSeries(comDados.map((x) => x.linhas));
+  const casa = somarSeries(colunas.map((c) => c.linhas));
   const kCasa = calcularKpis(casa, OPCOES, { hoje });
+  const mensal = heatmapAnoMes(casa, OPCOES)
+    .flatMap((l) => l.meses.filter((m): m is NonNullable<typeof m> => m !== null))
+    .slice(-12)
+    .map((m) => ({ rotulo: formatarMesAno(`${m.mes}-01`), valor: m.total, n: m.nDias }));
 
   const tiles: ItemKpi[] = [
-    { rotulo: "Resultado da casa", valor: <Valor valor={kCasa.acumulado} inteiro={Math.abs(kCasa.acumulado) >= 1000} />, detalhe: "1 contrato de cada robô, líquido", tom: kCasa.acumulado >= 0 ? "positivo" : "negativo" },
-    { rotulo: "Mês", valor: <Valor valor={kCasa.mes} inteiro={Math.abs(kCasa.mes) >= 1000} />, tom: "neutro" },
-    { rotulo: "Operações", valor: formatarNumero(kCasa.nOperacoes), detalhe: `${comDados.length} ${comDados.length === 1 ? "robô" : "robôs"} com dados`, tom: "info" },
-    { rotulo: "Acerto", valor: formatarPct(kCasa.taxaAcerto), tom: "neutro" },
-    { rotulo: "Drawdown máximo", valor: <Valor valor={-kCasa.drawdown.valor} inteiro={kCasa.drawdown.valor >= 1000} />, detalhe: "carteira somada", tom: "negativo" },
-    { rotulo: "Dias de pregão", valor: formatarNumero(kCasa.nDias), tom: "neutro" },
+    { rotulo: "Resultado da casa", valor: <Valor valor={kCasa.acumulado} inteiro />, detalhe: `${colunas.length} ${colunas.length === 1 ? "robô" : "robôs"}, 1 contrato de cada` },
+    { rotulo: "Mês atual", valor: <Valor valor={kCasa.mes} inteiro={Math.abs(kCasa.mes) >= 1000} /> },
+    { rotulo: "Drawdown máximo", valor: <Valor valor={-kCasa.drawdown.valor} inteiro />, detalhe: "carteira somada" },
+    { rotulo: "Operações", valor: formatarNumero(kCasa.nOperacoes), detalhe: `${formatarNumero(kCasa.nDias)} dias de pregão` },
   ];
 
   return (
     <div className="conteudo space-y-8 py-8">
+      <Voltar href="/">Início</Voltar>
       <header className="space-y-1">
-        <h1 className="text-3xl font-semibold tracking-tight">Comparativo dos robôs</h1>
-        <p className="text-muted-foreground">Todos lado a lado, por 1 contrato e líquido de custos. Clique no nome pra abrir o robô.</p>
+        <h1 className="text-3xl font-semibold tracking-tight">Comparativo</h1>
+        <p className="text-muted-foreground">Por 1 contrato, líquido de custos.</p>
       </header>
 
-      {comDados.length === 0 ? (
+      {colunas.length === 0 ? (
         <p className="rounded-2xl border border-dashed p-8 text-center text-muted-foreground">Ainda não há robô com operações fechadas.</p>
       ) : (
         <>
-          <CardsKpi itens={tiles} />
-
-          <section className="overflow-x-auto painel">
-            <div className="border-b px-4 py-3">
-              <h2 className="font-semibold">Risco por robô</h2>
-              <p className="text-xs text-muted-foreground">comparativo de resultado e drawdown desde o início de cada um</p>
+          <section className="painel overflow-x-auto">
+            <div className="border-b px-4 py-3 sm:px-5">
+              <h2 className="font-semibold">Lado a lado</h2>
+              <p className="text-xs text-muted-foreground">o melhor de cada linha fica marcado</p>
             </div>
-            <table className="w-full text-sm">
-              <thead className="text-left text-xs text-muted-foreground">
-                <tr className="[&>th]:px-3 [&>th]:py-2 [&>th]:font-medium">
-                  <th>Robô</th>
-                  <th className="text-right">Operações</th>
-                  <th className="text-right">Resultado</th>
-                  <th className="text-right">Acerto</th>
-                  <th className="text-right">Fator de lucro</th>
-                  <th className="text-right">Drawdown %</th>
-                  <th className="text-right">Drawdown R$</th>
-                  <th className="text-right">Risco de ruína</th>
-                  <th className="text-right">Desde</th>
+            <table className="w-full min-w-[40rem] text-sm">
+              <thead>
+                <tr className="[&>th]:px-4 [&>th]:py-3 [&>th]:font-medium">
+                  <th className="text-left text-xs text-muted-foreground">Métrica</th>
+                  {colunas.map((c) => (
+                    <th key={c.robo.slug} className="text-right">
+                      <Link href={`/robos/${c.robo.slug}`} className="hover:underline">
+                        {c.robo.nome}
+                      </Link>
+                      <span className="ml-1.5 text-xs font-normal text-muted-foreground">{c.robo.ativo}</span>
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody className="[&>tr]:border-t">
-                {linhasRobos.map(({ robo, k, ruina }) => (
-                  <tr key={robo.slug} className="tabular-nums [&>td]:px-3 [&>td]:py-2.5">
-                    <td>
-                      <Link href={`/robos/${robo.slug}`} className="font-medium hover:underline">
-                        {robo.nome}
-                      </Link>
-                      <span className="ml-2 text-xs text-muted-foreground">{robo.ativo}</span>
-                      {robo.status === "em_breve" ? <span className="ml-2 text-xs text-muted-foreground">em breve</span> : null}
-                    </td>
-                    <td className="text-right">{formatarNumero(k.nOperacoes)}</td>
-                    <td className="text-right">
-                      <Valor valor={k.acumulado} inteiro={Math.abs(k.acumulado) >= 1000} className="font-semibold" />
-                    </td>
-                    <td className="text-right">{formatarPct(k.taxaAcerto)}</td>
-                    <td className="text-right">{formatarMultiplo(k.fatorLucro)}</td>
-                    <td className="text-right text-negativo">{k.drawdownMaximoPct !== null ? formatarPct(k.drawdownMaximoPct, 1) : "–"}</td>
-                    <td className="text-right">{k.drawdown.valor > 0 ? formatarBRL(k.drawdown.valor, { inteiro: k.drawdown.valor >= 1000 }) : "–"}</td>
-                    <td className={`text-right ${ruina !== null && ruina >= 0.5 ? "text-negativo" : ruina !== null && ruina > 0.05 ? "text-alerta" : ""}`}>
-                      {ruina === null ? "–" : formatarPct(ruina, 1)}
-                    </td>
-                    <td className="text-right text-muted-foreground">{robo.conta_real_desde ? formatarData(robo.conta_real_desde) : "–"}</td>
-                  </tr>
-                ))}
+                {METRICAS.map((m) => {
+                  const melhor = melhorDe(m, colunas);
+                  return (
+                    <tr key={m.rotulo} className="tabular-nums [&>td]:px-4 [&>td]:py-2.5">
+                      <td className="text-muted-foreground">{m.rotulo}</td>
+                      {colunas.map((c, i) => (
+                        <td key={c.robo.slug} className={`text-right ${melhor === i ? "bg-(--linha-hover) font-semibold" : ""}`}>
+                          {m.valor(c)}
+                        </td>
+                      ))}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </section>
 
-          <section className="painel p-4 sm:p-5">
-            <h2 className="mb-1 font-semibold">Curva da casa</h2>
-            <p className="mb-3 text-xs text-muted-foreground">soma dos resultados diários com 1 contrato de cada robô</p>
-            <CurvaCapital linhas={casa} opcoes={OPCOES} />
+          <BarrasPorRobo
+            robos={colunas.map((c) => ({ slug: c.robo.slug, nome: c.robo.nome, ativo: c.robo.ativo, valorPonto: c.robo.valor_ponto_brl, linhas: c.linhas }))}
+            hoje={hoje}
+          />
+
+          <section className="space-y-3">
+            <div>
+              <h2 className="text-lg font-semibold tracking-tight">A casa somada</h2>
+              <p className="text-sm text-muted-foreground">1 contrato de cada robô, no mesmo dia</p>
+            </div>
+            <CardsKpi itens={tiles} className="lg:grid-cols-4" />
+            <div className="painel p-4 sm:p-5">
+              <h3 className="mb-2 text-sm font-medium">Mês a mês</h3>
+              <GraficoBarras dados={mensal} unidade="brl" altura={220} rotuloN="Dias de pregão" />
+            </div>
           </section>
         </>
       )}

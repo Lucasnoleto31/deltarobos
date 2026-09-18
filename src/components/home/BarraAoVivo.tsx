@@ -34,18 +34,7 @@ export function BarraAoVivo() {
   return (
     <div className="border-b bg-muted/40 text-xs">
       <div className="conteudo flex h-9 items-center gap-3 overflow-x-auto whitespace-nowrap [scrollbar-width:none]">
-        <span className="inline-flex items-center gap-1.5 font-medium">
-          <span
-            className={cn(
-              "inline-block size-2 rounded-full",
-              aberto === null
-                ? "bg-muted-foreground/50"
-                : aberto
-                  ? "bg-positivo animate-pulse"
-                  : "bg-muted-foreground/50",
-            )}
-            aria-hidden
-          />
+        <span className={cn("font-medium", aberto ? "text-positivo" : "")}>
           {aberto === null ? "Pregão" : aberto ? "Pregão aberto" : "Pregão fechado"}
         </span>
 

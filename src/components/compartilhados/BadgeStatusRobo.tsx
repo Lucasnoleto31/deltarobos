@@ -7,12 +7,15 @@ import {
   type TomStatus,
 } from "@/lib/stats/status-robo";
 
+// Pílula colorida pelo estado (18/09/2026 à noite, Artur: "na pílula de aviso pode ser colorido"): fundo
+// tingido e texto na cor, sem bolinha e sem pulso. Operando verde, posicionado dourado (um dos poucos
+// detalhes em dourado), pausado laranja, sem atualização vermelho, o resto cinza.
 const CLASSES: Record<TomStatus, string> = {
-  positivo: "bg-positivo/15 text-positivo",
-  negativo: "bg-negativo/15 text-negativo",
-  neutro: "bg-muted text-muted-foreground",
-  alerta: "bg-alerta/15 text-alerta",
-  info: "bg-info/15 text-info",
+  positivo: "border-positivo/30 bg-positivo/15 text-positivo",
+  negativo: "border-negativo/30 bg-negativo/15 text-negativo",
+  neutro: "border-(--painel-fio) bg-muted text-muted-foreground",
+  alerta: "border-alerta/30 bg-alerta/15 text-alerta",
+  info: "border-info/30 bg-info/15 text-info",
 };
 
 export function BadgeStatusRobo({
@@ -22,10 +25,8 @@ export function BadgeStatusRobo({
   status: StatusAoVivo;
   className?: string;
 }) {
-  const pulsa = status === "operando" || status === "posicionado";
   return (
-    <Badge variant="secondary" className={cn(CLASSES[TOM_STATUS[status]], className)}>
-      {pulsa ? <span className="size-1.5 rounded-full bg-current animate-pulse" aria-hidden /> : null}
+    <Badge variant="outline" className={cn(CLASSES[TOM_STATUS[status]], className)}>
       {ROTULO_STATUS[status]}
     </Badge>
   );

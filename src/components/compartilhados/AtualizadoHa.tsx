@@ -8,40 +8,27 @@ import { segundosDesde } from "@/lib/stats/pregao";
 interface Props {
   em: string | null | undefined;
   prefixo?: string;
-  /** segundos a partir dos quais o ponto fica vermelho */
+  /** segundos a partir dos quais o texto fica vermelho */
   alertaApos?: number;
   className?: string;
 }
 
-/** "atualizado há 12 s" com um ponto que pulsa quando o dado é fresco. */
+/** "atualizado há 12 s". Só texto: fica vermelho quando passou do limite. A bolinha que pulsava saiu em 18/09/2026. */
 export function AtualizadoHa({ em, prefixo = "atualizado", alertaApos = 120, className }: Props) {
   const agora = useAgora(1000);
 
   if (!agora) {
-    return (
-      <span className={cn("inline-flex items-center gap-1.5 text-xs text-muted-foreground", className)}>
-        <span className="inline-block size-1.5 rounded-full bg-muted-foreground/60" />
-        {prefixo} …
-      </span>
-    );
+    return <span className={cn("text-xs text-muted-foreground", className)}>{prefixo} …</span>;
   }
 
   const s = segundosDesde(em, agora);
-  const tom =
-    s === null
-      ? "bg-muted-foreground/60"
-      : s > alertaApos
-        ? "bg-negativo"
-        : s <= 15
-          ? "bg-positivo animate-pulse"
-          : "bg-muted-foreground/60";
+  const atrasado = s !== null && s > alertaApos;
 
   return (
     <span
-      className={cn("inline-flex items-center gap-1.5 text-xs text-muted-foreground tabular-nums", className)}
+      className={cn("text-xs tabular-nums", atrasado ? "text-negativo" : "text-muted-foreground", className)}
       aria-live="polite"
     >
-      <span className={cn("inline-block size-1.5 rounded-full", tom)} />
       {prefixo} {haQuanto(em, agora)}
     </span>
   );

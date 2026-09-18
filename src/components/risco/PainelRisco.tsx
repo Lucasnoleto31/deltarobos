@@ -2,12 +2,10 @@
 
 import { cn } from "cn";
 import { useMemo, useState } from "react";
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Segmentado } from "@/components/compartilhados/Segmentado";
 import { Valor } from "@/components/compartilhados/Valor";
 import { CardsKpi, type ItemKpi } from "@/components/desempenho/CardsKpi";
-import { Badge } from "@/components/ui/badge";
-import { formatarBRL, formatarData, formatarDataCurta, formatarMultiplo, formatarNumero, formatarPct } from "@/lib/formato";
+import { formatarBRL, formatarData, formatarMultiplo, formatarNumero, formatarPct } from "@/lib/formato";
 import { calcularKpis } from "@/lib/stats/kpis";
 import { dia as diaOp, resumoOperacoes, type OperacaoCompacta } from "@/lib/stats/operacoes";
 import { dentroDoIntervalo, filtrarIntervalo, intervaloDe, PERIODOS, type Periodo } from "@/lib/stats/periodos";
@@ -24,6 +22,7 @@ import {
 } from "@/lib/stats/risco";
 import { curvaAcumulada, valorDia } from "@/lib/stats/serie";
 import type { LinhaDiaria, OpcoesSerie } from "@/lib/stats/tipos";
+import { LinhaDoTempoDrawdowns } from "./LinhaDoTempoDrawdowns";
 
 interface Props {
   linhas: LinhaDiaria[];
@@ -64,11 +63,6 @@ export function PainelRisco({ linhas, ops, hoje, valorPonto, capitalReferencia, 
   const vTempo = tempoEmDrawdown(curva);
   const vRuina = riscoDeRuina({ taxaAcerto: kpis.taxaAcerto, payoff: kpis.payoff, capital: capitalReferencia, perdaMedia: resumoOps.mediaLoss });
   const capitalMinimo = margem !== null ? capitalMinimoRecomendado(margem, dd, fatorSeguranca) : null;
-
-  const dadosCurva = useMemo(
-    () => curva.map((p) => ({ dia: p.dia, dd: temCapital ? (p.drawdown / (capitalReferencia as number)) * 100 : p.drawdown })),
-    [curva, temCapital, capitalReferencia],
-  );
 
   if (linhas.length === 0) {
     return <p className="rounded-2xl border border-dashed p-8 text-center text-muted-foreground">Ainda não há operações fechadas pra medir risco.</p>;
@@ -125,8 +119,8 @@ export function PainelRisco({ linhas, ops, hoje, valorPonto, capitalReferencia, 
       <section className="painel p-4 sm:p-5">
         <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
           <div>
-            <h3 className="font-semibold">Curva de drawdown</h3>
-            <p className="text-xs text-muted-foreground">{temCapital ? `distância do pico, em % do capital de ${formatarBRL(capitalReferencia ?? 0, { inteiro: true })}` : "distância do pico, em R$ por contrato"}</p>
+            <h3 className="font-semibold">Drawdowns no tempo</h3>
+            <p className="text-xs text-muted-foreground">{temCapital ? `cada bloco é um drawdown: a largura é a duração, a altura a profundidade em % do capital de ${formatarBRL(capitalReferencia ?? 0, { inteiro: true })}` : "cada bloco é um drawdown: a largura é a duração, a altura a profundidade em R$ por contrato"}</p>
           </div>
           <p className="text-xs text-muted-foreground tabular-nums">
             máx <strong className="text-negativo">{temCapital ? formatarPct(kpis.drawdownMaximoPct, 1) : formatarBRL(dd, { inteiro: true })}</strong>
@@ -134,33 +128,12 @@ export function PainelRisco({ linhas, ops, hoje, valorPonto, capitalReferencia, 
             <strong className="text-foreground">{diario.recuperacaoMediaDias !== null ? `${Math.round(diario.recuperacaoMediaDias)} dias` : "–"}</strong>
           </p>
         </div>
-        <div className="h-64 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={dadosCurva} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-              <defs>
-                <linearGradient id="dd-fill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="var(--negativo)" stopOpacity={0.05} />
-                  <stop offset="100%" stopColor="var(--negativo)" stopOpacity={0.4} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid vertical={false} stroke="var(--border)" />
-              <XAxis dataKey="dia" tickFormatter={formatarDataCurta} tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} minTickGap={40} />
-              <YAxis
-                width={56}
-                tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-                axisLine={false}
-                tickLine={false}
-                tickFormatter={(v: number) => (temCapital ? `${Math.round(v)}%` : formatarBRL(v, { inteiro: true }))}
-              />
-              <Tooltip
-                contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 10, fontSize: 12, color: "var(--popover-foreground)" }}
-                labelFormatter={(l) => formatarData(String(l))}
-                formatter={(v) => [temCapital ? `${Number(v).toFixed(1)}%` : formatarBRL(Number(v)), "Drawdown"]}
-              />
-              <Area type="monotone" dataKey="dd" stroke="var(--negativo)" strokeWidth={1.5} fill="url(#dd-fill)" isAnimationActive={false} />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
+        <LinhaDoTempoDrawdowns
+          episodios={episodios}
+          de={curva[0]?.dia ?? hoje}
+          ate={curva[curva.length - 1]?.dia ?? hoje}
+          capitalReferencia={capitalReferencia}
+        />
       </section>
 
       <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
@@ -195,9 +168,9 @@ export function PainelRisco({ linhas, ops, hoje, valorPonto, capitalReferencia, 
                     {temCapital ? <td className="text-right text-negativo">{formatarPct(e.valor / (capitalReferencia as number), 1)}</td> : null}
                     <td className="text-right">
                       {e.recuperacao ? (
-                        <Badge variant="secondary" className="bg-positivo/15 text-positivo">Recuperado</Badge>
+                        <span className="text-positivo">Recuperado</span>
                       ) : (
-                        <Badge variant="secondary" className="bg-alerta/15 text-alerta">Aberto</Badge>
+                        <span className="text-alerta">Aberto</span>
                       )}
                     </td>
                   </tr>

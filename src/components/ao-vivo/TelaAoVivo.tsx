@@ -34,7 +34,8 @@ function Numero({ rotulo, children }: { rotulo: string; children: React.ReactNod
  * 17/09/2026: no celular o número grande passava da borda ("+R$ 9.864,75" cortado), metade da tela era
  * uma tabela de dez operações e o print não levava marca nenhuma. Agora a marca e o robô abrem a tela,
  * o número se ajusta à largura pelo tamanho do próprio texto, o dia aparece em curva no estilo Profit e
- * só as três últimas operações ficam em lista.
+ * só as três últimas operações ficam em lista. No computador (18/09/2026) vira duas colunas: número,
+ * apoio e posição à esquerda; o dia em curva e as últimas operações à direita.
  */
 export function TelaAoVivo() {
   const { estado, robo, pregao, feriados, hoje } = useRobo();
@@ -75,9 +76,9 @@ export function TelaAoVivo() {
   };
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col gap-5 px-5 py-4">
+    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col gap-5 px-5 py-4 lg:grid lg:max-w-5xl lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:content-start lg:gap-x-10 lg:px-8 lg:py-6">
       {/* a marca abre a tela: é ela que diz, num print, de quem é o número */}
-      <header className="flex items-center justify-between gap-2">
+      <header className="flex items-center justify-between gap-2 lg:col-span-2">
         <div className="flex items-center gap-1">
           <Link
             href={`/robos/${robo.slug}`}
@@ -94,6 +95,7 @@ export function TelaAoVivo() {
         <BadgeStatusRobo status={status} />
       </header>
 
+      <div className="contents lg:flex lg:flex-col lg:gap-5">
       <section className="text-center">
         <h1 className="flex flex-wrap items-center justify-center gap-2 text-2xl font-semibold tracking-tight">
           {robo.nome}
@@ -121,6 +123,33 @@ export function TelaAoVivo() {
         </Numero>
       </dl>
 
+      {estado.posicoes.length > 0 ? (
+        <section className="painel-grupo">
+          <div className="painel-cabeca">
+            <h2 className="painel-titulo">Posição aberta</h2>
+          </div>
+          <ul className="space-y-2">
+            {estado.posicoes.map((p) => (
+              <li
+                key={`${p.simbolo}-${p.lado}`}
+                className="flex items-center justify-between gap-3 rounded-xl border px-4 py-3"
+              >
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className={`text-sm font-medium ${p.lado === "compra" ? "text-positivo" : "text-negativo"}`}>
+                    {rotuloLado(p.lado)}
+                  </span>
+                  <span className="text-sm font-medium">{p.simbolo}</span>
+                  <span className="truncate text-sm text-muted-foreground tabular-nums">@ {formatarPreco(p.preco_abertura)}</span>
+                </div>
+                <Valor valor={p.lucro_flutuante_por_contrato} className="shrink-0 font-semibold" />
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+      </div>
+
+      <div className="contents lg:flex lg:flex-col lg:gap-5">
       {ops.length > 0 ? (
         <CurvaDoDia operacoes={ops} altura={200} titulo="O dia, operação a operação" legenda="por contrato, líquido de custos" />
       ) : (
@@ -132,32 +161,6 @@ export function TelaAoVivo() {
         </p>
       )}
 
-      {estado.posicoes.length > 0 ? (
-        <section className="painel-grupo">
-          <div className="painel-cabeca">
-            <h2 className="painel-titulo">Posição aberta</h2>
-          </div>
-          <ul className="space-y-2">
-            {estado.posicoes.map((p) => (
-              <li
-                key={`${p.simbolo}-${p.lado}`}
-                className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 ${
-                  p.lado === "compra" ? "border-positivo/40 bg-positivo/5" : "border-negativo/40 bg-negativo/5"
-                }`}
-              >
-                <div className="flex min-w-0 items-center gap-2">
-                  <Badge variant="secondary" className={p.lado === "compra" ? "bg-positivo/15 text-positivo" : "bg-negativo/15 text-negativo"}>
-                    {rotuloLado(p.lado)}
-                  </Badge>
-                  <span className="text-sm font-medium">{p.simbolo}</span>
-                  <span className="truncate text-sm text-muted-foreground tabular-nums">@ {formatarPreco(p.preco_abertura)}</span>
-                </div>
-                <Valor valor={p.lucro_flutuante_por_contrato} className="shrink-0 font-semibold" />
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
 
       {ops.length > 0 ? (
         <section className="painel-grupo">
@@ -182,8 +185,9 @@ export function TelaAoVivo() {
           </ul>
         </section>
       ) : null}
+      </div>
 
-      <footer className="mt-auto flex items-center justify-between gap-2 pt-1 text-xs text-muted-foreground">
+      <footer className="mt-auto flex items-center justify-between gap-2 pt-1 text-xs text-muted-foreground lg:col-span-2">
         {/* o endereço só existe no navegador: aparece depois de montar, para o print dizer de onde veio */}
         <span className="truncate">
           {robo.tem_coletor ? "direto do MetaTrader 5" : "histórico importado"}

@@ -1,4 +1,3 @@
-import { cn } from "cn";
 import { Valor } from "@/components/compartilhados/Valor";
 import { formatarBRL, formatarPontos } from "@/lib/formato";
 import type { LinhaHeatmap } from "@/lib/stats/calendario";
@@ -45,12 +44,13 @@ export function Heatmap({ linhas, unidade }: Props) {
                 if (!m) {
                   return <td key={i} className="h-10 rounded-md bg-muted/40" aria-label={`${MESES[i]}/${l.ano}: sem operação`} />;
                 }
-                const pct = 12 + Math.round((Math.abs(m.total) / maior) * 70);
+                const pct = 14 + Math.round((Math.abs(m.total) / maior) * 50);
                 const cor = m.total >= 0 ? "var(--positivo)" : "var(--negativo)";
                 return (
                   <td
                     key={i}
-                    className={cn("h-10 rounded-md text-center font-medium tabular-nums", m.total >= 0 ? "text-positivo" : "text-negativo")}
+                    // texto branco em cima da cor: verde sobre verde forte não se lia (18/09/2026)
+                    className="h-10 rounded-md text-center font-medium text-foreground tabular-nums"
                     style={{ backgroundColor: `color-mix(in oklch, ${cor} ${pct}%, transparent)` }}
                     title={`${MESES[i]}/${l.ano}: ${m.nDias} dias`}
                   >

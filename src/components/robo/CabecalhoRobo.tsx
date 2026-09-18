@@ -40,7 +40,7 @@ export function CabecalhoRobo() {
             <Badge variant="outline">
               {robo.ativo_nome} · {robo.ativo}
             </Badge>
-            {robo.versao_atual ? <Badge variant="secondary">v{robo.versao_atual}</Badge> : null}
+            {robo.versao_atual ? <Badge variant="outline">v{robo.versao_atual}</Badge> : null}
             {robo.conta_tipo === "demo" ? (
               <Badge variant="outline" className="border-alerta/50 text-alerta" title="As estatísticas vêm de uma conta demo">
                 Conta demo
@@ -89,7 +89,7 @@ export function CabecalhoRobo() {
         />
       ) : null}
       {robo.status === "pausado" ? (
-        <p className="rounded-lg border border-alerta/40 bg-alerta/10 px-3 py-2 text-sm text-alerta">
+        <p className="rounded-lg border border-alerta/50 px-3 py-2 text-sm text-alerta">
           Este robô está pausado. O histórico continua disponível.
         </p>
       ) : null}

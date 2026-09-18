@@ -1,11 +1,9 @@
 "use client";
 
 import { Activity, BarChart3, Percent, Scale, TrendingDown, TrendingUp } from "lucide-react";
-import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Valor } from "@/components/compartilhados/Valor";
-import { buttonVariants } from "@/components/ui/button";
 import { CurvaCapital } from "@/components/graficos/CurvaCapital";
 import { formatarBRL, formatarData, formatarDuracao, formatarMesAno, formatarMultiplo, formatarNumero, formatarPct, formatarPontos } from "@/lib/formato";
 import { heatmapAnoMes } from "@/lib/stats/calendario";
@@ -223,26 +221,12 @@ export function PainelDesempenho({
         </section>
       </div>
 
-      {/* O mapa ocupa a largura toda: ao lado do cartão de atalhos a coluna "Total" não cabia (a tabela tem
-          640 px de mínimo). Os atalhos ficaram numa linha só, sem o parágrafo: as abas em cima já dizem o mesmo. */}
+      {/* O mapa ocupa a largura toda: ao lado de um cartão a coluna "Total" não cabia (a tabela tem 640 px
+          de mínimo). Os atalhos para calendário, risco e faixas saíram: são as abas logo acima (18/09/2026). */}
       <section className="painel p-4 sm:p-5">
         <h2 className="font-semibold">Ano × mês</h2>
         <p className="mb-3 text-xs text-muted-foreground">todo o histórico</p>
         <Heatmap linhas={heatmap} unidade={estado.unidade} />
-        <div className="mt-4 flex flex-wrap items-center gap-2 border-t pt-4">
-          <span className="text-xs text-muted-foreground">O dia a dia, o risco e as faixas em detalhe:</span>
-          <div className="flex flex-wrap gap-2">
-            <Link href={`/robos/${slug}/calendario`} className={buttonVariants({ variant: "outline", size: "sm" })}>
-              Calendário
-            </Link>
-            <Link href={`/robos/${slug}/risco`} className={buttonVariants({ variant: "outline", size: "sm" })}>
-              Risco
-            </Link>
-            <Link href={`/robos/${slug}/faixas`} className={buttonVariants({ variant: "outline", size: "sm" })}>
-              Validação de faixas
-            </Link>
-          </div>
-        </div>
       </section>
 
       <section className="space-y-4">
@@ -259,7 +243,11 @@ export function PainelDesempenho({
           <div className="painel p-4">
             <h3 className="mb-2 text-sm font-medium">Resultado por operação</h3>
             <GraficoBarras
-              dados={hist.map((f) => ({ rotulo: rotuloUnidade((f.de + f.ate) / 2, estado.unidade), valor: f.n }))}
+              dados={hist.map((f) => ({
+                rotulo: rotuloUnidade((f.de + f.ate) / 2, estado.unidade),
+                valor: f.n,
+                tom: (f.de + f.ate) / 2 >= 0 ? "positivo" : "negativo",
+              }))}
               unidade={estado.unidade}
               altura={200}
               contagem

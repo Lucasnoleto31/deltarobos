@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { AbasRobo } from "@/components/robo/AbasRobo";
 import { CabecalhoRobo } from "@/components/robo/CabecalhoRobo";
+import { Voltar } from "@/components/layout/Voltar";
 import { RoboAoVivoProvider } from "@/components/robo/RoboAoVivoProvider";
 import {
   buscarRobo,
@@ -61,6 +62,7 @@ export default async function LayoutRobo({ children, params }: Props) {
 
   return (
     <article className="conteudo space-y-6 py-8">
+      <Voltar href="/#robos">Todos os robôs</Voltar>
       <RoboAoVivoProvider
         robo={robo}
         inicial={{ operacoes, posicoes, ultimoHeartbeatEm: robo.ultimo_heartbeat_em, dia: hoje }}

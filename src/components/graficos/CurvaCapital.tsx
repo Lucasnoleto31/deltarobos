@@ -27,6 +27,8 @@ interface Props {
   operacoes?: readonly OperacaoCompacta[];
   /** a série por operação já montada (a visão geral monta no servidor e manda só os pontos) */
   pontosPorOperacao?: PontoDoDesenho[];
+  /** com que agrupamento abre (padrão: por dia) */
+  modoInicial?: Modo;
 }
 
 type Modo = "operacao" | "dia";
@@ -50,10 +52,18 @@ function escalaEmReais(v: number): string {
  * de dentro do dia. Quem controla período, unidade e base é o pai; o resumo em cima continua vindo
  * de curvaAcumulada e drawdownMaximo, por dia.
  */
-export function CurvaCapital({ linhas, opcoes, altura = 320, mostrarResumo = true, operacoes, pontosPorOperacao }: Props) {
+export function CurvaCapital({
+  linhas,
+  opcoes,
+  altura = 320,
+  mostrarResumo = true,
+  operacoes,
+  pontosPorOperacao,
+  modoInicial = "dia",
+}: Props) {
   const id = `curva-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   // abre por dia, como no Hub: a linha limpa é a do fechamento de cada pregão
-  const [modo, setModo] = useState<Modo>("dia");
+  const [modo, setModo] = useState<Modo>(modoInicial);
 
   const porDia = useMemo(() => seriePorDia(linhas, opcoes), [linhas, opcoes]);
   const porOperacao = useMemo(
