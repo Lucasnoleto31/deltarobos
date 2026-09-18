@@ -2,9 +2,9 @@
 
 import { cn } from "cn";
 import { useState } from "react";
+import { HaQuanto } from "@/components/compartilhados/HaQuanto";
 import { Valor } from "@/components/compartilhados/Valor";
-import { useAgora } from "@/hooks/useAgora";
-import { formatarPreco, haQuanto, rotuloLado } from "@/lib/formato";
+import { formatarPreco, rotuloLado } from "@/lib/formato";
 import { brlParaPontos } from "@/lib/stats/normalizacao";
 import { CurvaDoDia } from "./CurvaDoDia";
 import { LinhaOperacao } from "./LinhaOperacao";
@@ -22,7 +22,8 @@ const VISIVEIS = 5;
  */
 export function HojeAoVivo() {
   const { estado, robo } = useRobo();
-  const agora = useAgora(1000);
+  // sem relógio aqui (18/09/2026): o "aberta há …" anda sozinho no HaQuanto e o painel só
+  // renderiza de novo quando chega operação ou posição
   const [todas, setTodas] = useState(false);
 
   const ops = estado.operacoes;
@@ -87,7 +88,7 @@ export function HojeAoVivo() {
                         </p>
                         <p className="mt-1 truncate text-xs text-muted-foreground tabular-nums">
                           @ {formatarPreco(p.preco_abertura)}
-                          {agora ? ` · aberta ${haQuanto(p.aberta_em, agora)}` : null}
+                          <HaQuanto em={p.aberta_em} prefixo=" · aberta " />
                         </p>
                       </div>
                       <div className="shrink-0 text-right">

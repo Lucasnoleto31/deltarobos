@@ -139,7 +139,10 @@ export function Comunidade({ links, videos }: Props) {
                             <img
                               src={v.thumb}
                               alt=""
+                              width={320}
+                              height={180}
                               loading="lazy"
+                              decoding="async"
                               className="aspect-video w-full object-cover transition-opacity group-hover:opacity-85"
                             />
                           </span>

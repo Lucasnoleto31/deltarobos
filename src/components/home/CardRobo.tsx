@@ -3,6 +3,7 @@
 import { cn } from "cn";
 import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
+import { memo } from "react";
 import { BadgeStatusRobo } from "@/components/compartilhados/BadgeStatusRobo";
 import { Valor } from "@/components/compartilhados/Valor";
 import { MiniCurva } from "@/components/graficos/MiniCurva";
@@ -27,8 +28,10 @@ interface Props {
  * hoje: verde quando está no positivo, vermelha no negativo, nenhuma quando ainda não operou. Um
  * número por vez: o de hoje grande, com operações e acerto do dia embaixo; mês e acumulado em apoio;
  * a curva dos 30 dias na largura toda; no pé, o drawdown máximo e o botão redondo que leva ao robô.
+ * Com memo (18/09/2026): a grade recalcula o status a cada 5 s, mas as props são primitivas ou
+ * estáveis, então o cartão só renderiza de novo quando algo nele muda.
  */
-export function CardRobo({ card, status, hojeOperacoes, hojeGains, atraso = 0 }: Props) {
+export const CardRobo = memo(function CardRobo({ card, status, hojeOperacoes, hojeGains, atraso = 0 }: Props) {
   const emBreve = card.status === "em_breve";
   const aura = card.hoje > 0 ? "var(--positivo)" : card.hoje < 0 ? "var(--negativo)" : null;
 
@@ -111,4 +114,4 @@ export function CardRobo({ card, status, hojeOperacoes, hojeGains, atraso = 0 }:
       )}
     </Link>
   );
-}
+});

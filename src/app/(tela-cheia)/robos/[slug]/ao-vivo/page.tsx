@@ -8,11 +8,22 @@ import {
   listarMercado,
   listarOperacoesDoDia,
   listarPosicoes,
+  listarRobos,
 } from "@/lib/consultas/publico";
 import { hojeSP } from "@/lib/stats/periodos";
 
 export const revalidate = 60;
 export const dynamicParams = true;
+
+/**
+ * Mesmo par do layout do robô (18/09/2026): sem generateStaticParams a rota é dinâmica e ignora o
+ * revalidate. Este grupo de rotas não herda o layout de (site), então a lista se repete aqui; robô
+ * cadastrado depois do deploy entra na primeira visita (dynamicParams).
+ */
+export async function generateStaticParams() {
+  const robos = await listarRobos();
+  return robos.map((r) => ({ slug: r.slug }));
+}
 
 interface Props {
   params: Promise<{ slug: string }>;

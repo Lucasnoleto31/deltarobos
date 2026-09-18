@@ -1,15 +1,12 @@
 import type { Metadata, Viewport } from "next";
-import { Geist_Mono, Inter } from "next/font/google";
+import { Inter } from "next/font/google";
 import { ProvedorTema } from "@/components/tema/ProvedorTema";
 import "./globals.css";
 
+// Só a Inter: a Geist Mono do scaffold saiu em 18/09/2026, porque nada usa font-mono e ela era
+// pré-carregada em toda página (23 KB). O --font-mono do globals.css aponta para a do sistema.
 const inter = Inter({
   variable: "--font-inter",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
   subsets: ["latin"],
 });
 
@@ -45,7 +42,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html
       lang="pt-BR"
       suppressHydrationWarning
-      className={`${inter.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${inter.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col">
         <ProvedorTema>{children}</ProvedorTema>

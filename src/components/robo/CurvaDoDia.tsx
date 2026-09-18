@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo } from "react";
+import { memo, useId, useMemo } from "react";
 import { tomDe, type ConteudoDaDica } from "@/components/graficos/base";
 import {
   AmostraDaLinha,
@@ -30,8 +30,10 @@ const reais = (v: number) => formatarBRL(v, { sinal: true });
  * geral com esse tabelão não está legal"). Num dia de 345 operações a tabela não deixava ver o dia;
  * a curva mostra de relance quando subiu, quando devolveu e onde está agora, e cada ponto abre a
  * operação inteira na dica: hora, lado, entrada e saída, duração, pontos, resultado e o acumulado.
+ * Com memo (18/09/2026): quem usa re-renderiza por outros motivos (posição, status); a curva só
+ * refaz quando chega operação nova, que troca a referência de `operacoes`.
  */
-export function CurvaDoDia({
+export const CurvaDoDia = memo(function CurvaDoDia({
   operacoes,
   altura = 190,
   titulo = "Resultado do dia, operação a operação",
@@ -125,4 +127,4 @@ export function CurvaDoDia({
       />
     </MolduraProfit>
   );
-}
+});

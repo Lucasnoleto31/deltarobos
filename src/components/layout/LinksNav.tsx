@@ -4,9 +4,10 @@ import { cn } from "cn";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const LINKS = [
+// Metodologia é leitura rara: sem prefetch, busca no clique em vez de em toda página (18/09/2026)
+const LINKS: { href: string; rotulo: string; prefetch?: false }[] = [
   { href: "/comparativo", rotulo: "Comparativo" },
-  { href: "/metodologia", rotulo: "Metodologia" },
+  { href: "/metodologia", rotulo: "Metodologia", prefetch: false },
   { href: "/#comunidade", rotulo: "Comunidade" },
 ];
 
@@ -21,6 +22,7 @@ export function LinksNav() {
           <Link
             key={l.href}
             href={l.href}
+            prefetch={l.prefetch}
             aria-current={atual ? "page" : undefined}
             className={cn(
               "hidden h-8 shrink-0 items-center rounded-full px-3 whitespace-nowrap transition-colors sm:inline-flex",

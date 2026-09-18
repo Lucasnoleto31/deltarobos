@@ -20,7 +20,8 @@ export function AbasRobo({ slug }: Props) {
     { href: `${base}/risco`, rotulo: "Risco", exato: false },
     { href: `${base}/faixas`, rotulo: "Faixas", exato: false },
     { href: `${base}/operacoes`, rotulo: "Operações", exato: false },
-    { href: `${base}/relatorios`, rotulo: "Relatórios", exato: false },
+    // Relatórios é aba rara: busca no clique em vez de pré-carregar em toda visita (18/09/2026)
+    { href: `${base}/relatorios`, rotulo: "Relatórios", exato: false, prefetch: false },
   ];
 
   return (
@@ -34,6 +35,7 @@ export function AbasRobo({ slug }: Props) {
           <Link
             key={a.href}
             href={a.href}
+            prefetch={a.prefetch}
             aria-current={ativo ? "page" : undefined}
             className={cn(
               "h-8 shrink-0 rounded-full px-3.5 text-sm leading-8 whitespace-nowrap transition-colors",
@@ -46,8 +48,10 @@ export function AbasRobo({ slug }: Props) {
           </Link>
         );
       })}
+      {/* a tela cheia do dia também é rara: sem prefetch */}
       <Link
         href={`${base}/ao-vivo`}
+        prefetch={false}
         className="ml-auto inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-(--painel-fio-forte) px-3.5 text-sm whitespace-nowrap text-foreground transition-colors hover:bg-(--linha-hover)"
       >
         <Radio className="size-4" /> Ao vivo

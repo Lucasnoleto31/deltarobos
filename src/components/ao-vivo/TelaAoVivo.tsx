@@ -39,7 +39,9 @@ function Numero({ rotulo, children }: { rotulo: string; children: React.ReactNod
  */
 export function TelaAoVivo() {
   const { estado, robo, pregao, feriados, hoje } = useRobo();
-  const agora = useAgora(1000);
+  // 5 s basta (18/09/2026): o relógio aqui só decide pregão e status, que mudam por minuto; o "há X s"
+  // anda no AtualizadoHa, que tem relógio próprio. Com 1 s a tela inteira renderizava a cada segundo.
+  const agora = useAgora(5000);
   const montado = useMontado();
 
   const ops = estado.operacoes;
