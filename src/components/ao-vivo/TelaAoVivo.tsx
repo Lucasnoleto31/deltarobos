@@ -20,6 +20,8 @@ import { statusAoVivo } from "@/lib/stats/status-robo";
 // A tela é um cartão de story: o que importa cabe na primeira tela do celular, e o resto rola.
 const ULTIMAS = 3;
 
+// Sem o i do "o que é" (19/09/2026): testado nos três números, ele tirava os rótulos do centro e, num print
+// de story, é um botão que não abre. A explicação fica na página do robô.
 function Numero({ rotulo, children }: { rotulo: string; children: React.ReactNode }) {
   return (
     <div className="min-w-0 px-3 py-3 text-center">

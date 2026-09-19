@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { BarrasPorRobo } from "@/components/comparativo/BarrasPorRobo";
 import { resumirPorPeriodo } from "@/components/comparativo/resumo-por-periodo";
+import type { ChaveIndicador } from "@/components/compartilhados/glossario";
+import { RotuloComInfo } from "@/components/compartilhados/InfoIndicador";
 import { Valor } from "@/components/compartilhados/Valor";
 import { CardsKpi, type ItemKpi } from "@/components/desempenho/CardsKpi";
 import { GraficoBarras } from "@/components/desempenho/GraficoBarras";
@@ -19,7 +21,7 @@ export const revalidate = 60;
 
 export const metadata: Metadata = {
   title: "Comparativo",
-  description: "Todos os robôs da Delta Robôs lado a lado: resultado, acerto, drawdown máximo e risco de ruína, por contrato.",
+  description: "Todos os robôs da Quants Robôs lado a lado: resultado, acerto, drawdown máximo e risco de ruína, por contrato.",
 };
 
 const OPCOES: OpcoesSerie = { base: "liquido", unidade: "brl", valorPonto: 1 };
@@ -73,23 +75,27 @@ interface Metrica {
   chave?: (c: Coluna) => number | null;
   /** "maior" (padrão) ou "menor" ganha */
   ganha?: "maior" | "menor";
+  /** o "o que é" da métrica (19/09/2026); "Operando desde" é uma data e fica sem */
+  info?: ChaveIndicador;
 }
 
 const METRICAS: Metrica[] = [
-  { rotulo: "Resultado desde o início", valor: (c) => <Valor valor={c.k.acumulado} inteiro className="font-semibold" />, chave: (c) => c.k.acumulado },
-  { rotulo: "Mês atual", valor: (c) => <Valor valor={c.k.mes} inteiro={Math.abs(c.k.mes) >= 1000} />, chave: (c) => c.k.mes },
-  { rotulo: "Média mensal", valor: (c) => <Valor valor={c.k.mediaMensal} inteiro={Math.abs(c.k.mediaMensal) >= 1000} />, chave: (c) => c.k.mediaMensal },
-  { rotulo: "Taxa de acerto", valor: (c) => formatarPct(c.k.taxaAcerto), chave: (c) => c.k.taxaAcerto },
-  { rotulo: "Fator de lucro", valor: (c) => formatarMultiplo(c.k.fatorLucro), chave: (c) => c.k.fatorLucro },
-  { rotulo: "Payoff", valor: (c) => formatarMultiplo(c.k.payoff), chave: (c) => c.k.payoff },
+  { rotulo: "Resultado desde o início", info: "acumulado", valor: (c) => <Valor valor={c.k.acumulado} inteiro className="font-semibold" />, chave: (c) => c.k.acumulado },
+  { rotulo: "Mês atual", info: "mesAtual", valor: (c) => <Valor valor={c.k.mes} inteiro={Math.abs(c.k.mes) >= 1000} />, chave: (c) => c.k.mes },
+  { rotulo: "Média mensal", info: "mediaMensal", valor: (c) => <Valor valor={c.k.mediaMensal} inteiro={Math.abs(c.k.mediaMensal) >= 1000} />, chave: (c) => c.k.mediaMensal },
+  { rotulo: "Taxa de acerto", info: "taxaAcerto", valor: (c) => formatarPct(c.k.taxaAcerto), chave: (c) => c.k.taxaAcerto },
+  { rotulo: "Fator de lucro", info: "fatorLucro", valor: (c) => formatarMultiplo(c.k.fatorLucro), chave: (c) => c.k.fatorLucro },
+  { rotulo: "Payoff", info: "payoff", valor: (c) => formatarMultiplo(c.k.payoff), chave: (c) => c.k.payoff },
   {
     rotulo: "Drawdown máximo",
+    info: "drawdown",
     valor: (c) => (c.k.drawdown.valor > 0 ? <Valor valor={-c.k.drawdown.valor} inteiro={c.k.drawdown.valor >= 1000} /> : "–"),
     chave: (c) => c.k.drawdown.valor,
     ganha: "menor",
   },
   {
     rotulo: "Drawdown máximo, % do capital",
+    info: "drawdownPct",
     valor: (c) => (c.k.drawdownMaximoPct !== null ? <span className="text-negativo">{formatarPct(c.k.drawdownMaximoPct, 1)}</span> : "–"),
     chave: (c) => c.k.drawdownMaximoPct,
     ganha: "menor",
@@ -97,15 +103,21 @@ const METRICAS: Metrica[] = [
   {
     // 19/09/2026: sem vermelho/laranja, como na aba Risco: é probabilidade, não dinheiro
     rotulo: "Risco de ruína",
+    info: "riscoRuina",
     valor: (c) => (c.ruina === null ? "–" : formatarPct(c.ruina, 1)),
     chave: (c) => c.ruina,
     ganha: "menor",
   },
-  { rotulo: "Operações", valor: (c) => formatarNumero(c.k.nOperacoes) },
-  { rotulo: "Dias de pregão", valor: (c) => formatarNumero(c.k.nDias) },
-  { rotulo: "Capital de referência", valor: (c) => (c.robo.capital_referencia ? formatarBRL(c.robo.capital_referencia, { inteiro: true }) : "–") },
+  { rotulo: "Operações", info: "operacoes", valor: (c) => formatarNumero(c.k.nOperacoes) },
+  { rotulo: "Dias de pregão", info: "diasPregao", valor: (c) => formatarNumero(c.k.nDias) },
+  { rotulo: "Capital de referência", info: "capitalReferencia", valor: (c) => (c.robo.capital_referencia ? formatarBRL(c.robo.capital_referencia, { inteiro: true }) : "–") },
   { rotulo: "Operando desde", valor: (c) => (c.robo.conta_real_desde ? formatarData(c.robo.conta_real_desde) : "–") },
 ];
+
+/** O rótulo da métrica com o i do "o que é" ao lado, quando ela tem chave no glossário. */
+function RotuloMetrica({ m }: { m: Metrica }) {
+  return m.info ? <RotuloComInfo chave={m.info}>{m.rotulo}</RotuloComInfo> : m.rotulo;
+}
 
 /** O índice da coluna que ganha na linha, ou null quando a linha não compara. */
 function melhorDe(m: Metrica, colunas: Coluna[]): number | null {
@@ -163,10 +175,10 @@ export default async function PaginaComparativo() {
     .map((m) => ({ rotulo: formatarMesAno(`${m.mes}-01`), valor: m.total, n: m.nDias }));
 
   const tiles: ItemKpi[] = [
-    { rotulo: "Desde o início", valor: <Valor valor={kCasa.acumulado} inteiro />, detalhe: `${formatarNumero(kCasa.nDias)} dias de pregão` },
-    { rotulo: "Mês atual", valor: <Valor valor={kCasa.mes} inteiro={Math.abs(kCasa.mes) >= 1000} /> },
-    { rotulo: "Drawdown máximo", valor: <Valor valor={-kCasa.drawdown.valor} inteiro />, detalhe: kCasa.drawdownMaximoPct !== null ? undefined : kCasa.drawdown.fundo ? `fundo em ${formatarData(kCasa.drawdown.fundo)}` : undefined },
-    { rotulo: "Operações", valor: formatarNumero(kCasa.nOperacoes), detalhe: `${formatarPct(kCasa.taxaAcerto)} de acerto` },
+    { rotulo: "Desde o início", info: "acumulado", valor: <Valor valor={kCasa.acumulado} inteiro />, detalhe: `${formatarNumero(kCasa.nDias)} dias de pregão` },
+    { rotulo: "Mês atual", info: "mesAtual", valor: <Valor valor={kCasa.mes} inteiro={Math.abs(kCasa.mes) >= 1000} /> },
+    { rotulo: "Drawdown máximo", info: "drawdown", valor: <Valor valor={-kCasa.drawdown.valor} inteiro />, detalhe: kCasa.drawdownMaximoPct !== null ? undefined : kCasa.drawdown.fundo ? `fundo em ${formatarData(kCasa.drawdown.fundo)}` : undefined },
+    { rotulo: "Operações", info: "operacoes", valor: formatarNumero(kCasa.nOperacoes), detalhe: `${formatarPct(kCasa.taxaAcerto)} de acerto` },
   ];
 
   return (
@@ -203,7 +215,9 @@ export default async function PaginaComparativo() {
                   const melhor = melhorDe(m, colunas);
                   return (
                     <div key={m.rotulo} className="sep px-4 py-2.5">
-                      <dt className="text-xs text-muted-foreground">{m.rotulo}</dt>
+                      <dt className="text-xs text-muted-foreground">
+                        <RotuloMetrica m={m} />
+                      </dt>
                       <dd
                         className={`mt-1 grid gap-2 text-right tabular-nums ${colunas.length > 3 ? "text-xs" : "text-sm"}`}
                         style={{ gridTemplateColumns: `repeat(${colunas.length}, minmax(0, 1fr))` }}
@@ -241,7 +255,9 @@ export default async function PaginaComparativo() {
                     const melhor = melhorDe(m, colunas);
                     return (
                       <tr key={m.rotulo} className="tabular-nums [&>td]:px-4 [&>td]:py-2.5">
-                        <td className="text-muted-foreground">{m.rotulo}</td>
+                        <td className="text-muted-foreground">
+                          <RotuloMetrica m={m} />
+                        </td>
                         {colunas.map((c, i) => (
                           <td key={c.robo.slug} className={`text-right ${melhor === i ? "bg-(--linha-hover) font-semibold" : ""}`}>
                             {m.valor(c)}
@@ -272,7 +288,9 @@ export default async function PaginaComparativo() {
             </div>
             <CardsKpi itens={tiles} className="lg:grid-cols-4" />
             <div className="painel p-4 sm:p-5">
-              <h3 className="mb-2 text-sm font-medium">Mês a mês</h3>
+              <h3 className="mb-2 text-sm font-medium">
+                <RotuloComInfo chave="resultadoMensal">Mês a mês</RotuloComInfo>
+              </h3>
               <GraficoBarras dados={mensal} unidade="brl" altura={220} rotuloN="Dias de pregão" />
             </div>
           </section>

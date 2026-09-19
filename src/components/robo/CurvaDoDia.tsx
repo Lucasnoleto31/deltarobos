@@ -28,8 +28,9 @@ const reais = (v: number) => formatarBRL(v, { sinal: true });
 /**
  * O dia em curva, operação a operação, no lugar do tabelão (17/09/2026, pedido do Artur: "essa visão
  * geral com esse tabelão não está legal"). Num dia de 345 operações a tabela não deixava ver o dia;
- * a curva mostra de relance quando subiu, quando devolveu e onde está agora, e cada ponto abre a
- * operação inteira na dica: hora, lado, entrada e saída, duração, pontos, resultado e o acumulado.
+ * a curva mostra de relance quando subiu, quando devolveu e onde está agora, e apontar um ponto abre a
+ * operação inteira na linha de leitura no alto: hora, lado, entrada e saída, duração, pontos,
+ * resultado e o acumulado.
  * Com memo (18/09/2026): quem usa re-renderiza por outros motivos (posição, status); a curva só
  * refaz quando chega operação nova, que troca a referência de `operacoes`.
  */
@@ -71,7 +72,7 @@ export const CurvaDoDia = memo(function CurvaDoDia({
         const temPrecos = o.preco_entrada !== null && o.preco_saida !== null;
         dica = {
           titulo: `${formatarHora(o.fechamento_em)} · ${rotuloLado(o.lado)}`,
-          subtitulo: `Operação ${formatarNumero(ultimo.ordem)} de ${formatarNumero(n)} · ${formatarDuracao(o.duracao_seg)}`,
+          subtitulo: `${formatarNumero(ultimo.ordem)}ª operação · durou ${formatarDuracao(o.duracao_seg)}`,
           linhas: [
             ...(temPrecos
               ? [{ rotulo: "Entrada e saída", valor: `${formatarPreco(o.preco_entrada)} → ${formatarPreco(o.preco_saida)}` }]
@@ -83,16 +84,18 @@ export const CurvaDoDia = memo(function CurvaDoDia({
         };
       } else {
         const valor = fatia.reduce((s, b) => s + b.liquido, 0);
+        // 19/09/2026: o ponto diz quantas operações junta e quais; "Neste trecho" não se entendia
         dica = {
           titulo: `${formatarHora(primeiro.o.fechamento_em)} a ${formatarHora(ultimo.o.fechamento_em)}`,
-          subtitulo: `Operações ${formatarNumero(primeiro.ordem)} a ${formatarNumero(ultimo.ordem)} de ${formatarNumero(n)}`,
+          subtitulo: `${formatarNumero(fatia.length)} operações (${formatarNumero(primeiro.ordem)}ª a ${formatarNumero(ultimo.ordem)}ª)`,
           linhas: [
-            { rotulo: "Neste trecho", valor: reais(valor), tom: tomDe(valor) },
+            { rotulo: "Resultado", valor: reais(valor), tom: tomDe(valor) },
             { rotulo: "Acumulado do dia", valor: reais(ultimo.acumulado), tom: tomDe(ultimo.acumulado) },
           ],
         };
       }
-      return { posicao: ultimo.posicao, acumulado: ultimo.acumulado, drawdown, dica };
+      // na mira, o eixo de baixo diz a hora de fechamento, como os rótulos dele
+      return { posicao: ultimo.posicao, acumulado: ultimo.acumulado, drawdown, dica, eixo: formatarHora(ultimo.o.fechamento_em) };
     });
 
     // cinco horários espaçados por igual: a hora da operação que está naquela altura do eixo

@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { AtualizadoHa } from "@/components/compartilhados/AtualizadoHa";
+import type { ChaveIndicador } from "@/components/compartilhados/glossario";
+import { InfoIndicador, RotuloComInfo } from "@/components/compartilhados/InfoIndicador";
 import { Segmentado } from "@/components/compartilhados/Segmentado";
 import { Valor } from "@/components/compartilhados/Valor";
 import { CurvaCapital } from "@/components/graficos/CurvaCapital";
@@ -20,6 +22,15 @@ import {
   type PeriodoResumo,
 } from "./periodos-resumo";
 import { usePregaoAberto, useRobo } from "./RoboAoVivoProvider";
+
+// o "o que é" do número grande de cada aba, no título (19/09/2026): desde o início é o acumulado
+const INFO_DO_PERIODO: Record<PeriodoResumo, ChaveIndicador> = {
+  hoje: "resultadoDia",
+  semana: "resultadoPeriodo",
+  mes: "resultadoPeriodo",
+  ano: "resultadoPeriodo",
+  tudo: "acumulado",
+};
 
 interface Props {
   /** a série diária inteira; o recorte por período é feito aqui */
@@ -57,10 +68,14 @@ export function PainelResultado({ linhas, pontosPorOperacao, valorPonto, capital
     <section aria-labelledby="resultado" className="painel">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 border-b px-4 py-3 sm:px-5">
         <div className="min-w-0">
-          <h2 id="resultado" className="font-semibold">
-            {/* "ao vivo" só com o pregão aberto e coletor: no sábado o painel é o dia parado */}
-            {periodo === "hoje" ? (aoVivo ? "Hoje ao vivo" : "Hoje") : TITULO_DO_PERIODO[periodo]}
-          </h2>
+          {/* o i fica fora do h2 (19/09/2026): o h2 dá nome à seção, e o "O que é …" do botão entraria nele */}
+          <div className="flex items-center gap-1.5">
+            <h2 id="resultado" className="font-semibold">
+              {/* "ao vivo" só com o pregão aberto e coletor: no sábado o painel é o dia parado */}
+              {periodo === "hoje" ? (aoVivo ? "Hoje ao vivo" : "Hoje") : TITULO_DO_PERIODO[periodo]}
+            </h2>
+            <InfoIndicador chave={INFO_DO_PERIODO[periodo]} />
+          </div>
           {periodo === "hoje" ? (
             <p className="text-xs text-muted-foreground">
               <span className="first-letter:uppercase">{formatarDataLonga(hoje)}</span>
@@ -109,11 +124,25 @@ function Subtitulo({ linhas }: { linhas: LinhaDiaria[] }) {
   );
 }
 
-/** Um azulejo por número, como nos painéis de trading: rótulo pequeno, valor, apoio embaixo. */
-function Azulejo({ rotulo, detalhe, children, className }: { rotulo: string; detalhe?: string; children: React.ReactNode; className?: string }) {
+/** Um azulejo por número, como nos painéis de trading: rótulo pequeno (com o "o que é"), valor, apoio embaixo. */
+function Azulejo({
+  rotulo,
+  info,
+  detalhe,
+  children,
+  className,
+}: {
+  rotulo: string;
+  info: ChaveIndicador;
+  detalhe?: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
     <div className={`rounded-xl border border-(--painel-fio) px-3 py-2.5 ${className ?? ""}`}>
-      <dt className="text-xs text-muted-foreground">{rotulo}</dt>
+      <dt className="text-xs text-muted-foreground">
+        <RotuloComInfo chave={info}>{rotulo}</RotuloComInfo>
+      </dt>
       <dd className="mt-1 text-base font-semibold tabular-nums">{children}</dd>
       {detalhe ? <dd className="text-[11px] text-muted-foreground tabular-nums">{detalhe}</dd> : null}
     </div>
@@ -177,9 +206,11 @@ function ResultadoDoPeriodo({
 
         <dl className="grid grid-cols-2 gap-2">
           {/* como nas abas Desempenho e Risco (19/09/2026): % do capital de referência no número; embaixo o
-              R$ e o capital, senão o % parece a conta inteira */}
+              R$ e o capital, senão o % parece a conta inteira. "máx." como no cartão do Desempenho: com o i,
+              "máximo" descia de linha no azulejo de 375 px e o número ficava abaixo do vizinho */}
           <Azulejo
-            rotulo="Drawdown máximo"
+            rotulo="Drawdown máx."
+            info={k.drawdownMaximoPct !== null ? "drawdownPct" : "drawdown"}
             detalhe={
               k.drawdown.valor === 0
                 ? undefined
@@ -198,18 +229,18 @@ function ResultadoDoPeriodo({
               <Valor valor={-k.drawdown.valor} inteiro={k.drawdown.valor >= 1000} />
             )}
           </Azulejo>
-          <Azulejo rotulo="Taxa de acerto" detalhe={`${formatarNumero(k.nGain)} gains · ${formatarNumero(k.nLoss)} losses`}>
+          <Azulejo rotulo="Taxa de acerto" info="taxaAcerto" detalhe={`${formatarNumero(k.nGain)} gains · ${formatarNumero(k.nLoss)} losses`}>
             {formatarPct(k.taxaAcerto)}
           </Azulejo>
-          <Azulejo rotulo="Melhor dia" detalhe={k.melhorDia ? formatarData(k.melhorDia.dia) : undefined}>
+          <Azulejo rotulo="Melhor dia" info="melhorDia" detalhe={k.melhorDia ? formatarData(k.melhorDia.dia) : undefined}>
             {k.melhorDia ? <Valor valor={k.melhorDia.valor} /> : "–"}
           </Azulejo>
-          <Azulejo rotulo="Pior dia" detalhe={k.piorDia ? formatarData(k.piorDia.dia) : undefined}>
+          <Azulejo rotulo="Pior dia" info="piorDia" detalhe={k.piorDia ? formatarData(k.piorDia.dia) : undefined}>
             {k.piorDia ? <Valor valor={k.piorDia.valor} /> : "–"}
           </Azulejo>
           {/* 19/09/2026: contagem de dias, não dinheiro, então uma cor só; sem "5 pregões" embaixo, que o
               subtítulo do painel já diz */}
-          <Azulejo rotulo="Dias positivos × negativos" className="col-span-2">
+          <Azulejo rotulo="Dias positivos × negativos" info="diasPositivosNegativos" className="col-span-2">
             {formatarNumero(k.diasPositivos)}
             <span className="text-muted-foreground"> × </span>
             {formatarNumero(k.diasNegativos)}

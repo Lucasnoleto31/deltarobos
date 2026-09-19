@@ -38,6 +38,14 @@ function diaDaSemana(dia: string): string {
   return new Date(`${dia}T12:00:00Z`).toLocaleDateString("pt-BR", { weekday: "long", timeZone: "UTC" });
 }
 
+/** "14/09 a 16/09/2026"; com a virada do ano no meio, as duas datas inteiras. */
+function intervaloDeDatas(de: string, ate: string): string {
+  return de.slice(0, 4) === ate.slice(0, 4) ? `${formatarDataCurta(de)} a ${formatarData(ate)}` : `${formatarData(de)} a ${formatarData(ate)}`;
+}
+
+/** "205ª", "1.234ª": a ordem da operação, com o ponto de milhar. */
+const ordinal = (k: number) => `${formatarNumero(k)}ª`;
+
 const linhaDoDrawdown = (dd: number, fmt: (v: number) => string) =>
   ({ rotulo: "Drawdown", valor: dd < 0 ? fmt(dd) : "no topo", tom: dd < 0 ? ("negativo" as const) : ("neutro" as const) });
 
@@ -48,7 +56,7 @@ export interface SeriePorDia {
   curva: PontoCurva[];
 }
 
-/** Um ponto por dia de pregão (ou por fatia de dias, em série longa), com operações e acerto do dia na dica. */
+/** Um ponto por dia de pregão (ou por fatia de dias, em série longa), com operações e acerto do dia na leitura. */
 export function seriePorDia(linhas: readonly LinhaDiaria[], opcoes: OpcoesSerie): SeriePorDia {
   const curva = curvaAcumulada(linhas, opcoes);
   const fmt = formatador(opcoes);
@@ -70,11 +78,14 @@ export function seriePorDia(linhas: readonly LinhaDiaria[], opcoes: OpcoesSerie)
     const nOps = soma(fatia.map((p) => p.nOps));
     const nGain = soma(fatia.map((p) => p.nGain));
     const umDia = fatia.length === 1;
+    // 19/09/2026: o ponto que junta dias diz quantos e quais; "Neste trecho" não se entendia
+    const cabecalho = umDia
+      ? { titulo: formatarData(ultimo.dia), subtitulo: diaDaSemana(ultimo.dia) }
+      : { titulo: `${formatarNumero(fatia.length)} dias (${intervaloDeDatas(primeiro.dia, ultimo.dia)})` };
     const dica: ConteudoDaDica = {
-      titulo: umDia ? formatarData(ultimo.dia) : `${formatarData(primeiro.dia)} a ${formatarData(ultimo.dia)}`,
-      subtitulo: umDia ? diaDaSemana(ultimo.dia) : `${fatia.length} dias de pregão`,
+      ...cabecalho,
       linhas: [
-        { rotulo: umDia ? "No dia" : "Neste trecho", valor: fmt(valor), tom: tomDe(valor) },
+        { rotulo: "Resultado", valor: fmt(valor), tom: tomDe(valor) },
         ...(nOps > 0
           ? [{ rotulo: "Operações", valor: `${formatarNumero(nOps)} · ${formatarPct(nGain / nOps, 0)} de acerto` }]
           : []),
@@ -82,7 +93,7 @@ export function seriePorDia(linhas: readonly LinhaDiaria[], opcoes: OpcoesSerie)
         linhaDoDrawdown(drawdown, fmt),
       ],
     };
-    return { posicao: ultimo.posicao, acumulado: ultimo.acumulado, drawdown, dica };
+    return { posicao: ultimo.posicao, acumulado: ultimo.acumulado, drawdown, dica, eixo: formatarData(ultimo.dia) };
   });
 
   return { pontos, dias: curva.map((p) => p.dia), curva };
@@ -202,7 +213,12 @@ export function seriePorOperacaoCompacta(
   return { dias: diasCitados, total, pontos };
 }
 
-/** Os pontos do desenho a partir da série compacta, com a dica de cada um escrita aqui. */
+/**
+ * Os pontos do desenho a partir da série compacta, com a leitura de cada um escrita aqui. Desde
+ * 19/09/2026 o ponto que junta operações diz quantas e quais ("3 operações (205ª a 207ª)") em vez de
+ * "Neste trecho", e o da operação única diz a ordem dela. Na série de um dia só (a do calendário) a
+ * etiqueta da mira no eixo de baixo é a ordem, como o eixo; nas outras, a data.
+ */
 export function expandirSerie(serie: SerieCompacta, opcoes: OpcoesSerie): PontoDoDesenho[] {
   const fmt = formatador(opcoes);
   const { dias, total } = serie;
@@ -217,21 +233,19 @@ export function expandirSerie(serie: SerieCompacta, opcoes: OpcoesSerie): PontoD
         ? `${formatarData(diaAte)} · aberta às ${hora}h`
         : diaDe === diaAte
           ? formatarData(diaAte)
-          : `${formatarData(diaDe)} a ${formatarData(diaAte)}`,
-      subtitulo: uma
-        ? `Operação ${formatarNumero(ate)} de ${formatarNumero(total)}`
-        : `Operações ${formatarNumero(de + 1)} a ${formatarNumero(ate)} de ${formatarNumero(total)}`,
+          : intervaloDeDatas(diaDe, diaAte),
+      subtitulo: uma ? `${ordinal(ate)} operação` : `${formatarNumero(ate - de)} operações (${ordinal(de + 1)} a ${ordinal(ate)})`,
       linhas: [
-        { rotulo: uma ? "Na operação" : "Neste trecho", valor: fmt(valor), tom: tomDe(valor) },
+        { rotulo: "Resultado", valor: fmt(valor), tom: tomDe(valor) },
         { rotulo: "Acumulado", valor: fmt(acumulado), tom: tomDe(acumulado) },
         linhaDoDrawdown(drawdown, fmt),
       ],
     };
-    return { posicao, acumulado, drawdown, dica };
+    return { posicao, acumulado, drawdown, dica, eixo: dias.length === 1 ? ordinal(ate) : formatarData(diaAte) };
   });
 }
 
-/** A série por operação já com as dicas e sem arredondar: a do calendário e a da curva que recebe as operações. */
+/** A série por operação já com as leituras e sem arredondar: a do calendário e a da curva que recebe as operações. */
 export function seriePorOperacao(
   ops: readonly OperacaoCompacta[],
   opcoes: OpcoesSerie,

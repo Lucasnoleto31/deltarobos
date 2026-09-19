@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { HaQuanto } from "@/components/compartilhados/HaQuanto";
+import { RotuloComInfo } from "@/components/compartilhados/InfoIndicador";
 import { Valor } from "@/components/compartilhados/Valor";
 import { formatarNumero, formatarPreco, rotuloLado } from "@/lib/formato";
 import { brlParaPontos } from "@/lib/stats/normalizacao";
@@ -65,7 +66,10 @@ export function HojeAoVivo() {
           </div>
 
           <div>
-            <p className="mb-2 text-sm font-medium">Posição aberta</p>
+            {/* o número de cada posição é o flutuante: o i explica, e só aparece quando há posição (19/09/2026) */}
+            <p className="mb-2 text-sm font-medium">
+              {estado.posicoes.length > 0 ? <RotuloComInfo chave="flutuante">Posição aberta</RotuloComInfo> : "Posição aberta"}
+            </p>
             {/* sem moldura (19/09/2026): já está dentro do painel */}
             {estado.posicoes.length === 0 ? (
               <p className="text-sm text-muted-foreground">Nenhuma posição aberta agora.</p>

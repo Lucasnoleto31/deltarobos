@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Dica, Eixo, Guias, indiceApontado, mistura, passo, type ConteudoDaDica } from "@/components/graficos/base";
+import { Eixo, Guias, Leitura, indiceApontado, mistura, passo, type ConteudoDaDica } from "@/components/graficos/base";
 import { rotulosDeData } from "@/components/graficos/series-da-curva";
 import { formatarBRL, formatarData, formatarPct } from "@/lib/formato";
 import type { PontoCurva } from "@/lib/stats/tipos";
@@ -20,7 +20,8 @@ const ALTURA_DOS_ROTULOS = 22;
  * Quanto abaixo do pico o robô esteve em cada pregão: uma coluna por dia pendurada no zero, mais
  * funda quanto maior o drawdown. É a mesma faixa vermelha que fica embaixo da curva de capital, em
  * tamanho de gráfico e com a dica (18/09/2026, no lugar dos blocos por episódio, que o Artur achou
- * feios e pouco intuitivos). Zero = no topo. Apontar ou tocar abre o dia.
+ * feios e pouco intuitivos). Zero = no topo. Apontar ou tocar lê o dia numa linha fixa acima do
+ * gráfico (19/09/2026: o cartão flutuante cobria a coluna apontada); sem o ponteiro, lê o último pregão.
  */
 export function AbaixoDoPico({ curva, capitalReferencia, altura = 240 }: Props) {
   const [ativo, setAtivo] = useState<number | null>(null);
@@ -90,8 +91,13 @@ export function AbaixoDoPico({ curva, capitalReferencia, altura = 240 }: Props) 
     };
   };
 
+  // o índice apontado pode ter ficado de uma série mais longa (troca de período com o ponteiro parado)
+  const lida = (ativo !== null ? colunas[ativo] : undefined) ?? colunas[colunas.length - 1];
+
   return (
-    <div role="img" aria-label="Distância do pico, dia a dia" className="grid w-full grid-cols-[auto_minmax(0,1fr)] gap-x-2">
+    <div role="img" aria-label="Distância do pico, dia a dia" className="@container grid w-full grid-cols-[auto_minmax(0,1fr)] gap-x-2">
+      {/* a altura reservada acompanha a largura (uma linha no largo, três no celular), para as colunas não pularem */}
+      <Leitura conteudo={dicaDe(lida)} className="col-span-2 mb-2 min-h-[52px] @sm:min-h-[34px] @2xl:min-h-4" />
       {/* `|| 0` porque -0 saía como "−0%" no topo do eixo (19/09/2026) */}
       <Eixo marcas={marcas} y={y} altura={area} formatar={(v) => formatar(-v || 0)} />
       <div
@@ -121,7 +127,6 @@ export function AbaixoDoPico({ curva, capitalReferencia, altura = 240 }: Props) 
             );
           })}
         </div>
-        {ativo !== null && colunas[ativo] ? <Dica conteudo={dicaDe(colunas[ativo])} emPct={((ativo + 0.5) / colunas.length) * 100} /> : null}
       </div>
       <div />
       <div aria-hidden className="relative mt-1.5 h-4 text-[11px] text-muted-foreground tabular-nums">

@@ -5,6 +5,7 @@ import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 import { memo } from "react";
 import { BadgeStatusRobo } from "@/components/compartilhados/BadgeStatusRobo";
+import { RotuloComInfo } from "@/components/compartilhados/InfoIndicador";
 import { Valor } from "@/components/compartilhados/Valor";
 import { MiniCurva } from "@/components/graficos/MiniCurva";
 import { Badge } from "@/components/ui/badge";
@@ -34,9 +35,14 @@ interface Props {
  * Com memo (18/09/2026): a grade recalcula o status a cada 5 s, mas as props são primitivas ou
  * estáveis, então o cartão só renderiza de novo quando algo nele muda. Fora do pregão (ou, no robô sem
  * coletor, sempre) e sem operação hoje, o número grande é o do último pregão, com o dia no rótulo
- * (19/09/2026). O selo vai sem a explicação para leitor de tela: o cartão inteiro é um link e ela
- * alongava o nome dele; fica no title. A entrada dura 500 ms
+ * (19/09/2026). A entrada dura 500 ms
  * só na animação: o duration-500 esticava também o hover do .painel-interativo, que é de 180 ms.
+ *
+ * 19/09/2026 (Artur: "em todos os cards deve ter uma info sobre o que é"): cada número ganhou o i do
+ * glossário. Botão dentro de link é inválido, então o cartão deixou de ser um <a>: o link é o nome do
+ * robô, e o ::after dele cobre o cartão inteiro (link esticado), com o mesmo hover, a seta e o anel de
+ * foco no cartão. Os i e o selo ficam por cima (z-10): o i abre a explicação e o selo mostra o title. Com
+ * o link só no nome, o selo volta a levar a definição para leitor de tela.
  */
 export const CardRobo = memo(function CardRobo({
   card,
@@ -57,23 +63,28 @@ export const CardRobo = memo(function CardRobo({
     : { rotulo: "Hoje", valor: card.hoje, operacoes: hojeOperacoes, gains: hojeGains };
 
   return (
-    <Link
-      href={`/robos/${card.slug}`}
+    <article
       style={{ animationDelay: `${atraso}ms` }}
       className={cn(
-        "group relative flex h-full flex-col painel vidro painel-interativo p-5 outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+        "group relative flex h-full flex-col painel vidro painel-interativo p-5 has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-ring/50",
+        // os i ficam acima do ::after do link (o InfoIndicador já é relative)
+        "[&_button]:z-10",
         "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:fill-mode-both motion-safe:animation-duration-500 motion-safe:[--tw-ease:cubic-bezier(0.16,1,0.3,1)]",
         emBreve && "opacity-80",
       )}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="truncate text-lg font-semibold leading-tight">{card.nome}</h3>
+          <h3 className="truncate text-lg font-semibold leading-tight">
+            <Link href={`/robos/${card.slug}`} className="outline-none after:absolute after:inset-0">
+              {card.nome}
+            </Link>
+          </h3>
           <p className="text-xs text-muted-foreground">
             {card.ativoNome} · {card.ativo}
           </p>
         </div>
-        <BadgeStatusRobo status={status} explicar={false} />
+        <BadgeStatusRobo status={status} className="relative z-10" />
       </div>
 
       {emBreve ? (
@@ -86,7 +97,9 @@ export const CardRobo = memo(function CardRobo({
       ) : (
         <>
           <div className="pt-5">
-            <p className="rotulo-metrica">{destaque.rotulo}</p>
+            <p className="rotulo-metrica">
+              <RotuloComInfo chave="resultadoDia">{destaque.rotulo}</RotuloComInfo>
+            </p>
             <p className="mt-1 text-3xl font-semibold tracking-tight">
               <Valor valor={destaque.valor} inteiro={Math.abs(destaque.valor) >= 10_000} />
             </p>
@@ -100,15 +113,19 @@ export const CardRobo = memo(function CardRobo({
             )}
           </div>
 
-          <dl className="mt-3 flex gap-5 text-sm">
+          <dl className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm">
             <div className="flex items-baseline gap-1.5">
-              <dt className="text-xs text-muted-foreground">Mês</dt>
+              <dt className="text-xs text-muted-foreground">
+                <RotuloComInfo chave="mesAtual">Mês</RotuloComInfo>
+              </dt>
               <dd className="font-medium">
                 <Valor valor={card.mes} inteiro={Math.abs(card.mes) >= 1000} />
               </dd>
             </div>
             <div className="flex items-baseline gap-1.5">
-              <dt className="text-xs text-muted-foreground">Acumulado</dt>
+              <dt className="text-xs text-muted-foreground">
+                <RotuloComInfo chave="acumulado">Acumulado</RotuloComInfo>
+              </dt>
               <dd className="font-medium">
                 <Valor valor={card.acumulado} inteiro={Math.abs(card.acumulado) >= 1000} />
               </dd>
@@ -119,7 +136,7 @@ export const CardRobo = memo(function CardRobo({
 
           <div className="mt-4 flex items-center justify-between gap-3 text-xs text-muted-foreground">
             <span>
-              DD máx.{" "}
+              <RotuloComInfo chave="drawdown">DD máx.</RotuloComInfo>{" "}
               <Valor valor={-card.drawdownMaximo} inteiro colorir={false} className="text-foreground" />
             </span>
             <span
@@ -131,6 +148,6 @@ export const CardRobo = memo(function CardRobo({
           </div>
         </>
       )}
-    </Link>
+    </article>
   );
 });

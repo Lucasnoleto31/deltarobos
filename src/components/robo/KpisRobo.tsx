@@ -1,3 +1,5 @@
+import type { ChaveIndicador } from "@/components/compartilhados/glossario";
+import { RotuloComInfo } from "@/components/compartilhados/InfoIndicador";
 import { Valor } from "@/components/compartilhados/Valor";
 import { formatarBRL, formatarData, formatarMultiplo, formatarNumero, formatarPct } from "@/lib/formato";
 import { calcularKpis } from "@/lib/stats/kpis";
@@ -11,19 +13,23 @@ interface Props {
   hoje: string;
 }
 
-/** Os quatro números que se procura primeiro: cartão, rótulo, valor e uma linha de apoio. */
+/** Os quatro números que se procura primeiro: cartão, rótulo (com o "o que é"), valor e uma linha de apoio. */
 function CardKpi({
   rotulo,
+  info,
   children,
   detalhe,
 }: {
   rotulo: string;
+  info: ChaveIndicador;
   children: React.ReactNode;
   detalhe?: React.ReactNode;
 }) {
   return (
     <div className="painel p-4">
-      <p className="rotulo-metrica">{rotulo}</p>
+      <p className="rotulo-metrica">
+        <RotuloComInfo chave={info}>{rotulo}</RotuloComInfo>
+      </p>
       <p className="mt-2 text-xl leading-none font-semibold tracking-tight tabular-nums sm:text-2xl">{children}</p>
       {detalhe ? <p className="mt-1.5 text-xs text-muted-foreground tabular-nums">{detalhe}</p> : null}
     </div>
@@ -33,17 +39,21 @@ function CardKpi({
 /** Os outros oito, em lista agrupada: rótulo à esquerda, valor à direita, o apoio embaixo do rótulo. */
 function LinhaKpi({
   rotulo,
+  info,
   children,
   detalhe,
 }: {
   rotulo: string;
+  info: ChaveIndicador;
   children: React.ReactNode;
   detalhe?: React.ReactNode;
 }) {
   return (
     <div className="sep [--sep:16px] flex items-center justify-between gap-3 px-4 py-2.5">
       <dt className="min-w-0">
-        <span className="block text-sm">{rotulo}</span>
+        <RotuloComInfo chave={info} className="block text-sm">
+          {rotulo}
+        </RotuloComInfo>
         {detalhe ? <span className="block text-xs text-muted-foreground tabular-nums">{detalhe}</span> : null}
       </dt>
       <dd className="shrink-0 text-sm font-semibold tabular-nums">{children}</dd>
@@ -58,6 +68,7 @@ function LinhaKpi({
  * losses") saíram: a definição de cada métrica está na metodologia. O drawdown segue as abas Desempenho
  * e Risco desde 19/09/2026: % do capital de referência no número e, embaixo, o R$ e o capital ("-R$ 34.599
  * sobre capital de R$ 35.000"; só o R$ fazia o 98,9% parecer a conta inteira). Sem capital, R$ no número.
+ * Desde 19/09/2026 cada rótulo traz o i com o "o que é" do glossário, no lugar das fórmulas que saíram.
  */
 export function KpisRobo({ linhas, valorPonto, capitalReferencia, hoje }: Props) {
   const k = calcularKpis(
@@ -75,14 +86,16 @@ export function KpisRobo({ linhas, valorPonto, capitalReferencia, hoje }: Props)
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <CardKpi rotulo="Acumulado" detalhe={`${formatarNumero(k.nDias)} ${k.nDias === 1 ? "dia" : "dias"} de pregão`}>
+        <CardKpi rotulo="Acumulado" info="acumulado" detalhe={`${formatarNumero(k.nDias)} ${k.nDias === 1 ? "dia" : "dias"} de pregão`}>
           <Valor valor={k.acumulado} inteiro={Math.abs(k.acumulado) >= 1000} />
         </CardKpi>
-        <CardKpi rotulo="Mês atual">
+        <CardKpi rotulo="Mês atual" info="mesAtual">
           <Valor valor={k.mes} inteiro={Math.abs(k.mes) >= 1000} />
         </CardKpi>
         <CardKpi
           rotulo="Drawdown máximo"
+          // o número é o % do capital quando há capital; sem ele, o R$
+          info={k.drawdownMaximoPct !== null ? "drawdownPct" : "drawdown"}
           detalhe={
             k.drawdown.valor === 0
               ? undefined
@@ -104,6 +117,7 @@ export function KpisRobo({ linhas, valorPonto, capitalReferencia, hoje }: Props)
         {/* número e rótulo presos (19/09/2026): no celular quebrava "2.420 / losses" */}
         <CardKpi
           rotulo="Taxa de acerto"
+          info="taxaAcerto"
           detalhe={
             <>
               {formatarNumero(k.nGain)}&nbsp;gains · {formatarNumero(k.nLoss)}&nbsp;losses
@@ -115,27 +129,27 @@ export function KpisRobo({ linhas, valorPonto, capitalReferencia, hoje }: Props)
       </div>
 
       <dl className="painel grid overflow-hidden sm:grid-cols-2 sm:[&>div:nth-last-child(-n+2)]:after:hidden">
-        <LinhaKpi rotulo="Média mensal" detalhe={`${formatarNumero(k.nMeses)} ${k.nMeses === 1 ? "mês" : "meses"}`}>
+        <LinhaKpi rotulo="Média mensal" info="mediaMensal" detalhe={`${formatarNumero(k.nMeses)} ${k.nMeses === 1 ? "mês" : "meses"}`}>
           <Valor valor={k.mediaMensal} inteiro={Math.abs(k.mediaMensal) >= 1000} />
         </LinhaKpi>
-        <LinhaKpi rotulo="Operações" detalhe={`${formatarNumero(k.mediaOperacoesDia, 1)} por dia`}>
+        <LinhaKpi rotulo="Operações" info="operacoes" detalhe={`${formatarNumero(k.mediaOperacoesDia, 1)} por dia`}>
           {formatarNumero(k.nOperacoes)}
         </LinhaKpi>
-        <LinhaKpi rotulo="Fator de lucro">{formatarMultiplo(k.fatorLucro)}</LinhaKpi>
-        <LinhaKpi rotulo="Payoff">{formatarMultiplo(k.payoff)}</LinhaKpi>
-        <LinhaKpi rotulo="Melhor dia" detalhe={k.melhorDia ? formatarData(k.melhorDia.dia) : undefined}>
+        <LinhaKpi rotulo="Fator de lucro" info="fatorLucro">{formatarMultiplo(k.fatorLucro)}</LinhaKpi>
+        <LinhaKpi rotulo="Payoff" info="payoff">{formatarMultiplo(k.payoff)}</LinhaKpi>
+        <LinhaKpi rotulo="Melhor dia" info="melhorDia" detalhe={k.melhorDia ? formatarData(k.melhorDia.dia) : undefined}>
           {k.melhorDia ? <Valor valor={k.melhorDia.valor} /> : "–"}
         </LinhaKpi>
-        <LinhaKpi rotulo="Pior dia" detalhe={k.piorDia ? formatarData(k.piorDia.dia) : undefined}>
+        <LinhaKpi rotulo="Pior dia" info="piorDia" detalhe={k.piorDia ? formatarData(k.piorDia.dia) : undefined}>
           {k.piorDia ? <Valor valor={k.piorDia.valor} /> : "–"}
         </LinhaKpi>
         {/* contagem de dias, não dinheiro: uma cor só (19/09/2026) */}
-        <LinhaKpi rotulo="Dias positivos × negativos">
+        <LinhaKpi rotulo="Dias positivos × negativos" info="diasPositivosNegativos">
           {formatarNumero(k.diasPositivos)}
           <span className="text-muted-foreground"> × </span>
           {formatarNumero(k.diasNegativos)}
         </LinhaKpi>
-        <LinhaKpi rotulo="Maior sequência de dias negativos" detalhe={`de positivos: ${formatarNumero(k.maiorSequenciaDiasPositivos)}`}>
+        <LinhaKpi rotulo="Maior sequência de dias negativos" info="sequenciaDiasNegativos" detalhe={`de positivos: ${formatarNumero(k.maiorSequenciaDiasPositivos)}`}>
           {formatarNumero(k.maiorSequenciaDiasNegativos)}
         </LinhaKpi>
       </dl>

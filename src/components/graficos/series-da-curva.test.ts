@@ -1,13 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { formatarBRL, formatarData, formatarNumero, formatarPontos } from "@/lib/formato";
+import { formatarBRL, formatarData, formatarDataCurta, formatarNumero, formatarPontos } from "@/lib/formato";
 import { curvaPorOperacao, hora as horaDaOperacao, type OperacaoCompacta } from "@/lib/stats/operacoes";
-import type { OpcoesSerie } from "@/lib/stats/tipos";
+import type { LinhaDiaria, OpcoesSerie } from "@/lib/stats/tipos";
 import { tomDe, type ConteudoDaDica } from "./base";
 import type { PontoDoDesenho } from "./CurvaProfit";
-import { expandirSerie, seriePorOperacao, seriePorOperacaoCompacta } from "./series-da-curva";
+import { expandirSerie, seriePorDia, seriePorOperacao, seriePorOperacaoCompacta } from "./series-da-curva";
 
 // A série por operação como era até 18/09/2026, com a dica escrita no servidor, congelada aqui para
-// provar que a forma compacta (números no HTML, dica escrita no navegador) mostra a mesma coisa.
+// provar que a forma compacta (números no HTML, dica escrita no navegador) mostra a mesma coisa. Os
+// rótulos são os de 19/09/2026 ("3 operações (205ª a 207ª)" e "Resultado" no lugar de "Neste
+// trecho", e a etiqueta da mira no eixo de baixo); os números continuam os de antes.
 function seriePorOperacaoDeAntes(ops: readonly OperacaoCompacta[], opcoes: OpcoesSerie, dias: readonly string[]): PontoDoDesenho[] {
   if (ops.length === 0) return [];
   const fmt = (v: number) =>
@@ -23,6 +25,10 @@ function seriePorOperacaoDeAntes(ops: readonly OperacaoCompacta[], opcoes: Opcoe
   const soma = (xs: number[]) => xs.reduce((s, v) => s + v, 0);
   const curva = curvaPorOperacao(ops, opcoes);
   const total = curva.length;
+  const umDiaSo = curva[0].dia === curva[total - 1].dia;
+  const ordinal = (k: number) => `${formatarNumero(k)}ª`;
+  const intervalo = (de: string, ate: string) =>
+    de.slice(0, 4) === ate.slice(0, 4) ? `${formatarDataCurta(de)} a ${formatarData(ate)}` : `${formatarData(de)} a ${formatarData(ate)}`;
   const indiceDoDia = new Map(dias.map((d, k) => [d, k]));
   const opsNoDia = new Map<string, number>();
   for (const p of curva) opsNoDia.set(p.dia, (opsNoDia.get(p.dia) ?? 0) + 1);
@@ -61,12 +67,12 @@ function seriePorOperacaoDeAntes(ops: readonly OperacaoCompacta[], opcoes: Opcoe
         ? `${formatarData(ultimo.dia)} · aberta às ${ultimo.hora}h`
         : primeiro.dia === ultimo.dia
           ? formatarData(ultimo.dia)
-          : `${formatarData(primeiro.dia)} a ${formatarData(ultimo.dia)}`,
+          : intervalo(primeiro.dia, ultimo.dia),
       subtitulo: uma
-        ? `Operação ${formatarNumero(ultimo.ordem)} de ${formatarNumero(total)}`
-        : `Operações ${formatarNumero(primeiro.ordem)} a ${formatarNumero(ultimo.ordem)} de ${formatarNumero(total)}`,
+        ? `${ordinal(ultimo.ordem)} operação`
+        : `${formatarNumero(fatia.length)} operações (${ordinal(primeiro.ordem)} a ${ordinal(ultimo.ordem)})`,
       linhas: [
-        { rotulo: uma ? "Na operação" : "Neste trecho", valor: fmt(valor), tom: tomDe(valor) },
+        { rotulo: "Resultado", valor: fmt(valor), tom: tomDe(valor) },
         { rotulo: "Acumulado", valor: fmt(ultimo.acumulado), tom: tomDe(ultimo.acumulado) },
         {
           rotulo: "Drawdown",
@@ -75,7 +81,13 @@ function seriePorOperacaoDeAntes(ops: readonly OperacaoCompacta[], opcoes: Opcoe
         },
       ],
     };
-    return { posicao: ultimo.posicao, acumulado: ultimo.acumulado, drawdown, dica };
+    return {
+      posicao: ultimo.posicao,
+      acumulado: ultimo.acumulado,
+      drawdown,
+      dica,
+      eixo: umDiaSo ? ordinal(ultimo.ordem) : formatarData(ultimo.dia),
+    };
   });
 }
 
@@ -125,6 +137,7 @@ describe("série por operação compacta", () => {
     expect(depois).toHaveLength(antes.length);
     depois.forEach((p, i) => {
       expect(p.dica).toEqual(antes[i].dica);
+      expect(p.eixo).toBe(antes[i].eixo);
       expect(Math.abs(p.posicao - antes[i].posicao)).toBeLessThan(1e-4);
       // dinheiro com 2 casas: igual ao centavo
       expect(p.acumulado).toBeCloseTo(antes[i].acumulado, 2);
@@ -163,6 +176,51 @@ describe("série por operação compacta", () => {
       expect(acumulado).toBe(antes[i].acumulado);
       expect(drawdown).toBe(antes[i].drawdown);
     });
+  });
+
+  it("o ponto diz quantas operações junta e quais, sem \"Neste trecho\" (19/09/2026)", () => {
+    const { ops, dias } = gerarOperacoes(6, () => 50); // 300 operações em 240 pontos: fatias de 1 e de 2
+    const pontos = seriePorOperacao(ops, brl, dias);
+    const textos = pontos.flatMap((p) => [p.dica.titulo, p.dica.subtitulo ?? "", ...p.dica.linhas.map((l) => l.rotulo)]);
+    expect(textos.some((t) => /trecho/i.test(t))).toBe(false);
+    const duas = pontos.find((p) => p.dica.subtitulo?.startsWith("2 "));
+    expect(duas?.dica.subtitulo).toMatch(/^2 operações \(\d+ª a \d+ª\)$/);
+    expect(duas?.dica.linhas[0].rotulo).toBe("Resultado");
+    const uma = pontos.find((p) => p.dica.subtitulo?.endsWith("ª operação"));
+    expect(uma?.dica.titulo).toMatch(/^\d{2}\/\d{2}\/\d{4} · aberta às \d+h$/);
+    // série de vários dias: a mira mostra a data; a de um dia só (o calendário), a ordem
+    expect(pontos[0].eixo).toMatch(/^\d{2}\/\d{2}\/\d{4}$/);
+    const doDia = seriePorOperacao(ops.slice(0, 50), brl, [dias[0]]);
+    expect(doDia[doDia.length - 1].eixo).toBe("50ª");
+  });
+
+  it("série por dia: o ponto de vários dias diz quantos e o intervalo", () => {
+    const linha = (dia: string, resultado: number): LinhaDiaria => ({
+      dia,
+      pontos_por_contrato: resultado / 0.2,
+      resultado_brl_por_contrato: resultado,
+      custos_brl_por_contrato: 0,
+      n_operacoes: 10,
+      n_gain: 6,
+      n_loss: 4,
+      soma_gain_brl_por_contrato: Math.max(0, resultado),
+      soma_loss_brl_por_contrato: Math.min(0, resultado),
+      maior_gain_brl_por_contrato: Math.max(0, resultado),
+      maior_loss_brl_por_contrato: Math.min(0, resultado),
+    });
+    const inicio = Date.UTC(2025, 11, 1);
+    const linhas = Array.from({ length: 600 }, (_, d) => linha(new Date(inicio + d * 86_400_000).toISOString().slice(0, 10), d % 3 === 0 ? -50 : 40));
+    const { pontos } = seriePorDia(linhas, brl);
+    expect(pontos).toHaveLength(240);
+    expect(pontos[0].dica.titulo).toBe("2 dias (01/12 a 02/12/2025)");
+    expect(pontos[0].dica.subtitulo).toBeUndefined();
+    expect(pontos[0].dica.linhas.map((l) => l.rotulo)).toEqual(["Resultado", "Operações", "Acumulado", "Drawdown"]);
+    // o ponto que atravessa a virada do ano leva as duas datas inteiras
+    expect(pontos.some((p) => /^\d+ dias \(\d{2}\/12\/2025 a \d{2}\/01\/2026\)$/.test(p.dica.titulo))).toBe(true);
+    const umDia = seriePorDia(linhas.slice(0, 5), brl).pontos[0];
+    expect(umDia.dica.titulo).toBe("01/12/2025");
+    expect(umDia.dica.subtitulo).toBe("segunda-feira");
+    expect(umDia.eixo).toBe("01/12/2025");
   });
 
   it("série vazia", () => {

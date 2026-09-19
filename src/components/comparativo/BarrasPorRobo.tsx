@@ -3,6 +3,7 @@
 import { cn } from "cn";
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { RotuloComInfo } from "@/components/compartilhados/InfoIndicador";
 import { Segmentado } from "@/components/compartilhados/Segmentado";
 import { Valor } from "@/components/compartilhados/Valor";
 import { PERIODOS_RESUMO, type PeriodoFechado } from "@/components/robo/periodos-resumo";
@@ -43,7 +44,9 @@ export function BarrasPorRobo({ robos }: Props) {
   return (
     <section className="painel">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b px-4 py-3 sm:px-5">
-        <h2 className="font-semibold">Quem rendeu mais</h2>
+        <h2 className="font-semibold">
+          <RotuloComInfo chave="quemRendeuMais">Quem rendeu mais</RotuloComInfo>
+        </h2>
         <Segmentado ariaLabel="Período" opcoes={OPCOES} valor={periodo} onChange={setPeriodo} />
       </div>
       <ol className="p-4 sm:p-5">

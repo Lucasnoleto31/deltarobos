@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { RotuloComInfo } from "@/components/compartilhados/InfoIndicador";
 import { desempacotar, type OpsEmpacotadas } from "@/components/compartilhados/ops-codec";
 import { Valor } from "@/components/compartilhados/Valor";
 import { CurvaCapital } from "@/components/graficos/CurvaCapital";
@@ -144,10 +145,12 @@ export function PainelDesempenho({
   const capitalDoFiltro = capitalReferencia && capitalReferencia > 0 ? formatarBRL(capitalReferencia * estado.contratos, { inteiro: true }) : null;
 
   // 19/09/2026: eram doze cartões iguais, com ícone. Ficam quatro cartões e os outros oito em lista,
-  // como na visão geral. Todos os números e apoios continuam.
+  // como na visão geral. Todos os números e apoios continuam. Cada um com o "o que é" do glossário no
+  // rótulo (info), no mesmo dia: "em todos os cards deve ter uma info sobre o que é".
   const principais: ItemKpi[] = [
     {
       rotulo: "Taxa de acerto",
+      info: "taxaAcerto",
       valor: formatarPct(kpis.taxaAcerto),
       // espaço que não quebra: o número não se separa do rótulo na quebra de linha (19/09/2026)
       detalhe: (
@@ -156,9 +159,11 @@ export function PainelDesempenho({
         </>
       ),
     },
-    { rotulo: "Fator de lucro", valor: formatarMultiplo(kpis.fatorLucro), detalhe: kpis.fatorLucro !== null ? `${formatarMultiplo(kpis.fatorLucro)} de ganho para cada 1 de perda` : undefined },
+    { rotulo: "Fator de lucro", info: "fatorLucro", valor: formatarMultiplo(kpis.fatorLucro), detalhe: kpis.fatorLucro !== null ? `${formatarMultiplo(kpis.fatorLucro)} de ganho para cada 1 de perda` : undefined },
     {
       rotulo: "Drawdown máx.",
+      // o número é o % do capital quando há capital; sem ele, o R$
+      info: kpis.drawdownMaximoPct !== null ? "drawdownPct" : "drawdown",
       valor: kpis.drawdownMaximoPct !== null ? formatarPct(kpis.drawdownMaximoPct) : <Valor valor={-kpis.drawdown.valor} unidade={estado.unidade} inteiro={kpis.drawdown.valor >= 1000} />,
       detalhe:
         kpis.drawdownMaximoPct !== null && capitalDoFiltro !== null
@@ -169,23 +174,24 @@ export function PainelDesempenho({
             ? `fundo em ${formatarData(kpis.drawdown.fundo)}`
             : undefined,
     },
-    { rotulo: "Média mensal", valor: <Valor valor={kpis.mediaMensal} unidade={estado.unidade} inteiro={Math.abs(kpis.mediaMensal) >= 1000} />, detalhe: `${formatarNumero(kpis.nMeses)} ${kpis.nMeses === 1 ? "mês" : "meses"}` },
+    { rotulo: "Média mensal", info: "mediaMensal", valor: <Valor valor={kpis.mediaMensal} unidade={estado.unidade} inteiro={Math.abs(kpis.mediaMensal) >= 1000} />, detalhe: `${formatarNumero(kpis.nMeses)} ${kpis.nMeses === 1 ? "mês" : "meses"}` },
   ];
   // em pares no lg: ganho e perda, payoff e ritmo, melhor e pior dia, dias e sequência
   const demais: ItemKpi[] = [
-    { rotulo: "Ganho médio", valor: <Valor valor={resumo.mediaGain} unidade={estado.unidade} />, detalhe: `maior ${rotuloUnidade(resumo.maiorGain, estado.unidade)}` },
-    { rotulo: "Perda média", valor: <Valor valor={resumo.mediaLoss} unidade={estado.unidade} />, detalhe: `maior ${rotuloUnidade(resumo.maiorLoss, estado.unidade)}` },
-    { rotulo: "Payoff", valor: formatarMultiplo(kpis.payoff), detalhe: kpis.payoff !== null ? `o ganho médio é ${formatarPct(kpis.payoff, 0)} da perda média` : undefined },
+    { rotulo: "Ganho médio", info: "ganhoMedio", valor: <Valor valor={resumo.mediaGain} unidade={estado.unidade} />, detalhe: `maior ${rotuloUnidade(resumo.maiorGain, estado.unidade)}` },
+    { rotulo: "Perda média", info: "perdaMedia", valor: <Valor valor={resumo.mediaLoss} unidade={estado.unidade} />, detalhe: `maior ${rotuloUnidade(resumo.maiorLoss, estado.unidade)}` },
+    { rotulo: "Payoff", info: "payoff", valor: formatarMultiplo(kpis.payoff), detalhe: kpis.payoff !== null ? `o ganho médio é ${formatarPct(kpis.payoff, 0)} da perda média` : undefined },
     // o total de operações está na linha do número grande; aqui fica o ritmo (a média de 1 casa, que
     // a linha mostrava, no lugar do arredondado do antigo cartão) e a duração, que só a linha tinha
-    { rotulo: "Operações por dia", valor: formatarNumero(resumo.mediaPorDia, 1), detalhe: `duração média ${formatarDuracao(resumo.duracaoMediaSeg)}` },
-    { rotulo: "Melhor dia", valor: kpis.melhorDia ? <Valor valor={kpis.melhorDia.valor} unidade={estado.unidade} inteiro={Math.abs(kpis.melhorDia.valor) >= 1000} /> : "–", detalhe: kpis.melhorDia ? formatarData(kpis.melhorDia.dia) : undefined },
-    { rotulo: "Pior dia", valor: kpis.piorDia ? <Valor valor={kpis.piorDia.valor} unidade={estado.unidade} inteiro={Math.abs(kpis.piorDia.valor) >= 1000} /> : "–", detalhe: kpis.piorDia ? formatarData(kpis.piorDia.dia) : undefined },
+    { rotulo: "Operações por dia", info: "operacoesDia", valor: formatarNumero(resumo.mediaPorDia, 1), detalhe: `duração média ${formatarDuracao(resumo.duracaoMediaSeg)}` },
+    { rotulo: "Melhor dia", info: "melhorDia", valor: kpis.melhorDia ? <Valor valor={kpis.melhorDia.valor} unidade={estado.unidade} inteiro={Math.abs(kpis.melhorDia.valor) >= 1000} /> : "–", detalhe: kpis.melhorDia ? formatarData(kpis.melhorDia.dia) : undefined },
+    { rotulo: "Pior dia", info: "piorDia", valor: kpis.piorDia ? <Valor valor={kpis.piorDia.valor} unidade={estado.unidade} inteiro={Math.abs(kpis.piorDia.valor) >= 1000} /> : "–", detalhe: kpis.piorDia ? formatarData(kpis.piorDia.dia) : undefined },
     // contagem de dias, não resultado em dinheiro: numa cor só (19/09/2026, era verde × vermelho)
-    { rotulo: "Dias positivos × negativos", valor: <>{formatarNumero(kpis.diasPositivos)}<span className="text-muted-foreground"> × </span>{formatarNumero(kpis.diasNegativos)}</>, detalhe: `${formatarNumero(kpis.nDias)} dias de pregão` },
+    { rotulo: "Dias positivos × negativos", info: "diasPositivosNegativos", valor: <>{formatarNumero(kpis.diasPositivos)}<span className="text-muted-foreground"> × </span>{formatarNumero(kpis.diasNegativos)}</>, detalhe: `${formatarNumero(kpis.nDias)} dias de pregão` },
     // contagem de operações, não resultado: numa cor só e numa linha só (antes quebrava em três cores)
     {
       rotulo: "Maior sequência",
+      info: "maiorSequencia",
       valor: (
         <>
           {formatarNumero(seq.maiorGains)}&nbsp;gains · {formatarNumero(seq.maiorLosses)}&nbsp;losses
@@ -223,7 +229,10 @@ export function PainelDesempenho({
       </div>
 
       <section className="painel p-4 sm:p-5">
-        <h2 className="mb-3 font-semibold">Curva de capital</h2>
+        {/* o i dos gráficos também (19/09/2026): o nome sozinho não diz a um leigo o que a curva mostra */}
+        <h2 className="mb-3 font-semibold">
+          <RotuloComInfo chave="curvaCapital">Curva de capital</RotuloComInfo>
+        </h2>
         {/* sem o resumo em cima (19/09/2026): resultado, drawdown e dias já estão no número grande e
             nos cartões, como na visão geral */}
         <CurvaCapital linhas={linhasF} opcoes={opcoes} operacoes={opsF} mostrarResumo={false} />
@@ -234,7 +243,9 @@ export function PainelDesempenho({
           contrato, Mês/Ano/Tudo. */}
       <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
         <section className="painel p-4 sm:p-5">
-          <h2 className="font-semibold">Resultado mensal</h2>
+          <h2 className="font-semibold">
+            <RotuloComInfo chave="resultadoMensal">Resultado mensal</RotuloComInfo>
+          </h2>
           {/* as barras vêm do histórico inteiro: com outro período no filtro, isso muda a leitura */}
           {estado.periodo !== "tudo" ? <p className="text-xs text-muted-foreground">Todo o histórico, sem o filtro de período</p> : null}
           <div className="mt-3">
@@ -242,7 +253,9 @@ export function PainelDesempenho({
           </div>
         </section>
         <section className="painel p-4 sm:p-5">
-          <h2 className="mb-3 font-semibold">Resultado por ativo</h2>
+          <h2 className="mb-3 font-semibold">
+            <RotuloComInfo chave="porAtivo">Resultado por ativo</RotuloComInfo>
+          </h2>
           <PorSimbolo faixas={simbolos} unidade={estado.unidade} />
         </section>
       </div>
@@ -251,15 +264,21 @@ export function PainelDesempenho({
         <h2 className="text-lg font-semibold tracking-tight">Distribuição</h2>
         <div className="grid gap-4 lg:grid-cols-3">
           <div className="painel p-4">
-            <h3 className="mb-2 text-sm font-medium">Por dia da semana</h3>
+            <h3 className="mb-2 text-sm font-medium">
+              <RotuloComInfo chave="porDiaSemana">Por dia da semana</RotuloComInfo>
+            </h3>
             <GraficoBarras dados={porDia.map((f) => ({ rotulo: f.rotulo, valor: f.total, n: f.n }))} unidade={estado.unidade} altura={200} />
           </div>
           <div className="painel p-4">
-            <h3 className="mb-2 text-sm font-medium">Por hora de entrada</h3>
+            <h3 className="mb-2 text-sm font-medium">
+              <RotuloComInfo chave="porHora">Por hora de entrada</RotuloComInfo>
+            </h3>
             <GraficoBarras dados={porHoraF.map((f) => ({ rotulo: f.rotulo, valor: f.total, n: f.n }))} unidade={estado.unidade} altura={200} />
           </div>
           <div className="painel p-4">
-            <h3 className="mb-2 text-sm font-medium">Resultado por operação</h3>
+            <h3 className="mb-2 text-sm font-medium">
+              <RotuloComInfo chave="histograma">Resultado por operação</RotuloComInfo>
+            </h3>
             <GraficoBarras
               dados={hist.map((f) => ({
                 rotulo: rotuloUnidade((f.de + f.ate) / 2, estado.unidade),

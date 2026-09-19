@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import type { ChaveIndicador } from "@/components/compartilhados/glossario";
+import { RotuloComInfo } from "@/components/compartilhados/InfoIndicador";
 import { Segmentado } from "@/components/compartilhados/Segmentado";
 import { Valor } from "@/components/compartilhados/Valor";
 import { ListaKpi, type ItemKpi } from "@/components/desempenho/CardsKpi";
@@ -44,11 +46,23 @@ const OPCOES_PERIODO: ReadonlyArray<{ valor: PeriodoPainel; rotulo: string }> = 
   { valor: "tudo", rotulo: "Tudo" },
 ];
 
-/** Uma das três colunas do bloco de capital: rótulo, número e a linha que liga ele aos outros dois. */
-function CelulaCapital({ rotulo, children, detalhe }: { rotulo: string; children: React.ReactNode; detalhe: React.ReactNode }) {
+/** Uma das três colunas do bloco de capital: rótulo (com o "o que é"), número e a linha que liga ele aos outros dois. */
+function CelulaCapital({
+  rotulo,
+  info,
+  children,
+  detalhe,
+}: {
+  rotulo: string;
+  info: ChaveIndicador;
+  children: React.ReactNode;
+  detalhe: React.ReactNode;
+}) {
   return (
     <div className="border-(--painel-fio) p-4 not-first:border-t sm:p-5 sm:not-first:border-t-0 sm:not-first:border-l">
-      <p className="rotulo-metrica">{rotulo}</p>
+      <p className="rotulo-metrica">
+        <RotuloComInfo chave={info}>{rotulo}</RotuloComInfo>
+      </p>
       <p className="mt-2 text-xl leading-none font-semibold tracking-tight tabular-nums sm:text-2xl">{children}</p>
       <p className="mt-1.5 text-xs text-muted-foreground tabular-nums">{detalhe}</p>
     </div>
@@ -88,12 +102,18 @@ export function PainelRisco({ linhas, perdaMedia, hoje, valorPonto, capitalRefer
 
   const ddBrl = formatarBRL(dd, { inteiro: dd >= 1000 });
   const fator = formatarMultiplo(fatorSeguranca, 1);
+  // 19/09/2026 ("o risco de ruína está zero, pq?"): o apoio diz quantas perdas médias cabem no capital, as
+  // "unidades" da conta na metodologia (capital ÷ perda média). A fórmula eleva a razão de perda a esse
+  // número; com centenas de perdas médias no capital, o resultado arredonda para 0,0%. Inteiras, para baixo.
+  const perdasNoCapital = capitalReferencia && mediaLoss !== 0 ? Math.floor(capitalReferencia / Math.abs(mediaLoss)) : null;
 
   // 19/09/2026: eram nove cartões iguais em duas fileiras. Drawdown, capital de referência e capital
-  // mínimo foram para o bloco de cima; os outros seis ficam em lista, em pares no lg.
+  // mínimo foram para o bloco de cima; os outros seis ficam em lista, em pares no lg. Cada um com o
+  // "o que é" do glossário no rótulo (info).
   const indices: ItemKpi[] = [
     {
       rotulo: "Tempo de recuperação",
+      info: "tempoRecuperacao",
       valor: dd === 0 ? "–" : kpis.drawdown.diasAteRecuperar !== null ? `${formatarNumero(kpis.drawdown.diasAteRecuperar)} dias` : "em recuperação",
       detalhe:
         kpis.drawdown.inicio && kpis.drawdown.recuperacao
@@ -104,19 +124,26 @@ export function PainelRisco({ linhas, perdaMedia, hoje, valorPonto, capitalRefer
     },
     {
       rotulo: "Tempo em drawdown",
+      info: "tempoEmDrawdown",
       valor: formatarPct(vTempo, 0),
       detalhe: `${formatarNumero(curva.filter((p) => p.drawdown < 0).length)} de ${formatarNumero(curva.length)} pregões abaixo do pico`,
     },
-    { rotulo: "Calmar", valor: formatarMultiplo(vCalmar), detalhe: "retorno anualizado ÷ drawdown máximo" },
-    { rotulo: "Recovery factor", valor: formatarMultiplo(vRecovery), detalhe: "resultado ÷ drawdown máximo" },
-    { rotulo: "Ulcer index", valor: formatarNumero(vUlcer, 2), detalhe: temCapital ? "profundidade média, em % do capital" : "profundidade média, em R$/contrato" },
+    { rotulo: "Calmar", info: "calmar", valor: formatarMultiplo(vCalmar), detalhe: "retorno anualizado ÷ drawdown máximo" },
+    { rotulo: "Recovery factor", info: "recoveryFactor", valor: formatarMultiplo(vRecovery), detalhe: "resultado ÷ drawdown máximo" },
+    { rotulo: "Ulcer index", info: "ulcer", valor: formatarNumero(vUlcer, 2), detalhe: temCapital ? "profundidade média, em % do capital" : "profundidade média, em R$/contrato" },
     {
       rotulo: "Risco de ruína",
+      info: "riscoRuina",
       valor: vRuina === null ? "–" : formatarPct(vRuina, 1),
+      // sem perda no período a conta também não sai: aí o motivo não é o capital
       detalhe:
         vRuina === null
-          ? "precisa de capital de referência"
-          : `capital ${formatarBRL(capitalReferencia ?? 0, { inteiro: true })} · perda média ${formatarBRL(mediaLoss, { inteiro: Math.abs(mediaLoss) >= 1000 })}`,
+          ? temCapital
+            ? "sem perdas no período"
+            : "precisa de capital de referência"
+          : perdasNoCapital !== null
+            ? `capital de ${formatarBRL(capitalReferencia ?? 0, { inteiro: true })} cobre ${formatarNumero(perdasNoCapital)} perdas médias de ${formatarBRL(Math.abs(mediaLoss), { inteiro: Math.abs(mediaLoss) >= 1000 })}`
+            : undefined,
     },
   ];
 
@@ -142,15 +169,17 @@ export function PainelRisco({ linhas, perdaMedia, hoje, valorPonto, capitalRefer
         <section aria-label="Drawdown e capital" className="painel grid sm:grid-cols-3">
           <CelulaCapital
             rotulo="Drawdown máximo"
+            info={temCapital ? "drawdownPct" : "drawdown"}
             detalhe={temCapital ? `${formatarBRL(-dd, { inteiro: dd >= 1000, sinal: true })} sobre o capital de referência` : "sem capital de referência"}
           >
             {temCapital ? formatarPct(kpis.drawdownMaximoPct, 1) : <Valor valor={-dd} inteiro={dd >= 1000} />}
           </CelulaCapital>
-          <CelulaCapital rotulo="Capital de referência" detalhe={capitalReferencia ? "base dos percentuais" : "não configurado"}>
+          <CelulaCapital rotulo="Capital de referência" info="capitalReferencia" detalhe={capitalReferencia ? "base dos percentuais" : "não configurado"}>
             {capitalReferencia ? formatarBRL(capitalReferencia, { inteiro: true }) : "–"}
           </CelulaCapital>
           <CelulaCapital
             rotulo="Capital mínimo · 1 contrato"
+            info="capitalMinimo"
             detalhe={capitalMinimo !== null ? `margem ${formatarBRL(margem ?? 0, { inteiro: true })} + drawdown ${ddBrl} × ${fator}` : "margem de referência não configurada"}
           >
             {capitalMinimo !== null ? formatarBRL(capitalMinimo, { inteiro: true }) : "–"}
@@ -164,7 +193,9 @@ export function PainelRisco({ linhas, perdaMedia, hoje, valorPonto, capitalRefer
           cima e o Resumo diário; o capital também já está no bloco de cima */}
       <section className="painel p-4 sm:p-5">
         <div className="mb-3">
-          <h2 className="font-semibold">Abaixo do pico, dia a dia</h2>
+          <h2 className="font-semibold">
+            <RotuloComInfo chave="abaixoDoPico">Abaixo do pico, dia a dia</RotuloComInfo>
+          </h2>
           <p className="text-xs text-muted-foreground">{temCapital ? "em % do capital" : "em R$ por contrato"}</p>
         </div>
         <AbaixoDoPico curva={curva} capitalReferencia={capitalReferencia} />
@@ -176,7 +207,9 @@ export function PainelRisco({ linhas, perdaMedia, hoje, valorPonto, capitalRefer
           início: no celular a rolagem escondia o R$ atrás das três datas. */}
       <section className="overflow-x-auto painel">
         <div className="border-b px-4 py-3">
-          <h2 className="font-semibold">Maiores drawdowns</h2>
+          <h2 className="font-semibold">
+            <RotuloComInfo chave="maioresDrawdowns">Maiores drawdowns</RotuloComInfo>
+          </h2>
         </div>
         {episodios.length === 0 ? (
           <p className="px-4 py-8 text-center text-sm text-muted-foreground">Nenhum drawdown no período.</p>
@@ -214,7 +247,9 @@ export function PainelRisco({ linhas, perdaMedia, hoje, valorPonto, capitalRefer
       {/* profundidade, piores dias e resumo diário lado a lado no lg: alturas parecidas (19/09/2026) */}
       <div className="grid gap-4 lg:grid-cols-3">
         <section className="painel p-4">
-          <h2 className="font-semibold">Distribuição por profundidade</h2>
+          <h2 className="font-semibold">
+            <RotuloComInfo chave="profundidade">Distribuição por profundidade</RotuloComInfo>
+          </h2>
           <p className="mb-3 text-xs text-muted-foreground">
             {formatarNumero(episodios.length)} drawdowns no período{temCapital ? ", em % do capital" : ", em R$ por contrato"}
           </p>
@@ -243,7 +278,9 @@ export function PainelRisco({ linhas, perdaMedia, hoje, valorPonto, capitalRefer
         </section>
 
         <section className="painel p-4">
-          <h2 className="mb-3 font-semibold">5 piores dias</h2>
+          <h2 className="mb-3 font-semibold">
+            <RotuloComInfo chave="pioresDias">5 piores dias</RotuloComInfo>
+          </h2>
           <ol className="space-y-2.5">
             {piores.map((p) => {
               const maior = Math.max(1, ...piores.map((x) => Math.abs(x.valor)));
@@ -269,7 +306,9 @@ export function PainelRisco({ linhas, perdaMedia, hoje, valorPonto, capitalRefer
           {/* na coluna de um terço o valor quebra: encostado à direita e com folga do rótulo (19/09/2026) */}
           <dl className="divide-y text-sm [&>div]:gap-2 [&_dd]:text-right">
             <div className="flex items-center justify-between py-2">
-              <dt className="text-muted-foreground">Dias negativos</dt>
+              <dt className="text-muted-foreground">
+                <RotuloComInfo chave="diasNegativos">Dias negativos</RotuloComInfo>
+              </dt>
               <dd className="tabular-nums">
                 <strong>
                   {formatarNumero(diario.diasNegativos)} de {formatarNumero(diario.nDias)}
@@ -278,19 +317,25 @@ export function PainelRisco({ linhas, perdaMedia, hoje, valorPonto, capitalRefer
               </dd>
             </div>
             <div className="flex items-center justify-between py-2">
-              <dt className="text-muted-foreground">Sequência negativa máxima</dt>
+              <dt className="text-muted-foreground">
+                <RotuloComInfo chave="sequenciaDiasNegativos">Sequência negativa máxima</RotuloComInfo>
+              </dt>
               <dd className="tabular-nums">
                 <strong>{formatarNumero(diario.maiorSequenciaNegativa)} dias</strong> <span className="text-xs text-muted-foreground">consecutivos</span>
               </dd>
             </div>
             <div className="flex items-center justify-between py-2">
-              <dt className="text-muted-foreground">Volatilidade diária</dt>
+              <dt className="text-muted-foreground">
+                <RotuloComInfo chave="volatilidade">Volatilidade diária</RotuloComInfo>
+              </dt>
               <dd className="tabular-nums">
                 <strong>{formatarBRL(diario.volatilidade, { inteiro: diario.volatilidade >= 1000 })}</strong> <span className="text-xs text-muted-foreground">desvio padrão</span>
               </dd>
             </div>
             <div className="flex items-center justify-between py-2">
-              <dt className="text-muted-foreground">Recuperação média</dt>
+              <dt className="text-muted-foreground">
+                <RotuloComInfo chave="recuperacaoMedia">Recuperação média</RotuloComInfo>
+              </dt>
               <dd className="tabular-nums">
                 <strong>{recuperacaoMedia}</strong>{" "}
                 <span className="text-xs text-muted-foreground">{formatarNumero(diario.episodiosRecuperados)} drawdowns recuperados</span>

@@ -1,13 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { GLOSSARIO, type ChaveIndicador } from "@/components/compartilhados/glossario";
 import { Voltar } from "@/components/layout/Voltar";
-import { formatarNumero } from "@/lib/formato";
+import { formatarMultiplo, formatarNumero, formatarPct } from "@/lib/formato";
+import { PARAMETROS_FAIXAS_PADRAO } from "@/lib/stats/faixas";
 import { LIMITE_SEM_HEARTBEAT_SEG } from "@/lib/stats/pregao";
 
 export const metadata: Metadata = {
   title: "Metodologia",
   description:
-    "Como cada métrica da Delta Robôs é calculada, como os dados são coletados do MetaTrader 5, o que é custo e o que é normalização por contrato.",
+    "Como cada métrica da Quants Robôs é calculada, como os dados são coletados do MetaTrader 5, o que é custo e o que é normalização por contrato.",
 };
 
 const SECOES = [
@@ -33,12 +35,38 @@ const SECOES = [
 // o mesmo limite que decide o selo "Sem atualização" (lib/stats/pregao), para o texto não descolar dele
 const MINUTOS_SEM_SINAL = formatarNumero(LIMITE_SEM_HEARTBEAT_SEG / 60);
 
+// os números das regras de faixa saem dos parâmetros padrão de lib/stats/faixas (19/09/2026), como o lote
+// no glossário: se o padrão mudar lá, o texto muda junto
+const PF = PARAMETROS_FAIXAS_PADRAO;
+const vezes = (v: number) => `${formatarNumero(v, Number.isInteger(v) ? 0 : 1)}×`;
+
 function Secao({ id, titulo, children }: { id: string; titulo: string; children: React.ReactNode }) {
   return (
     <section id={id} className="scroll-mt-24 space-y-3">
       <h2 className="text-xl font-semibold tracking-tight">{titulo}</h2>
       <div className="space-y-3 text-pretty text-muted-foreground [&_strong]:text-foreground">{children}</div>
     </section>
+  );
+}
+
+/**
+ * Um indicador (19/09/2026, Artur: "as explicações sobre os indicadores devem ser de fácil entendimento, para
+ * qualquer leigo entender"): primeiro o que o número quer dizer, com o mesmo texto do i ao lado dele no site
+ * (GLOSSARIO), e depois a conta, para quem quiser refazer. As regras de cálculo são as de antes.
+ * `nome` põe o nome do glossário em cima, quando a seção junta mais de um indicador.
+ */
+function Indicador({ chave, nome = false, children }: { chave: ChaveIndicador; nome?: boolean; children?: React.ReactNode }) {
+  const g = GLOSSARIO[chave];
+  return (
+    <div className="space-y-1.5">
+      {nome ? <h3 className="font-medium text-foreground">{g.nome}</h3> : null}
+      <p className="text-foreground">{g.texto}</p>
+      {children ? (
+        <p>
+          <strong className="font-medium">Como se calcula:</strong> {children}
+        </p>
+      ) : null}
+    </div>
   );
 }
 
@@ -76,9 +104,9 @@ export default function PaginaMetodologia() {
 
         <Secao id="coleta" titulo="Como os dados chegam">
           <p>
-            Em cada terminal MetaTrader 5 da Delta Robôs roda um coletor (um Expert Advisor que <strong>não opera</strong>,
-            só lê a conta). A cada negócio executado ele envia o registro para o site na hora. A cada 3 segundos
-            envia também saldo, posições abertas e cotação. Ao iniciar, reenvia os últimos dias para conferência.
+            Em cada MetaTrader 5 da Quants Robôs roda um coletor: um programa que <strong>não opera</strong>, só lê a
+            conta. A cada negócio executado ele envia o registro para o site na hora. A cada 3 segundos envia também
+            saldo, posições abertas e cotação. Ao iniciar, reenvia os últimos dias para conferência.
           </p>
           <p>
             Nada é digitado à mão. Se o coletor parar por mais de {MINUTOS_SEM_SINAL} minutos em horário de pregão, o site avisa{" "}
@@ -91,158 +119,185 @@ export default function PaginaMetodologia() {
           <p>
             Um robô pode ter um <strong>horário mínimo de operação</strong>. Operações abertas antes desse horário ficam
             fora do site e das estatísticas, embora continuem registradas. O horário vale para todo o histórico do robô,
-            então a curva, os KPIs e os relatórios usam o mesmo conjunto de operações.
+            então a curva, os números e os relatórios usam o mesmo conjunto de operações.
           </p>
         </Secao>
 
         <Secao id="normalizacao" titulo="Por contrato">
           <p>
             Todo valor é dividido pela quantidade de contratos da operação. Um gain de R$&nbsp;60 com 2 contratos aparece como{" "}
-            <strong>R$&nbsp;30 por contrato</strong>. Assim, contas com lotes diferentes não distorcem a média e você multiplica
-            pelo seu tamanho.
+            <strong>R$&nbsp;30 por contrato</strong>. Assim, contas com tamanhos de posição diferentes não distorcem a média, e
+            você multiplica pelo número de contratos que pretende usar.
           </p>
           <p>
-            Pontos viram reais pelo valor do ponto do ativo: <strong>WIN R$&nbsp;0,20</strong> e <strong>WDO R$&nbsp;10,00</strong> por
-            ponto por contrato. O símbolo real muda a cada vencimento (WINV26, WINZ26…), mas tudo é agrupado pelo ativo.
+            Os pontos viram reais pelo valor do ponto de cada ativo: <strong>WIN R$&nbsp;0,20</strong> e{" "}
+            <strong>WDO R$&nbsp;10,00</strong> por ponto, por contrato. O código do contrato muda a cada vencimento (WINV26,
+            WINZ26…), mas tudo é agrupado pelo ativo.
           </p>
         </Secao>
 
         <Secao id="custos" titulo="Bruto e líquido">
           <p>
-            <strong>Bruto</strong> é o lucro que o MetaTrader reporta. <strong>Líquido</strong> desconta um custo fixo por
-            contrato por operação (corretagem e emolumentos), configurado por robô e exibido na seção Transparência de cada
-            um. O site mostra o líquido; o bruto aparece ao lado dele no painel de resultado, nos relatórios mensais e
-            no filtro Custos da aba Desempenho.
+            <strong>Bruto</strong> é o resultado como o MetaTrader informa, antes dos custos. <strong>Líquido</strong> é o
+            bruto menos um custo fixo por contrato em cada operação (corretagem e taxas da bolsa), configurado por robô e
+            mostrado na seção Transparência de cada um. O site mostra o líquido; o bruto aparece ao lado dele no painel de
+            resultado, nos relatórios mensais e no filtro Custos da aba Desempenho.
           </p>
           <p>
-            Gain e loss são classificados sempre pelo resultado <strong>líquido</strong>: uma operação de +R$&nbsp;0,10 bruto com
-            custo de R$&nbsp;0,25 conta como loss.
+            Gain e loss são decididos sempre pelo <strong>líquido</strong>: uma operação que ganhou R$&nbsp;0,10 bruto e
+            pagou R$&nbsp;0,25 de custo conta como loss.
           </p>
         </Secao>
 
         <Secao id="operacao" titulo="O que é uma operação">
           <p>
-            Uma operação vai da abertura de uma posição até ela zerar. Entradas parciais viram um preço médio de entrada;
-            saídas parciais, um preço médio de saída. Se a posição inverte de lado sem zerar (reversão), fecha um ciclo e
-            começa outro.
+            Uma operação vai da entrada do robô no mercado até a posição zerar. Quando ele entra em partes, vale o preço
+            médio das entradas; quando sai em partes, o preço médio das saídas. Nas duas médias, cada parte pesa pelo
+            número de contratos. Se o robô vira a mão, passando de comprado para vendido (ou o contrário) sem zerar, uma
+            operação fecha ali e outra começa.
           </p>
           <p>
-            Preço de entrada e saída são <strong>médios ponderados pelo volume</strong>. Pontos por contrato = (saída − entrada)
-            no sentido da posição. O resultado em reais é o do MetaTrader, para bater com o relatório da corretora no centavo.
+            Os <strong>pontos por contrato</strong> são a diferença entre a saída e a entrada, a favor da posição: na
+            compra, saída menos entrada; na venda, entrada menos saída. O resultado em reais é o do MetaTrader, para bater
+            no centavo com o relatório da corretora.
           </p>
         </Secao>
 
         <Secao id="resultado" titulo="Resultado do dia, mês, ano e acumulado">
-          <p>
-            Soma do resultado por contrato das operações fechadas no período, pelo dia de pregão do fechamento em horário de
-            Brasília. <strong>Média mensal</strong> é o acumulado dividido pelo número de meses com pregão na série.
-          </p>
+          <Indicador chave="resultadoPeriodo">
+            soma do resultado por contrato, já com custos, das operações fechadas no período. Cada operação conta no dia
+            de pregão em que fechou, pelo horário de Brasília.
+          </Indicador>
+          <Indicador chave="mediaMensal" nome>
+            o acumulado dividido pelo número de meses com pregão na série.
+          </Indicador>
         </Secao>
 
         <Secao id="mep-men" titulo="MEP e MEN do dia">
+          <Indicador chave="mep" nome />
+          <Indicador chave="men" nome />
           <p>
-            <strong>MEP</strong> (máxima exposição positiva) é o maior valor positivo que o resultado acumulado do dia
-            atingiu; <strong>MEN</strong> (máxima exposição negativa) é o menor valor negativo desse mesmo acumulado. Os
-            dois são medidos <strong>a cada fechamento de operação</strong>, líquidos de custos e por 1 contrato. Se o
-            acumulado nunca ficou positivo, o MEP é zero e não há operação do MEP; o mesmo vale para o MEN. Em empate, o
-            site aponta a primeira operação em que o extremo ocorreu.
+            <strong>Como se calcula:</strong> a cada operação que fecha, o site soma o resultado do dia até ali, já com
+            custos e por 1 contrato. O MEP é o maior valor positivo dessa soma e o MEN, o menor valor negativo. Se a soma
+            nunca ficou positiva, o MEP é zero e não há operação do MEP; o mesmo vale para o MEN. Em empate, o site aponta a
+            primeira operação em que o extremo aconteceu.
           </p>
           <p>
-            Como só olha os fechamentos, sem a posição aberta, o número fica sempre <strong>igual ou menor, em módulo</strong>,
-            que o MEP/MEN do Profit, que acompanha o resultado tick a tick incluindo a posição em andamento.
+            Como só olha os fechamentos, sem a posição aberta, o número fica sempre <strong>igual ou mais perto de zero</strong>{" "}
+            que o MEP/MEN do Profit, que acompanha o resultado a cada negócio, incluindo a posição em andamento.
           </p>
         </Secao>
 
         <Secao id="drawdown" titulo="Drawdown e recuperação">
-          <p>
-            A curva de capital acumula o resultado dia a dia. <strong>Drawdown</strong> é a distância entre a curva e o maior
-            valor que ela já atingiu. O drawdown máximo é a maior dessas distâncias no período, em reais por contrato e, quando
-            há capital de referência, em porcentagem dele.
-          </p>
-          <p>
-            <strong>Tempo de recuperação</strong> conta os dias corridos entre o último dia no pico e o primeiro dia em que a
-            curva voltou a esse pico. Se ainda não voltou, aparece &quot;em recuperação&quot;.
-          </p>
+          <Indicador chave="drawdown">
+            a curva de capital soma o resultado dia a dia. O drawdown de cada dia é a distância entre a curva e o maior
+            valor que ela já tinha atingido. O drawdown máximo é a maior dessas distâncias no período, em reais por
+            contrato e, quando há capital de referência, em porcentagem dele.
+          </Indicador>
+          <Indicador chave="tempoRecuperacao" nome>
+            os dias corridos entre o último dia no topo e o primeiro dia em que a curva voltou a ele. Se ainda não voltou,
+            aparece &quot;em recuperação&quot;.
+          </Indicador>
         </Secao>
 
         <Secao id="taxa-acerto" titulo="Taxa de acerto">
-          <p>Número de operações com resultado líquido positivo dividido pelo total de operações.</p>
+          <Indicador chave="taxaAcerto">número de operações com resultado líquido positivo dividido pelo total de operações.</Indicador>
         </Secao>
 
         <Secao id="fator-lucro" titulo="Fator de lucro">
-          <p>
-            Soma de todos os gains dividida pela soma de todos os losses (em valor absoluto). Acima de 1 o robô ganha mais
-            do que perde. Sem loss no período, o fator não é definido.
-          </p>
+          <Indicador chave="fatorLucro">
+            a soma de todos os gains dividida pela soma de todos os losses, sem o sinal de menos. Sem nenhum loss no período,
+            a conta dividiria por zero, e o fator fica sem valor.
+          </Indicador>
         </Secao>
 
         <Secao id="payoff" titulo="Payoff">
-          <p>Gain médio dividido pela perda média, em valor absoluto. Mostra o tamanho relativo do que se ganha e do que se perde.</p>
+          <Indicador chave="payoff">o ganho médio dividido pela perda média, sem o sinal de menos.</Indicador>
         </Secao>
 
         <Secao id="sequencias" titulo="Sequências e dias">
-          <p>
-            <strong>Maior sequência de gains ou losses</strong> é contada operação a operação, em ordem de fechamento; uma
-            operação zerada quebra a sequência. <strong>Dias positivos e negativos</strong> olham o resultado líquido de cada
-            dia de pregão. Melhor e pior dia são os extremos dessa série.
-          </p>
+          <Indicador chave="maiorSequencia" nome />
+          <Indicador chave="diasPositivosNegativos" nome>
+            olha o resultado líquido de cada dia de pregão. Melhor e pior dia são o maior e o menor desses resultados.
+          </Indicador>
         </Secao>
 
         <Secao id="capital-minimo" titulo="Capital mínimo recomendado">
-          <p>
-            Por contrato: <strong>margem de referência + drawdown máximo × fator de segurança</strong>. O fator padrão é 1,5.
-            A margem é a exigida pela corretora para manter um contrato em day trade e é configurada por ativo. É uma
-            referência de conforto, não uma garantia: drawdowns futuros podem ser maiores que os passados.
-          </p>
+          <Indicador chave="capitalMinimo">
+            por contrato, <strong>margem de referência + drawdown máximo × fator de segurança</strong>. O fator padrão é
+            1,5. A margem é a exigida pela corretora para manter um contrato em day trade e é configurada por ativo. É uma
+            referência de conforto, não uma garantia.
+          </Indicador>
         </Secao>
 
         <Secao id="indices-risco" titulo="Calmar, recovery factor, Ulcer e tempo em drawdown">
-          <p>
-            <strong>Calmar</strong> = retorno anualizado ÷ drawdown máximo. O retorno anualizado é o resultado do período
-            multiplicado por 252 e dividido pelo número de dias de pregão. Acima de 1, o robô rende por ano mais do que o maior drawdown que já sofreu.
-          </p>
-          <p>
-            <strong>Recovery factor</strong> = resultado do período ÷ drawdown máximo. Quantas vezes o robô já &quot;pagou&quot; o
-            seu maior drawdown.
-          </p>
-          <p>
-            <strong>Ulcer index</strong> = raiz quadrada da média dos quadrados do drawdown dia a dia. Mede quão fundo e por
-            quanto tempo a curva ficou abaixo do pico; em % do capital de referência quando ele existe.
-          </p>
-          <p>
-            <strong>Tempo em drawdown</strong> = fração dos dias de pregão em que a curva estava abaixo do último pico.
-          </p>
+          <Indicador chave="calmar" nome>
+            <strong>retorno anualizado ÷ drawdown máximo</strong>. O retorno anualizado é o resultado do período
+            multiplicado por 252 (o número usual de pregões num ano) e dividido pelo número de dias de pregão do período.
+          </Indicador>
+          <Indicador chave="recoveryFactor" nome>
+            <strong>resultado do período ÷ drawdown máximo</strong>.
+          </Indicador>
+          <Indicador chave="ulcer" nome>
+            a <strong>raiz quadrada da média dos quadrados do drawdown de cada dia</strong>. Elevar ao quadrado pesa mais as
+            quedas fundas. Fica em % do capital de referência quando ele existe.
+          </Indicador>
+          <Indicador chave="tempoEmDrawdown" nome>
+            a fração dos dias de pregão em que a curva estava abaixo do último topo.
+          </Indicador>
         </Secao>
 
         <Secao id="risco-de-ruina" titulo="Risco de ruína">
+          <Indicador chave="riscoRuina">
+            é a aproximação clássica da ruína do apostador. <strong>E = acerto × payoff − (1 − acerto)</strong> é o ganho
+            esperado por operação, contado em perdas médias; <strong>unidades = capital de referência ÷ perda média</strong> é quantas
+            perdas médias seguidas o capital aguenta; e <strong>risco = ((1 − E) ÷ (1 + E)) ^ unidades</strong>. Se E for
+            zero ou negativo, o risco é 100%: sem expectativa positiva, é questão de tempo.
+          </Indicador>
           <p>
-            Aproximação clássica da ruína do apostador: <strong>E = acerto × payoff − (1 − acerto)</strong> é a expectativa
-            por unidade arriscada; <strong>unidades = capital de referência ÷ perda média</strong>;{" "}
-            <strong>risco = ((1 − E) ÷ (1 + E)) ^ unidades</strong>. Se E for zero ou negativo, o risco é 100%: sem
-            expectativa positiva, é questão de tempo. É um indicador de ordem de grandeza, não uma probabilidade exata.
+            <strong>Por que aparece 0,0%.</strong> Com expectativa positiva, a base da conta fica abaixo de 1, e o capital de
+            referência costuma cobrir centenas de perdas médias. Um número abaixo de 1 elevado a centenas cai muito rápido:
+            com a base em 0,95, bastam 150 perdas médias para o resultado ficar abaixo de 0,05%, e o site mostra 0,0%. Só
+            quando a expectativa é quase zero a base fica tão perto de 1 que o risco continua alto. A conta supõe perdas
+            espalhadas, uma independente da outra; na prática elas vêm juntas em dias ruins, e é o drawdown máximo que mostra
+            o tamanho desse pior momento. O risco de ruína serve como ordem de grandeza, não como probabilidade exata.
           </p>
         </Secao>
 
         <Secao id="faixas" titulo="Validação de faixas">
+          <Indicador chave="faixa" />
           <p>
-            Cada combinação de dia da semana (segunda a sexta) e hora de entrada (9h às 17h) é uma faixa. Para cada uma:{" "}
-            <strong>consistência</strong> = taxa de acerto pelo líquido; <strong>recuperação</strong> = resultado líquido ÷
-            drawdown máximo da faixa (curva operação a operação); <strong>drawdown relativo</strong> = drawdown da faixa ÷
-            mediana dos drawdowns das faixas com amostra mínima.
+            As faixas vão de segunda a sexta, das 9h às 17h, e cada operação entra na do dia e da hora em que abriu. Para
+            cada faixa, o site calcula três números.
           </p>
+          <Indicador chave="taxaAcerto" nome>
+            operações da faixa com resultado líquido positivo ÷ operações da faixa. As regras chamam esse número de
+            consistência.
+          </Indicador>
+          <Indicador chave="recuperacaoFaixa" nome>
+            <strong>resultado líquido da faixa ÷ drawdown máximo da faixa</strong>, com a curva somada operação a operação.
+          </Indicador>
+          <Indicador chave="ddRelativo" nome>
+            <strong>drawdown da faixa ÷ mediana dos drawdowns</strong> das faixas com a amostra mínima.
+          </Indicador>
           <p>
-            Classificação, com os parâmetros padrão: faixa com menos de <strong>40 operações</strong> fica sem
-            classificação. <strong>Evitar</strong> se qualquer uma valer: acerto abaixo de 38%, recuperação abaixo de 0,40
-            ou drawdown relativo acima de 6×. <strong>Ligar</strong> se acerto ≥ 58%, recuperação ≥ 0,85 e drawdown relativo
-            ≤ 4×. <strong>Cautela</strong> se acerto ≥ 48% e recuperação ≥ 0,60. O resto é <strong>Neutro</strong>. Lote
-            sugerido: Ligar&nbsp;100%, Cautela&nbsp;60%, Neutro&nbsp;35%, Evitar&nbsp;0%. Os parâmetros em uso estão em Regras, na aba
-            Faixas de cada robô.
+            <strong>Classificação</strong>, com os parâmetros padrão e nesta ordem. Faixa com menos de{" "}
+            <strong>{formatarNumero(PF.amostraMinima)} operações</strong> fica sem classificação: com tão poucas, o resultado
+            pode ser sorte ou azar. <strong>Evitar</strong> se qualquer uma valer: acerto abaixo de{" "}
+            {formatarPct(PF.evitar.acertoMax, 0)}, recuperação abaixo de {formatarMultiplo(PF.evitar.recuperacaoMax)} ou
+            drawdown relativo acima de {vezes(PF.evitar.ddRelativoMin)}. <strong>Ligar</strong> se acerto ≥{" "}
+            {formatarPct(PF.ligar.acertoMin, 0)}, recuperação ≥ {formatarMultiplo(PF.ligar.recuperacaoMin)} e drawdown
+            relativo ≤ {vezes(PF.ligar.ddRelativoMax)}. <strong>Cautela</strong> se acerto ≥ {formatarPct(PF.cautela.acertoMin, 0)}{" "}
+            e recuperação ≥ {formatarMultiplo(PF.cautela.recuperacaoMin)}. O resto é <strong>Neutro</strong>. Os parâmetros em
+            uso estão em Regras, na aba Faixas de cada robô.
           </p>
-          <p>
-            O <strong>score</strong> de 0 a 100 só ordena o ranking: 50 × percentil da expectativa entre as faixas + 30 ×
-            estabilidade (meses positivos ÷ meses) + 20 × confiança (operações ÷ 100). As frases de &quot;O que as regras
-            apontam&quot; saem de regras fixas aplicadas a esses números.
-          </p>
+          <Indicador chave="lote" nome />
+          <Indicador chave="score" nome>
+            <strong>50 × percentil da expectativa</strong> entre as faixas (0 para a pior, 1 para a melhor){" "}
+            <strong>+ 30 × estabilidade</strong> (meses positivos ÷ meses com operação){" "}
+            <strong>+ 20 × confiança</strong> (operações ÷ 100, no máximo 1). Faixa com expectativa zero ou negativa fica
+            com no máximo 40. As frases de &quot;O que as regras apontam&quot; saem de regras fixas aplicadas a esses números.
+          </Indicador>
         </Secao>
 
         <Secao id="periodos" titulo="Períodos e dia de pregão">

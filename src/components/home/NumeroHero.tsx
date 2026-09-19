@@ -1,6 +1,7 @@
 "use client";
 
 import { AtualizadoHa } from "@/components/compartilhados/AtualizadoHa";
+import { RotuloComInfo } from "@/components/compartilhados/InfoIndicador";
 import { Valor } from "@/components/compartilhados/Valor";
 import { formatarDataLonga, formatarNumero, formatarPct } from "@/lib/formato";
 import { useCasa, usePregaoAberto } from "./CasaAoVivoProvider";
@@ -11,12 +12,21 @@ interface Props {
   ultimoPregao: UltimoPregaoCasa | null;
 }
 
+const TEXTO_RESULTADO =
+  "Soma do que todos os robôs ganharam e perderam nas operações fechadas nesse pregão, com 1 contrato em cada um e já descontados os custos.";
+const TEXTO_OPERACOES =
+  "Quantas vezes os robôs entraram no mercado e saíram nesse pregão, somando todos. Cada operação vai da entrada até a posição zerar.";
+
 /**
  * Número grande do hero: resultado de hoje de todos os robôs, por contrato, líquido. Com o pregão
  * fechado e nenhuma operação hoje (fim de semana, noite, madrugada) mostra o último pregão, com a data
  * e o melhor robô do dia, em vez de uma tela de zeros (19/09/2026). Com o pregão aberto continua
  * "Hoje", ao vivo, mesmo zerado. O "atualizado há" só acompanha o número de hoje: embaixo do último
  * pregão ele repetia a barra e sugeria número novo (19/09/2026).
+ *
+ * O número grande, as operações e os acertos têm o i do glossário (19/09/2026). O número grande e as
+ * operações somam todos os robôs, então o texto do glossário, escrito para um robô, vai trocado aqui pelo
+ * da casa.
  */
 export function NumeroHero({ ultimoPregao }: Props) {
   const { estado, hoje } = useCasa();
@@ -50,7 +60,11 @@ export function NumeroHero({ ultimoPregao }: Props) {
 
   return (
     <div className="relative painel vidro p-6 sm:p-8">
-      <p className="text-sm text-muted-foreground">{dia?.rotulo ?? "Hoje, todos os robôs"}</p>
+      <p className="text-sm text-muted-foreground">
+        <RotuloComInfo chave="resultadoDia" texto={TEXTO_RESULTADO}>
+          {dia?.rotulo ?? "Hoje, todos os robôs"}
+        </RotuloComInfo>
+      </p>
       <p className="mt-2 text-5xl font-semibold tracking-tight sm:text-6xl">
         {dia ? <Valor valor={dia.valor} inteiro={false} /> : <span className="text-muted-foreground">–</span>}
       </p>
@@ -64,16 +78,23 @@ export function NumeroHero({ ultimoPregao }: Props) {
       {dia ? (
         <dl className="mt-6 grid grid-cols-3 gap-3 text-sm">
           <div>
-            <dt className="text-muted-foreground">Operações</dt>
+            <dt className="text-muted-foreground">
+              <RotuloComInfo chave="operacoes" texto={TEXTO_OPERACOES}>
+                Operações
+              </RotuloComInfo>
+            </dt>
             <dd className="text-lg font-semibold tabular-nums">{formatarNumero(dia.operacoes)}</dd>
           </div>
           <div>
-            <dt className="text-muted-foreground">Acertos</dt>
+            <dt className="text-muted-foreground">
+              <RotuloComInfo chave="taxaAcerto">Acertos</RotuloComInfo>
+            </dt>
             <dd className="text-lg font-semibold tabular-nums">
               {formatarPct(dia.operacoes > 0 ? dia.gains / dia.operacoes : null, 0)}
             </dd>
           </div>
           <div className="min-w-0">
+            {/* sem o i: no celular a coluna tem 90 px e "Melhor robô" com o i quebrava em duas linhas */}
             <dt className="text-muted-foreground">{dia.terceiro.rotulo}</dt>
             <dd className="truncate text-lg font-semibold tabular-nums">{dia.terceiro.valor}</dd>
           </div>
