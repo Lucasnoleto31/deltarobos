@@ -45,7 +45,7 @@ export async function generateMetadata({ params }: Pick<Props, "params">): Promi
     title: robo.nome,
     description: descricao,
     openGraph: {
-      title: `${robo.nome} · Delta Robôs`,
+      title: `${robo.nome} · Quants Robôs`,
       description: descricao,
       images: [{ url: `/api/og/${slug}`, width: 1200, height: 630 }],
     },

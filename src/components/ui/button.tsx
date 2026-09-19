@@ -7,7 +7,9 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "border-transparent bg-foreground font-semibold text-background hover:opacity-90",
+        // o botão principal é a pílula no verde da Quants (19/09/2026): preto sobre o neon no escuro
+        // (14,8:1), branco sobre o verde escuro no claro (5,4:1; 4,6:1 no hover)
+        default: "border-transparent bg-primary font-semibold text-primary-foreground hover:opacity-90",
         outline:
           "border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
         secondary:

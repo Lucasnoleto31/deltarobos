@@ -254,13 +254,18 @@ export default function PaginaMetodologia() {
             perdas médias seguidas o capital aguenta; e <strong>risco = ((1 − E) ÷ (1 + E)) ^ unidades</strong>. Se E for
             zero ou negativo, o risco é 100%: sem expectativa positiva, é questão de tempo.
           </Indicador>
+          {/* 19/09/2026: primeiro a frase para quem não quer a conta, depois o porquê em números */}
           <p>
-            <strong>Por que aparece 0,0%.</strong> Com expectativa positiva, a base da conta fica abaixo de 1, e o capital de
-            referência costuma cobrir centenas de perdas médias. Um número abaixo de 1 elevado a centenas cai muito rápido:
-            com a base em 0,95, bastam 150 perdas médias para o resultado ficar abaixo de 0,05%, e o site mostra 0,0%. Só
-            quando a expectativa é quase zero a base fica tão perto de 1 que o risco continua alto. A conta supõe perdas
-            espalhadas, uma independente da outra; na prática elas vêm juntas em dias ruins, e é o drawdown máximo que mostra
-            o tamanho desse pior momento. O risco de ruína serve como ordem de grandeza, não como probabilidade exata.
+            <strong>Por que aparece 0,0%.</strong> Quando o capital de referência cobre centenas de perdas médias, como
+            costuma acontecer, a conta dá um número tão pequeno que arredonda para 0,0%. Isso é uma limitação do modelo, não
+            uma garantia: ele trata cada perda como se não tivesse relação com as outras, e as perdas reais vêm agrupadas em
+            dias ruins. O tamanho desse pior momento aparece no drawdown máximo.
+          </p>
+          <p>
+            Em números: com expectativa positiva, a base da conta fica abaixo de 1, e um número abaixo de 1 elevado a
+            centenas cai muito rápido. Com a base em 0,95, bastam 150 perdas médias para o resultado ficar abaixo de 0,05%,
+            e o site mostra 0,0%. Só quando a expectativa é quase zero a base fica tão perto de 1 que o risco continua alto.
+            O risco de ruína serve como ordem de grandeza, não como probabilidade exata.
           </p>
         </Secao>
 

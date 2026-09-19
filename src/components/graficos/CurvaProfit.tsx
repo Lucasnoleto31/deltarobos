@@ -464,21 +464,29 @@ export function DesenhoDaCurva({
   );
 }
 
-/** A moldura grafite do Profit: título centralizado em cima, legenda embaixo do gráfico e, quando há, as abas no rodapé. */
+/**
+ * A moldura grafite do Profit: título centralizado em cima, legenda embaixo do gráfico e, quando há, as abas no rodapé.
+ * O título pode trazer o i do "o que é" (19/09/2026, RotuloComInfo). O i vem com as cores do tema, e o cinza
+ * dele no tema claro some no grafite; aqui ele usa as da moldura: textoFraco (5:1 sobre o fundo) e branco ao
+ * passar o mouse, no foco e aberto.
+ */
 export function MolduraProfit({
   titulo,
   legenda,
   abas,
   children,
 }: {
-  titulo: string;
+  titulo: React.ReactNode;
   legenda?: React.ReactNode;
   abas?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
     <div className="rounded-lg" style={{ background: PROFIT.fundo }}>
-      <p className="px-4 pt-3 pb-2 text-center text-xs font-semibold" style={{ color: PROFIT.titulo }}>
+      <p
+        className="px-4 pt-3 pb-2 text-center text-xs font-semibold [&_button]:text-(--moldura-i)! [&_button:focus-visible]:text-(--moldura-titulo)! [&_button:hover]:text-(--moldura-titulo)! [&_button[data-popup-open]]:text-(--moldura-titulo)!"
+        style={{ color: PROFIT.titulo, "--moldura-i": PROFIT.textoFraco, "--moldura-titulo": PROFIT.titulo } as React.CSSProperties}
+      >
         {titulo}
       </p>
       <div className="px-3">{children}</div>

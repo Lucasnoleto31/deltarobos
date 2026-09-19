@@ -15,16 +15,16 @@ const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: "Delta Robôs · Performance ao vivo",
-    template: "%s · Delta Robôs",
+    default: "Quants Robôs · Performance ao vivo",
+    template: "%s · Quants Robôs",
   },
   description:
-    "Resultado ao vivo dos robôs de day trade da Delta Robôs, direto do MetaTrader 5, normalizado por contrato.",
-  applicationName: "Delta Robôs",
+    "Resultado ao vivo dos robôs de day trade da Quants Robôs, direto do MetaTrader 5, normalizado por contrato.",
+  applicationName: "Quants Robôs",
   openGraph: {
     type: "website",
     locale: "pt_BR",
-    siteName: "Delta Robôs",
+    siteName: "Quants Robôs",
   },
 };
 

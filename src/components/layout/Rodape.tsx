@@ -65,7 +65,7 @@ export function Rodape({ links, textos, robos }: Props) {
       <div className="conteudo grid grid-cols-2 gap-x-6 gap-y-8 py-10 text-sm md:flex md:justify-between">
         <div>
           <Link href="/" className="inline-flex items-center gap-2 font-semibold">
-            <Simbolo aria-hidden className="h-5 w-auto" /> Delta Robôs
+            <Simbolo aria-hidden className="h-5 w-auto" /> Quants Robôs
           </Link>
         </div>
 
@@ -116,7 +116,7 @@ export function Rodape({ links, textos, robos }: Props) {
       <div className="border-t">
         <div className="conteudo space-y-2 py-6 text-xs text-muted-foreground">
           <p className="[font-feature-settings:normal]">{textos.disclaimer}</p>
-          <p>© {ano} Delta Robôs. Todos os direitos reservados.</p>
+          <p>© {ano} Quants Robôs. Todos os direitos reservados.</p>
         </div>
       </div>
     </footer>

@@ -8,10 +8,11 @@ interface Props {
 // O passo 2 ficou só com o título (19/09/2026): o texto repetia a convenção do hero ("por 1 contrato e
 // líquidos de custo") e não ajudava a escolher. No mesmo dia os três cartões viraram um painel com
 // colunas separadas por fio, como o bloco de capital da aba Risco: o cartão vazio do passo 2 destoava
-// entre dois cheios.
+// entre dois cheios. Também em 19/09/2026 a corretora deixou de ser citada pelo nome (identidade Quants);
+// a chave links.btg_abertura_conta é interna e continua a mesma.
 const PASSOS: { titulo: string; texto?: string }[] = [
   {
-    titulo: "Abra sua conta no BTG",
+    titulo: "Abra sua conta na corretora parceira",
     texto: "Pelo link do assessor. Os robôs rodam numa subconta dessa conta.",
   },
   {
@@ -56,7 +57,7 @@ export function ComoComecar({ links }: Props) {
             rel="noopener noreferrer"
             className={buttonVariants({ size: "lg" })}
           >
-            Abrir conta no BTG
+            Abrir conta na corretora parceira
           </a>
         ) : null}
         {links.whatsapp ? (

@@ -462,7 +462,8 @@ export function PainelCalendario({ linhas, pacote, feriados, hoje, valorPonto, c
               <div className="p-3 sm:p-4">
                 {curvaDoDia.length > 0 ? (
                   <MolduraProfit
-                    titulo="O dia, operação a operação"
+                    // o i vai no título, que é lido; a legenda é aria-hidden (19/09/2026)
+                    titulo={<RotuloComInfo chave="curvaDoDia">O dia, operação a operação</RotuloComInfo>}
                     legenda={
                       <span className="inline-flex items-center gap-1.5">
                         <AmostraDaLinha cores={CURVA_POR_OPERACAO} />1 contrato, líquido, por ordem de fechamento

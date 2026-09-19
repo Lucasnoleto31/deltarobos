@@ -95,7 +95,7 @@ export function TelaAoVivo() {
           </Link>
           <Simbolo aria-hidden className="h-6 w-auto" />
           <span className="ml-1 text-sm font-semibold tracking-tight">
-            Delta <span className="text-muted-foreground">Robôs</span>
+            Quants <span className="text-muted-foreground">Robôs</span>
           </span>
         </div>
         <BadgeStatusRobo status={status} />

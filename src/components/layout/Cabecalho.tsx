@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { Simbolo } from "@/components/marca/Simbolo";
-import { listarRobos } from "@/lib/consultas/publico";
 import type { Links } from "@/lib/tipos";
 import { AbasRobos } from "./AbasRobos";
 import { AlternadorTema } from "./AlternadorTema";
@@ -9,6 +8,8 @@ import { LinksNav } from "./LinksNav";
 
 interface Props {
   links: Links;
+  /** os robôs das abas, sem os arquivados; o layout busca uma vez e passa o mesmo ao rodapé */
+  robos: { slug: string; nome: string }[];
 }
 
 /**
@@ -21,18 +22,14 @@ interface Props {
  * O -ml-1/px-1/-my-1/py-1 da faixa dá espaço ao anel de foco sem mexer no alinhamento: a rolagem
  * corta o que passa da borda.
  */
-export async function Cabecalho({ links }: Props) {
-  const robos = (await listarRobos())
-    .filter((r) => r.status !== "arquivado")
-    .map((r) => ({ slug: r.slug, nome: r.nome }));
-
+export function Cabecalho({ links, robos }: Props) {
   return (
     <header className="sticky top-0 z-40 barra-vidro">
       <div className="conteudo flex flex-wrap items-center gap-x-4 gap-y-2 py-2 lg:h-14 lg:flex-nowrap lg:py-0">
         <Link href="/" className="flex shrink-0 items-center gap-2 font-semibold tracking-tight">
           <Simbolo aria-hidden className="h-7 w-auto" />
           <span>
-            Delta <span className="text-muted-foreground">Robôs</span>
+            Quants <span className="text-muted-foreground">Robôs</span>
           </span>
         </Link>
 

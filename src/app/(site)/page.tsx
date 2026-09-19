@@ -31,7 +31,7 @@ export const revalidate = 60;
 
 export const metadata: Metadata = {
   openGraph: {
-    title: "Delta Robôs · Performance ao vivo",
+    title: "Quants Robôs · Performance ao vivo",
     description: "Resultado ao vivo dos robôs de day trade, direto do MetaTrader 5, por contrato.",
     images: [{ url: "/api/og/casa", width: 1200, height: 630 }],
   },

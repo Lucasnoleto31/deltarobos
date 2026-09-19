@@ -13,6 +13,8 @@ export interface ItemKpi {
   icone?: React.ReactNode;
   /** chave do glossário: com ela, o rótulo ganha o i do "o que é" ao lado (19/09/2026) */
   info?: ChaveIndicador;
+  /** troca o texto do glossário quando o número não é de um robô só (os robôs somados do Comparativo) */
+  infoTexto?: string;
 }
 
 interface Props {
@@ -22,7 +24,13 @@ interface Props {
 
 /** O rótulo, com o "o que é" quando o item traz a chave do glossário. */
 function Rotulo({ item }: { item: ItemKpi }) {
-  return item.info ? <RotuloComInfo chave={item.info}>{item.rotulo}</RotuloComInfo> : item.rotulo;
+  return item.info ? (
+    <RotuloComInfo chave={item.info} texto={item.infoTexto}>
+      {item.rotulo}
+    </RotuloComInfo>
+  ) : (
+    item.rotulo
+  );
 }
 
 /**

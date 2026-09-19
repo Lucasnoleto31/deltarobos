@@ -2,16 +2,18 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-/* Ficha visual (kit estético do Artur), identidade Delta Flow, 14/09/2026. Só os VALORES dos
-   tokens mudaram; os nomes são os do shadcn e do projeto, então nenhum componente precisou saber
-   da troca.
-   fundo: preto de cinema #0A0A0B no escuro (padrão), cartão só com fio (18/09) e popover #1C1C1F. Em
-   16/09/2026 o Artur trocou o marinho da marca (#00162E) por preto ("o azul não gostei muito");
-   é a mesma variante .cinema da área do cliente do Hub. No claro, papel quente #F7F5F1 com texto
-   quase preto #141416.
-   acento: o dourado do logo. Escuro #C39A5A (8,3:1 sobre o preto); claro #86652D, porque o
-   dourado da marca sobre branco dá 2,5:1 e reprova. "info" é o mesmo acento: um acento só.
-   semânticas: verde positivo, vermelho negativo, laranja alerta (âmbar competia com o dourado)
+/* Ficha visual (kit estético do Artur), identidade Quants Robôs desde 19/09/2026 (até então a marca
+   antiga, com o dourado). Só os VALORES dos tokens mudaram; os nomes são os do shadcn e do projeto,
+   então nenhum componente precisou saber da troca.
+   fundo: preto de cinema #0A0A0B no escuro (padrão), cartão só com fio (18/09) e popover #1C1C1F. No
+   claro, papel quente #F7F5F1 com texto quase preto #141416.
+   acento: o verde da Quants, só no detalhe (símbolo, Posicionado, foco, seleção) e no botão
+   principal. Escuro #00FF88, o do quantsrobos.com (14,8:1 sobre o preto, e o preto do botão sobre
+   ele também). Claro #007A41, a mesma matiz (152°) escurecida, porque o neon sobre branco dá 1,3:1:
+   5,4:1 sobre o branco, 5,0:1 sobre o papel, e o branco do botão sobre ele 5,4:1. "info" é o mesmo
+   acento: um acento só.
+   semânticas: verde positivo (o do resultado, mais sóbrio; não é o acento), vermelho negativo,
+   laranja alerta
    tipografia: Inter, números tabulares · raio base 10 (o --radius que já existia) */
 
 @custom-variant dark (&:is(.dark *));
@@ -51,7 +53,7 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  /* semântica Delta: verde positivo, vermelho negativo, laranja alerta, dourado info */
+  /* semântica: verde positivo, vermelho negativo, laranja alerta; info é o acento (verde da Quants) */
   --color-positivo: var(--positivo);
   --color-negativo: var(--negativo);
   --color-alerta: var(--alerta);
@@ -73,7 +75,7 @@
   --card-foreground: #141416;
   --popover: #ffffff;
   --popover-foreground: #141416;
-  --primary: #86652d;
+  --primary: #007a41;
   --primary-foreground: #ffffff;
   --secondary: #efebe4;
   --secondary-foreground: #141416;
@@ -84,27 +86,29 @@
   --destructive: #b22222;
   --border: #cfc8bd;
   --input: #d1cbc2;
-  --ring: #86652d;
-  --chart-1: #86652d;
-  --chart-2: #b38a50;
-  --chart-3: #c39a5a;
-  --chart-4: #d1be8f;
-  --chart-5: #e8dcc0;
+  --ring: #007a41;
+  /* escala do acento para gráfico: o verde e as tintas dele sobre o branco. Passam de 3:1 sobre o
+     papel só os dois primeiros (5,0:1 e 3,4:1); os outros são preenchimento */
+  --chart-1: #007a41;
+  --chart-2: #339567;
+  --chart-3: #73b696;
+  --chart-4: #a6d0bc;
+  --chart-5: #d1e7dd;
   --radius: 0.625rem;
   --sidebar: #efebe4;
   --sidebar-foreground: #141416;
-  --sidebar-primary: #86652d;
+  --sidebar-primary: #007a41;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #e4e0da;
   --sidebar-accent-foreground: #141416;
   --sidebar-border: #e4e0da;
-  --sidebar-ring: #86652d;
+  --sidebar-ring: #007a41;
   --positivo: #2e6f40;
   --negativo: #b22222;
   --alerta: #a14a17;
-  --info: #86652d;
-  /* texto sobre o degradê dourado do botão, nos dois temas */
-  --sobre-dourado: #0a0a0b;
+  --info: #007a41;
+  /* fundo da seleção de texto: o acento a 15% sobre o papel (#d2e3d7) */
+  --selecao: color-mix(in srgb, #007a41 15%, transparent);
 }
 
 .dark {
@@ -114,7 +118,7 @@
   --card-foreground: #f8f5ef;
   --popover: #1c1c1f;
   --popover-foreground: #f8f5ef;
-  --primary: #c39a5a;
+  --primary: #00ff88;
   --primary-foreground: #0a0a0b;
   --secondary: #1c1c1f;
   --secondary-foreground: #f8f5ef;
@@ -125,24 +129,27 @@
   --destructive: #e8594b;
   --border: #2a2a2e;
   --input: #3a3a40;
-  --ring: #c39a5a;
-  --chart-1: #d1be8f;
-  --chart-2: #c39a5a;
-  --chart-3: #b38a50;
-  --chart-4: #86652d;
-  --chart-5: #5c4520;
+  --ring: #00ff88;
+  /* escala do acento na mesma matiz, do claro ao escuro; todos passam de 3:1 sobre o preto (o último, 3,2:1) */
+  --chart-1: #80ffc4;
+  --chart-2: #00ff88;
+  --chart-3: #00cc6d;
+  --chart-4: #009952;
+  --chart-5: #00703c;
   --sidebar: #141416;
   --sidebar-foreground: #f8f5ef;
-  --sidebar-primary: #c39a5a;
+  --sidebar-primary: #00ff88;
   --sidebar-primary-foreground: #0a0a0b;
   --sidebar-accent: #1c1c1f;
   --sidebar-accent-foreground: #f8f5ef;
   --sidebar-border: #2a2a2e;
-  --sidebar-ring: #c39a5a;
+  --sidebar-ring: #00ff88;
   --positivo: #53b86f;
   --negativo: #e8594b;
   --alerta: #f08a4b;
-  --info: #c39a5a;
+  --info: #00ff88;
+  /* o neon a 20% sobre o preto (#083b24) */
+  --selecao: color-mix(in srgb, #00ff88 20%, transparent);
 }
 
 @layer base {
@@ -175,10 +182,12 @@
   h3 {
     text-wrap: balance;
   }
-  /* seleção no dourado translúcido, o texto mantém a própria cor. 25% e não mais: com 35% o texto
-     apagado caía para 3,8:1 no claro; com 25% fica em 4,1:1 no claro e 5,4:1 no escuro (19/09/2026) */
+  /* seleção no acento translúcido, o texto mantém a própria cor. 19/09/2026, com o verde da Quants no
+     lugar do dourado: 15% no claro e 20% no escuro (--selecao), para o texto apagado ficar no mesmo
+     nível de antes: 4,1:1 sobre o papel (4,4:1 no branco) e 5,1:1 no escuro. Com 25% o claro caía
+     para 3,5:1 */
   ::selection {
-    background-color: color-mix(in srgb, #c39a5a 25%, transparent);
+    background-color: var(--selecao);
   }
   /* um foco só, visível nos dois temas, no lugar do outline automático do navegador (19/09/2026). Quem
      desenha o próprio anel (outline-none + focus-visible:ring) continua como está: utilitário vence base. */
@@ -247,14 +256,15 @@
 
 
 /* ------------------------------------------------------------------------------------------
-   Superfícies no desenho do Habitto (17/09/2026, pedido do Artur: "quero usar estilos dele no
-   delta robôs"). O cartão é chapado: um tom acima do chão e um fio de 1px, sem sombra nem anel
+   Superfícies no desenho do Habitto (17/09/2026, pedido do Artur: "quero usar estilos dele
+   aqui"). O cartão é chapado: um tom acima do chão e um fio de 1px, sem sombra nem anel
    forte; o que separa as coisas é o espaço. O rótulo do grupo fica FORA do cartão, em caixa alta
    e apagado, como nas listas agrupadas do iOS. Vidro só no que flutua (o cabeçalho).
    Os valores mudam por tema; as classes são as mesmas. */
 /* 18/09/2026, Artur: "o dourado de fundo da página com esse cinza não está legal". O realce dourado
    do chão saiu e o cartão escuro deixou de ter fundo: é só o fio sobre o preto, como ele escolheu no
-   Hub ("dourado sobre preto, não sobre cinza"). O chão é a cor de fundo, sem gradiente. */
+   Hub ("dourado sobre preto, não sobre cinza"). O chão é a cor de fundo, sem gradiente. Desde
+   19/09/2026 o acento é o verde da Quants; o chão continua sem cor. */
 /* 18/09/2026 à tarde ("os cards ainda estão feios"): o cartão ganhou um gradiente quase imperceptível
    de cima para baixo e um brilho de 1px na borda de cima, como o vidro escuro das páginas de trading
    que ele mostrou; no claro, uma sombra curta. Canto de 16px. */
@@ -404,10 +414,5 @@
     background: color-mix(in srgb, var(--background) 75%, transparent);
     -webkit-backdrop-filter: blur(16px) saturate(1.5);
     backdrop-filter: blur(16px) saturate(1.5);
-  }
-
-  /* a caixa das dicas dos gráficos, a mesma em todos (como no Hub) */
-  .dica-caixa {
-    @apply pointer-events-none absolute z-20 w-max max-w-[15rem] min-w-[10rem] rounded-lg bg-popover px-3 py-2.5 text-left text-[11px] leading-snug font-normal text-popover-foreground shadow-xl ring-1 ring-border;
   }
 }

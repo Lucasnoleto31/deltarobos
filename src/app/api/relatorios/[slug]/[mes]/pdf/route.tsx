@@ -51,7 +51,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug: s
   return new Response(new Uint8Array(pdf), {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="delta-robos-${slug}-${mes}.pdf"`,
+      "Content-Disposition": `attachment; filename="quants-robos-${slug}-${mes}.pdf"`,
       "Cache-Control": mesFechado ? "public, s-maxage=86400, stale-while-revalidate=604800" : "public, s-maxage=300",
     },
   });

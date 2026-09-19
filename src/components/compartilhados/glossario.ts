@@ -58,7 +58,6 @@ export type ChaveIndicador =
   // o dia por dentro
   | "mep"
   | "men"
-  | "trecho"
   | "flutuante"
   | "posicionados"
   // base dos números
@@ -289,10 +288,6 @@ export const GLOSSARIO: Record<ChaveIndicador, EntradaGlossario> = {
   men: {
     nome: "MEN (máxima exposição negativa)",
     texto: "O ponto mais baixo que o saldo do dia alcançou, conferido a cada operação fechada. Mostra o quanto o dia chegou a ficar no prejuízo.",
-  },
-  trecho: {
-    nome: "Neste trecho",
-    texto: "Quando há muitas operações, cada ponto do gráfico junta algumas seguidas. É o resultado somado das operações daquele ponto.",
   },
   flutuante: {
     nome: "Flutuante",

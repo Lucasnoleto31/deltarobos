@@ -10,12 +10,14 @@ import {
 } from "@/lib/stats/status-robo";
 
 // Pílula colorida pelo estado (18/09/2026 à noite, Artur: "na pílula de aviso pode ser colorido"): fundo
-// tingido e texto na cor, sem bolinha e sem pulso. Operando verde, posicionado dourado (um dos poucos
-// detalhes em dourado), pausado laranja, sem atualização vermelho, o resto cinza.
+// tingido e texto na cor, sem bolinha e sem pulso. Operando no verde do resultado, posicionado no verde
+// da Quants (o acento, um dos poucos detalhes nele, desde 19/09/2026; antes dourado), pausado laranja,
+// sem atualização vermelho, o resto cinza.
 // 19/09/2026: onde a cor pura sobre o próprio tingido não chegava a 4,5:1 (ou ficava no limite), o texto
-// leva 20% da cor do texto da página. Medido: Posicionado no claro 4,1:1 → 5,3:1, Sem atualização no
-// vidro escuro 3,9:1 → 4,9:1, Pausado no claro 4,4:1 → 5,7:1, cinza no claro 4,6:1 → 6,0:1. No escuro o
-// dourado, o verde, o laranja e o cinza ficam puros (passam); no claro o vermelho fica puro (4,8:1).
+// leva 20% da cor do texto da página. Medido: Posicionado no claro 4,1:1 → 5,3:1 (com o verde #007A41:
+// 5,3:1 sobre o papel, 5,6:1 no cartão), Sem atualização no vidro escuro 3,9:1 → 4,9:1, Pausado no claro
+// 4,4:1 → 5,7:1, cinza no claro 4,6:1 → 6,0:1. No escuro o acento (o neon a 9,7:1 no tingido sobre o
+// cartão), o verde, o laranja e o cinza ficam puros (passam); no claro o vermelho fica puro (4,8:1).
 const CLASSES: Record<TomStatus, string> = {
   positivo: "border-positivo/30 bg-positivo/15 text-[color-mix(in_srgb,var(--positivo)_80%,var(--foreground))] dark:text-positivo",
   negativo: "border-negativo/30 bg-negativo/15 text-negativo dark:text-[color-mix(in_srgb,var(--negativo)_80%,var(--foreground))]",

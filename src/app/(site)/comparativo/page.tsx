@@ -174,11 +174,35 @@ export default async function PaginaComparativo() {
     .slice(-12)
     .map((m) => ({ rotulo: formatarMesAno(`${m.mes}-01`), valor: m.total, n: m.nDias }));
 
+  // o "o que é" do glossário fala de um robô; aqui os números são dos robôs somados (19/09/2026)
   const tiles: ItemKpi[] = [
-    { rotulo: "Desde o início", info: "acumulado", valor: <Valor valor={kCasa.acumulado} inteiro />, detalhe: `${formatarNumero(kCasa.nDias)} dias de pregão` },
-    { rotulo: "Mês atual", info: "mesAtual", valor: <Valor valor={kCasa.mes} inteiro={Math.abs(kCasa.mes) >= 1000} /> },
-    { rotulo: "Drawdown máximo", info: "drawdown", valor: <Valor valor={-kCasa.drawdown.valor} inteiro />, detalhe: kCasa.drawdownMaximoPct !== null ? undefined : kCasa.drawdown.fundo ? `fundo em ${formatarData(kCasa.drawdown.fundo)}` : undefined },
-    { rotulo: "Operações", info: "operacoes", valor: formatarNumero(kCasa.nOperacoes), detalhe: `${formatarPct(kCasa.taxaAcerto)} de acerto` },
+    {
+      rotulo: "Desde o início",
+      info: "acumulado",
+      infoTexto: "Soma do que todos os robôs juntos ganharam e perderam desde a primeira operação registrada no site, com 1 contrato de cada, já descontados os custos.",
+      valor: <Valor valor={kCasa.acumulado} inteiro />,
+      detalhe: `${formatarNumero(kCasa.nDias)} dias de pregão`,
+    },
+    {
+      rotulo: "Mês atual",
+      info: "mesAtual",
+      infoTexto: "Resultado de todos os robôs juntos, com 1 contrato de cada, nas operações fechadas do dia 1º deste mês até hoje, já descontados os custos.",
+      valor: <Valor valor={kCasa.mes} inteiro={Math.abs(kCasa.mes) >= 1000} />,
+    },
+    {
+      rotulo: "Drawdown máximo",
+      info: "drawdown",
+      infoTexto: "A maior queda do saldo dos robôs somados, com 1 contrato de cada, desde um topo até o fundo seguinte. Mostra o pior momento de quem operasse todos ao mesmo tempo.",
+      valor: <Valor valor={-kCasa.drawdown.valor} inteiro />,
+      detalhe: kCasa.drawdownMaximoPct !== null ? undefined : kCasa.drawdown.fundo ? `fundo em ${formatarData(kCasa.drawdown.fundo)}` : undefined,
+    },
+    {
+      rotulo: "Operações",
+      info: "operacoes",
+      infoTexto: "Quantas operações os robôs fecharam, somando as de todos. Cada operação vai da entrada no mercado até a posição zerar.",
+      valor: formatarNumero(kCasa.nOperacoes),
+      detalhe: `${formatarPct(kCasa.taxaAcerto)} de acerto`,
+    },
   ];
 
   return (
@@ -289,7 +313,12 @@ export default async function PaginaComparativo() {
             <CardsKpi itens={tiles} className="lg:grid-cols-4" />
             <div className="painel p-4 sm:p-5">
               <h3 className="mb-2 text-sm font-medium">
-                <RotuloComInfo chave="resultadoMensal">Mês a mês</RotuloComInfo>
+                <RotuloComInfo
+                  chave="resultadoMensal"
+                  texto="Quanto os robôs somados, com 1 contrato de cada, ganharam ou perderam em cada mês, já descontados os custos."
+                >
+                  Mês a mês
+                </RotuloComInfo>
               </h3>
               <GraficoBarras dados={mensal} unidade="brl" altura={220} rotuloN="Dias de pregão" />
             </div>

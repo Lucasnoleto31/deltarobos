@@ -12,7 +12,7 @@ export function Ecossistema({ links }: Props) {
       href: links.treinamentos,
       icone: <GraduationCap className="size-5" />,
       titulo: "Treinamentos",
-      texto: "Cursos e mentorias da Delta.",
+      texto: "Cursos e mentorias da Quants.",
     },
     {
       href: links.painel_mercado,
@@ -33,7 +33,7 @@ export function Ecossistema({ links }: Props) {
   return (
     <section id="ecossistema" className="conteudo scroll-mt-20 py-8">
       <div className="mb-4">
-        <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">Ecossistema Delta</h2>
+        <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">Ecossistema Quants</h2>
       </div>
       <div className="grid gap-4 sm:grid-cols-3">
         {cards.map((c) => (

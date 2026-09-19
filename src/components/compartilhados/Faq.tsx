@@ -14,7 +14,7 @@ export interface PerguntaFaq {
 export const PERGUNTAS_FREQUENTES: PerguntaFaq[] = [
   {
     p: "De onde vêm os números?",
-    r: "De um coletor que roda dentro do MetaTrader 5 das contas da Delta Robôs e envia cada operação assim que ela fecha. Nenhum número é digitado à mão.",
+    r: "De um coletor que roda dentro do MetaTrader 5 das contas da Quants Robôs e envia cada operação assim que ela fecha. Nenhum número é digitado à mão.",
   },
   {
     p: "O que significa \"por contrato\"?",
@@ -34,7 +34,7 @@ export const PERGUNTAS_FREQUENTES: PerguntaFaq[] = [
   },
   {
     p: "De qual conta vêm as estatísticas?",
-    r: "Cada robô tem uma conta principal da Delta Robôs que alimenta os números públicos. Quando ela é uma conta demo, o robô mostra um selo indicando isso.",
+    r: "Cada robô tem uma conta principal da Quants Robôs que alimenta os números públicos. Quando ela é uma conta demo, o robô mostra um selo indicando isso.",
   },
 ];
 

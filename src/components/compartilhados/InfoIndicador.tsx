@@ -72,7 +72,7 @@ export function InfoIndicador({ chave, texto, className }: Props) {
       </Tooltip.Trigger>
       <Tooltip.Portal>
         <Tooltip.Positioner side="top" sideOffset={6} collisionPadding={12} className="z-50">
-          {/* mesma família da .dica-caixa dos gráficos, em text-sm: fundo de popover, fio, canto e sombra curta */}
+          {/* mesma família da dica dos gráficos, em text-sm: fundo de popover, fio, canto e sombra curta */}
           <Tooltip.Popup
             aria-hidden
             className={cn(

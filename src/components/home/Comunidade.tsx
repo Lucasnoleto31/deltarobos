@@ -10,7 +10,8 @@ interface Props {
 /**
  * Linha de canal, no desenho da lista agrupada do iOS (Habitto): ícone solto no acento, título e
  * apoio, e a seta de quem sai do site. A linha inteira é o alvo do clique. O ícone não tem caixa
- * tintada atrás nem cor de acento: o dourado fica para a marca e o botão principal (18/09/2026).
+ * tintada atrás nem cor de acento: o acento fica para a marca e o botão principal (18/09/2026; desde
+ * 19/09/2026 é o verde da Quants, antes o dourado).
  * A descrição diz o que o canal publica, nada além (19/09/2026: saíram "suporte", "em tempo real",
  * que repetia o "ao vivo" do título, e "bastidores").
  */
