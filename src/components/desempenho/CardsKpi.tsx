@@ -35,3 +35,25 @@ export function CardsKpi({ itens, className }: Props) {
     </div>
   );
 }
+
+/**
+ * O resto dos números em lista agrupada: rótulo e apoio à esquerda, valor à direita, separador
+ * encaixado. É o desenho que o Artur aprovou nos KPIs da visão geral (KpisRobo); desde 19/09/2026
+ * no lugar das fileiras de cartões iguais do Desempenho e do Risco. Duas colunas a partir do lg,
+ * e o fio sai das duas últimas linhas, que fecham o painel.
+ */
+export function ListaKpi({ itens, className }: Props) {
+  return (
+    <dl className={cn("painel grid overflow-hidden lg:grid-cols-2 lg:[&>div:nth-last-child(-n+2)]:after:hidden", className)}>
+      {itens.map((item) => (
+        <div key={item.rotulo} className="sep flex items-center justify-between gap-3 px-4 py-2.5 [--sep:16px]">
+          <dt className="min-w-0">
+            <span className="block text-sm">{item.rotulo}</span>
+            {item.detalhe ? <span className="block text-xs text-muted-foreground tabular-nums">{item.detalhe}</span> : null}
+          </dt>
+          <dd className="shrink-0 text-sm font-semibold whitespace-nowrap tabular-nums">{item.valor}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}

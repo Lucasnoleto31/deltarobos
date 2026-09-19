@@ -10,7 +10,8 @@ import { MiniCurva } from "@/components/graficos/MiniCurva";
 import { Badge } from "@/components/ui/badge";
 import { formatarNumero, formatarPct } from "@/lib/formato";
 import type { StatusAoVivo } from "@/lib/stats/status-robo";
-import type { DadosCardRobo } from "./tipos";
+import { formatarDiaCurto } from "./datas";
+import type { DadosCardRobo, UltimoPregao } from "./tipos";
 
 interface Props {
   card: DadosCardRobo;
@@ -18,6 +19,8 @@ interface Props {
   /** operações e gains de hoje, do resumo ao vivo (quando há) */
   hojeOperacoes?: number;
   hojeGains?: number;
+  /** quando vem, o destaque é esse dia já fechado no lugar de hoje (pregão fechado ou robô sem coletor, sem operação hoje) */
+  ultimoPregao?: UltimoPregao | null;
   /** ms de atraso da entrada, para a grade aparecer em cascata */
   atraso?: number;
 }
@@ -29,10 +32,29 @@ interface Props {
  * número por vez: o de hoje grande, com operações e acerto do dia embaixo; mês e acumulado em apoio;
  * a curva dos 30 dias na largura toda; no pé, o drawdown máximo e o botão redondo que leva ao robô.
  * Com memo (18/09/2026): a grade recalcula o status a cada 5 s, mas as props são primitivas ou
- * estáveis, então o cartão só renderiza de novo quando algo nele muda.
+ * estáveis, então o cartão só renderiza de novo quando algo nele muda. Fora do pregão (ou, no robô sem
+ * coletor, sempre) e sem operação hoje, o número grande é o do último pregão, com o dia no rótulo
+ * (19/09/2026). O selo vai sem a explicação para leitor de tela: o cartão inteiro é um link e ela
+ * alongava o nome dele; fica no title. A entrada dura 500 ms
+ * só na animação: o duration-500 esticava também o hover do .painel-interativo, que é de 180 ms.
  */
-export const CardRobo = memo(function CardRobo({ card, status, hojeOperacoes, hojeGains, atraso = 0 }: Props) {
+export const CardRobo = memo(function CardRobo({
+  card,
+  status,
+  hojeOperacoes,
+  hojeGains,
+  ultimoPregao,
+  atraso = 0,
+}: Props) {
   const emBreve = card.status === "em_breve";
+  const destaque = ultimoPregao
+    ? {
+        rotulo: formatarDiaCurto(ultimoPregao.dia),
+        valor: ultimoPregao.valor,
+        operacoes: ultimoPregao.nOperacoes,
+        gains: ultimoPregao.nGain,
+      }
+    : { rotulo: "Hoje", valor: card.hoje, operacoes: hojeOperacoes, gains: hojeGains };
 
   return (
     <Link
@@ -40,7 +62,7 @@ export const CardRobo = memo(function CardRobo({ card, status, hojeOperacoes, ho
       style={{ animationDelay: `${atraso}ms` }}
       className={cn(
         "group relative flex h-full flex-col painel vidro painel-interativo p-5 outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-        "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:fill-mode-both motion-safe:duration-500",
+        "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:fill-mode-both motion-safe:animation-duration-500 motion-safe:[--tw-ease:cubic-bezier(0.16,1,0.3,1)]",
         emBreve && "opacity-80",
       )}
     >
@@ -51,7 +73,7 @@ export const CardRobo = memo(function CardRobo({ card, status, hojeOperacoes, ho
             {card.ativoNome} · {card.ativo}
           </p>
         </div>
-        <BadgeStatusRobo status={status} />
+        <BadgeStatusRobo status={status} explicar={false} />
       </div>
 
       {emBreve ? (
@@ -64,14 +86,14 @@ export const CardRobo = memo(function CardRobo({ card, status, hojeOperacoes, ho
       ) : (
         <>
           <div className="pt-5">
-            <p className="rotulo-metrica">Hoje</p>
+            <p className="rotulo-metrica">{destaque.rotulo}</p>
             <p className="mt-1 text-3xl font-semibold tracking-tight">
-              <Valor valor={card.hoje} inteiro={Math.abs(card.hoje) >= 10_000} />
+              <Valor valor={destaque.valor} inteiro={Math.abs(destaque.valor) >= 10_000} />
             </p>
-            {hojeOperacoes ? (
+            {destaque.operacoes ? (
               <p className="mt-1 text-xs text-muted-foreground tabular-nums">
-                {formatarNumero(hojeOperacoes)} {hojeOperacoes === 1 ? "operação" : "operações"}
-                {hojeGains !== undefined ? ` · ${formatarPct(hojeGains / hojeOperacoes, 0)} de acerto` : ""}
+                {formatarNumero(destaque.operacoes)} {destaque.operacoes === 1 ? "operação" : "operações"}
+                {destaque.gains !== undefined ? ` · ${formatarPct(destaque.gains / destaque.operacoes, 0)} de acerto` : ""}
               </p>
             ) : (
               <p className="mt-1 text-xs text-muted-foreground">sem operação fechada hoje</p>

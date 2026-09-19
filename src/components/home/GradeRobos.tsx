@@ -20,10 +20,12 @@ const LIMITE_FILTROS = 6;
 /**
  * Item 3 da home: grid responsivo de robôs, ordenado pelo mês, com os
  * números do dia atualizados pelo realtime. Com mais de 6 robôs aparecem
- * filtro por ativo e busca. Nada de robô hardcoded.
+ * filtro por ativo e busca. Nada de robô hardcoded. Com o pregão do ativo fechado e sem operação
+ * hoje, o cartão mostra o último pregão do robô (19/09/2026); o robô sem coletor (selo Histórico)
+ * nunca opera ao vivo, então mostra o último pregão também com o pregão aberto.
  */
 export function GradeRobos({ cards }: Props) {
-  const { estado, feriados, pregaoPorAtivo, pregaoGeral, hoje: hojeDaCasa } = useCasa();
+  const { estado, feriados, pregaoPorAtivo, pregaoGeral, pregaoAbertoNoServidor, hoje: hojeDaCasa } = useCasa();
   const agora = useAgora(5000);
   const [ativo, setAtivo] = useState<string>("todos");
   const [busca, setBusca] = useState("");
@@ -35,7 +37,10 @@ export function GradeRobos({ cards }: Props) {
       const vivo = estado.resumo?.robos.find((r) => r.slug === card.slug);
       const coleta = estado.coleta[card.slug];
       const hoje = vivo ? vivo.resultado_liquido_por_contrato : card.hoje;
-      const delta = hoje - card.hoje; // operações fechadas depois do render do servidor
+      // Mês e acumulado do servidor já trazem o card.hoje; entra só o que o resumo tem além dele. Se o
+      // resumo já é de outro dia (página montada ontem, lida hoje), o dia do servidor fica onde está e o
+      // resumo entra inteiro: antes o resultado de ontem saía do mês e do acumulado (19/09/2026).
+      const delta = vivo ? hoje - (estado.resumo?.dia === hojeDaCasa ? card.hoje : 0) : 0;
       return {
         ...card,
         hoje,
@@ -47,7 +52,7 @@ export function GradeRobos({ cards }: Props) {
         ultimoHeartbeatEm: coleta?.ultimo_heartbeat_em ?? card.ultimoHeartbeatEm,
       };
     });
-  }, [cards, estado.resumo, estado.coleta]);
+  }, [cards, estado.resumo, estado.coleta, hojeDaCasa]);
 
   const visiveis = useMemo(() => {
     const termo = busca.trim().toLowerCase();
@@ -109,14 +114,18 @@ export function GradeRobos({ cards }: Props) {
       </div>
 
       {visiveis.length === 0 ? (
-        <p className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
-          {cards.length === 0 ? "Nenhum robô cadastrado ainda." : "Nenhum robô bate com o filtro."}
+        <p className="painel p-5 text-sm text-muted-foreground">
+          {cards.length === 0 ? "Nenhum robô cadastrado." : "Nenhum robô bate com o filtro."}
         </p>
       ) : (
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {visiveis.map((card, i) => {
             const pregao = pregaoPorAtivo[card.ativo] ?? pregaoGeral;
             const aberto = agora ? pregaoAberto(agora, pregao, feriados) : false;
+            // para o número do cartão, sem relógio vale o que o servidor calculou, como no hero: antes da
+            // abertura o HTML já chega com o último pregão (19/09/2026)
+            const fechado = agora ? !aberto : !pregaoAbertoNoServidor;
+            const operouHoje = (card.hojeOperacoes ?? 0) > 0 || card.hoje !== 0;
             const status = statusAoVivo({
               status: card.status,
               posicionado: card.posicionado,
@@ -129,7 +138,14 @@ export function GradeRobos({ cards }: Props) {
             });
             return (
               <li key={card.slug}>
-                <CardRobo card={card} status={status} hojeOperacoes={card.hojeOperacoes} hojeGains={card.hojeGains} atraso={Math.min(i, 8) * 70} />
+                <CardRobo
+                  card={card}
+                  status={status}
+                  hojeOperacoes={card.hojeOperacoes}
+                  hojeGains={card.hojeGains}
+                  ultimoPregao={(fechado || !card.temColetor) && !operouHoje ? card.ultimoPregao : null}
+                  atraso={Math.min(i, 8) * 70}
+                />
               </li>
             );
           })}

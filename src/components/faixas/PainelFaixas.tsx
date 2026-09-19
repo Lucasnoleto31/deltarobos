@@ -7,9 +7,9 @@ import { Valor } from "@/components/compartilhados/Valor";
 import type { PeriodoPainel } from "@/components/robo/ops-por-periodo";
 import { formatarBRL, formatarMultiplo, formatarNumero, formatarPct } from "@/lib/formato";
 import {
-  DESCRICAO_CLASSE,
   DIAS_UTEIS,
   HORAS,
+  LOTE_POR_CLASSE,
   ROTULO_CLASSE,
   type ClasseFaixa,
   type Faixa,
@@ -33,13 +33,17 @@ const COR: Record<ClasseFaixa, string> = {
   neutro: "var(--muted-foreground)",
   evitar: "var(--negativo)",
 };
+// 19/09/2026: o vermelho puro sobre o fundo de Evitar media 4,4:1 no escuro; lá o texto leva 20% da cor
+// do texto da página, como no selo de status, e a célula fica igual. No claro o vermelho puro passa.
 const FUNDO: Record<ClasseFaixa, string> = {
   ligar: "bg-positivo/12 ring-positivo/40 text-positivo",
   cautela: "bg-alerta/12 ring-alerta/40 text-alerta",
   neutro: "bg-muted ring-foreground/15 text-muted-foreground",
-  evitar: "bg-negativo/12 ring-negativo/40 text-negativo",
+  evitar: "bg-negativo/12 ring-negativo/40 text-negativo dark:text-[color-mix(in_srgb,var(--negativo)_80%,var(--foreground))]",
 };
 const DIA_CURTO = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+// hífen + word joiner (U+2060): o "-R$ 12,30" das frases não quebra entre o sinal e o valor (19/09/2026)
+const SINAL_PRESO = String.fromCharCode(0x2d, 0x2060);
 
 function rec(v: number | null): string {
   return v === null ? "∞" : formatarMultiplo(v);
@@ -68,19 +72,22 @@ export function PainelFaixas({ resultados }: Props) {
   const totalComDados = r.comDados.length;
   const maiorScore = Math.max(1, ...r.melhores.map((f) => f.score));
   const p = r.parametros;
+  // 19/09/2026: "ligar" e "evitar" repetiam a contagem da Distribuição e as Regras desta mesma tela
+  const insights = r.insights.filter((i) => i.chave !== "ligar" && i.chave !== "evitar");
 
   if (resultados.tudo.nOperacoes === 0) {
-    return <p className="rounded-2xl border border-dashed p-8 text-center text-muted-foreground">Ainda não há operações fechadas para validar faixas.</p>;
+    return <p className="painel px-4 py-8 text-center text-sm text-muted-foreground">Sem operações fechadas ainda.</p>;
   }
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-wrap items-end justify-between gap-3">
+      {/* 19/09/2026: o título "Faixas" repetia a aba logo acima; fica só para leitor de tela */}
+      <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-semibold tracking-tight">Faixas</h2>
+          <h2 className="sr-only">Faixas</h2>
           <p className="text-sm text-muted-foreground tabular-nums">
             <strong className="text-foreground">{formatarNumero(r.nOperacoes)}</strong> operações em{" "}
-            <strong className="text-foreground">{totalComDados}</strong> faixas de dia × hora · mediana de drawdown{" "}
+            <strong className="text-foreground">{formatarNumero(totalComDados)}</strong> faixas de dia × hora · mediana de drawdown{" "}
             <strong className="text-foreground">{formatarBRL(r.medianaDd, { inteiro: r.medianaDd >= 1000 })}</strong>
           </p>
         </div>
@@ -91,7 +98,7 @@ export function PainelFaixas({ resultados }: Props) {
       <section className="painel">
         <div className="border-b px-4 py-3 sm:px-5">
           <h3 className="font-semibold">Regras</h3>
-          <p className="text-xs text-muted-foreground">amostra mínima de {p.amostraMinima} operações por faixa</p>
+          <p className="text-xs text-muted-foreground">amostra mínima de {formatarNumero(p.amostraMinima)} operações por faixa</p>
         </div>
         <dl className="grid divide-y divide-(--painel-fio) text-sm sm:grid-cols-3 sm:divide-x sm:divide-y-0">
           <div className="px-4 py-3 sm:px-5">
@@ -145,12 +152,13 @@ export function PainelFaixas({ resultados }: Props) {
                   )}
                 >
                   <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: COR[c] }} />
+                  {/* 19/09/2026: embaixo da classe, só o lote; "Operar com confiança" e afins eram tom de coach */}
                   <span className="flex-1">
                     <span className="font-medium">{ROTULO_CLASSE[c]}</span>
-                    <span className="block text-xs text-muted-foreground">{DESCRICAO_CLASSE[c]}</span>
+                    <span className="block text-xs text-muted-foreground tabular-nums">lote {formatarPct(LOTE_POR_CLASSE[c], 0)}</span>
                   </span>
                   <span className="font-semibold tabular-nums" style={{ color: COR[c] }}>
-                    {r.contagem[c]}
+                    {formatarNumero(r.contagem[c])}
                   </span>
                   <span className="w-9 text-right text-xs text-muted-foreground tabular-nums">
                     {totalComDados > 0 ? formatarPct(r.contagem[c] / totalComDados, 0) : "0%"}
@@ -161,33 +169,41 @@ export function PainelFaixas({ resultados }: Props) {
           </ul>
         </section>
 
+        {/* 19/09/2026: sem faixa Ligar, a lista mostra os maiores scores entre todas as classificadas
+            (validarFaixas); o título dizia "para ligar" nos dois casos */}
         <section className="painel p-4 sm:p-5">
-          <h3 className="font-semibold">Melhores faixas para ligar</h3>
-          <p className="mb-3 text-xs text-muted-foreground">pelo score, entre as classificadas como Ligar</p>
+          <h3 className="font-semibold">{r.contagem.ligar > 0 ? "Melhores faixas para ligar" : "Maiores scores"}</h3>
+          <p className="mb-3 text-xs text-muted-foreground tabular-nums">
+            {r.contagem.ligar > 0
+              ? `${formatarNumero(r.melhores.length)} de ${formatarNumero(r.contagem.ligar)} ${r.contagem.ligar === 1 ? "faixa" : "faixas"} Ligar, pelo score`
+              : "nenhuma faixa classificada como Ligar"}
+          </p>
           {r.melhores.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">Nenhuma faixa com amostra suficiente.</p>
           ) : (
             <ol className="space-y-3">
-              {r.melhores.map((f, i) => (
+              {r.melhores.map((f) => (
                 <li key={f.rotulo}>
+                  {/* 19/09/2026: sem o número da posição (a ordem já diz), a barra do score fora do verde
+                      (não é dinheiro) e o "lote 100%" sem quebrar entre a palavra e o número */}
                   <button
                     type="button"
                     onClick={() => setSelecionada(f)}
                     className="flex w-full items-center gap-3 rounded-lg text-left text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                   >
-                    <span className="w-5 text-xs text-muted-foreground tabular-nums">{String(i + 1).padStart(2, "0")}</span>
                     <div className="min-w-0 flex-1">
                       <span className="font-medium">{f.rotulo}</span>
                       <div className="mt-1 h-1 rounded-full bg-muted">
-                        <div className="h-1 rounded-full bg-positivo" style={{ width: `${Math.round((f.score / maiorScore) * 100)}%` }} />
+                        <div className="h-1 rounded-full bg-foreground/60" style={{ width: `${Math.round((f.score / maiorScore) * 100)}%` }} />
                       </div>
                       <p className="mt-0.5 text-[11px] text-muted-foreground tabular-nums">
-                        {formatarNumero(f.n)} op · {formatarPct(f.acerto, 0)} acerto · recuperação {rec(f.recuperacao)} · lote {Math.round(f.lote * 100)}%
+                        {formatarNumero(f.n)} op · {formatarPct(f.acerto, 0)} acerto · recuperação {rec(f.recuperacao)} · lote&nbsp;{formatarPct(f.lote, 0)}
                       </p>
                     </div>
+                    {/* 19/09/2026: o score não é dinheiro, então sai do verde; o rótulo embaixo sai da caixa alta */}
                     <div className="text-right">
-                      <span className="text-xl font-semibold text-positivo tabular-nums">{f.score}</span>
-                      <span className="block text-[10px] tracking-wide text-muted-foreground uppercase">score</span>
+                      <span className="text-xl font-semibold tabular-nums">{formatarNumero(f.score)}</span>
+                      <span className="block text-[11px] text-muted-foreground">score</span>
                     </div>
                   </button>
                 </li>
@@ -199,10 +215,7 @@ export function PainelFaixas({ resultados }: Props) {
 
       <section className="painel p-4 sm:p-5">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h3 className="font-semibold">Mapa de faixas</h3>
-            <p className="text-xs text-muted-foreground">dia da semana × hora de entrada</p>
-          </div>
+          <h3 className="font-semibold">Mapa de faixas</h3>
           <ul className="flex flex-wrap gap-3 text-xs text-muted-foreground">
             {CLASSES.map((c) => (
               <li key={c} className="inline-flex items-center gap-1.5">
@@ -211,7 +224,8 @@ export function PainelFaixas({ resultados }: Props) {
             ))}
           </ul>
         </div>
-        <div className="overflow-x-auto">
+        {/* 19/09/2026: no celular o mapa rola de lado; a borda esmaece em vez de cortar o valor seco */}
+        <div className="borda-esmaece overflow-x-auto">
           <table className="w-full min-w-[640px] border-separate border-spacing-1.5 text-xs">
             <thead>
               <tr className="text-muted-foreground uppercase">
@@ -239,14 +253,15 @@ export function PainelFaixas({ resultados }: Props) {
                           onClick={() => setSelecionada(f)}
                           className={cn(
                             "flex h-14 w-full flex-col justify-center rounded-lg px-2.5 text-left ring-1 transition-opacity",
-                            f.classe ? FUNDO[f.classe] : "bg-transparent text-muted-foreground/60 ring-foreground/10",
+                            f.classe ? FUNDO[f.classe] : "bg-transparent text-muted-foreground ring-foreground/10",
                             apagada && "opacity-25",
                             sel && "ring-2 ring-foreground",
                           )}
                         >
                           <span className="font-semibold">{f.classe ? ROTULO_CLASSE[f.classe] : "sem amostra"}</span>
-                          <span className="text-[11px] opacity-80 tabular-nums">
-                            {f.n} op{f.n > 0 ? ` · ${formatarPct(f.acerto, 0)}` : ""}
+                          {/* 19/09/2026: sem o opacity-80, que levava a linha a 3,2-4,5:1 sobre a célula tingida */}
+                          <span className="text-[11px] tabular-nums">
+                            {formatarNumero(f.n)} op{f.n > 0 ? ` · ${formatarPct(f.acerto, 0)}` : ""}
                           </span>
                         </button>
                       </td>
@@ -266,7 +281,7 @@ export function PainelFaixas({ resultados }: Props) {
                 {selecionada.classe ? <span className={cn("ml-2 rounded-md px-1.5 py-0.5 text-[11px] ring-1", FUNDO[selecionada.classe])}>{ROTULO_CLASSE[selecionada.classe]}</span> : null}
               </h4>
               <span className="text-sm text-muted-foreground tabular-nums">
-                score <strong className="text-foreground">{selecionada.score}</strong> · lote {Math.round(selecionada.lote * 100)}%
+                score <strong className="text-foreground">{formatarNumero(selecionada.score)}</strong> · lote&nbsp;{formatarPct(selecionada.lote, 0)}
               </span>
             </div>
             <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4 lg:grid-cols-8">
@@ -277,22 +292,22 @@ export function PainelFaixas({ resultados }: Props) {
               <Item rotulo="DD relativo" valor={selecionada.ddRelativo === null ? "–" : `${formatarMultiplo(selecionada.ddRelativo, 1)}×`} />
               <Item rotulo="Expectativa / op" valor={<Valor valor={selecionada.expectativa} />} />
               <Item rotulo="Total" valor={<Valor valor={selecionada.total} inteiro={Math.abs(selecionada.total) >= 1000} />} />
-              <Item rotulo="Meses positivos" valor={`${selecionada.mesesPositivos} de ${selecionada.mesesComDados}`} />
+              <Item rotulo="Meses positivos" valor={`${formatarNumero(selecionada.mesesPositivos)} de ${formatarNumero(selecionada.mesesComDados)}`} />
             </dl>
             <p className="mt-2 text-xs text-muted-foreground">{selecionada.motivo}.</p>
           </div>
         ) : null}
       </section>
 
-      {r.insights.length > 0 ? (
+      {insights.length > 0 ? (
         <section className="painel">
           <div className="border-b px-4 py-3 sm:px-5">
             <h3 className="font-semibold">O que as regras apontam</h3>
           </div>
           <ul className="divide-y divide-(--painel-fio)">
-            {r.insights.map((i) => (
+            {insights.map((i) => (
               <li key={i.chave} className="px-4 py-2.5 text-sm sm:px-5">
-                {i.texto}
+                {i.texto.replace(/-(?=R\$)/g, SINAL_PRESO)}
               </li>
             ))}
           </ul>
@@ -302,10 +317,11 @@ export function PainelFaixas({ resultados }: Props) {
   );
 }
 
+/** 19/09/2026: o rótulo acima do número saiu da caixa alta */
 function Item({ rotulo, valor }: { rotulo: string; valor: React.ReactNode }) {
   return (
     <div>
-      <dt className="text-[11px] tracking-wide text-muted-foreground uppercase">{rotulo}</dt>
+      <dt className="text-xs text-muted-foreground">{rotulo}</dt>
       <dd className="font-semibold tabular-nums">{valor}</dd>
     </div>
   );

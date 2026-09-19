@@ -19,6 +19,7 @@ import {
   listarEstatisticas,
   listarUltimasOperacoes,
 } from "@/lib/consultas/publico";
+import { formatarData } from "@/lib/formato";
 import { dia as diaDaOperacao } from "@/lib/stats/operacoes";
 import { hojeSP } from "@/lib/stats/periodos";
 import type { LinhaDiaria } from "@/lib/stats/tipos";
@@ -80,6 +81,10 @@ export default async function PaginaRobo({ params }: Props) {
     }),
   );
 
+  // o título do resumo diz de quando é o número (19/09/2026): era "Resumo desde o início", o mesmo
+  // texto do período "Tudo" logo acima
+  const primeiroDia = linhas.reduce<string | null>((m, l) => (m === null || l.dia < m ? l.dia : m), null);
+
   const emBreve = robo.status === "em_breve";
   // Num dia de muitas operações, as últimas 20 são todas de hoje, e a seção só repetiria o painel
   // "Hoje ao vivo" logo acima. Ela aparece quando traz alguma coisa de outro dia (17/09/2026).
@@ -88,7 +93,7 @@ export default async function PaginaRobo({ params }: Props) {
   return (
     <div className="space-y-10">
       {emBreve ? (
-        <p className="rounded-2xl border border-dashed p-8 text-center text-muted-foreground">
+        <p className="painel px-4 py-8 text-center text-sm text-muted-foreground">
           Este robô ainda não começou a operar em conta real.
         </p>
       ) : (
@@ -103,7 +108,7 @@ export default async function PaginaRobo({ params }: Props) {
           <section aria-labelledby="kpis" className="space-y-3">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <h2 id="kpis" className="text-lg font-semibold tracking-tight">
-                Resumo desde o início
+                {primeiroDia ? `Desde ${formatarData(primeiroDia)}` : "Resumo"}
               </h2>
               <Link
                 href={`/robos/${slug}/desempenho`}

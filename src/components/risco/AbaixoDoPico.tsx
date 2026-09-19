@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Dica, Eixo, Guias, indiceApontado, mistura, type ConteudoDaDica } from "@/components/graficos/base";
+import { Dica, Eixo, Guias, indiceApontado, mistura, passo, type ConteudoDaDica } from "@/components/graficos/base";
 import { rotulosDeData } from "@/components/graficos/series-da-curva";
 import { formatarBRL, formatarData, formatarPct } from "@/lib/formato";
 import type { PontoCurva } from "@/lib/stats/tipos";
@@ -45,6 +45,11 @@ export function AbaixoDoPico({ curva, capitalReferencia, altura = 240 }: Props) 
   }, [curva]);
 
   const maior = Math.max(1, ...colunas.map((c) => -c.pior.drawdown));
+  // 19/09/2026: a escala vai até um valor redondo na unidade do eixo (% ou R$), em passos redondos.
+  // Ia até o próprio máximo, e as marcas saíam quebradas: 0%, 49%, 99%.
+  const escala = temCapital ? (capitalReferencia as number) : 1;
+  const degrau = passo(maior / escala);
+  const dominio = Math.max(1, Math.ceil(maior / escala / degrau - 1e-9)) * degrau * escala;
   const rotulosX = useMemo(() => rotulosDeData(curva.map((p) => p.dia)), [curva]);
 
   if (colunas.length === 0) {
@@ -56,10 +61,13 @@ export function AbaixoDoPico({ curva, capitalReferencia, altura = 240 }: Props) 
   }
 
   const area = altura - ALTURA_DOS_ROTULOS;
+  // casas do % pelo passo: 2,5% precisa de uma, 50% de nenhuma
+  const casas = [0, 1, 2, 3].find((d) => Math.abs(Math.round(degrau * 100 * 10 ** d) - degrau * 100 * 10 ** d) < 1e-6) ?? 3;
   const formatar = (v: number) =>
-    temCapital ? formatarPct(v / (capitalReferencia as number), 0) : formatarBRL(v, { inteiro: true });
-  const marcas = [0, -maior / 2, -maior];
-  const y = (v: number) => (-v / maior) * 100;
+    temCapital ? formatarPct(v / escala, casas) : formatarBRL(v, { inteiro: degrau >= 1 });
+  const marcas: number[] = [];
+  for (let k = 0; k * degrau * escala <= dominio + (degrau * escala) / 2; k++) marcas.push(-k * degrau * escala);
+  const y = (v: number) => (-v / dominio) * 100;
 
   const dicaDe = (c: (typeof colunas)[number]): ConteudoDaDica => {
     const dd = -c.pior.drawdown;
@@ -84,7 +92,8 @@ export function AbaixoDoPico({ curva, capitalReferencia, altura = 240 }: Props) 
 
   return (
     <div role="img" aria-label="Distância do pico, dia a dia" className="grid w-full grid-cols-[auto_minmax(0,1fr)] gap-x-2">
-      <Eixo marcas={marcas} y={y} altura={area} formatar={(v) => formatar(-v)} />
+      {/* `|| 0` porque -0 saía como "−0%" no topo do eixo (19/09/2026) */}
+      <Eixo marcas={marcas} y={y} altura={area} formatar={(v) => formatar(-v || 0)} />
       <div
         className="relative touch-pan-y"
         style={{ height: area }}
@@ -95,7 +104,7 @@ export function AbaixoDoPico({ curva, capitalReferencia, altura = 240 }: Props) 
         <Guias marcas={marcas} y={y} />
         <div className="absolute inset-0 flex">
           {colunas.map((c, i) => {
-            const alto = (-c.pior.drawdown / maior) * 100;
+            const alto = (-c.pior.drawdown / dominio) * 100;
             const forte = ativo === i;
             return (
               <div key={i} className="relative min-w-0 flex-1">
@@ -116,8 +125,9 @@ export function AbaixoDoPico({ curva, capitalReferencia, altura = 240 }: Props) 
       </div>
       <div />
       <div aria-hidden className="relative mt-1.5 h-4 text-[11px] text-muted-foreground tabular-nums">
-        {rotulosX.map((m) => (
-          <span key={m.rotulo + m.x} className="absolute whitespace-nowrap" style={{ left: `${m.x}%` }}>
+        {/* no celular as datas ficam apertadas: só as de índice par, como na curva de capital (19/09/2026) */}
+        {rotulosX.map((m, i) => (
+          <span key={m.rotulo + m.x} className={`absolute whitespace-nowrap ${i % 2 === 1 ? "max-sm:hidden" : ""}`} style={{ left: `${m.x}%` }}>
             {m.rotulo}
           </span>
         ))}

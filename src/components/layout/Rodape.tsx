@@ -23,9 +23,27 @@ function LinkExterno({ href, children }: { href: string; children: React.ReactNo
   );
 }
 
+function LinkInterno({ href, children, prefetch }: { href: string; children: React.ReactNode; prefetch?: false }) {
+  return (
+    <li>
+      <Link href={href} prefetch={prefetch} className="text-muted-foreground transition-colors hover:text-foreground">
+        {children}
+      </Link>
+    </li>
+  );
+}
+
+/**
+ * 19/09/2026: a Navegação tem os mesmos destinos do cabeçalho (Comparativo e Metodologia faltavam, e no
+ * celular não havia outro caminho até eles). Coluna sem link não aparece: o "Em breve." das Redes e o
+ * "Pelo WhatsApp da comunidade." sem link do Contato saíram. O Contato é só o e-mail: o link do WhatsApp
+ * já está em "Como começar" e nas Redes, e o "Grupo no WhatsApp" era a terceira vez dele no rodapé.
+ * O aviso legal fica sem o "tnum" da página, que alargava o hífen no meio do texto.
+ */
 export function Rodape({ links, textos }: Props) {
   const ano = new Date().getFullYear();
   const temRedes = links.whatsapp || links.youtube || links.instagram || links.sala_ao_vivo;
+  const temContato = Boolean(textos.contato_email);
 
   return (
     <footer className="mt-16 border-t">
@@ -39,52 +57,49 @@ export function Rodape({ links, textos }: Props) {
         <div className="space-y-2">
           <p className="font-medium">Navegação</p>
           <ul className="space-y-1">
-            <li>
-              <Link href="/#robos" className="text-muted-foreground hover:text-foreground">
-                Robôs
-              </Link>
-            </li>
-            <li>
-              <Link href="/#comunidade" className="text-muted-foreground hover:text-foreground">
-                Comunidade
-              </Link>
-            </li>
+            <LinkInterno href="/#robos">Robôs</LinkInterno>
+            <LinkInterno href="/comparativo">Comparativo</LinkInterno>
+            {/* leitura rara, como no cabeçalho: sem prefetch */}
+            <LinkInterno href="/metodologia" prefetch={false}>
+              Metodologia
+            </LinkInterno>
+            <LinkInterno href="/#comunidade">Comunidade</LinkInterno>
             <LinkExterno href={links.whatsapp}>Como começar</LinkExterno>
           </ul>
         </div>
 
-        <div className="space-y-2">
-          <p className="font-medium">Redes</p>
-          {temRedes ? (
+        {temRedes ? (
+          <div className="space-y-2">
+            <p className="font-medium">Redes</p>
             <ul className="space-y-1">
               <LinkExterno href={links.whatsapp}>WhatsApp</LinkExterno>
               <LinkExterno href={links.youtube}>YouTube</LinkExterno>
               <LinkExterno href={links.instagram}>Instagram</LinkExterno>
               <LinkExterno href={links.sala_ao_vivo}>Sala ao vivo</LinkExterno>
             </ul>
-          ) : (
-            <p className="text-muted-foreground">Em breve.</p>
-          )}
-        </div>
+          </div>
+        ) : null}
 
-        <div className="space-y-2">
-          <p className="font-medium">Contato</p>
-          {textos.contato_email ? (
-            <a
-              href={`mailto:${textos.contato_email}`}
-              className="text-muted-foreground hover:text-foreground"
-            >
-              {textos.contato_email}
-            </a>
-          ) : (
-            <p className="text-muted-foreground">Pelo WhatsApp da comunidade.</p>
-          )}
-        </div>
+        {temContato ? (
+          <div className="space-y-2">
+            <p className="font-medium">Contato</p>
+            <ul className="space-y-1">
+              <li>
+                <a
+                  href={`mailto:${textos.contato_email}`}
+                  className="text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  {textos.contato_email}
+                </a>
+              </li>
+            </ul>
+          </div>
+        ) : null}
       </div>
 
       <div className="border-t">
         <div className="conteudo space-y-2 py-6 text-xs text-muted-foreground">
-          <p>{textos.disclaimer}</p>
+          <p className="[font-feature-settings:normal]">{textos.disclaimer}</p>
           <p>© {ano} Delta Robôs. Todos os direitos reservados.</p>
         </div>
       </div>

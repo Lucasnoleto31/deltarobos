@@ -95,9 +95,9 @@ const METRICAS: Metrica[] = [
     ganha: "menor",
   },
   {
+    // 19/09/2026: sem vermelho/laranja, como na aba Risco: é probabilidade, não dinheiro
     rotulo: "Risco de ruína",
-    valor: (c) =>
-      c.ruina === null ? "–" : <span className={c.ruina >= 0.5 ? "text-negativo" : c.ruina > 0.05 ? "text-alerta" : ""}>{formatarPct(c.ruina, 1)}</span>,
+    valor: (c) => (c.ruina === null ? "–" : formatarPct(c.ruina, 1)),
     chave: (c) => c.ruina,
     ganha: "menor",
   },
@@ -126,7 +126,9 @@ function melhorDe(m: Metrica, colunas: Coluna[]): number | null {
 /**
  * Comparativo (18/09/2026, "mais intuitivo e útil"): a tabela virou de lado, um robô por coluna e uma
  * métrica por linha, com o melhor de cada linha marcado; embaixo, quem rendeu mais no período em barras;
- * por fim, a casa somada mês a mês. A curva da casa saiu: era mais um gráfico de linha.
+ * por fim, todos juntos mês a mês. A curva do conjunto saiu: era mais um gráfico de linha.
+ * 19/09/2026: no celular a tabela mostrava 1 robô de 3 e rolava de lado; abaixo de 768 px cada métrica
+ * vira um rótulo com os robôs lado a lado embaixo, e os nomes ficam uma vez só, no topo.
  */
 export default async function PaginaComparativo() {
   const hoje = hojeSP();
@@ -176,43 +178,81 @@ export default async function PaginaComparativo() {
       </header>
 
       {colunas.length === 0 ? (
-        <p className="rounded-2xl border border-dashed p-8 text-center text-muted-foreground">Ainda não há robô com operações fechadas.</p>
+        <p className="painel px-4 py-8 text-center text-sm text-muted-foreground">Nenhum robô com operações fechadas ainda.</p>
       ) : (
         <>
-          <section className="painel overflow-x-auto">
+          <section className="painel">
             <div className="border-b px-4 py-3 sm:px-5">
               <h2 className="font-semibold">Lado a lado</h2>
             </div>
-            <table className="w-full min-w-[40rem] text-sm">
-              <thead>
-                <tr className="[&>th]:px-4 [&>th]:py-3 [&>th]:font-medium">
-                  <th className="text-left text-xs text-muted-foreground">Métrica</th>
-                  {colunas.map((c) => (
-                    <th key={c.robo.slug} className="text-right">
-                      <Link href={`/robos/${c.robo.slug}`} className="hover:underline">
-                        {c.robo.nome}
-                      </Link>
-                      <span className="ml-1.5 text-xs font-normal text-muted-foreground">{c.robo.ativo}</span>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="[&>tr]:border-t">
+
+            {/* celular: os nomes uma vez no topo, e cada métrica com os robôs em colunas embaixo */}
+            <div className="md:hidden">
+              <div className="grid gap-2 border-b px-4 py-2.5 text-right text-sm" style={{ gridTemplateColumns: `repeat(${colunas.length}, minmax(0, 1fr))` }}>
+                {colunas.map((c) => (
+                  <div key={c.robo.slug} className="flex min-w-0 flex-col justify-end px-1.5">
+                    <Link href={`/robos/${c.robo.slug}`} className="block leading-snug font-medium break-words hover:underline">
+                      {c.robo.nome}
+                    </Link>
+                    <span className="text-xs text-muted-foreground">{c.robo.ativo}</span>
+                  </div>
+                ))}
+              </div>
+              <dl>
                 {METRICAS.map((m) => {
                   const melhor = melhorDe(m, colunas);
                   return (
-                    <tr key={m.rotulo} className="tabular-nums [&>td]:px-4 [&>td]:py-2.5">
-                      <td className="text-muted-foreground">{m.rotulo}</td>
-                      {colunas.map((c, i) => (
-                        <td key={c.robo.slug} className={`text-right ${melhor === i ? "bg-(--linha-hover) font-semibold" : ""}`}>
-                          {m.valor(c)}
-                        </td>
-                      ))}
-                    </tr>
+                    <div key={m.rotulo} className="sep px-4 py-2.5">
+                      <dt className="text-xs text-muted-foreground">{m.rotulo}</dt>
+                      <dd
+                        className={`mt-1 grid gap-2 text-right tabular-nums ${colunas.length > 3 ? "text-xs" : "text-sm"}`}
+                        style={{ gridTemplateColumns: `repeat(${colunas.length}, minmax(0, 1fr))` }}
+                      >
+                        {colunas.map((c, i) => (
+                          <span key={c.robo.slug} className={`min-w-0 truncate rounded-md px-1.5 py-0.5 ${melhor === i ? "bg-(--linha-hover) font-semibold" : ""}`}>
+                            <span className="sr-only">{c.robo.nome}: </span>
+                            {m.valor(c)}
+                          </span>
+                        ))}
+                      </dd>
+                    </div>
                   );
                 })}
-              </tbody>
-            </table>
+              </dl>
+            </div>
+
+            <div className="hidden overflow-x-auto md:block">
+              <table className="w-full min-w-[40rem] text-sm">
+                <thead>
+                  <tr className="[&>th]:px-4 [&>th]:py-3 [&>th]:font-medium">
+                    <th className="text-left text-xs text-muted-foreground">Métrica</th>
+                    {colunas.map((c) => (
+                      <th key={c.robo.slug} className="text-right">
+                        <Link href={`/robos/${c.robo.slug}`} className="hover:underline">
+                          {c.robo.nome}
+                        </Link>
+                        <span className="ml-1.5 text-xs font-normal text-muted-foreground">{c.robo.ativo}</span>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="[&>tr]:border-t">
+                  {METRICAS.map((m) => {
+                    const melhor = melhorDe(m, colunas);
+                    return (
+                      <tr key={m.rotulo} className="tabular-nums [&>td]:px-4 [&>td]:py-2.5">
+                        <td className="text-muted-foreground">{m.rotulo}</td>
+                        {colunas.map((c, i) => (
+                          <td key={c.robo.slug} className={`text-right ${melhor === i ? "bg-(--linha-hover) font-semibold" : ""}`}>
+                            {m.valor(c)}
+                          </td>
+                        ))}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </section>
 
           {/* os totais por período saem prontos daqui: a série diária de cada robô era 85% do HTML (18/09/2026) */}

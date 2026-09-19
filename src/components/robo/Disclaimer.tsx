@@ -10,17 +10,13 @@ interface Props {
 /**
  * CTA "quero esse robô" (spec §8.2). O aviso legal deixou de ser repetido aqui em 17/09/2026: o rodapé,
  * logo abaixo, traz o mesmo texto em toda página. A prop `texto` fica para não mexer em quem chama.
+ * Em 19/09/2026 saiu a frase que explicava o botão: fica o título e o botão.
  */
 export function Disclaimer({ nomeRobo, linkCta }: Props) {
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-4 painel p-5 sm:p-6">
-        <div>
-          <h2 className="text-lg font-semibold tracking-tight">Licença do {nomeRobo}</h2>
-          <p className="text-sm text-muted-foreground">
-            A equipe da Delta Robôs libera a licença e configura o robô na sua conta.
-          </p>
-        </div>
+        <h2 className="text-lg font-semibold tracking-tight">Licença do {nomeRobo}</h2>
         {linkCta ? (
           <a
             href={linkCta}

@@ -126,6 +126,8 @@ export function PainelCalendario({ linhas, pacote, feriados, hoje, valorPonto, c
   const piorGeral = piores[0];
 
   const porDia = useMemo(() => porDiaSemana(ops, opcoes), [ops, opcoes]);
+  const opsNoHistorico = porDia.reduce((s, f) => s + f.n, 0);
+  const primeiroDia = linhas.reduce((a, l) => (l.dia < a ? l.dia : a), linhas[0]?.dia ?? hoje);
   const maiorDia = Math.max(1, ...porDia.map((f) => Math.abs(f.total)));
   const heatmap = useMemo(() => heatmapAnoMes(linhas, opcoes), [linhas, opcoes]);
 
@@ -171,17 +173,15 @@ export function PainelCalendario({ linhas, pacote, feriados, hoje, valorPonto, c
   };
 
   if (linhas.length === 0) {
-    return (
-      <p className="rounded-2xl border border-dashed p-8 text-center text-muted-foreground">
-        Ainda não há operações fechadas pra montar o calendário.
-      </p>
-    );
+    return <p className="painel px-4 py-8 text-center text-sm text-muted-foreground">Sem operações fechadas ainda.</p>;
   }
 
   return (
     <div className="space-y-6">
-      <header className="space-y-1">
-        <h2 className="text-2xl font-semibold tracking-tight">Calendário</h2>
+      {/* 19/09/2026: o título "Calendário" repetia a aba logo acima; fica só para leitor de tela, e a
+          linha de fatos abre a página */}
+      <header>
+        <h2 className="sr-only">Calendário</h2>
         <p className="flex flex-wrap gap-x-3 text-sm text-muted-foreground tabular-nums">
           <span>
             <strong className="text-foreground">{formatarNumero(linhas.length)}</strong> pregões, líquido por 1 contrato
@@ -206,7 +206,7 @@ export function PainelCalendario({ linhas, pacote, feriados, hoje, valorPonto, c
             <div className="min-w-0">
               <h3 className="font-semibold first-letter:uppercase">{formatarMesAno(`${mes}-01`)}</h3>
               <p className="truncate text-xs text-muted-foreground tabular-nums">
-                {grade.nDias} {grade.nDias === 1 ? "pregão" : "pregões"}
+                {formatarNumero(grade.nDias)} {grade.nDias === 1 ? "pregão" : "pregões"}
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-1">
@@ -233,7 +233,7 @@ export function PainelCalendario({ linhas, pacote, feriados, hoje, valorPonto, c
                 {
                   rotulo: "dias positivos",
                   valor: grade.nDias > 0 ? formatarPct(grade.nPositivos / grade.nDias, 0) : "–",
-                  apoio: `${grade.nPositivos} de ${grade.nDias}`,
+                  apoio: `${formatarNumero(grade.nPositivos)} de ${formatarNumero(grade.nDias)}`,
                 },
                 {
                   rotulo: "melhor dia do mês",
@@ -257,7 +257,9 @@ export function PainelCalendario({ linhas, pacote, feriados, hoje, valorPonto, c
                 const positivo = !semDado && d.valor! > 0;
                 const negativo = !semDado && d.valor! < 0;
                 // a cor segue o tamanho do resultado: de 14% a 50% do verde ou do vermelho; o texto fica
-                // branco em cima (verde sobre verde não se lia, 18/09/2026)
+                // branco em cima (verde sobre verde não se lia, 18/09/2026). 19/09/2026: o dia do mês a 75%
+                // e o "N op" a 65% do branco mediam 3,6 a 4,4:1 no verde mais forte; a 90% e 85% passam de 4,5
+                // nos dois temas
                 const fundo =
                   positivo || negativo
                     ? mistura(positivo ? "--positivo" : "--negativo", 14 + Math.round(36 * forca(d.valor!)))
@@ -269,7 +271,7 @@ export function PainelCalendario({ linhas, pacote, feriados, hoje, valorPonto, c
                     disabled={semDado}
                     onClick={() => escolherDia(d.dia)}
                     aria-pressed={selecionado}
-                    aria-label={semDado ? undefined : `${formatarData(d.dia)}: ${curto(d.valor!)} reais em ${d.nOperacoes} operações`}
+                    aria-label={semDado ? undefined : `${formatarData(d.dia)}: ${curto(d.valor!)} reais em ${formatarNumero(d.nOperacoes)} operações`}
                     style={{ background: fundo }}
                     className={cn(
                       "flex min-h-14 min-w-0 flex-col items-start rounded-lg p-1.5 text-left tabular-nums outline-none transition-shadow disabled:cursor-default sm:min-h-16 sm:p-2",
@@ -281,11 +283,11 @@ export function PainelCalendario({ linhas, pacote, feriados, hoje, valorPonto, c
                       selecionado ? "ring-2 ring-foreground" : !semDado && "ring-1 ring-(--painel-fio) hover:ring-foreground/40",
                     )}
                   >
-                    <span className="text-[11px] font-medium text-foreground/75 sm:text-xs">{d.diaDoMes}</span>
+                    <span className="text-[11px] font-medium text-foreground/90 sm:text-xs">{d.diaDoMes}</span>
                     {!semDado ? (
                       <>
                         <span className="mt-0.5 max-w-full truncate text-[11px] leading-tight font-semibold sm:text-sm">{curto(d.valor!)}</span>
-                        <span className="text-[10px] leading-tight text-foreground/65">{d.nOperacoes} op</span>
+                        <span className="text-[10px] leading-tight text-foreground/85">{formatarNumero(d.nOperacoes)} op</span>
                       </>
                     ) : null}
                   </button>
@@ -311,7 +313,7 @@ export function PainelCalendario({ linhas, pacote, feriados, hoje, valorPonto, c
                     { rotulo: "resultado", valor: <Valor valor={totalDia} inteiro={Math.abs(totalDia) >= 1000} /> },
                     { rotulo: opsDia.length === 1 ? "operação" : "operações", valor: formatarNumero(opsDia.length) },
                     {
-                      rotulo: opsDia.length > 0 ? `acerto · ${formatarNumero(gainsDia)} gain` : "acerto",
+                      rotulo: opsDia.length > 0 ? `acerto · ${formatarNumero(gainsDia)} ${gainsDia === 1 ? "gain" : "gains"}` : "acerto",
                       valor: opsDia.length > 0 ? formatarPct(gainsDia / opsDia.length, 0) : "–",
                     },
                   ]}
@@ -380,7 +382,8 @@ export function PainelCalendario({ linhas, pacote, feriados, hoje, valorPonto, c
                   </MolduraProfit>
                 ) : null}
 
-                {/* por hora de entrada: a barra dá o tamanho, o texto dá o número */}
+                {/* por hora de entrada: a barra dá o tamanho, o texto dá o número. Rótulo de grupo em caixa
+                    alta por preferência do dono (19/09/2026) */}
                 <div className="painel-grupo">
                   <div className="painel-cabeca px-0">
                     <h4 className="painel-titulo">Por hora de entrada</h4>
@@ -397,7 +400,7 @@ export function PainelCalendario({ linhas, pacote, feriados, hoje, valorPonto, c
                             />
                           </div>
                           <p className="mt-1 text-[11px] text-muted-foreground">
-                            {formatarNumero(f.n)} op · {f.n > 0 ? Math.round((f.nGain / f.n) * 100) : 0}% de acerto
+                            {formatarNumero(f.n)} op · {formatarPct(f.n > 0 ? f.nGain / f.n : 0, 0)} de acerto
                           </p>
                         </div>
                         <Valor valor={f.total} className="font-medium" />
@@ -412,9 +415,12 @@ export function PainelCalendario({ linhas, pacote, feriados, hoje, valorPonto, c
       </div>
 
       <div className="grid items-start gap-4 lg:grid-cols-3">
+        {/* 19/09/2026: "todo o histórico" virou o fato que diz o mesmo, com número e data */}
         <section className="painel p-4">
           <h3 className="font-semibold">Por dia da semana</h3>
-          <p className="mb-3 text-xs text-muted-foreground">todo o histórico</p>
+          <p className="mb-3 text-xs text-muted-foreground tabular-nums">
+            {formatarNumero(opsNoHistorico)} operações desde {formatarData(primeiroDia)}
+          </p>
           <ul className="space-y-3">
             {porDia.map((f) => (
               <li key={f.chave} className="flex items-center gap-3 text-sm">
@@ -428,7 +434,7 @@ export function PainelCalendario({ linhas, pacote, feriados, hoje, valorPonto, c
                 <div className="w-28 text-right">
                   <Valor valor={f.total} inteiro={Math.abs(f.total) >= 1000} className="font-semibold" />
                   <p className="text-[11px] text-muted-foreground tabular-nums">
-                    {f.n > 0 ? Math.round((f.nGain / f.n) * 100) : 0}% · {formatarNumero(f.n)} op
+                    {formatarPct(f.n > 0 ? f.nGain / f.n : 0, 0)} · {formatarNumero(f.n)} op
                   </p>
                 </div>
               </li>
@@ -449,8 +455,7 @@ export function PainelCalendario({ linhas, pacote, feriados, hoje, valorPonto, c
       ) : null}
 
       <section className="painel p-4 sm:p-5">
-        <h3 className="font-semibold">Resultado mensal por ano</h3>
-        <p className="mb-3 text-xs text-muted-foreground">cada célula é o consolidado do mês</p>
+        <h3 className="mb-3 font-semibold">Resultado mensal por ano</h3>
         <Heatmap linhas={heatmap} unidade="brl" />
       </section>
     </div>
@@ -474,18 +479,19 @@ function ListaDias({
   const maior = Math.max(1, ...itens.map((i) => Math.abs(i.valor)));
   const mostrados = todos ? itens : itens.slice(0, NO_TOPO);
   return (
+    // 19/09/2026: saiu o "os 5 primeiros do histórico", que ficava errado embaixo de "Piores dias"; o
+    // título já diz o que é, e o recorte é o histórico da linha de cima da página. O número da posição
+    // também saiu: a ordem da lista já diz
     <section className="painel p-4">
-      <h3 className="font-semibold">{titulo}</h3>
-      <p className="mb-2 text-xs text-muted-foreground">os {mostrados.length} primeiros do histórico</p>
+      <h3 className="mb-2 font-semibold">{titulo}</h3>
       <ol>
-        {mostrados.map((i, idx) => (
+        {mostrados.map((i) => (
           <li key={i.dia}>
             <button
               type="button"
               onClick={() => aoEscolher(i.dia)}
               className="linha-interativa -mx-2 flex w-[calc(100%+1rem)] items-center gap-3 rounded-lg px-2 py-1.5 text-left text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
             >
-              <span className="w-5 text-xs text-muted-foreground tabular-nums">{String(idx + 1).padStart(2, "0")}</span>
               <div className="min-w-0 flex-1">
                 <div className="flex items-baseline justify-between gap-2">
                   <span className="font-medium tabular-nums">

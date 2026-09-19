@@ -8,7 +8,7 @@ import { Valor } from "@/components/compartilhados/Valor";
 import { Simbolo } from "@/components/marca/Simbolo";
 import { CurvaDoDia } from "@/components/robo/CurvaDoDia";
 import { LinhaOperacao } from "@/components/robo/LinhaOperacao";
-import { useRobo } from "@/components/robo/RoboAoVivoProvider";
+import { usePregaoAberto, useRobo } from "@/components/robo/RoboAoVivoProvider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAgora } from "@/hooks/useAgora";
@@ -43,6 +43,8 @@ export function TelaAoVivo() {
   // anda no AtualizadoHa, que tem relógio próprio. Com 1 s a tela inteira renderizava a cada segundo.
   const agora = useAgora(5000);
   const montado = useMontado();
+  // o texto do dia vazio segue o pregão calculado no servidor até montar: mesmo HTML dos dois lados
+  const abertoParaTexto = usePregaoAberto();
 
   const ops = estado.operacoes;
   const liquido = ops.reduce((s, o) => s + o.resultado_brl_por_contrato - o.custos_brl_por_contrato, 0);
@@ -111,16 +113,19 @@ export function TelaAoVivo() {
           <Valor valor={liquido} />
         </p>
         <p className="mt-2 text-xs text-muted-foreground">por contrato, líquido de custos</p>
-        <div className="mt-2 flex justify-center">
-          <AtualizadoHa em={estado.ultimaMensagemEm ?? estado.ultimoHeartbeatEm} />
-        </div>
+        {/* sem coletor não há sinal: "atualizado sem dados" não diz nada (19/09/2026) */}
+        {robo.tem_coletor ? (
+          <div className="mt-2 flex justify-center">
+            <AtualizadoHa em={estado.ultimaMensagemEm ?? estado.ultimoHeartbeatEm} />
+          </div>
+        ) : null}
       </section>
 
       <dl className="painel grid grid-cols-3 divide-x divide-(--painel-fio)">
         {/* sem o "pts": o rótulo embaixo já diz, e com ele o número não cabia em um terço da tela */}
         <Numero rotulo="pontos">{formatarPontos(pontos, true)}</Numero>
         <Numero rotulo={ops.length === 1 ? "operação" : "operações"}>{formatarNumero(ops.length)}</Numero>
-        <Numero rotulo={ops.length > 0 ? `acerto · ${formatarNumero(gains)} gain` : "acerto"}>
+        <Numero rotulo={ops.length > 0 ? `acerto · ${formatarNumero(gains)} ${gains === 1 ? "gain" : "gains"}` : "acerto"}>
           {ops.length > 0 ? formatarPct(gains / ops.length) : "–"}
         </Numero>
       </dl>
@@ -137,9 +142,8 @@ export function TelaAoVivo() {
                 className="flex items-center justify-between gap-3 rounded-xl border px-4 py-3"
               >
                 <div className="flex min-w-0 items-center gap-2">
-                  <span className={`text-sm font-medium ${p.lado === "compra" ? "text-positivo" : "text-negativo"}`}>
-                    {rotuloLado(p.lado)}
-                  </span>
+                  {/* o lado fica neutro (19/09/2026): verde e vermelho só no resultado */}
+                  <span className="text-sm font-medium">{rotuloLado(p.lado)}</span>
                   <span className="text-sm font-medium">{p.simbolo}</span>
                   <span className="truncate text-sm text-muted-foreground tabular-nums">@ {formatarPreco(p.preco_abertura)}</span>
                 </div>
@@ -155,11 +159,14 @@ export function TelaAoVivo() {
       {ops.length > 0 ? (
         <CurvaDoDia operacoes={ops} altura={200} titulo="O dia, operação a operação" legenda="por contrato, líquido de custos" />
       ) : (
-        <p className="rounded-xl border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-          {/* robô sem coletor (só histórico importado) não tem dia ao vivo: a tela diz isso, em vez de parecer parada */}
-          {robo.tem_coletor
-            ? "Nenhuma operação fechada hoje ainda."
-            : "Este robô só tem histórico importado. Não há operações ao vivo."}
+        <p className="painel px-4 py-8 text-center text-sm text-muted-foreground">
+          {/* robô sem coletor (só histórico importado) não tem dia ao vivo: a tela diz isso, em vez de parecer parada.
+              "ainda" só com o pregão aberto (19/09/2026): no sábado não vem mais nenhuma */}
+          {!robo.tem_coletor
+            ? "Este robô só tem histórico importado, sem operações ao vivo."
+            : abertoParaTexto
+              ? "Nenhuma operação fechada hoje ainda."
+              : "Nenhuma operação hoje."}
         </p>
       )}
 
@@ -190,10 +197,16 @@ export function TelaAoVivo() {
       </div>
 
       <footer className="mt-auto flex items-center justify-between gap-2 pt-1 text-xs text-muted-foreground lg:col-span-2">
-        {/* o endereço só existe no navegador: aparece depois de montar, para o print dizer de onde veio */}
-        <span className="truncate">
+        {/* o endereço só existe no navegador: aparece depois de montar, para o print dizer de onde veio.
+            Sem truncate (19/09/2026): no celular o endereço saía cortado; agora desce inteiro para a segunda linha */}
+        <span className="min-w-0">
           {robo.tem_coletor ? "direto do MetaTrader 5" : "histórico importado"}
-          {montado ? ` · ${window.location.host}` : ""}
+          {montado ? (
+            <>
+              {" · "}
+              <span className="whitespace-nowrap">{window.location.host}</span>
+            </>
+          ) : null}
         </span>
         <Button variant="ghost" size="sm" onClick={compartilhar}>
           <Share2 data-icon="inline-start" /> Compartilhar

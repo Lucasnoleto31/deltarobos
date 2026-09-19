@@ -23,7 +23,7 @@ export const PROFIT = {
   abasBorda: "#444444",
   abaAtiva: "#4a4a4a",
   abaTexto: "#b3b3b3",
-  separador: "#505050",
+  // o separador medido (#505050) saiu em 19/09/2026: 1,57:1 sobre as abas; o "|" usa o textoFraco
 } as const;
 
 /** Linha e área da curva: cada agrupamento com as cores do gráfico do Profit no mesmo agrupamento. */

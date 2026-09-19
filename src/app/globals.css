@@ -148,10 +148,18 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    /* 19/09/2026: barra de rolagem fina em tudo; as faixas que escondem a barra ([scrollbar-width:none])
+       são utilitário e vencem esta regra */
+    scrollbar-width: thin;
   }
   html {
     @apply font-sans;
     color-scheme: dark;
+    /* superfícies do navegador na paleta (19/09/2026): a barra no fio forte, o cursor de texto e os
+       controles nativos na cor do texto */
+    scrollbar-color: var(--painel-fio-forte) transparent;
+    caret-color: var(--foreground);
+    accent-color: var(--foreground);
   }
   html:not(.dark) {
     color-scheme: light;
@@ -160,6 +168,23 @@
     @apply bg-background text-foreground;
     /* cv11 saiu com a troca para Inter: nela é o "a" de um andar só */
     font-feature-settings: "tnum";
+    text-underline-offset: 0.2em;
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+  /* seleção no dourado translúcido, o texto mantém a própria cor. 25% e não mais: com 35% o texto
+     apagado caía para 3,8:1 no claro; com 25% fica em 4,1:1 no claro e 5,4:1 no escuro (19/09/2026) */
+  ::selection {
+    background-color: color-mix(in srgb, #c39a5a 25%, transparent);
+  }
+  /* um foco só, visível nos dois temas, no lugar do outline automático do navegador (19/09/2026). Quem
+     desenha o próprio anel (outline-none + focus-visible:ring) continua como está: utilitário vence base. */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
   }
   .tabular-nums {
     font-variant-numeric: tabular-nums;
@@ -170,6 +195,53 @@
   /* container padrão do site */
   .conteudo {
     @apply mx-auto w-full max-w-6xl px-4 sm:px-6;
+  }
+
+  /* Faixa que rola de lado com as pontas esmaecendo (19/09/2026): no celular a navegação, as abas do
+     robô e os segmentados cortavam o último item sem sinal nenhum. A ponta só esmaece do lado em que
+     ainda há conteúdo, medido pela própria rolagem (animation-timeline); faixa que cabe inteira não rola,
+     a linha do tempo fica inativa e nada esmaece. Sem suporte (Firefox), fica sem o esmaecido; o
+     scroll-fade-x do shadcn faz o mesmo, mas sem suporte esmaece as duas pontas sempre, até na faixa que
+     cabe inteira. O scroll-padding vale junto com o scrollIntoView que cada faixa chama no foco
+     (AbasRobo, AbasRobos, LinksNav, Segmentado): a rolagem do próprio Tab deixava o item focado cortado
+     debaixo do esmaecido. */
+  .borda-esmaece {
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 var(--esmaece-ini), #000 calc(100% - var(--esmaece-fim)), transparent);
+    mask-image: linear-gradient(to right, transparent, #000 var(--esmaece-ini), #000 calc(100% - var(--esmaece-fim)), transparent);
+    scroll-padding-inline: 1.5rem;
+  }
+  @supports (animation-timeline: scroll()) {
+    .borda-esmaece {
+      animation: borda-esmaece linear both;
+      animation-timeline: scroll(self inline);
+    }
+  }
+}
+
+@property --esmaece-ini {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --esmaece-fim {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@keyframes borda-esmaece {
+  0% {
+    --esmaece-ini: 0px;
+    --esmaece-fim: 1.5rem;
+  }
+  10% {
+    --esmaece-ini: 1.5rem;
+  }
+  90% {
+    --esmaece-fim: 1.5rem;
+  }
+  100% {
+    --esmaece-ini: 1.5rem;
+    --esmaece-fim: 0px;
   }
 }
 
@@ -200,7 +272,9 @@
 .dark {
   --painel-fundo: linear-gradient(180deg, rgba(255, 255, 255, 0.065) 0%, rgba(255, 255, 255, 0.025) 100%);
   --painel-brilho: rgba(255, 255, 255, 0.09);
-  --painel-sombra: none;
+  /* sombra nula válida: "none" no meio da lista do box-shadow do .painel invalidava a regra inteira e o
+     brilho de 1px no topo nunca aparecia no escuro (0 de 81 painéis, medido em 19/09/2026) */
+  --painel-sombra: 0 0 #0000;
   --painel-fio: rgba(255, 255, 255, 0.1);
   --painel-fio-forte: rgba(255, 255, 255, 0.26);
   --painel-hover: rgba(255, 255, 255, 0.04);
@@ -224,12 +298,12 @@
   }
   /* Vidro ("liquid glass", pedido do Artur em 18/09/2026 à noite): translúcido, brilho na borda de
      cima e um reflexo suave no canto. A luz colorida atrás dele (.aura) saiu no mesmo dia: o Artur não
-     gostou do verde atrás do cartão. */
+     gostou do verde atrás do cartão. 19/09/2026: o desfoque de fundo saiu. Atrás do cartão o chão é
+     chapado, e ligar ou desligar o blur mudava no máximo 0,095% dos pixels; o material é o gradiente, o
+     fio, o brilho e o reflexo. O blur fica só na .barra-vidro, que tem conteúdo passando por baixo. */
   .vidro {
     background: linear-gradient(135deg, rgba(255, 255, 255, 0.085) 0%, rgba(255, 255, 255, 0.03) 60%, rgba(255, 255, 255, 0.05) 100%);
     border-color: rgba(255, 255, 255, 0.13);
-    -webkit-backdrop-filter: blur(28px) saturate(1.5);
-    backdrop-filter: blur(28px) saturate(1.5);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.16),
       inset 0 -1px 0 rgba(255, 255, 255, 0.04),

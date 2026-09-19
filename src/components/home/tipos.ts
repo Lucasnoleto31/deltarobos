@@ -22,6 +22,21 @@ export interface DadosCardRobo {
   sparkline: number[];
   nDias: number;
   contaRealDesde: string | null;
+  /** último dia com operação fechada, até hoje inclusive; nulo em robô sem histórico */
+  ultimoPregao: UltimoPregao | null;
+}
+
+/** Um dia de pregão já fechado, por contrato e líquido de custos. */
+export interface UltimoPregao {
+  dia: string;
+  valor: number;
+  nOperacoes: number;
+  nGain: number;
+}
+
+/** O último pregão somando os robôs da home, com o de maior resultado no dia. */
+export interface UltimoPregaoCasa extends UltimoPregao {
+  melhor: { nome: string; valor: number } | null;
 }
 
 export interface InicialCasa {

@@ -27,6 +27,8 @@ const OPCOES = PERIODOS_RESUMO.filter((p) => p.valor !== "hoje") as ReadonlyArra
  * Os robôs lado a lado num período só (18/09/2026, "deixe o comparativo mais intuitivo e útil"): uma
  * barra por robô, do maior para o menor, com o resultado, as operações e os pregões do recorte. Sem
  * curva: aqui a pergunta é "qual rendeu mais neste mês", e a barra responde de relance.
+ * 19/09/2026: o "por 1 contrato, líquido de custos" saiu daqui; a página já diz isso uma vez no topo. O
+ * número da posição também saiu: a ordem da lista já diz.
  */
 export function BarrasPorRobo({ robos }: Props) {
   const [periodo, setPeriodo] = useState<PeriodoFechado>("mes");
@@ -41,21 +43,17 @@ export function BarrasPorRobo({ robos }: Props) {
   return (
     <section className="painel">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b px-4 py-3 sm:px-5">
-        <div>
-          <h2 className="font-semibold">Quem rendeu mais</h2>
-          <p className="text-xs text-muted-foreground">por 1 contrato, líquido de custos</p>
-        </div>
+        <h2 className="font-semibold">Quem rendeu mais</h2>
         <Segmentado ariaLabel="Período" opcoes={OPCOES} valor={periodo} onChange={setPeriodo} />
       </div>
       <ol className="p-4 sm:p-5">
-        {linhas.map((r, i) => (
+        {linhas.map((r) => (
           <li key={r.slug} className="sep [--sep:0px] grid grid-cols-[minmax(7rem,11rem)_minmax(0,1fr)_auto] items-center gap-4 py-3 text-sm">
             <div className="min-w-0">
               <Link href={`/robos/${r.slug}`} className="block truncate font-medium hover:underline">
-                <span className="mr-2 text-xs text-muted-foreground tabular-nums">{String(i + 1).padStart(2, "0")}</span>
                 {r.nome}
               </Link>
-              <span className="ml-6 text-xs text-muted-foreground">{r.ativo}</span>
+              <span className="text-xs text-muted-foreground">{r.ativo}</span>
             </div>
             <div className="h-2 rounded-full bg-muted">
               <div

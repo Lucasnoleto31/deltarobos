@@ -43,17 +43,22 @@ interface Props {
   className?: string;
 }
 
-/** Lista agrupada de perguntas que abrem no lugar (details), com separador encaixado. */
+/**
+ * Lista agrupada de perguntas que abrem no lugar (details), com separador encaixado.
+ * 19/09/2026: o respiro da linha mora no summary, que é o alvo do toque; antes ficava no details e os
+ * 14px de cima e de baixo não abriam nada. A resposta mantém o mesmo recuo, com a seta livre à direita.
+ * O anel de foco fica por dentro, com o canto do painel: encostado na borda, o painel o cortaria.
+ */
 export function Faq({ perguntas = PERGUNTAS_FREQUENTES, className }: Props) {
   return (
     <dl className={cn("painel overflow-hidden", className)}>
       {perguntas.map((item) => (
-        <details key={item.p} className="sep [--sep:20px] group px-5 py-3.5">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium [&::-webkit-details-marker]:hidden">
+        <details key={item.p} className="sep [--sep:20px] group">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-[15px] px-5 py-3.5 text-sm font-medium focus-visible:-outline-offset-2 [&::-webkit-details-marker]:hidden">
             <dt>{item.p}</dt>
             <ChevronDown aria-hidden className="size-4 shrink-0 text-muted-foreground transition-transform duration-200 group-open:rotate-180" />
           </summary>
-          <dd className="pt-2 pr-8 text-sm leading-relaxed text-muted-foreground">{item.r}</dd>
+          <dd className="-mt-1.5 pr-13 pb-3.5 pl-5 text-sm leading-relaxed text-muted-foreground">{item.r}</dd>
         </details>
       ))}
     </dl>

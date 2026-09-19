@@ -26,7 +26,8 @@ interface Props {
  * Uma operação em duas linhas, para o celular (17/09/2026). A tabela de seis colunas não cabe em
  * 390 px: entrada e saída grudavam ("185.455185.600") e "pts" quebrava de linha. Em cima, a hora, o
  * lado e o resultado em R$, que é o que se procura; embaixo, em cinza, de onde saiu o número:
- * entrada, saída, duração e pontos. Fica dentro de um <ul className="painel">.
+ * entrada, saída, duração e pontos. Fica dentro de um <ul className="painel">. O lado é neutro desde
+ * 19/09/2026: verde e vermelho ficam só no resultado.
  */
 export function LinhaOperacao({ operacao: o, comData = false }: Props) {
   const liquido = o.resultado_brl_por_contrato - o.custos_brl_por_contrato;
@@ -39,7 +40,7 @@ export function LinhaOperacao({ operacao: o, comData = false }: Props) {
             {comData ? `${formatarDataCurta(o.dia_pregao)} · ` : ""}
             {formatarHora(o.fechamento_em)}
           </span>
-          <span className={o.lado === "compra" ? "text-positivo" : "text-negativo"}>{rotuloLado(o.lado)}</span>
+          <span>{rotuloLado(o.lado)}</span>
         </p>
         <p className="truncate text-xs text-muted-foreground">
           {temPrecos ? `${formatarPreco(o.preco_entrada)} → ${formatarPreco(o.preco_saida)}` : "histórico importado"}

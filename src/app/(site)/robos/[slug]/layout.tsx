@@ -13,6 +13,7 @@ import {
   listarRobos,
 } from "@/lib/consultas/publico";
 import { hojeSP } from "@/lib/stats/periodos";
+import { pregaoAberto } from "@/lib/stats/pregao";
 
 // Slug novo cadastrado no banco funciona sem deploy: nada de lista fixa.
 export const revalidate = 60;
@@ -79,6 +80,7 @@ export default async function LayoutRobo({ children, params }: Props) {
         inicial={{ operacoes, posicoes, ultimoHeartbeatEm: robo.ultimo_heartbeat_em, dia: hoje }}
         pregao={pregao}
         feriados={feriados}
+        pregaoAbertoNoServidor={pregaoAberto(new Date(), pregao, feriados)}
       >
         <CabecalhoRobo />
         <AbasRobo slug={slug} />

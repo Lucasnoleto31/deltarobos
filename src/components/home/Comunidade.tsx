@@ -11,6 +11,8 @@ interface Props {
  * Linha de canal, no desenho da lista agrupada do iOS (Habitto): ícone solto no acento, título e
  * apoio, e a seta de quem sai do site. A linha inteira é o alvo do clique. O ícone não tem caixa
  * tintada atrás nem cor de acento: o dourado fica para a marca e o botão principal (18/09/2026).
+ * A descrição diz o que o canal publica, nada além (19/09/2026: saíram "suporte", "em tempo real",
+ * que repetia o "ao vivo" do título, e "bastidores").
  */
 function LinhaCanal({
   href,
@@ -54,9 +56,7 @@ export function Comunidade({ links, videos }: Props) {
       </div>
 
       {!temCanais && !temVideos ? (
-        <p className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
-          Links da comunidade em breve.
-        </p>
+        <p className="painel p-5 text-sm text-muted-foreground">Nenhum canal cadastrado.</p>
       ) : (
         // As duas colunas têm altura parecida por construção: três linhas de canal de um lado, uma
         // fileira de vídeos do outro. Nada estica para preencher (era o vazio do painel de vídeos).
@@ -72,7 +72,7 @@ export function Comunidade({ links, videos }: Props) {
                     href={links.whatsapp}
                     icone={<MessageCircle className="size-5" />}
                     titulo="Grupo no WhatsApp"
-                    descricao="Avisos de operação, resumo do dia e suporte."
+                    descricao="Avisos de operação e resumo do dia."
                   />
                 ) : null}
                 {links.sala_ao_vivo ? (
@@ -80,7 +80,7 @@ export function Comunidade({ links, videos }: Props) {
                     href={links.sala_ao_vivo}
                     icone={<Radio className="size-5" />}
                     titulo="Sala ao vivo"
-                    descricao="O pregão em tempo real com a equipe."
+                    descricao="O pregão com a equipe."
                   />
                 ) : null}
                 {links.instagram ? (
@@ -88,7 +88,7 @@ export function Comunidade({ links, videos }: Props) {
                     href={links.instagram}
                     icone={<Camera className="size-5" />}
                     titulo="Instagram"
-                    descricao="Bastidores e fechamentos."
+                    descricao="Fechamentos."
                   />
                 ) : null}
               </ul>
@@ -154,7 +154,7 @@ export function Comunidade({ links, videos }: Props) {
                     ))}
                   </ul>
                 ) : (
-                  <p className="py-6 text-center text-sm text-muted-foreground">Nenhum vídeo publicado ainda.</p>
+                  <p className="py-6 text-center text-sm text-muted-foreground">Nenhum vídeo publicado.</p>
                 )}
               </div>
             </div>

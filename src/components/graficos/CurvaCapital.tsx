@@ -124,7 +124,7 @@ export function CurvaCapital({
               <Valor valor={-dd.valor} unidade={unidade} />
               {dd.diasAteRecuperar !== null ? (
                 <span className="ml-1 text-xs font-normal text-muted-foreground">
-                  recuperado em {dd.diasAteRecuperar} dias
+                  recuperado em {formatarNumero(dd.diasAteRecuperar)} dias
                 </span>
               ) : dd.valor > 0 ? (
                 <span className="ml-1 text-xs font-normal text-muted-foreground">em recuperação</span>
@@ -133,7 +133,7 @@ export function CurvaCapital({
           </div>
           <div className="flex items-baseline gap-2">
             <dt className="text-muted-foreground">Dias</dt>
-            <dd className="font-semibold tabular-nums">{curva.length}</dd>
+            <dd className="font-semibold tabular-nums">{formatarNumero(curva.length)}</dd>
           </div>
         </dl>
       ) : null}
@@ -167,7 +167,7 @@ export function CurvaCapital({
                 <button
                   type="button"
                   onClick={() => setZoom(null)}
-                  className="rounded-full border px-2 py-0.5 text-[11px] font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                  className="rounded-full border px-2 py-0.5 text-[11px] font-medium outline-none focus-visible:ring-2 focus-visible:ring-white/70"
                   style={{ borderColor: PROFIT.abasBorda, color: PROFIT.titulo }}
                 >
                   Ver tudo
@@ -183,10 +183,13 @@ export function CurvaCapital({
                 className="flex items-center gap-1 rounded-b-lg px-1 py-0.5 text-xs"
                 style={{ background: PROFIT.abas, borderTop: `1px solid ${PROFIT.abasBorda}` }}
               >
+                {/* 19/09/2026: o "|" medido no Profit (#505050) dava 1,57:1 sobre a barra e sumia; no
+                    texto fraco dá 3,96:1. O foco era outline-2 depois de outline-none, que fica sem
+                    traço: agora é o anel dos outros controles, claro porque a moldura é escura nos dois temas. */}
                 {MODOS.map(([chave, rotulo], i) => (
                   <span key={chave} className="contents">
                     {i > 0 ? (
-                      <span aria-hidden style={{ color: PROFIT.separador }}>
+                      <span aria-hidden style={{ color: PROFIT.textoFraco }}>
                         |
                       </span>
                     ) : null}
@@ -194,7 +197,7 @@ export function CurvaCapital({
                       type="button"
                       aria-pressed={modo === chave}
                       onClick={() => setModo(chave)}
-                      className="h-7 rounded-[3px] px-4 outline-none focus-visible:outline-2 focus-visible:outline-offset-[-2px]"
+                      className="h-7 rounded-[3px] px-4 outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-inset"
                       style={modo === chave ? { background: PROFIT.abaAtiva, color: PROFIT.titulo } : { color: PROFIT.abaTexto }}
                     >
                       {rotulo}

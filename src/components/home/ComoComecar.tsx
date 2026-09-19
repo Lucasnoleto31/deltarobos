@@ -5,14 +5,17 @@ interface Props {
   links: Links;
 }
 
-const PASSOS = [
+// O passo 2 ficou só com o título (19/09/2026): o texto repetia a convenção do hero ("por 1 contrato e
+// líquidos de custo") e não ajudava a escolher. No mesmo dia os três cartões viraram um painel com
+// colunas separadas por fio, como o bloco de capital da aba Risco: o cartão vazio do passo 2 destoava
+// entre dois cheios.
+const PASSOS: { titulo: string; texto?: string }[] = [
   {
     titulo: "Abra sua conta no BTG",
     texto: "Pelo link do assessor. Os robôs rodam numa subconta dessa conta.",
   },
   {
     titulo: "Escolha o robô",
-    texto: "Os resultados daqui são por 1 contrato e líquidos de custo.",
   },
   {
     titulo: "Libere a licença",
@@ -28,15 +31,18 @@ export function ComoComecar({ links }: Props) {
         <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">Como começar</h2>
       </div>
 
-      <ol className="grid gap-4 sm:grid-cols-3">
+      <ol className="painel grid sm:grid-cols-3">
         {PASSOS.map((p, i) => (
-          <li key={p.titulo} className="flex gap-4 painel p-5">
+          <li
+            key={p.titulo}
+            className="flex gap-4 border-(--painel-fio) p-5 not-first:border-t sm:not-first:border-t-0 sm:not-first:border-l"
+          >
             <span className="shrink-0 text-2xl font-semibold leading-none text-muted-foreground tabular-nums">
               {i + 1}
             </span>
             <div>
               <h3 className="font-semibold">{p.titulo}</h3>
-              <p className="mt-1 text-sm text-muted-foreground">{p.texto}</p>
+              {p.texto ? <p className="mt-1 text-sm text-muted-foreground">{p.texto}</p> : null}
             </div>
           </li>
         ))}

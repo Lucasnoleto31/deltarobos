@@ -1,9 +1,10 @@
 "use client";
 
-import { createContext, useContext, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useMemo, useState, useSyncExternalStore } from "react";
 import dynamic from "next/dynamic";
 import type { EstadoCasaAoVivo } from "@/hooks/useCasaAoVivo";
-import type { HorarioPregao } from "@/lib/stats/pregao";
+import { pregaoAberto, type HorarioPregao } from "@/lib/stats/pregao";
+import { horarioGeral } from "./datas";
 import type { InicialCasa, PregaoPorAtivo } from "./tipos";
 
 // Do hook só vêm tipos: o hook (e com ele o cliente do Supabase, ~63 KB gz)
@@ -28,21 +29,22 @@ interface ValorCasa {
   pregaoPorAtivo: PregaoPorAtivo;
   /** união dos horários de todos os ativos */
   pregaoGeral: HorarioPregao;
+  /** o pregão geral estava aberto quando o servidor montou a página (ver usePregaoAberto) */
+  pregaoAbertoNoServidor: boolean;
 }
 
 const Ctx = createContext<ValorCasa | null>(null);
-
-const PREGAO_PADRAO: HorarioPregao = { inicio: "09:00", fim: "18:00" };
 
 interface Props {
   inicial: InicialCasa;
   feriados: string[];
   hoje: string;
+  pregaoAbertoNoServidor: boolean;
   children: React.ReactNode;
 }
 
 /** Uma assinatura do topic "casa" compartilhada por barra, hero e grade. */
-export function CasaAoVivoProvider({ inicial, feriados, hoje, children }: Props) {
+export function CasaAoVivoProvider({ inicial, feriados, hoje, pregaoAbertoNoServidor, children }: Props) {
   // Tem que nascer EXATAMENTE como o useState de useCasaAoVivo: é o que o
   // servidor e a hidratação desenham antes de o assinante carregar. Se o
   // Lucas mudar a inicialização lá, muda aqui também.
@@ -54,24 +56,18 @@ export function CasaAoVivoProvider({ inicial, feriados, hoje, children }: Props)
     conectado: false,
   }));
 
-  const { pregaoPorAtivo, pregaoGeral } = useMemo(() => {
+  const pregaoPorAtivo = useMemo(() => {
     const porAtivo: PregaoPorAtivo = {};
-    let inicio: string | null = null;
-    let fim: string | null = null;
     for (const m of estado.mercado) {
       porAtivo[m.prefixo_simbolo] = { inicio: m.pregao_inicio, fim: m.pregao_fim };
-      if (inicio === null || m.pregao_inicio < inicio) inicio = m.pregao_inicio;
-      if (fim === null || m.pregao_fim > fim) fim = m.pregao_fim;
     }
-    return {
-      pregaoPorAtivo: porAtivo,
-      pregaoGeral: inicio && fim ? { inicio, fim } : PREGAO_PADRAO,
-    };
+    return porAtivo;
   }, [estado.mercado]);
+  const pregaoGeral = useMemo(() => horarioGeral(estado.mercado), [estado.mercado]);
 
   const valor = useMemo<ValorCasa>(
-    () => ({ estado, feriados, hoje, pregaoPorAtivo, pregaoGeral }),
-    [estado, feriados, hoje, pregaoPorAtivo, pregaoGeral],
+    () => ({ estado, feriados, hoje, pregaoPorAtivo, pregaoGeral, pregaoAbertoNoServidor }),
+    [estado, feriados, hoje, pregaoPorAtivo, pregaoGeral, pregaoAbertoNoServidor],
   );
 
   return (
@@ -86,4 +82,22 @@ export function useCasa(): ValorCasa {
   const v = useContext(Ctx);
   if (!v) throw new Error("useCasa precisa estar dentro de CasaAoVivoProvider");
   return v;
+}
+
+// abertura e fechamento do pregão mudam por minuto: conferir a cada 30 s basta
+function assinarMeioMinuto(avisar: () => void) {
+  const id = window.setInterval(avisar, 30_000);
+  return () => window.clearInterval(id);
+}
+
+/**
+ * O pregão geral está aberto agora? (19/09/2026, igual ao da página do robô) No servidor e na hidratação
+ * vale o que o servidor calculou ao montar a página, a mesma resposta dos dois lados: antes da abertura
+ * o HTML já chega com o último pregão, sem trocar depois. Depois, o relógio do navegador. Quem usa só
+ * renderiza de novo quando a resposta muda.
+ */
+export function usePregaoAberto(): boolean {
+  const { pregaoGeral, feriados, pregaoAbertoNoServidor } = useCasa();
+  const ler = useCallback(() => pregaoAberto(new Date(), pregaoGeral, feriados), [pregaoGeral, feriados]);
+  return useSyncExternalStore(assinarMeioMinuto, ler, () => pregaoAbertoNoServidor);
 }

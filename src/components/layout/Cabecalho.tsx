@@ -15,8 +15,11 @@ interface Props {
  * Cabeçalho no desenho das plataformas de trading que o Artur mandou em 18/09/2026: marca à esquerda;
  * no meio, os robôs como abas de instrumento (pílulas, a atual em branco) e depois os outros links;
  * à direita, o tema e a pílula "Entrar no grupo" (fora da home). O menu suspenso de robôs que ficou
- * uma tarde no ar saiu ("essa opção da nav bar não está legal"). No celular as abas dos robôs descem
- * para uma segunda linha e rolam de lado; os links de texto ficam para o computador (o rodapé os tem).
+ * uma tarde no ar saiu ("essa opção da nav bar não está legal"). No celular a navegação desce para uma
+ * segunda linha e rola de lado, com as pontas esmaecendo; desde 19/09/2026 os links de texto vêm junto,
+ * depois dos robôs (antes sumiam no celular e Comparativo e Metodologia ficavam sem caminho).
+ * O -ml-1/px-1/-my-1/py-1 da faixa dá espaço ao anel de foco sem mexer no alinhamento: a rolagem
+ * corta o que passa da borda.
  */
 export async function Cabecalho({ links }: Props) {
   const robos = (await listarRobos())
@@ -40,10 +43,10 @@ export async function Cabecalho({ links }: Props) {
 
         <nav
           aria-label="Principal"
-          className="flex basis-full items-center gap-3 overflow-x-auto text-sm [scrollbar-width:none] lg:order-2 lg:mx-auto lg:basis-auto [&::-webkit-scrollbar]:hidden"
+          className="borda-esmaece -my-1 -ml-1 flex basis-full items-center gap-3 overflow-x-auto px-1 py-1 text-sm [scrollbar-width:none] lg:order-2 lg:mx-auto lg:basis-auto [&::-webkit-scrollbar]:hidden"
         >
           <AbasRobos robos={robos} />
-          <span aria-hidden className="hidden h-4 w-px shrink-0 bg-(--painel-fio-forte) sm:block" />
+          <span aria-hidden className="h-4 w-px shrink-0 bg-(--painel-fio-forte)" />
           <LinksNav />
         </nav>
       </div>

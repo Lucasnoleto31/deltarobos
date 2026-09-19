@@ -2,58 +2,91 @@
 
 import { AtualizadoHa } from "@/components/compartilhados/AtualizadoHa";
 import { Valor } from "@/components/compartilhados/Valor";
-import { formatarDataLonga } from "@/lib/formato";
-import { useCasa } from "./CasaAoVivoProvider";
+import { formatarDataLonga, formatarNumero, formatarPct } from "@/lib/formato";
+import { useCasa, usePregaoAberto } from "./CasaAoVivoProvider";
+import { formatarDiaLongo } from "./datas";
+import type { UltimoPregaoCasa } from "./tipos";
 
-/** Número grande do hero: resultado de hoje da casa, por contrato, líquido. */
-export function NumeroHero() {
+interface Props {
+  ultimoPregao: UltimoPregaoCasa | null;
+}
+
+/**
+ * Número grande do hero: resultado de hoje de todos os robôs, por contrato, líquido. Com o pregão
+ * fechado e nenhuma operação hoje (fim de semana, noite, madrugada) mostra o último pregão, com a data
+ * e o melhor robô do dia, em vez de uma tela de zeros (19/09/2026). Com o pregão aberto continua
+ * "Hoje", ao vivo, mesmo zerado. O "atualizado há" só acompanha o número de hoje: embaixo do último
+ * pregão ele repetia a barra e sugeria número novo (19/09/2026).
+ */
+export function NumeroHero({ ultimoPregao }: Props) {
   const { estado, hoje } = useCasa();
   const resumo = estado.resumo;
   const temRobos = (resumo?.robos.length ?? 0) > 0;
 
+  // servidor e hidratação usam o que o servidor calculou; antes, o calendário dizia "dia de pregão" de
+  // manhã, antes da abertura, e o HTML chegava com "Hoje R$ 0,00" (19/09/2026)
+  const aberto = usePregaoAberto();
+  const passado = !aberto && (resumo?.n_operacoes ?? 0) === 0 ? ultimoPregao : null;
+
+  const dia = passado
+    ? {
+        rotulo: "Último pregão, todos os robôs",
+        valor: passado.valor,
+        data: formatarDiaLongo(passado.dia),
+        operacoes: passado.nOperacoes,
+        gains: passado.nGain,
+        terceiro: { rotulo: "Melhor robô", valor: passado.melhor?.nome ?? "–" },
+      }
+    : resumo && temRobos
+      ? {
+          rotulo: "Hoje, todos os robôs",
+          valor: resumo.resultado_liquido_por_contrato,
+          data: formatarDataLonga(resumo.dia ?? hoje),
+          operacoes: resumo.n_operacoes,
+          gains: resumo.n_gain,
+          terceiro: { rotulo: "Posicionados", valor: formatarNumero(resumo.n_robos_posicionados) },
+        }
+      : null;
+
   return (
     <div className="relative painel vidro p-6 sm:p-8">
-      <p className="text-sm text-muted-foreground">Hoje, todos os robôs</p>
+      <p className="text-sm text-muted-foreground">{dia?.rotulo ?? "Hoje, todos os robôs"}</p>
       <p className="mt-2 text-5xl font-semibold tracking-tight sm:text-6xl">
-        {resumo && temRobos ? (
-          <Valor valor={resumo.resultado_liquido_por_contrato} inteiro={false} />
-        ) : (
-          <span className="text-muted-foreground">–</span>
-        )}
+        {dia ? <Valor valor={dia.valor} inteiro={false} /> : <span className="text-muted-foreground">–</span>}
       </p>
       <p className="mt-2 text-sm text-muted-foreground">
-        por contrato, líquido de custos, somando todos os robôs ·{" "}
-        <span>{formatarDataLonga(resumo?.dia ?? hoje)}</span>
+        {/* a data em linha própria (19/09/2026): com o " · " no meio, a quebra deixava o ponto sozinho no fim da
+            linha; sem o tnum do body, o hífen de "sexta-feira" volta à largura normal */}
+        por contrato, líquido de custos
+        <span className="block [font-feature-settings:normal]">{dia?.data ?? formatarDataLonga(resumo?.dia ?? hoje)}</span>
       </p>
 
-      {resumo && temRobos ? (
+      {dia ? (
         <dl className="mt-6 grid grid-cols-3 gap-3 text-sm">
           <div>
             <dt className="text-muted-foreground">Operações</dt>
-            <dd className="text-lg font-semibold tabular-nums">{resumo.n_operacoes}</dd>
+            <dd className="text-lg font-semibold tabular-nums">{formatarNumero(dia.operacoes)}</dd>
           </div>
           <div>
             <dt className="text-muted-foreground">Acertos</dt>
             <dd className="text-lg font-semibold tabular-nums">
-              {resumo.n_operacoes > 0
-                ? `${Math.round((resumo.n_gain / resumo.n_operacoes) * 100)}%`
-                : "–"}
+              {formatarPct(dia.operacoes > 0 ? dia.gains / dia.operacoes : null, 0)}
             </dd>
           </div>
-          <div>
-            <dt className="text-muted-foreground">Posicionados</dt>
-            <dd className="text-lg font-semibold tabular-nums">{resumo.n_robos_posicionados}</dd>
+          <div className="min-w-0">
+            <dt className="text-muted-foreground">{dia.terceiro.rotulo}</dt>
+            <dd className="truncate text-lg font-semibold tabular-nums">{dia.terceiro.valor}</dd>
           </div>
         </dl>
       ) : (
-        <p className="mt-6 text-sm text-muted-foreground">
-          Nenhum robô em operação.
-        </p>
+        <p className="mt-6 text-sm text-muted-foreground">Nenhum robô em operação.</p>
       )}
 
-      <div className="mt-4">
-        <AtualizadoHa em={estado.ultimaMensagemEm ?? resumo?.gerado_em ?? null} />
-      </div>
+      {passado ? null : (
+        <div className="mt-4">
+          <AtualizadoHa em={estado.ultimaMensagemEm ?? resumo?.gerado_em ?? null} />
+        </div>
+      )}
     </div>
   );
 }

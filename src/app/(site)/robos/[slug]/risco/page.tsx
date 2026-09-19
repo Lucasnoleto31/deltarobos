@@ -19,7 +19,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return { title: robo ? `${robo.nome} · Risco` : "Risco" };
 }
 
-/** Aba Risco: queda máxima, Calmar, recovery factor, Ulcer, risco de ruína, curva de drawdown, quedas. */
+/** Aba Risco: drawdown e capital, Calmar, recovery factor, Ulcer, risco de ruína, curva de drawdown, maiores drawdowns. */
 export default async function PaginaRisco({ params }: Props) {
   const { slug } = await params;
   const hoje = hojeSP();

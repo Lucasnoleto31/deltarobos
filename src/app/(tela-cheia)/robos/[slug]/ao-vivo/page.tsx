@@ -11,6 +11,7 @@ import {
   listarRobos,
 } from "@/lib/consultas/publico";
 import { hojeSP } from "@/lib/stats/periodos";
+import { pregaoAberto } from "@/lib/stats/pregao";
 
 export const revalidate = 60;
 export const dynamicParams = true;
@@ -63,6 +64,7 @@ export default async function PaginaAoVivo({ params }: Props) {
         inicial={{ operacoes, posicoes, ultimoHeartbeatEm: robo.ultimo_heartbeat_em, dia: hoje }}
         pregao={pregao}
         feriados={feriados}
+        pregaoAbertoNoServidor={pregaoAberto(new Date(), pregao, feriados)}
       >
         <TelaAoVivo />
       </RoboAoVivoProvider>

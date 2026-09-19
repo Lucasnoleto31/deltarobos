@@ -1,3 +1,4 @@
+import { ArrowUpRight } from "lucide-react";
 import { Valor } from "@/components/compartilhados/Valor";
 import { MiniCurva } from "@/components/graficos/MiniCurva";
 import { Badge } from "@/components/ui/badge";
@@ -64,7 +65,11 @@ export function CardEmbed({ robo, resumo, hoje, linkSite }: Props) {
 
       <p className="mt-3 flex items-center justify-between text-[11px] text-muted-foreground">
         <span>por contrato, líquido · {formatarData(hoje)}</span>
-        <span>Delta Robôs →</span>
+        {/* 19/09/2026: a seta de texto virou o ícone de link externo (o card abre o site em outra aba) */}
+        <span className="inline-flex items-center gap-0.5">
+          Delta Robôs
+          <ArrowUpRight className="size-3" aria-hidden="true" />
+        </span>
       </p>
     </a>
   );

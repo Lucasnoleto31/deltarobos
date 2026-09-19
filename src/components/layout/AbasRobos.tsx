@@ -21,6 +21,7 @@ const MAXIMO = 4;
  * (18/09/2026, no lugar do menu que ele achou ruim): cada robô é uma pílula, a da página atual em
  * branco. No computador fica entre o logo e os outros links; no celular desce para a linha de baixo e
  * rola de lado. Com mais de quatro robôs, sobra um "+N" que leva à lista da home.
+ * 19/09/2026: o foco do teclado traz a pílula para fora do esmaecido da faixa (o nav do Cabecalho).
  */
 export function AbasRobos({ robos }: Props) {
   const pathname = usePathname();
@@ -29,7 +30,11 @@ export function AbasRobos({ robos }: Props) {
   const sobra = robos.length - mostrados.length;
 
   return (
-    <div aria-label="Robôs" className="flex shrink-0 items-center gap-0.5 rounded-full border border-(--painel-fio) p-0.5">
+    <div
+      aria-label="Robôs"
+      onFocus={(e) => (e.target as HTMLElement).scrollIntoView({ block: "nearest", inline: "nearest" })}
+      className="flex shrink-0 items-center gap-0.5 rounded-full border border-(--painel-fio) p-0.5"
+    >
       {mostrados.map((r) => {
         const atual = pathname.startsWith(`/robos/${r.slug}`);
         return (

@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Voltar } from "@/components/layout/Voltar";
+import { formatarNumero } from "@/lib/formato";
+import { LIMITE_SEM_HEARTBEAT_SEG } from "@/lib/stats/pregao";
 
 export const metadata: Metadata = {
   title: "Metodologia",
@@ -28,6 +30,9 @@ const SECOES = [
   { id: "glossario", titulo: "Glossário" },
 ];
 
+// o mesmo limite que decide o selo "Sem atualização" (lib/stats/pregao), para o texto não descolar dele
+const MINUTOS_SEM_SINAL = formatarNumero(LIMITE_SEM_HEARTBEAT_SEG / 60);
+
 function Secao({ id, titulo, children }: { id: string; titulo: string; children: React.ReactNode }) {
   return (
     <section id={id} className="scroll-mt-24 space-y-3">
@@ -53,7 +58,8 @@ export default function PaginaMetodologia() {
 
   return (
     <div className="conteudo grid gap-8 py-8 lg:grid-cols-[220px_1fr] lg:gap-10 lg:py-10">
-      {/* o índice só no computador, na lateral; no celular a página se lê de cima a baixo (18/09/2026) */}
+      {/* o índice só no computador, na lateral; no celular a página se lê de cima a baixo (18/09/2026).
+          O rótulo "Seções" em caixa alta é rótulo de grupo e fica, por preferência do dono (19/09/2026) */}
       <nav aria-label="Seções" className="hidden lg:sticky lg:top-20 lg:block lg:self-start">
         <p className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">Seções</p>
         {indice}
@@ -64,18 +70,18 @@ export default function PaginaMetodologia() {
           <Voltar href="/">Início</Voltar>
           <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Metodologia</h1>
           <p className="text-lg text-muted-foreground">
-            Cada número do site pode ser refeito à mão a partir das operações listadas. Aqui está a regra de cada um.
+            Cada número do site pode ser refeito a partir das operações listadas na aba Operações de cada robô.
           </p>
         </header>
 
         <Secao id="coleta" titulo="Como os dados chegam">
           <p>
             Em cada terminal MetaTrader 5 da Delta Robôs roda um coletor (um Expert Advisor que <strong>não opera</strong>,
-            só lê a conta). A cada negócio executado ele envia o registro para a nossa API na hora. A cada 3 segundos
+            só lê a conta). A cada negócio executado ele envia o registro para o site na hora. A cada 3 segundos
             envia também saldo, posições abertas e cotação. Ao iniciar, reenvia os últimos dias para conferência.
           </p>
           <p>
-            Nada é digitado à mão. Se o coletor parar por mais de 2 minutos em horário de pregão, o site avisa{" "}
+            Nada é digitado à mão. Se o coletor parar por mais de {MINUTOS_SEM_SINAL} minutos em horário de pregão, o site avisa{" "}
             <strong>&quot;sem atualização&quot;</strong> em vez de mostrar dado velho como se fosse ao vivo.
           </p>
           <p>
@@ -91,12 +97,12 @@ export default function PaginaMetodologia() {
 
         <Secao id="normalizacao" titulo="Por contrato">
           <p>
-            Todo valor é dividido pela quantidade de contratos da operação. Um gain de R$ 60 com 2 contratos aparece como{" "}
-            <strong>R$ 30 por contrato</strong>. Assim, contas com lotes diferentes não distorcem a média e você multiplica
+            Todo valor é dividido pela quantidade de contratos da operação. Um gain de R$&nbsp;60 com 2 contratos aparece como{" "}
+            <strong>R$&nbsp;30 por contrato</strong>. Assim, contas com lotes diferentes não distorcem a média e você multiplica
             pelo seu tamanho.
           </p>
           <p>
-            Pontos viram reais pelo valor do ponto do ativo: <strong>WIN R$ 0,20</strong> e <strong>WDO R$ 10,00</strong> por
+            Pontos viram reais pelo valor do ponto do ativo: <strong>WIN R$&nbsp;0,20</strong> e <strong>WDO R$&nbsp;10,00</strong> por
             ponto por contrato. O símbolo real muda a cada vencimento (WINV26, WINZ26…), mas tudo é agrupado pelo ativo.
           </p>
         </Secao>
@@ -105,11 +111,12 @@ export default function PaginaMetodologia() {
           <p>
             <strong>Bruto</strong> é o lucro que o MetaTrader reporta. <strong>Líquido</strong> desconta um custo fixo por
             contrato por operação (corretagem e emolumentos), configurado por robô e exibido na seção Transparência de cada
-            um. O site mostra líquido por padrão, com um toggle para ver o bruto.
+            um. O site mostra o líquido; o bruto aparece ao lado dele no painel de resultado, nos relatórios mensais e
+            no filtro Custos da aba Desempenho.
           </p>
           <p>
-            Gain e loss são classificados sempre pelo resultado <strong>líquido</strong>: uma operação de +R$ 0,10 bruto com
-            custo de R$ 0,25 conta como loss.
+            Gain e loss são classificados sempre pelo resultado <strong>líquido</strong>: uma operação de +R$&nbsp;0,10 bruto com
+            custo de R$&nbsp;0,25 conta como loss.
           </p>
         </Secao>
 
@@ -228,19 +235,25 @@ export default function PaginaMetodologia() {
             classificação. <strong>Evitar</strong> se qualquer uma valer: acerto abaixo de 38%, recuperação abaixo de 0,40
             ou drawdown relativo acima de 6×. <strong>Ligar</strong> se acerto ≥ 58%, recuperação ≥ 0,85 e drawdown relativo
             ≤ 4×. <strong>Cautela</strong> se acerto ≥ 48% e recuperação ≥ 0,60. O resto é <strong>Neutro</strong>. Lote
-            sugerido: 100%, 60%, 35% e 0%. Os parâmetros ficam no banco e podem ser ajustados sem deploy.
+            sugerido: Ligar&nbsp;100%, Cautela&nbsp;60%, Neutro&nbsp;35%, Evitar&nbsp;0%. Os parâmetros em uso estão em Regras, na aba
+            Faixas de cada robô.
           </p>
           <p>
             O <strong>score</strong> de 0 a 100 só ordena o ranking: 50 × percentil da expectativa entre as faixas + 30 ×
-            estabilidade (meses positivos ÷ meses) + 20 × confiança (operações ÷ 100). Os &quot;insights&quot; são frases
-            geradas por regras fixas a partir desses números.
+            estabilidade (meses positivos ÷ meses) + 20 × confiança (operações ÷ 100). As frases de &quot;O que as regras
+            apontam&quot; saem de regras fixas aplicadas a esses números.
           </p>
         </Secao>
 
         <Secao id="periodos" titulo="Períodos e dia de pregão">
           <p>
-            Dia de pregão é a data em Brasília. Sábados, domingos e feriados da B3 não contam como dia. Os filtros 7 dias, 30
-            dias, 3 meses, 12 meses e ano são contados até hoje; &quot;personalizado&quot; aceita qualquer intervalo.
+            Dia de pregão é a data em Brasília. Sábados, domingos e feriados da B3 não contam como dia.
+          </p>
+          <p>
+            Os atalhos de período terminam hoje: <strong>Hoje</strong> é o dia corrente, vazio em fim de semana e
+            feriado; <strong>Semana</strong> vai de segunda-feira até hoje; <strong>Mês</strong>, do dia 1º até hoje;{" "}
+            <strong>Ano</strong>, de 1º de janeiro até hoje; <strong>Tudo</strong> é o histórico inteiro.{" "}
+            <strong>Personalizado</strong>, na aba Desempenho, é qualquer intervalo entre duas datas.
           </p>
         </Secao>
 
@@ -251,15 +264,40 @@ export default function PaginaMetodologia() {
             <dt className="font-medium text-foreground">Contrato</dt>
             <dd>Unidade mínima negociada. O resultado do site é sempre por 1 contrato.</dd>
             <dt className="font-medium text-foreground">Magic number</dt>
-            <dd>Identificador que cada robô grava nas próprias ordens. É como o site sabe qual robô fez cada operação.</dd>
-            <dt className="font-medium text-foreground">Heartbeat</dt>
-            <dd>Sinal de vida do coletor, a cada 3 segundos, com saldo, posições e cotação.</dd>
-            <dt className="font-medium text-foreground">Posicionado</dt>
-            <dd>O robô tem posição aberta neste momento.</dd>
+            <dd>
+              Termo do MetaTrader 5: o número que cada robô grava nas próprias ordens. É como o site sabe qual robô fez
+              cada operação.
+            </dd>
+            <dt className="font-medium text-foreground">Sinal do coletor</dt>
+            <dd>Saldo, posições abertas e cotação que o coletor manda a cada 3 segundos.</dd>
             <dt className="font-medium text-foreground">Flutuante</dt>
             <dd>Resultado da posição aberta se fosse fechada agora, por contrato.</dd>
             <dt className="font-medium text-foreground">MEP / MEN</dt>
             <dd>Máxima exposição positiva e negativa do dia: o ponto mais alto e o mais baixo do acumulado do dia, medidos a cada fechamento de operação.</dd>
+          </dl>
+          {/* 19/09/2026: os selos ao lado do nome do robô, com as condições de statusAoVivo (lib/stats/status-robo) */}
+          <h3 id="status" className="scroll-mt-24 pt-4 text-base font-semibold text-foreground">
+            Selo de status
+          </h3>
+          <dl className="grid gap-3 sm:grid-cols-[160px_1fr]">
+            <dt className="font-medium text-foreground">Operando</dt>
+            <dd>Pregão aberto, sinal do coletor em dia, sem posição aberta e dentro do horário de operação do robô.</dd>
+            <dt className="font-medium text-foreground">Posicionado</dt>
+            <dd>Pregão aberto, sinal do coletor em dia e o robô com posição aberta agora.</dd>
+            <dt className="font-medium text-foreground">Fora do horário</dt>
+            <dd>Pregão do ativo fechado; ou pregão aberto, sinal em dia, sem posição e fora do horário de operação do robô.</dd>
+            <dt className="font-medium text-foreground">Sem atualização</dt>
+            <dd>Pregão aberto e o coletor sem mandar sinal há mais de {MINUTOS_SEM_SINAL} minutos.</dd>
+            <dt className="font-medium text-foreground">Histórico</dt>
+            <dd>O robô não tem coletor no MetaTrader 5: os números vêm só do histórico importado.</dd>
+            <dt className="font-medium text-foreground">Em breve</dt>
+            <dd>O robô ainda não começou a operar em conta real.</dd>
+            <dt className="font-medium text-foreground">Pausado</dt>
+            <dd>O robô parou de operar; o histórico continua no site.</dd>
+            {/* 19/09/2026: o arquivado sai da home, do menu e do Comparativo, mas robos_publico ainda o
+                devolve e /robos/[slug] continua abrindo */}
+            <dt className="font-medium text-foreground">Arquivado</dt>
+            <dd>O robô saiu da lista do site; a página e o histórico continuam no endereço dele.</dd>
           </dl>
         </Secao>
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Valor } from "@/components/compartilhados/Valor";
+import { LinhaOperacao } from "@/components/robo/LinhaOperacao";
 import { formatarDataCurta, formatarDuracao, formatarHora, formatarPreco, rotuloLado } from "@/lib/formato";
 import { supabaseBrowser } from "@/lib/supabase/cliente";
 import type { OperacaoPublica } from "@/lib/tipos";
@@ -12,9 +13,11 @@ interface Props {
   dia: string;
   /** página 1 sem filtro: operações novas de hoje entram no topo em tempo real */
   aoVivo: boolean;
+  /** há filtro na URL: muda a frase da lista vazia */
+  filtrado: boolean;
 }
 
-export function TabelaOperacoes({ itens, slug, dia, aoVivo }: Props) {
+export function TabelaOperacoes({ itens, slug, dia, aoVivo, filtrado }: Props) {
   // novas/removidas chegam pelo realtime e zeram quando o servidor manda outra página
   const [base, setBase] = useState(itens);
   const [novas, setNovas] = useState<OperacaoPublica[]>([]);
@@ -56,58 +59,70 @@ export function TabelaOperacoes({ itens, slug, dia, aoVivo }: Props) {
 
   if (lista.length === 0) {
     return (
-      <p className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
-        Nenhuma operação com esse filtro.
+      <p className="painel px-4 py-8 text-center text-sm text-muted-foreground">
+        {filtrado ? "Nenhuma operação com esse filtro." : "Sem operações fechadas ainda."}
       </p>
     );
   }
 
   return (
-    <div className="overflow-x-auto painel">
-      <table className="w-full text-sm">
-        <thead className="text-left text-xs text-muted-foreground">
-          <tr className="[&>th]:px-3 [&>th]:py-2 [&>th]:font-medium">
-            <th>Data</th>
-            <th>Abertura</th>
-            <th>Fechamento</th>
-            <th>Duração</th>
-            <th>Símbolo</th>
-            <th>Lado</th>
-            <th className="text-right">Entrada</th>
-            <th className="text-right">Saída</th>
-            <th className="text-right">Pontos /ct</th>
-            <th className="text-right">Bruto /ct</th>
-            <th className="text-right">Custos /ct</th>
-            <th className="text-right">Líquido /ct</th>
-          </tr>
-        </thead>
-        <tbody className="[&>tr]:border-t">
-          {lista.map((o) => (
-            <tr key={o.id} className="tabular-nums [&>td]:px-3 [&>td]:py-2">
-              <td>{formatarDataCurta(o.dia_pregao)}</td>
-              <td>{formatarHora(o.abertura_em)}</td>
-              <td>{formatarHora(o.fechamento_em)}</td>
-              <td className="text-muted-foreground">{o.origem === "manual" ? "–" : formatarDuracao(o.duracao_seg)}</td>
-              <td>{o.simbolo}</td>
-              <td className={o.lado === "compra" ? "text-positivo" : "text-negativo"}>{rotuloLado(o.lado)}</td>
-              <td className="text-right">{formatarPreco(o.preco_entrada)}</td>
-              <td className="text-right">{formatarPreco(o.preco_saida)}</td>
-              <td className="text-right">
-                <Valor valor={o.pontos_por_contrato} unidade="pontos" />
-              </td>
-              <td className="text-right">
-                <Valor valor={o.resultado_brl_por_contrato} colorir={false} />
-              </td>
-              <td className="text-right text-muted-foreground">
-                <Valor valor={-o.custos_brl_por_contrato} colorir={false} className="text-muted-foreground" />
-              </td>
-              <td className="text-right font-medium">
-                <Valor valor={o.resultado_brl_por_contrato - o.custos_brl_por_contrato} />
-              </td>
+    <>
+      {/* celular (19/09/2026): a tabela de doze colunas deixava o líquido uns 600 px à direita, sem sinal
+          de rolagem. Duas linhas por operação, como na visão geral; bruto, custos e símbolo ficam na
+          tabela do computador e no CSV */}
+      <ul className="painel overflow-hidden sm:hidden">
+        {lista.map((o) => (
+          <LinhaOperacao key={o.id} operacao={o} comData />
+        ))}
+      </ul>
+
+      <div className="hidden overflow-x-auto painel sm:block">
+        <table className="w-full text-sm">
+          <thead className="text-left text-xs text-muted-foreground">
+            <tr className="[&>th]:px-3 [&>th]:py-2 [&>th]:font-medium">
+              <th>Data</th>
+              <th>Abertura</th>
+              <th>Fechamento</th>
+              <th>Duração</th>
+              <th>Símbolo</th>
+              <th>Lado</th>
+              <th className="text-right">Entrada</th>
+              <th className="text-right">Saída</th>
+              <th className="text-right">Pontos /ct</th>
+              <th className="text-right">Bruto /ct</th>
+              <th className="text-right">Custos /ct</th>
+              <th className="text-right">Líquido /ct</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody className="[&>tr]:border-t">
+            {lista.map((o) => (
+              <tr key={o.id} className="tabular-nums [&>td]:px-3 [&>td]:py-2">
+                <td>{formatarDataCurta(o.dia_pregao)}</td>
+                <td>{formatarHora(o.abertura_em)}</td>
+                <td>{formatarHora(o.fechamento_em)}</td>
+                <td className="whitespace-nowrap text-muted-foreground">{o.origem === "manual" ? "–" : formatarDuracao(o.duracao_seg)}</td>
+                <td>{o.simbolo}</td>
+                {/* 19/09/2026: o lado fica neutro; verde e vermelho só no resultado */}
+                <td>{rotuloLado(o.lado)}</td>
+                <td className="text-right">{formatarPreco(o.preco_entrada)}</td>
+                <td className="text-right">{formatarPreco(o.preco_saida)}</td>
+                <td className="text-right">
+                  <Valor valor={o.pontos_por_contrato} unidade="pontos" />
+                </td>
+                <td className="text-right">
+                  <Valor valor={o.resultado_brl_por_contrato} colorir={false} />
+                </td>
+                <td className="text-right text-muted-foreground">
+                  <Valor valor={-o.custos_brl_por_contrato} colorir={false} className="text-muted-foreground" />
+                </td>
+                <td className="text-right font-medium">
+                  <Valor valor={o.resultado_brl_por_contrato - o.custos_brl_por_contrato} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
   );
 }

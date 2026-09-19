@@ -3,32 +3,33 @@
 import { cn } from "cn";
 import Link from "next/link";
 import { Valor } from "@/components/compartilhados/Valor";
-import { useAgora } from "@/hooks/useAgora";
-import { formatarBRL, formatarDataLonga, formatarPct } from "@/lib/formato";
-import { pregaoAberto } from "@/lib/stats/pregao";
-import { useCasa } from "./CasaAoVivoProvider";
+import { formatarBRL, formatarDataLonga, formatarNumero, formatarPct } from "@/lib/formato";
+import { useCasa, usePregaoAberto } from "./CasaAoVivoProvider";
 
 /**
  * Item 4 da home: o dia robô a robô. Durante o pregão, os quatro números do topo repetiam o cartão do
  * hero logo acima (18/09/2026, Artur: "cuidado com a redundância"): ficou só a comparação, uma barra por
  * robô, e uma frase com o fato do dia. Depois do fechamento vira "Fechamento de hoje", pensado para
- * print, e aí volta a trazer os números do dia, porque o print não leva o hero junto.
+ * print, e aí volta a trazer os números do dia, porque o print não leva o hero junto. Sem operação
+ * fechada hoje, em qualquer horário, a seção não aparece (19/09/2026): eram barras zeradas debaixo do
+ * hero. Ela volta sozinha, ao vivo, com a primeira operação do dia.
  */
 export function ResumoDoDia() {
-  const { estado, feriados, pregaoGeral, hoje } = useCasa();
-  const agora = useAgora(30_000);
+  const { estado, hoje } = useCasa();
+  // até a hidratação vale o valor do servidor (19/09/2026): antes era "aberto", e depois das 18h o HTML
+  // chegava com "Hoje, robô a robô" e trocava para "Fechamento de hoje" empurrando a página
+  const aberto = usePregaoAberto();
   const resumo = estado.resumo;
   if (!resumo) return null;
 
   const robos = [...resumo.robos]
     .filter((r) => r.status === "ativo" || r.n_operacoes > 0)
     .sort((a, b) => b.resultado_liquido_por_contrato - a.resultado_liquido_por_contrato);
-  if (robos.length === 0) return null;
+  const comOperacao = robos.filter((r) => r.n_operacoes > 0);
+  if (comOperacao.length === 0) return null;
 
-  const aberto = agora ? pregaoAberto(agora, pregaoGeral, feriados) : true;
   const fechamento = !aberto && resumo.n_operacoes > 0;
   const total = resumo.resultado_liquido_por_contrato;
-  const comOperacao = robos.filter((r) => r.n_operacoes > 0);
   const melhor = comOperacao[0];
   const pior = comOperacao[comOperacao.length - 1];
   const maior = Math.max(1, ...robos.map((r) => Math.abs(r.resultado_liquido_por_contrato)));
@@ -36,13 +37,11 @@ export function ResumoDoDia() {
 
   // a frase de baixo do título é o fato do dia, não a descrição da seção
   const fato =
-    comOperacao.length === 0
-      ? "Nenhuma operação fechada ainda."
-      : comOperacao.length > 1 && total > 0 && melhor.resultado_liquido_por_contrato > 0
-        ? `${melhor.nome} respondeu por ${formatarPct(Math.min(1, melhor.resultado_liquido_por_contrato / total), 0)} do resultado do dia.`
-        : total < 0 && pior.resultado_liquido_por_contrato < 0
-          ? `${pior.nome} tem o pior resultado do dia: ${formatarBRL(pior.resultado_liquido_por_contrato, { sinal: true })}.`
-          : `${melhor.nome}: ${formatarBRL(melhor.resultado_liquido_por_contrato, { sinal: true })} hoje.`;
+    comOperacao.length > 1 && total > 0 && melhor.resultado_liquido_por_contrato > 0
+      ? `${melhor.nome} respondeu por ${formatarPct(Math.min(1, melhor.resultado_liquido_por_contrato / total), 0)} do resultado do dia.`
+      : total < 0 && pior.resultado_liquido_por_contrato < 0
+        ? `${pior.nome} tem o pior resultado do dia: ${formatarBRL(pior.resultado_liquido_por_contrato, { sinal: true })}.`
+        : `${melhor.nome}: ${formatarBRL(melhor.resultado_liquido_por_contrato, { sinal: true })} hoje.`;
 
   return (
     <section id="resumo-do-dia" className="conteudo scroll-mt-20 py-8">
@@ -62,7 +61,7 @@ export function ResumoDoDia() {
             </div>
             <div>
               <dt className="text-xs text-muted-foreground">Operações</dt>
-              <dd className="text-2xl font-semibold tabular-nums">{resumo.n_operacoes}</dd>
+              <dd className="text-2xl font-semibold tabular-nums">{formatarNumero(resumo.n_operacoes)}</dd>
             </div>
             <div>
               <dt className="text-xs text-muted-foreground">Acerto do dia</dt>
@@ -70,7 +69,7 @@ export function ResumoDoDia() {
             </div>
             <div>
               <dt className="text-xs text-muted-foreground">Melhor robô</dt>
-              <dd className="text-2xl font-semibold">{melhor ? melhor.nome : "–"}</dd>
+              <dd className="text-2xl font-semibold">{melhor.nome}</dd>
             </div>
           </dl>
         ) : null}
@@ -88,7 +87,7 @@ export function ResumoDoDia() {
                     </span>
                     <span className="flex items-baseline gap-3">
                       <span className="text-xs text-muted-foreground tabular-nums">
-                        {r.n_operacoes} op.{r.n_operacoes > 0 ? ` · ${formatarPct(r.n_gain / r.n_operacoes, 0)}` : ""}
+                        {formatarNumero(r.n_operacoes)} op.{r.n_operacoes > 0 ? ` · ${formatarPct(r.n_gain / r.n_operacoes, 0)}` : ""}
                       </span>
                       <Valor valor={v} className="font-semibold" />
                     </span>

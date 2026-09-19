@@ -43,9 +43,10 @@ export default async function PaginaOperacoes({ params, searchParams }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      {/* 19/09/2026: o título "Operações" repetia a aba logo acima; fica só para leitor de tela */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold tracking-tight">Operações</h2>
+          <h2 className="sr-only">Operações</h2>
           <p className="text-sm text-muted-foreground tabular-nums">
             {formatarNumero(dados.total)} {dados.total === 1 ? "operação" : "operações"}
             {semFiltro ? " no total" : " com o filtro atual"} · valores por 1 contrato
@@ -56,7 +57,7 @@ export default async function PaginaOperacoes({ params, searchParams }: Props) {
 
       <FiltrosOperacoes slug={slug} filtros={filtros} hoje={hoje} />
 
-      <TabelaOperacoes itens={dados.itens} slug={slug} dia={hoje} aoVivo={pagina === 1 && semFiltro} />
+      <TabelaOperacoes itens={dados.itens} slug={slug} dia={hoje} aoVivo={pagina === 1 && semFiltro} filtrado={!semFiltro} />
 
       <Paginacao slug={slug} filtros={filtros} pagina={dados.pagina} paginas={dados.paginas} />
     </div>

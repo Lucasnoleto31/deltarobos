@@ -3,7 +3,7 @@
 import { Download } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { formatarHoraSeg } from "@/lib/formato";
+import { formatarHoraSeg, formatarNumero } from "@/lib/formato";
 import { supabaseBrowser } from "@/lib/supabase/cliente";
 import type { OperacaoPublica } from "@/lib/tipos";
 import type { FiltrosUrl } from "./params";
@@ -22,12 +22,17 @@ function celula(v: string | number | null): string {
   return /[;"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-/** Exporta a lista filtrada (até 5.000 linhas) em CSV com ; e vírgula decimal, pra abrir no Excel pt-BR. */
+/**
+ * Exporta a lista filtrada (até 50.000 linhas) em CSV com ; e vírgula decimal, pra abrir no Excel pt-BR.
+ * 19/09/2026: a falha sai numa linha embaixo do botão, lida pelo leitor de tela, em vez do alerta do navegador.
+ */
 export function BotaoCsv({ slug, filtros, total }: Props) {
   const [ocupado, setOcupado] = useState(false);
+  const [falhou, setFalhou] = useState(false);
 
   const exportar = async () => {
     setOcupado(true);
+    setFalhou(false);
     try {
       const sb = supabaseBrowser();
       const linhas: OperacaoPublica[] = [];
@@ -86,16 +91,21 @@ export function BotaoCsv({ slug, filtros, total }: Props) {
       URL.revokeObjectURL(url);
     } catch (e) {
       console.error("[csv] falha ao exportar", e);
-      window.alert("Não conseguimos gerar o CSV. Tente de novo.");
+      setFalhou(true);
     } finally {
       setOcupado(false);
     }
   };
 
   return (
-    <Button variant="outline" onClick={exportar} disabled={ocupado || total === 0}>
-      <Download data-icon="inline-start" />
-      {ocupado ? "Gerando…" : total > LIMITE ? `Exportar CSV (${LIMITE.toLocaleString("pt-BR")} mais recentes)` : "Exportar CSV"}
-    </Button>
+    <div className="flex flex-col items-end">
+      <Button variant="outline" onClick={exportar} disabled={ocupado || total === 0}>
+        <Download data-icon="inline-start" />
+        {ocupado ? "Gerando…" : total > LIMITE ? `Exportar CSV (${formatarNumero(LIMITE)} mais recentes)` : "Exportar CSV"}
+      </Button>
+      <p role="status" className={falhou ? "mt-1.5 text-xs text-foreground" : "sr-only"}>
+        {falhou ? "O CSV não foi gerado. Tente de novo." : ""}
+      </p>
+    </div>
   );
 }
