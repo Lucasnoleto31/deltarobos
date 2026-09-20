@@ -1,16 +1,21 @@
 -- ============================================================================
--- Textos públicos da marca Quants Robôs (20/09/2026)
+-- Textos e link público da marca Quants Robôs (20/09/2026)
 --
--- O QUE É: o site virou Quants Robôs, mas dois textos moram no banco, na tabela
--- public.parametros, chave 'textos' — o subtítulo do hero e o aviso legal do rodapé. Enquanto este
--- script não roda, o site corrige os dois na hora de mostrar (src/components/compartilhados/marca.ts),
--- então o visitante já lê a versão certa; o banco é que ainda guarda a versão antiga.
+-- O QUE É: o site virou Quants Robôs, mas dois textos e um link moram no banco, na tabela
+-- public.parametros — o subtítulo do hero e o aviso legal do rodapé (chave 'textos') e o link de
+-- abertura de conta na corretora parceira (chave 'links'). Enquanto este script não roda, o site
+-- corrige os textos na hora de mostrar (src/components/compartilhados/marca.ts) e usa o link direto
+-- do código (src/components/home/ComoComecar.tsx), então o visitante já vê a versão certa; o banco é
+-- que ainda guarda a versão antiga.
 --
 -- O QUE MUDA:
---   1. hero_subtitulo  -> a frase nova, aprovada pelo Artur em 20/09/2026;
---   2. disclaimer      -> o mesmo texto de hoje, com "Delta Robôs" virando "Quants Robôs" e
---                         "vinculado ao BTG Pactual" virando "vinculado a uma corretora parceira".
---                         Nenhuma outra palavra do aviso legal muda.
+--   1. hero_subtitulo        -> a frase nova, aprovada pelo Artur em 20/09/2026;
+--   2. disclaimer            -> o mesmo texto de hoje, com "Delta Robôs" virando "Quants Robôs" e
+--                               "vinculado ao BTG Pactual" virando "vinculado a uma corretora
+--                               parceira". Nenhuma outra palavra do aviso legal muda;
+--   3. btg_abertura_conta    -> o link da Genial com o código do assessor (o nome da chave é de antes
+--                               da troca de corretora e fica como está: renomear obriga a mexer no
+--                               código que a lê).
 -- hero_titulo e contato_email não são tocados.
 --
 -- RODAR É SEGURO: o operador `||` em jsonb junta as duas chaves ao objeto que já existe. As outras
@@ -40,6 +45,15 @@ set valor = valor || jsonb_build_object(
 )
 where chave = 'textos';
 
+-- link de abertura de conta na corretora parceira (Genial, com o código do assessor).
+-- As outras chaves de 'links' (whatsapp, youtube, instagram, sala_ao_vivo...) continuam como estão.
+update public.parametros
+set valor = valor || jsonb_build_object(
+  'btg_abertura_conta',
+  'https://app.genialinvestimentos.com.br/abrir-conta?idAssessor=14253'
+)
+where chave = 'links';
+
 -- depois: as quatro chaves continuam lá, com as duas novas em lugar das antigas
 select
   valor -> 'hero_titulo' as hero_titulo,
@@ -49,3 +63,7 @@ select
   atualizado_em
 from public.parametros
 where chave = 'textos';
+
+select valor -> 'btg_abertura_conta' as abertura_de_conta
+from public.parametros
+where chave = 'links';

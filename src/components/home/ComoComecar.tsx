@@ -30,8 +30,19 @@ const PASSOS: { titulo: string; texto: string }[] = [
   },
 ];
 
+/**
+ * O link de abertura de conta na corretora parceira (Genial), com o código do assessor, passado pelo
+ * Artur em 20/09/2026. A chave do banco (`links.btg_abertura_conta`) está vazia e o nome dela é de
+ * antes da troca de corretora — por isso o padrão mora aqui: o botão funciona no próximo deploy, e
+ * assim que o Lucas preencher a chave (scripts/textos-quants.sql), o valor do banco manda.
+ * O texto na tela não cita a corretora pelo nome, como o Artur pediu na troca de marca.
+ */
+const ABERTURA_DE_CONTA_PADRAO = "https://app.genialinvestimentos.com.br/abrir-conta?idAssessor=14253";
+
 /** Item 13 da home: como começar em 3 passos. */
 export function ComoComecar({ links }: Props) {
+  const aberturaDeConta = links.btg_abertura_conta || ABERTURA_DE_CONTA_PADRAO;
+
   return (
     // o scroll-mt-20 saiu em 19/09/2026: quem desconta o cabeçalho é o scroll-padding-top do html
     <section id="como-comecar" className="conteudo py-8">
@@ -62,16 +73,14 @@ export function ComoComecar({ links }: Props) {
       </ol>
 
       <RevelarNaRolagem className="mt-5 flex flex-wrap gap-3" indice={PASSOS.length}>
-        {links.btg_abertura_conta ? (
-          <a
-            href={links.btg_abertura_conta}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={buttonVariants({ size: "lg" })}
-          >
-            Abrir conta na corretora parceira
-          </a>
-        ) : null}
+        <a
+          href={aberturaDeConta}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={buttonVariants({ size: "lg" })}
+        >
+          Abrir conta na corretora parceira
+        </a>
         {links.whatsapp ? (
           <a
             href={links.whatsapp}
