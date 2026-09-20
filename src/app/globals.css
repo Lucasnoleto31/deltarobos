@@ -175,22 +175,10 @@
        80 px mais abaixo do que precisava. */
     --altura-cabecalho: 91px;
     scroll-padding-top: calc(var(--altura-cabecalho) + 0.75rem);
-    /* 20/09/2026: a largura da barra lateral de navegação (a partir de xl). Fica aqui, e não só na
-       classe do Cabecalho, porque o layout do site precisa do MESMO número para recuar o conteúdo e o
-       rodapé — a barra é fixa e não empurra nada sozinha. 15 rem: em 1280 px sobram 992 px para o
-       .conteudo, mais do que os 976 px que ele tem em 1024, onde a tabela do Comparativo já cabe. */
-    --largura-barra: 15rem;
   }
   @media (width >= 64rem) {
     html {
       --altura-cabecalho: 57px;
-    }
-  }
-  /* A partir de xl não há barra no topo: quem navega é a lateral, que não passa por cima do conteúdo.
-     Sem nada cobrindo o alto da rolagem, a âncora precisa só da folga de 0,75 rem (20/09/2026). */
-  @media (width >= 80rem) {
-    html {
-      --altura-cabecalho: 0px;
     }
   }
   /* O "scroll lento" que o Artur pediu (referência: zero7) fica NAS ÂNCORAS, não na roda do mouse —

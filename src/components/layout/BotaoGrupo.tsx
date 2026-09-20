@@ -6,8 +6,6 @@ import { cn } from "cn";
 
 interface Props {
   href: string;
-  /** o mesmo botão em dois lugares: pílula solta no cabeçalho de cima, largura toda no pé da barra lateral */
-  className?: string;
 }
 
 /**
@@ -17,7 +15,7 @@ interface Props {
  * Em 19/09/2026 passou a usar o buttonVariants: era branco/preto escrito à mão e ficou de fora quando o
  * botão principal virou o verde da Quants, então o mesmo botão saía de duas cores conforme a tela.
  */
-export function BotaoGrupo({ href, className }: Props) {
+export function BotaoGrupo({ href }: Props) {
   const pathname = usePathname();
   if (pathname === "/") return null;
   return (
@@ -25,7 +23,7 @@ export function BotaoGrupo({ href, className }: Props) {
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className={cn(buttonVariants(), "hidden sm:inline-flex", className)}
+      className={cn(buttonVariants(), "hidden sm:inline-flex")}
     >
       Como começar
     </a>
