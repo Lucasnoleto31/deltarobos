@@ -76,10 +76,14 @@ export function TabelaOperacoes({ itens, slug, dia, aoVivo, filtrado }: Props) {
         ))}
       </ul>
 
+      {/* 20/09/2026: o px-3 das doze colunas pedia 1.011 px e o .conteudo passou a ter 992 px em 1280,
+          onde agora há a barra lateral de navegação — o "Líquido /ct" ficava cortado na última casa
+          decimal, e valor em dinheiro cortado lê errado. Com px-2.5 a tabela pede 963 px e fecha em
+          1280 e também em 1024, onde ela já estava cortada antes desta leva. */}
       <div className="hidden overflow-x-auto painel sm:block">
         <table className="w-full text-sm">
           <thead className="text-left text-xs text-muted-foreground">
-            <tr className="[&>th]:px-3 [&>th]:py-2 [&>th]:font-medium">
+            <tr className="[&>th]:px-2.5 [&>th]:py-2 [&>th]:font-medium">
               <th>Data</th>
               <th>Abertura</th>
               <th>Fechamento</th>
@@ -96,7 +100,7 @@ export function TabelaOperacoes({ itens, slug, dia, aoVivo, filtrado }: Props) {
           </thead>
           <tbody className="[&>tr]:border-t">
             {lista.map((o) => (
-              <tr key={o.id} className="tabular-nums [&>td]:px-3 [&>td]:py-2">
+              <tr key={o.id} className="tabular-nums [&>td]:px-2.5 [&>td]:py-2">
                 <td>{formatarDataCurta(o.dia_pregao)}</td>
                 <td>{formatarHora(o.abertura_em)}</td>
                 <td>{formatarHora(o.fechamento_em)}</td>

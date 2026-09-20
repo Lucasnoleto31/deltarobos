@@ -1,5 +1,5 @@
 """
-Importa operações exportadas do Profit (Nelogica) para o Delta Robôs
+Importa operações exportadas do Profit (Nelogica) para o Quants Robôs
 (public.operacoes, origem 'manual').
 
 Formatos aceitos, detectados pelo cabeçalho do CSV:
@@ -334,7 +334,7 @@ def importar(caminho, slug, dry_run, substituir, lado_padrao, formato):
 def main() -> None:
     p = argparse.ArgumentParser(description="Importa CSV do Profit para operacoes (origem manual)")
     p.add_argument("arquivo")
-    p.add_argument("--slug", required=True, help="slug do robô no Delta Robôs")
+    p.add_argument("--slug", required=True, help="slug do robô no Quants Robôs")
     p.add_argument("--formato", choices=("auto", "operacoes", "ordens"), default="auto")
     p.add_argument("--lado", choices=("compra", "venda"), help="lado padrão quando o arquivo não informa")
     p.add_argument("--substituir", action="store_true", help="apaga o manual dos dias do arquivo antes de gravar")

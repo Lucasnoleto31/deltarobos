@@ -6,18 +6,20 @@ interface Props {
   links: Links;
 }
 
-// O passo 2 ficou só com o título (19/09/2026): o texto repetia a convenção do hero ("por 1 contrato e
-// líquidos de custo") e não ajudava a escolher. No mesmo dia os três cartões viraram um painel com
-// colunas separadas por fio, como o bloco de capital da aba Risco: o cartão vazio do passo 2 destoava
-// entre dois cheios. Também em 19/09/2026 a corretora deixou de ser citada pelo nome (identidade Quants);
-// a chave links.btg_abertura_conta é interna e continua a mesma.
-const PASSOS: { titulo: string; texto?: string }[] = [
+// 19/09/2026: os três cartões viraram um painel com colunas separadas por fio, como o bloco de capital
+// da aba Risco, e a corretora deixou de ser citada pelo nome (identidade Quants) — a chave
+// links.btg_abertura_conta é interna e continua a mesma.
+// 20/09/2026: o passo 2 tinha ficado sem texto e o Artur viu o cartão vazio na tela. A frase de antes
+// repetia a convenção do hero ("por 1 contrato e líquidos de custo"); esta diz onde está o que serve
+// para escolher — as abas que cada robô tem — em vez de repetir o título.
+const PASSOS: { titulo: string; texto: string }[] = [
   {
     titulo: "Abra sua conta na corretora parceira",
     texto: "Pelo link do assessor. Os robôs rodam numa subconta dessa conta.",
   },
   {
     titulo: "Escolha o robô",
+    texto: "Cada robô tem página própria, com desempenho, risco e todas as operações.",
   },
   {
     titulo: "Libere a licença",
@@ -49,7 +51,7 @@ export function ComoComecar({ links }: Props) {
               </span>
               <div>
                 <h3 className="font-semibold">{p.titulo}</h3>
-                {p.texto ? <p className="mt-1 text-sm text-muted-foreground">{p.texto}</p> : null}
+                <p className="mt-1 text-sm text-muted-foreground">{p.texto}</p>
               </div>
             </RevelarNaRolagem>
           </li>

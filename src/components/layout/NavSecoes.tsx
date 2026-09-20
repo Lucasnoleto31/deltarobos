@@ -10,11 +10,6 @@ export interface SecaoNav {
 
 interface Props {
   secoes: SecaoNav[];
-  /**
-   * "traco" (padrão): a barra colada na lateral direita, um traço por seção, o rótulo no hover/foco.
-   * "lista": o índice de texto de uma coluna lateral — sai só a lista, porque o <nav> já é da página.
-   */
-  variante?: "traco" | "lista";
   className?: string;
 }
 
@@ -71,85 +66,41 @@ function useSecaoAtiva(ids: string): string | null {
 }
 
 /**
- * A barra de seções da página, inspirada na lateral do site que o Artur mandou em 19/09/2026 sem copiar
- * o desenho: um traço por seção, o rótulo só no hover e no foco, a seção que está sendo lida no verde da
- * Quants. Só a partir de lg — no celular e no tablet quem navega é o cabeçalho.
+ * O índice de texto da Metodologia: uma linha por seção, a que está sendo lida com o fio da marca à
+ * esquerda. Sai só a lista, porque o <nav aria-label="Seções"> já é da própria página.
  *
- * Posição: a barra vive na margem que sobra ao lado do conteúdo (o .conteudo tem 72rem). Os 2,75rem
- * descontados dão o respiro até o painel e cobrem a largura da barra de rolagem, que o 100vw não
- * desconta. O max() com 0,25rem segura a barra dentro da tela em 1024 px, onde não sobra margem: ali
- * ela cai no vão de 24px do .conteudo, sem cobrir painel nem texto (medido em 19/09/2026).
+ * 20/09/2026: o componente tinha duas variantes, e a prop que escolhia entre elas saiu junto com a
+ * segunda — a barra de traços colada na lateral direita da home e do Comparativo, que o Artur viu nos
+ * prints e não quis. A navegação do site passou a ser a barra lateral do Cabecalho, e um indicador de
+ * seção solto no meio da tela virava outra coisa no mesmo lugar. Sobrou um uso só: a Metodologia.
  *
  * Sem JavaScript os links funcionam do mesmo jeito — só não há marca de seção atual.
  */
-export function NavSecoes({ secoes, variante = "traco", className }: Props) {
+export function NavSecoes({ secoes, className }: Props) {
   const ativa = useSecaoAtiva(secoes.map((s) => s.id).join(","));
 
-  if (variante === "lista") {
-    return (
-      <ol className={cn("space-y-0.5 text-sm", className)}>
-        {secoes.map((s) => {
-          const atual = s.id === ativa;
-          return (
-            <li key={s.id}>
-              <a
-                href={`#${s.id}`}
-                aria-current={atual ? "true" : undefined}
-                onClick={() => focarSecao(s.id)}
-                className={cn(
-                  "block border-l-2 py-0.5 pl-3 transition-colors motion-reduce:transition-none",
-                  atual
-                    ? "border-primary text-foreground"
-                    : "border-transparent text-muted-foreground hover:border-(--painel-fio-forte) hover:text-foreground",
-                )}
-              >
-                {s.rotulo}
-              </a>
-            </li>
-          );
-        })}
-      </ol>
-    );
-  }
-
   return (
-    <nav
-      aria-label="Seções da página"
-      className={cn(
-        "fixed top-1/2 z-30 hidden -translate-y-1/2 flex-col gap-1 lg:flex",
-        "right-[max(0.25rem,calc((100vw_-_72rem)/2_-_2.75rem))]",
-        className,
-      )}
-    >
+    <ol className={cn("space-y-0.5 text-sm", className)}>
       {secoes.map((s) => {
         const atual = s.id === ativa;
         return (
-          <a
-            key={s.id}
-            href={`#${s.id}`}
-            aria-current={atual ? "true" : undefined}
-            onClick={() => focarSecao(s.id)}
-            className="group relative flex size-6 items-center justify-end rounded-sm"
-          >
-            {/* O rótulo fica no DOM sempre (leitor de tela lê), só a opacidade muda. Ele aparece a
-                partir de 2xl: até lá a margem ao lado do conteúdo é menor que o balão, e ele passava
-                por cima da tabela do Comparativo (medido em 1280 em 20/09/2026). O traço, que é o que
-                marca a seção, continua em todas as larguras a partir de lg. */}
-            <span className="pointer-events-none absolute right-full mr-2 rounded-md border border-(--painel-fio) bg-popover px-2 py-1 text-xs whitespace-nowrap opacity-0 shadow-sm transition-opacity duration-200 motion-reduce:transition-none 2xl:group-hover:opacity-100 2xl:group-focus-visible:opacity-100">
-              {s.rotulo}
-            </span>
-            <span
-              aria-hidden
+          <li key={s.id}>
+            <a
+              href={`#${s.id}`}
+              aria-current={atual ? "true" : undefined}
+              onClick={() => focarSecao(s.id)}
               className={cn(
-                "h-px transition-all duration-300 motion-reduce:transition-none",
-                // 20 px é o traço mais comprido que cabe no vão de 24 px do .conteudo em 1024 px,
-                // sem entrar no fio do painel; o alvo do clique continua sendo a caixa de 24 px
-                atual ? "w-5 bg-primary" : "w-3.5 bg-(--painel-fio-forte) group-hover:w-5 group-hover:bg-foreground",
+                "block border-l-2 py-0.5 pl-3 transition-colors motion-reduce:transition-none",
+                atual
+                  ? "border-primary text-foreground"
+                  : "border-transparent text-muted-foreground hover:border-(--painel-fio-forte) hover:text-foreground",
               )}
-            />
-          </a>
+            >
+              {s.rotulo}
+            </a>
+          </li>
         );
       })}
-    </nav>
+    </ol>
   );
 }

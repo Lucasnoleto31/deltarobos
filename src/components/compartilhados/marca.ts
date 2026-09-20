@@ -22,3 +22,26 @@ const TROCAS: ReadonlyArray<readonly [RegExp, string]> = [
 export function comMarcaAtual(texto: string): string {
   return TROCAS.reduce((t, [de, para]) => t.replace(de, para), texto);
 }
+
+/**
+ * O subtítulo do hero que o Artur aprovou em 20/09/2026, enquanto o banco não muda.
+ *
+ * Mesmo caso da troca de marca acima, um passo adiante: o subtítulo que está em `parametros` não
+ * tem só a marca errada, é outra frase. O update para o Lucas rodar está em
+ * `scripts/textos-quants.sql`; até ele rodar, o site já mostra a frase aprovada.
+ *
+ * A regra é estreita de propósito: só o texto ANTIGO, letra por letra depois da troca de marca,
+ * vira o novo. Qualquer outra coisa que o Lucas escreva no banco passa intacta — inclusive o texto
+ * novo, quando o SQL rodar, que é o dia em que esta regra deixa de casar e pode sair daqui.
+ */
+const SUBTITULO_ANTIGO =
+  "Cada operação chega direto do MetaTrader 5 das contas da Quants Robôs, normalizada por contrato. Sem print, sem edição.";
+
+const SUBTITULO_APROVADO =
+  "Acompanhe as operações diretamente das contas, com dados atualizados enquanto o mercado acontece.";
+
+/** O subtítulo do hero com a marca atual e com a cópia aprovada no lugar da antiga. */
+export function subtituloHero(texto: string): string {
+  const comMarca = comMarcaAtual(texto);
+  return comMarca === SUBTITULO_ANTIGO ? SUBTITULO_APROVADO : comMarca;
+}

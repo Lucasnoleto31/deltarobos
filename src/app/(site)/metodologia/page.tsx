@@ -91,7 +91,7 @@ export default function PaginaMetodologia() {
           a da tela menos o cabeçalho: com 17 seções a lista rola no próprio lugar em tela baixa. */}
       <nav aria-label="Seções" className="hidden lg:sticky lg:top-20 lg:block lg:max-h-[calc(100dvh-6rem)] lg:self-start lg:overflow-y-auto">
         <p className="mb-2 pl-3 text-xs font-medium tracking-wide text-muted-foreground uppercase">Seções</p>
-        <NavSecoes variante="lista" secoes={SECOES.map(({ id, titulo }) => ({ id, rotulo: titulo }))} />
+        <NavSecoes secoes={SECOES.map(({ id, titulo }) => ({ id, rotulo: titulo }))} />
       </nav>
 
       <article className="max-w-prose space-y-12">

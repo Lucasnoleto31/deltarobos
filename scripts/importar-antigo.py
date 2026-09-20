@@ -1,6 +1,6 @@
 """
 Importa o histórico de operações do projeto Supabase antigo (Quantsrobos,
-tabela public.trades) para o Delta Robôs (public.operacoes, origem 'manual').
+tabela public.trades) para o Quants Robôs (public.operacoes, origem 'manual').
 
 Uso (na pasta do projeto, com a CLI do Supabase logada e linkada):
     python scripts/importar-antigo.py                       # apollo e orion, data < 2026-07-01

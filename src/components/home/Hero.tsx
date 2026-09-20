@@ -1,4 +1,4 @@
-import { comMarcaAtual } from "@/components/compartilhados/marca";
+import { comMarcaAtual, subtituloHero } from "@/components/compartilhados/marca";
 import { buttonVariants } from "@/components/ui/button";
 import type { Links, Textos } from "@/lib/tipos";
 import { NumeroHero } from "./NumeroHero";
@@ -16,6 +16,8 @@ interface Props {
  * em 17/09/2026 (Artur: "que botão redundante, já estou na página de robôs"): os robôs são a seção
  * logo abaixo, na mesma página. Pelo mesmo motivo, sem link do WhatsApp não há botão nenhum, em vez
  * de um que só rola a página até a seção Comunidade. O rótulo diz para onde o botão leva.
+ * 20/09/2026: o subtítulo passa por subtituloHero, que mostra a cópia aprovada enquanto o banco
+ * do Lucas não roda scripts/textos-quants.sql. O título já é o aprovado e vem do banco direto.
  */
 export function Hero({ textos, links, ultimoPregao }: Props) {
   return (
@@ -25,7 +27,7 @@ export function Hero({ textos, links, ultimoPregao }: Props) {
           {comMarcaAtual(textos.hero_titulo)}
         </h1>
         <p className="max-w-prose text-pretty text-base text-muted-foreground sm:text-lg">
-          {comMarcaAtual(textos.hero_subtitulo)}
+          {subtituloHero(textos.hero_subtitulo)}
         </p>
         {links.whatsapp ? (
           <a href={links.whatsapp} target="_blank" rel="noopener noreferrer" className={buttonVariants({ size: "lg" })}>

@@ -10,7 +10,6 @@ import { Hero } from "@/components/home/Hero";
 import { ResumoDoDia } from "@/components/home/ResumoDoDia";
 import type { DadosCardRobo, UltimoPregao, UltimoPregaoCasa } from "@/components/home/tipos";
 import { TransparenciaFaq } from "@/components/home/TransparenciaFaq";
-import { NavSecoes } from "@/components/layout/NavSecoes";
 import {
   carregarParametros,
   listarEstatisticas,
@@ -29,13 +28,6 @@ import { ultimosVideos } from "@/lib/youtube";
 
 // Estatísticas pesadas com cache de 60s; o painel "hoje" é realtime puro no cliente.
 export const revalidate = 60;
-
-const SECOES_DA_HOME = [
-  { id: "robos", rotulo: "Os robôs" },
-  { id: "comunidade", rotulo: "Comunidade" },
-  { id: "como-comecar", rotulo: "Como começar" },
-  { id: "transparencia", rotulo: "Transparência" },
-];
 
 export const metadata: Metadata = {
   openGraph: {
@@ -155,10 +147,6 @@ export default async function Home() {
       pregaoAbertoNoServidor={pregaoAberto(new Date(), horarioGeral(mercado), feriados)}
     >
       <BarraAoVivo />
-      {/* A barra de seções da lateral (20/09/2026): só as seções que sempre existem. "Hoje, robô a
-          robô" e "Ecossistema" aparecem conforme o dia e o cadastro, e um traço que não leva a lugar
-          nenhum seria pior que a falta dele. */}
-      <NavSecoes secoes={SECOES_DA_HOME} />
       <Hero textos={parametros.textos} links={parametros.links} ultimoPregao={ultimoPregaoDaCasa(cards)} />
       <GradeRobos cards={cards} />
       <ResumoDoDia />
