@@ -2,19 +2,16 @@ import { Valor } from "@/components/compartilhados/Valor";
 import { formatarDataCurta, formatarDuracao, formatarHora, formatarPreco, rotuloLado } from "@/lib/formato";
 import type { OperacaoPublica } from "@/lib/tipos";
 import { LinhaOperacao } from "./LinhaOperacao";
+import { VAZIO_DO_PERIODO } from "./periodos-resumo";
 
 interface Props {
   operacoes: OperacaoPublica[];
 }
 
-/** Lista compacta das últimas operações (usada na visão geral). */
+/** Lista compacta das últimas operações (usada na visão geral). O lado é neutro: cor só no resultado (19/09/2026). */
 export function UltimasOperacoes({ operacoes }: Props) {
   if (operacoes.length === 0) {
-    return (
-      <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-        Nenhuma operação fechada ainda.
-      </p>
-    );
+    return <p className="painel px-4 py-8 text-center text-sm text-muted-foreground">{VAZIO_DO_PERIODO.tudo}</p>;
   }
 
   return (
@@ -50,7 +47,7 @@ export function UltimasOperacoes({ operacoes }: Props) {
                     <span className="ml-1 text-xs text-muted-foreground">{formatarDuracao(o.duracao_seg)}</span>
                   ) : null}
                 </td>
-                <td className={o.lado === "compra" ? "text-positivo" : "text-negativo"}>{rotuloLado(o.lado)}</td>
+                <td>{rotuloLado(o.lado)}</td>
                 <td className="hidden md:table-cell">{o.simbolo}</td>
                 <td className="text-right">{formatarPreco(o.preco_entrada)}</td>
                 <td className="text-right">{formatarPreco(o.preco_saida)}</td>

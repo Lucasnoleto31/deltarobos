@@ -66,7 +66,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug: s
   return new Response(csv, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="delta-robos-${slug}-${mes}.csv"`,
+      "Content-Disposition": `attachment; filename="quants-robos-${slug}-${mes}.csv"`,
       "Cache-Control": mesFechado ? "public, s-maxage=86400, stale-while-revalidate=604800" : "public, s-maxage=300",
     },
   });

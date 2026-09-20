@@ -1,14 +1,14 @@
 "use client";
 
-import { cn } from "cn";
 import { useState } from "react";
+import { HaQuanto } from "@/components/compartilhados/HaQuanto";
+import { RotuloComInfo } from "@/components/compartilhados/InfoIndicador";
 import { Valor } from "@/components/compartilhados/Valor";
-import { useAgora } from "@/hooks/useAgora";
-import { formatarPreco, haQuanto, rotuloLado } from "@/lib/formato";
+import { formatarNumero, formatarPreco, rotuloLado } from "@/lib/formato";
 import { brlParaPontos } from "@/lib/stats/normalizacao";
 import { CurvaDoDia } from "./CurvaDoDia";
 import { LinhaOperacao } from "./LinhaOperacao";
-import { useRobo } from "./RoboAoVivoProvider";
+import { usePregaoAberto, useRobo } from "./RoboAoVivoProvider";
 
 // Quantas operações aparecem em lista antes do "mostrar as outras". O dia inteiro está na curva
 // logo acima; a lista é só o que acabou de acontecer. Num dia de 284 operações a tabela inteira
@@ -22,7 +22,9 @@ const VISIVEIS = 5;
  */
 export function HojeAoVivo() {
   const { estado, robo } = useRobo();
-  const agora = useAgora(1000);
+  const aberto = usePregaoAberto();
+  // sem relógio aqui (18/09/2026): o "aberta há …" anda sozinho no HaQuanto e o painel só
+  // renderiza de novo quando chega operação ou posição
   const [todas, setTodas] = useState(false);
 
   const ops = estado.operacoes;
@@ -42,33 +44,35 @@ export function HojeAoVivo() {
       <div className="grid gap-5 lg:grid-cols-[1fr_1.6fr] lg:items-start">
         {/* resultado do dia + posição */}
         <div className="space-y-5">
+          {/* sem rótulo em cima do número (19/09/2026): o título do painel já diz "Hoje" */}
           <div>
-            <p className="text-sm text-muted-foreground">Resultado do dia, por contrato</p>
-            <p className="mt-1 text-4xl font-semibold tracking-tight sm:text-5xl">
+            <p className="text-4xl font-semibold tracking-tight sm:text-5xl">
               <Valor valor={liquido} />
             </p>
             <p className="mt-1.5 flex flex-wrap gap-x-3 text-sm text-muted-foreground">
               <Valor valor={pontos} unidade="pontos" colorir={false} className="text-foreground" />
               <span className="tabular-nums">
-                {ops.length} {ops.length === 1 ? "operação" : "operações"}
+                {formatarNumero(ops.length)} {ops.length === 1 ? "operação" : "operações"}
               </span>
               {ops.length > 0 ? (
                 <span className="tabular-nums">
-                  {gains}/{ops.length} gains
+                  {formatarNumero(gains)}/{formatarNumero(ops.length)} gains
                 </span>
               ) : null}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Líquido de custos (bruto <Valor valor={bruto} colorir={false} className="text-muted-foreground" />).
+              Por contrato, líquido de custos (bruto <Valor valor={bruto} colorir={false} className="text-muted-foreground" />).
             </p>
           </div>
 
           <div>
-            <p className="mb-2 text-sm font-medium">Posição aberta</p>
+            {/* o número de cada posição é o flutuante: o i explica, e só aparece quando há posição (19/09/2026) */}
+            <p className="mb-2 text-sm font-medium">
+              {estado.posicoes.length > 0 ? <RotuloComInfo chave="flutuante">Posição aberta</RotuloComInfo> : "Posição aberta"}
+            </p>
+            {/* sem moldura (19/09/2026): já está dentro do painel */}
             {estado.posicoes.length === 0 ? (
-              <p className="rounded-lg border border-dashed px-3 py-3 text-sm text-muted-foreground">
-                Nenhuma posição aberta agora.
-              </p>
+              <p className="text-sm text-muted-foreground">Nenhuma posição aberta agora.</p>
             ) : (
               <ul className="space-y-2">
                 {estado.posicoes.map((p) => {
@@ -80,14 +84,13 @@ export function HojeAoVivo() {
                     >
                       <div className="min-w-0">
                         <p className="flex items-center gap-2 text-sm">
-                          <span className={cn("font-medium", p.lado === "compra" ? "text-positivo" : "text-negativo")}>
-                            {rotuloLado(p.lado)}
-                          </span>
+                          {/* o lado fica neutro (19/09/2026): verde e vermelho só no resultado */}
+                          <span className="font-medium">{rotuloLado(p.lado)}</span>
                           <span className="font-medium">{p.simbolo}</span>
                         </p>
                         <p className="mt-1 truncate text-xs text-muted-foreground tabular-nums">
                           @ {formatarPreco(p.preco_abertura)}
-                          {agora ? ` · aberta ${haQuanto(p.aberta_em, agora)}` : null}
+                          <HaQuanto em={p.aberta_em} prefixo=" · aberta " />
                         </p>
                       </div>
                       <div className="shrink-0 text-right">
@@ -110,8 +113,14 @@ export function HojeAoVivo() {
         {/* o dia em curva */}
         <div className="min-w-0">
           {ops.length === 0 ? (
-            <p className="rounded-lg border border-dashed px-3 py-6 text-center text-sm text-muted-foreground">
-              Nenhuma operação fechada hoje ainda.
+            <p className="py-6 text-center text-sm text-muted-foreground">
+              {/* o mesmo texto da tela ao vivo: robô sem coletor não tem dia ao vivo (19/09/2026).
+                  "ainda" só com o pregão aberto: no sábado não vem mais nenhuma */}
+              {!robo.tem_coletor
+                ? "Este robô só tem histórico importado, sem operações ao vivo."
+                : aberto
+                  ? "Nenhuma operação fechada hoje ainda."
+                  : "Nenhuma operação hoje."}
             </p>
           ) : (
             <CurvaDoDia operacoes={ops} altura={200} />
@@ -125,7 +134,9 @@ export function HojeAoVivo() {
           <div className="mb-2 flex items-baseline justify-between gap-2">
             <p className="text-sm font-medium">Últimas operações de hoje</p>
             <p className="text-xs text-muted-foreground tabular-nums">
-              {todas || ops.length <= VISIVEIS ? `${ops.length} no total` : `${mostradas.length} de ${ops.length}`}
+              {todas || ops.length <= VISIVEIS
+                ? `${formatarNumero(ops.length)} no total`
+                : `${formatarNumero(mostradas.length)} de ${formatarNumero(ops.length)}`}
             </p>
           </div>
           <ul className="border-y border-(--painel-fio) max-sm:-mx-4">
@@ -140,7 +151,7 @@ export function HojeAoVivo() {
               aria-expanded={todas}
               className="mt-3 w-full rounded-lg border border-(--painel-fio) px-3 py-2 text-sm font-medium text-muted-foreground transition-colors outline-none hover:border-(--painel-fio-forte) hover:bg-(--linha-hover) hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
             >
-              {todas ? "Mostrar só as últimas" : `Mostrar as outras ${escondidas}`}
+              {todas ? "Mostrar só as últimas" : `Mostrar as outras ${formatarNumero(escondidas)}`}
             </button>
           ) : null}
         </div>

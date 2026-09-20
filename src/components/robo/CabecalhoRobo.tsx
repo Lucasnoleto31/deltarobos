@@ -4,7 +4,7 @@ import { AvisoSemAtualizacao } from "@/components/compartilhados/AvisoSemAtualiz
 import { BadgeStatusRobo } from "@/components/compartilhados/BadgeStatusRobo";
 import { Badge } from "@/components/ui/badge";
 import { useAgora } from "@/hooks/useAgora";
-import { formatarData, haQuanto } from "@/lib/formato";
+import { formatarData, formatarNumero, haQuanto } from "@/lib/formato";
 import { normalizarHora, pregaoAberto } from "@/lib/stats/pregao";
 import { statusAoVivo } from "@/lib/stats/status-robo";
 import { useRobo } from "./RoboAoVivoProvider";
@@ -65,7 +65,7 @@ export function CabecalhoRobo() {
         ) : null}
         <div className="flex gap-1.5 max-sm:flex-col max-sm:gap-0">
           <dt className="text-muted-foreground">Contratos padrão</dt>
-          <dd className="font-medium tabular-nums">{robo.contratos_padrao}</dd>
+          <dd className="font-medium tabular-nums">{formatarNumero(robo.contratos_padrao)}</dd>
         </div>
         {robo.conta_real_desde ? (
           <div className="flex gap-1.5 max-sm:flex-col max-sm:gap-0">
@@ -81,7 +81,8 @@ export function CabecalhoRobo() {
         </div>
       </dl>
 
-      {robo.status === "ativo" ? (
+      {/* robô sem coletor não manda sinal: o aviso de atraso seria sempre falso (19/09/2026) */}
+      {robo.status === "ativo" && robo.tem_coletor ? (
         <AvisoSemAtualizacao
           ultimoHeartbeatEm={estado.ultimoHeartbeatEm}
           pregao={pregao}

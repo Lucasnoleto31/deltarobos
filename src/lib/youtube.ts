@@ -45,7 +45,9 @@ export function parsearFeed(xml: string): VideoYouTube[] {
       titulo: desescapar(titulo),
       url: `https://www.youtube.com/watch?v=${id}`,
       publicadoEm: publicado ?? "",
-      thumb: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
+      // mqdefault (320×180) já vem em 16:9; a hqdefault é 4:3 com faixa preta que o object-cover cortava
+      // e pesa o dobro para a célula de ~300 px da home (18/09/2026)
+      thumb: `https://i.ytimg.com/vi/${id}/mqdefault.jpg`,
     });
   }
   return videos;

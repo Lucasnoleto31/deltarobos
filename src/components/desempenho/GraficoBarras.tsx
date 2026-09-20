@@ -2,9 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
-  Dica,
   Eixo,
   Guias,
+  Leitura,
   escala,
   indiceApontado,
   mistura,
@@ -30,6 +30,8 @@ interface Props {
   contagem?: boolean;
   /** o que o `n` de cada barra conta. Padrão: operações (e aí a dica mostra também a média por operação) */
   rotuloN?: string;
+  /** clicar numa barra chama isto com o índice dela (o cursor vira mão) */
+  aoEscolher?: (indice: number) => void;
 }
 
 // a fileira de rótulos embaixo das barras entra na conta da altura pedida
@@ -38,10 +40,12 @@ const ALTURA_DOS_ROTULOS = 22;
 /**
  * Barras verticais pelo sinal (mensal, dia da semana, hora, histograma), no desenho do Zeve Hub
  * desde 17/09/2026: barra em HTML com gradiente e trilho atrás, guias pontilhadas, espessura igual
- * em todo gráfico (64% da coluna, no máximo 32 px) e dica em cartão ao apontar ou tocar. A interface
- * é a mesma de antes (era Recharts): quem chama não mudou.
+ * em todo gráfico (64% da coluna, no máximo 32 px). A interface é a mesma de antes (era Recharts):
+ * quem chama não mudou. Desde 19/09/2026 a leitura da barra apontada fica numa linha fixa acima do
+ * gráfico, como nas curvas: o cartão flutuante cobria as barras vizinhas e, nos gráficos estreitos,
+ * a própria barra apontada. Sem o ponteiro, a linha lê a última barra.
  */
-export function GraficoBarras({ dados, unidade, altura = 220, contagem = false, rotuloN = "Operações" }: Props) {
+export function GraficoBarras({ dados, unidade, altura = 220, contagem = false, rotuloN = "Operações", aoEscolher }: Props) {
   const [ativo, setAtivo] = useState<number | null>(null);
   // largura real da área das barras: é ela que diz quantos rótulos cabem embaixo sem se atropelar
   const areaRef = useRef<HTMLDivElement>(null);
@@ -104,17 +108,27 @@ export function GraficoBarras({ dados, unidade, altura = 220, contagem = false, 
         };
 
   const rotuloDoGrafico = contagem ? "Operações por faixa de resultado" : "Resultado por período";
+  // o índice apontado pode ter ficado de uma lista mais longa (troca de período com o ponteiro parado)
+  const lida = (ativo !== null ? dados[ativo] : undefined) ?? dados[dados.length - 1];
 
   return (
-    <div role="img" aria-label={rotuloDoGrafico} className="grid w-full grid-cols-[auto_minmax(0,1fr)] gap-x-2">
+    <div role="img" aria-label={rotuloDoGrafico} className="@container grid w-full grid-cols-[auto_minmax(0,1fr)] gap-x-2">
+      {/* a altura reservada acompanha a largura (duas linhas no estreito), para as barras não pularem */}
+      <Leitura conteudo={dicaDe(lida)} className="col-span-2 mb-2 min-h-[34px] @xl:min-h-4" />
       <Eixo marcas={marcas} y={y} altura={area} formatar={noEixo} />
       <div
         ref={areaRef}
-        className="relative touch-pan-y"
+        className={`relative touch-pan-y ${aoEscolher ? "cursor-pointer" : ""}`}
         style={{ height: area }}
         onPointerMove={(e) => setAtivo(indiceApontado(e, dados.length))}
         onPointerDown={(e) => setAtivo(indiceApontado(e, dados.length))}
         onPointerLeave={() => setAtivo(null)}
+        onClick={(e) => {
+          if (!aoEscolher) return;
+          const caixa = e.currentTarget.getBoundingClientRect();
+          const i = Math.min(dados.length - 1, Math.max(0, Math.floor(((e.clientX - caixa.left) / (caixa.width || 1)) * dados.length)));
+          aoEscolher(i);
+        }}
       >
         <Guias marcas={marcas} y={y} />
         <div className="absolute inset-0 flex">
@@ -152,9 +166,6 @@ export function GraficoBarras({ dados, unidade, altura = 220, contagem = false, 
             );
           })}
         </div>
-        {ativo !== null && dados[ativo] ? (
-          <Dica conteudo={dicaDe(dados[ativo])} emPct={((ativo + 0.5) / dados.length) * 100} />
-        ) : null}
       </div>
       <div />
       <div aria-hidden className="mt-1.5 flex text-[11px] text-muted-foreground tabular-nums">

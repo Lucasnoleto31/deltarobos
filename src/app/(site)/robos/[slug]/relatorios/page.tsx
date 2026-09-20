@@ -5,6 +5,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { buscarRobo, listarEstatisticas } from "@/lib/consultas/publico";
 import { mesesRelatorio } from "@/lib/consultas/relatorios";
 import { formatarMesAno, formatarNumero } from "@/lib/formato";
+import { hojeSP, mesDe } from "@/lib/stats/periodos";
 
 export const revalidate = 60;
 
@@ -25,18 +26,22 @@ export default async function PaginaRelatorios({ params }: Props) {
   if (!robo) return null;
 
   const meses = mesesRelatorio(linhas);
+  const mesCorrente = mesDe(hojeSP());
 
+  // 19/09/2026: o título "Relatórios mensais" repetia a aba logo acima e o parágrafo descrevia o que os
+  // botões baixam; ficou a linha de fatos. O aviso do mês corrente, que ficava solto no rodapé, foi para
+  // a linha do próprio mês.
   return (
-    <div className="space-y-6">
-      <header className="space-y-1">
-        <h2 className="text-2xl font-semibold tracking-tight">Relatórios mensais</h2>
-        <p className="max-w-prose text-sm text-muted-foreground">
-          PDF com resumo, resultado por dia, por série do contrato e as operações; CSV com as mesmas operações. Por 1 contrato, com bruto, custos e líquido.
+    <div className="space-y-4">
+      <header>
+        <h2 className="sr-only">Relatórios mensais</h2>
+        <p className="text-sm text-muted-foreground tabular-nums">
+          {formatarNumero(meses.length)} {meses.length === 1 ? "mês" : "meses"} com operação · valores por 1 contrato
         </p>
       </header>
 
       {meses.length === 0 ? (
-        <p className="rounded-2xl border border-dashed p-8 text-center text-muted-foreground">Ainda não há mês com operações fechadas.</p>
+        <p className="painel px-4 py-8 text-center text-sm text-muted-foreground">Sem operações fechadas ainda.</p>
       ) : (
         <div className="overflow-x-auto painel">
           <table className="w-full text-sm">
@@ -53,8 +58,11 @@ export default async function PaginaRelatorios({ params }: Props) {
             <tbody className="[&>tr]:border-t">
               {meses.map((m) => (
                 <tr key={m.mes} className="tabular-nums [&>td]:px-4 [&>td]:py-2.5">
-                  <td className="font-medium first-letter:uppercase">{formatarMesAno(`${m.mes}-01`)}</td>
-                  <td className="text-right">{m.nDias}</td>
+                  <td className="font-medium first-letter:uppercase">
+                    {formatarMesAno(`${m.mes}-01`)}
+                    {m.mes === mesCorrente ? <span className="ml-2 text-xs font-normal text-muted-foreground">em andamento</span> : null}
+                  </td>
+                  <td className="text-right">{formatarNumero(m.nDias)}</td>
                   <td className="text-right">{formatarNumero(m.nOperacoes)}</td>
                   <td className="text-right">
                     <Valor valor={m.bruto} inteiro={Math.abs(m.bruto) >= 1000} colorir={false} />
@@ -78,10 +86,6 @@ export default async function PaginaRelatorios({ params }: Props) {
           </table>
         </div>
       )}
-
-      <p className="text-xs text-muted-foreground">
-        O mês corrente muda ao longo do dia.
-      </p>
     </div>
   );
 }

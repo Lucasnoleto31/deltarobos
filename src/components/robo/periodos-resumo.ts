@@ -51,3 +51,17 @@ export function noPeriodo<T extends { dia: string }>(itens: readonly T[], period
   const inicio = inicioDoPeriodo(periodo, hoje);
   return itens.filter((i) => i.dia <= hoje && (inicio === null || i.dia >= inicio));
 }
+
+/**
+ * O período em que o painel abre (19/09/2026). "Hoje" quando o dia tem operação ou o pregão está
+ * aberto. Fora disso "Hoje" é um painel zerado (sábado, feriado, antes da abertura), e ele abre no
+ * primeiro período com operação: semana, mês, ano, tudo. Sem operação nenhuma, fica em "Hoje".
+ */
+export function periodoInicial(
+  linhas: readonly { dia: string; n_operacoes: number }[],
+  hoje: string,
+  agora: { operacoesHoje: number; pregaoAberto: boolean },
+): PeriodoResumo {
+  if (agora.operacoesHoje > 0 || agora.pregaoAberto) return "hoje";
+  return PERIODOS_FECHADOS.find((p) => noPeriodo(linhas, p, hoje).some((l) => l.n_operacoes > 0)) ?? "hoje";
+}

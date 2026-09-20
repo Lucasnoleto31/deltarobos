@@ -1,9 +1,11 @@
 // Peças comuns dos gráficos, trazidas do Zeve Hub (17/09/2026, pedido do Artur: "os gráficos do hub
 // vai bem"). Sem biblioteca: as barras são HTML, para o texto não encolher com a largura da tela, e a
 // curva é SVG esticado com traço de espessura fixa. Regras do kit estético (blocos 4 e 7): barra com
-// gradiente vertical e trilho atrás, linhas-guia horizontais pontilhadas e nenhuma vertical, e a dica
-// em cartão com a contagem crua. Aqui só se desenha: todo número chega pronto de quem chama.
+// gradiente vertical e trilho atrás, linhas-guia horizontais pontilhadas e nenhuma vertical, e a
+// leitura do ponto numa linha fixa acima do desenho (19/09/2026; antes, cartão flutuante). Aqui só
+// se desenha: todo número chega pronto de quem chama.
 
+import { cn } from "cn";
 import type { PointerEvent as ReactPointerEvent } from "react";
 
 export type Tom = "positivo" | "negativo" | "acento" | "neutro";
@@ -99,40 +101,52 @@ const COR_DO_TOM: Record<Tom, string> = {
   neutro: "text-foreground",
 };
 
-/** O que vai dentro da dica: título, subtítulo e as linhas de rótulo e valor. */
-export function CorpoDaDica({ conteudo }: { conteudo: ConteudoDaDica }) {
-  return (
-    <>
-      <div className="grid gap-0.5">
-        <span className="text-xs font-semibold">{conteudo.titulo}</span>
-        {conteudo.subtitulo ? <span className="text-muted-foreground">{conteudo.subtitulo}</span> : null}
-      </div>
-      {conteudo.linhas.length > 0 ? (
-        <dl className="mt-2 grid grid-cols-[auto_auto] gap-x-5 gap-y-1 border-t pt-2">
-          {conteudo.linhas.map((l) => (
-            <div key={l.rotulo} className="contents">
-              <dt className="text-muted-foreground">{l.rotulo}</dt>
-              <dd className={`text-right font-medium whitespace-nowrap tabular-nums ${COR_DO_TOM[l.tom ?? "neutro"]}`}>{l.valor}</dd>
-            </div>
-          ))}
-        </dl>
-      ) : null}
-    </>
-  );
+/** As cores da leitura sobre um fundo que não é o do site: a moldura grafite do Profit, escura nos dois temas. */
+export interface PaletaDaLeitura {
+  titulo: string;
+  texto: string;
+  rotulo: string;
+  positivo: string;
+  negativo: string;
 }
 
 /**
- * A dica no alto do gráfico, ao lado do ponto apontado: à direita dele na metade esquerda e à
- * esquerda na metade direita, para não cobrir o que está sendo lido. Encosta na borda em vez de sair.
+ * A leitura do ponto apontado numa linha fixa no alto do gráfico, como a legenda de dados do Profit.
+ * Até 19/09/2026 era um cartão flutuante ao lado do ponteiro, e ele cobria o fim da curva, a etiqueta
+ * do valor e a barra apontada ("quando passo o mouse sobre o gráfico de desempenho ele esconde o
+ * resultado"). Aqui fica fora da área do desenho e não cobre nada; quem chama reserva a altura
+ * (uma linha no largo, mais no estreito) para o gráfico não pular quando o texto muda.
  */
-export function Dica({ conteudo, emPct }: { conteudo: ConteudoDaDica; emPct: number }) {
-  const lado =
-    emPct < 50
-      ? { left: `clamp(0px, calc(${emPct}% + 12px), calc(100% - 15rem))` }
-      : { right: `clamp(0px, calc(${100 - emPct}% + 12px), calc(100% - 15rem))` };
+export function Leitura({ conteudo, paleta, className }: { conteudo: ConteudoDaDica; paleta?: PaletaDaLeitura; className?: string }) {
+  const cor = (c?: string) => (c ? { color: c } : undefined);
+  const corDoValor = (tom: Tom = "neutro") =>
+    paleta ? { color: tom === "positivo" ? paleta.positivo : tom === "negativo" ? paleta.negativo : paleta.titulo } : undefined;
   return (
-    <div role="status" className="dica-caixa top-1" style={lado}>
-      <CorpoDaDica conteudo={conteudo} />
+    <div
+      role="status"
+      className={cn("flex flex-wrap content-start items-baseline gap-x-4 gap-y-0.5 text-[11px] leading-4 tabular-nums", className)}
+    >
+      <span className="whitespace-nowrap">
+        <span className={cn("font-semibold", !paleta && "text-foreground")} style={cor(paleta?.titulo)}>
+          {conteudo.titulo}
+        </span>
+        {conteudo.subtitulo ? (
+          <span className={cn(!paleta && "text-muted-foreground")} style={cor(paleta?.texto)}>
+            {" · "}
+            {conteudo.subtitulo}
+          </span>
+        ) : null}
+      </span>
+      {conteudo.linhas.map((l) => (
+        <span key={l.rotulo} className="whitespace-nowrap">
+          <span className={cn(!paleta && "text-muted-foreground")} style={cor(paleta?.rotulo)}>
+            {l.rotulo}
+          </span>{" "}
+          <span className={cn("font-medium", !paleta && COR_DO_TOM[l.tom ?? "neutro"])} style={corDoValor(l.tom)}>
+            {l.valor}
+          </span>
+        </span>
+      ))}
     </div>
   );
 }

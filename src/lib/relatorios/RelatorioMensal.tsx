@@ -25,10 +25,13 @@ const VERDE = "#2e6f40";
 const VERMELHO = "#b22222";
 const CINZA = "#71685c";
 const LINHA = "#e4e0da";
+/* o verde da Quants na versão para papel, a mesma do tema claro do site (19/09/2026, no lugar do
+   dourado): só no fio do cabeçalho. O verde de resultado continua o VERDE, que é outra cor */
+const ACENTO = "#007a41";
 
 const s = StyleSheet.create({
   page: { padding: 32, paddingBottom: 44, fontSize: 8.5, fontFamily: "Helvetica", color: "#141416" },
-  cabecalho: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 14, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: "#b38a50" },
+  cabecalho: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 14, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: ACENTO },
   marca: { fontSize: 11, fontFamily: "Helvetica-Bold" },
   titulo: { fontSize: 18, fontFamily: "Helvetica-Bold", marginTop: 2 },
   sub: { fontSize: 9, color: CINZA, marginTop: 2 },
@@ -80,11 +83,11 @@ export function RelatorioMensal({ robo, mes, ultimoDia, linhas, ops, totalOps, p
   ];
 
   return (
-    <Document title={`${robo.nome} · ${formatarMesAno(`${mes}-01`)}`} author="Delta Robôs" subject="Relatório mensal">
+    <Document title={`${robo.nome} · ${formatarMesAno(`${mes}-01`)}`} author="Quants Robôs" subject="Relatório mensal">
       <Page size="A4" style={s.page}>
         <View style={s.cabecalho}>
           <View>
-            <Text style={s.marca}>Delta Robôs · Relatório mensal</Text>
+            <Text style={s.marca}>Quants Robôs · Relatório mensal</Text>
             <Text style={s.titulo}>
               {robo.nome} · {formatarMesAno(`${mes}-01`)}
             </Text>
@@ -175,11 +178,11 @@ export function RelatorioMensal({ robo, mes, ultimoDia, linhas, ops, totalOps, p
 
         <Text style={s.nota}>
           Resultado bruto é o do MetaTrader; líquido desconta o custo por contrato do robô. Gain e loss são classificados pelo líquido.
-          Drawdown é a maior distância da curva acumulada do mês até o pico anterior. Metodologia completa em deltarobos-mu.vercel.app/metodologia.
+          Drawdown é a maior distância da curva acumulada do mês até o pico anterior. Metodologia completa na página Metodologia do site.
         </Text>
 
         <View style={s.rodape} fixed>
-          <Text>Delta Robôs · {robo.nome} · {formatarMesAno(`${mes}-01`)}</Text>
+          <Text>Quants Robôs · {robo.nome} · {formatarMesAno(`${mes}-01`)}</Text>
           <Text render={({ pageNumber, totalPages }) => `página ${pageNumber} de ${totalPages}`} />
         </View>
       </Page>
@@ -222,7 +225,7 @@ export function RelatorioMensal({ robo, mes, ultimoDia, linhas, ops, totalOps, p
           );
         })}
         <View style={s.rodape} fixed>
-          <Text>Delta Robôs · {robo.nome} · {formatarMesAno(`${mes}-01`)}</Text>
+          <Text>Quants Robôs · {robo.nome} · {formatarMesAno(`${mes}-01`)}</Text>
           <Text render={({ pageNumber, totalPages }) => `página ${pageNumber} de ${totalPages}`} />
         </View>
       </Page>

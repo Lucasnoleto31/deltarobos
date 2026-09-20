@@ -5,10 +5,10 @@
 // operação, por dia) e as cores; vc fez no hub então é aquele estilo"). As cores foram medidas pixel a
 // pixel em prints do Profit (central de ajuda da Nelogica, 13/09/2026, e o Profit do Artur agrupado por
 // dia, 14/09/2026) e valem nos dois temas do site, como no Hub. Aqui só se desenha: cada ponto chega
-// com a posição, o acumulado, o drawdown e a dica já montados.
+// com a posição, o acumulado, o drawdown e a leitura já montados.
 
-import { useState, type PointerEvent as ReactPointerEvent } from "react";
-import { Dica, passo, type ConteudoDaDica } from "./base";
+import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { Leitura, passo, type ConteudoDaDica, type PaletaDaLeitura } from "./base";
 
 export const PROFIT = {
   fundo: "#222222",
@@ -23,8 +23,28 @@ export const PROFIT = {
   abasBorda: "#444444",
   abaAtiva: "#4a4a4a",
   abaTexto: "#b3b3b3",
-  separador: "#505050",
+  // o separador medido (#505050) saiu em 19/09/2026: 1,57:1 sobre as abas; o "|" usa o textoFraco
 } as const;
+
+/** A leitura do ponto no alto da moldura, com as cores do Profit: a moldura é grafite nos dois temas. */
+const PALETA_DA_LEITURA: PaletaDaLeitura = {
+  titulo: PROFIT.titulo,
+  texto: PROFIT.texto,
+  rotulo: PROFIT.textoFraco,
+  positivo: PROFIT.alta,
+  negativo: PROFIT.baixa,
+};
+
+/** Texto grafite ou branco sobre a etiqueta, o que der mais contraste com a cor dela (o vermelho do por dia pede branco). */
+function textoSobre(cor: string): string {
+  const [r, g, b] = [1, 3, 5].map((k) => {
+    const c = parseInt(cor.slice(k, k + 2), 16) / 255;
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  const l = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  // luminância do grafite #222222: 0,016
+  return (l + 0.05) / 0.066 >= 1.05 / (l + 0.05) ? PROFIT.fundo : PROFIT.titulo;
+}
 
 /** Linha e área da curva: cada agrupamento com as cores do gráfico do Profit no mesmo agrupamento. */
 export interface CoresDaCurva {
@@ -65,7 +85,10 @@ export interface PontoDoDesenho {
   acumulado: number;
   /** distância até o pico anterior, sempre <= 0 */
   drawdown: number;
+  /** a leitura do ponto, na linha fixa no alto da moldura */
   dica: ConteudoDaDica;
+  /** o que a etiqueta do eixo de baixo diz na mira: a data, a hora ou a ordem da operação */
+  eixo?: string;
 }
 
 /** Um ponto marcado em cima da curva (o MEP e o MEN do dia, por exemplo), com um rótulo curto ao lado. */
@@ -119,6 +142,19 @@ function EixoProfit({ marcas, y, altura, formatar }: { marcas: number[]; y: (v: 
   );
 }
 
+/** A etiqueta no eixo da direita, na altura do valor; encosta no desenho, como a do Profit. */
+function EtiquetaDoEixo({ topo, fundo, children }: { topo: number; fundo: string; children: React.ReactNode }) {
+  return (
+    <span
+      aria-hidden
+      className="absolute -left-1 -translate-y-1/2 rounded-[3px] px-1.5 py-0.5 text-[11px] font-medium whitespace-nowrap tabular-nums"
+      style={{ top: `${topo}%`, background: fundo, color: textoSobre(fundo) }}
+    >
+      {children}
+    </span>
+  );
+}
+
 function RotuloVertical({ altura, children }: { altura: number; children: React.ReactNode }) {
   return (
     <div
@@ -144,11 +180,23 @@ interface Props {
   formatarEixo: (v: number) => string;
   rotuloVertical: string;
   rotuloAria: string;
+  /** arrastar com o mouse seleciona um trecho (frações de 0 a 1 do eixo) e chama isto */
+  aoSelecionar?: (de: number, ate: number) => void;
   /** pontos marcados em cima da curva, com rótulo; entram na escala vertical para nunca ficarem fora do desenho */
   marcadores?: ReadonlyArray<MarcadorDaCurva>;
 }
 
-/** Linha com área em degradê até o zero, verde acima e vermelha abaixo, e o drawdown em barras no mesmo eixo de tempo. */
+/**
+ * Linha com área em degradê até o zero, verde acima e vermelha abaixo, e o drawdown em barras no mesmo
+ * eixo de tempo. Com `aoSelecionar`, arrastar com o mouse marca um trecho para dar zoom (18/09/2026,
+ * "os gráficos são pouco interativos").
+ *
+ * Apontar, desde 19/09/2026, é como no Profit ("esses gráficos consegue deixar estilo do profit?"):
+ * mira em cruz tracejada no ponto, a etiqueta do valor no eixo da direita e a da data (ou da hora, ou
+ * da ordem) no eixo de baixo, e a leitura do ponto numa linha fixa no alto da moldura. Sem o ponteiro,
+ * a linha mostra o último ponto e a etiqueta colorida do último valor fica sempre no eixo: o resultado
+ * não some mais debaixo da dica. No toque, arrastar o dedo move a mira, e ela fica onde o dedo soltou.
+ */
 export function DesenhoDaCurva({
   id,
   pontos,
@@ -160,9 +208,15 @@ export function DesenhoDaCurva({
   formatarEixo,
   rotuloVertical,
   rotuloAria,
+  aoSelecionar,
   marcadores = [],
 }: Props) {
   const [ativo, setAtivo] = useState<number | null>(null);
+  // trecho sendo arrastado, em frações do eixo; só com mouse, para não brigar com a rolagem no toque
+  const [selecao, setSelecao] = useState<{ de: number; ate: number } | null>(null);
+  const inicioDoArrasto = useRef<number | null>(null);
+  // a seleção também numa ref: o soltar pode vir antes do React redesenhar o último arrasto
+  const selecaoRef = useRef<{ de: number; ate: number } | null>(null);
   const n = pontos.length;
   if (n === 0) return null;
 
@@ -189,16 +243,67 @@ export function DesenhoDaCurva({
     });
     setAtivo(perto);
   };
-  const atual = ativo !== null ? pontos[ativo] : null;
+  // o índice apontado pode ter ficado de uma série mais longa (troca de período com o ponteiro parado)
+  const atual = ativo !== null && ativo < n ? pontos[ativo] : null;
+  const ultimo = pontos[n - 1];
+  const corDoValor = (v: number) => (v >= 0 ? cores.alta : cores.baixa);
+  // a coluna do eixo reserva a largura da etiqueta mais larga, para ela não invadir o rótulo vertical
+  const etiquetaMaisLarga = pontos.reduce((m, p) => {
+    const t = formatarEixo(p.acumulado);
+    return t.length > m.length ? t : m;
+  }, "");
+
+  const fracaoDe = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const caixa = e.currentTarget.getBoundingClientRect();
+    return Math.min(1, Math.max(0, (e.clientX - caixa.left) / (caixa.width || 1)));
+  };
+  const comecarArrasto = (e: ReactPointerEvent<HTMLDivElement>) => {
+    apontar(e);
+    if (!aoSelecionar || e.pointerType !== "mouse") return;
+    inicioDoArrasto.current = fracaoDe(e);
+    selecaoRef.current = null;
+    setSelecao(null);
+  };
+  const arrastar = (e: ReactPointerEvent<HTMLDivElement>) => {
+    apontar(e);
+    if (inicioDoArrasto.current === null) return;
+    const f = fracaoDe(e);
+    const nova = { de: Math.min(inicioDoArrasto.current, f), ate: Math.max(inicioDoArrasto.current, f) };
+    selecaoRef.current = nova;
+    setSelecao(nova);
+  };
+  const soltar = () => {
+    const sel = selecaoRef.current;
+    inicioDoArrasto.current = null;
+    selecaoRef.current = null;
+    setSelecao(null);
+    if (sel && aoSelecionar && sel.ate - sel.de > 0.02) aoSelecionar(sel.de, sel.ate);
+  };
 
   return (
     <div
       role="img"
       aria-label={rotuloAria}
-      className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-x-2"
-      onPointerLeave={() => setAtivo(null)}
+      className="@container grid grid-cols-[minmax(0,1fr)_auto_auto] gap-x-2"
+      // no toque o "sair" vem logo depois de soltar o dedo: a mira fica onde ele parou
+      onPointerLeave={(e) => {
+        if (e.pointerType !== "touch") setAtivo(null);
+      }}
     >
-      <div className="relative touch-pan-y" style={{ height: altura }} onPointerMove={apontar} onPointerDown={apontar}>
+      {/* a altura reservada acompanha a largura (uma linha no largo, três no celular), para o desenho não pular */}
+      <Leitura
+        conteudo={(atual ?? ultimo).dica}
+        paleta={PALETA_DA_LEITURA}
+        className="col-span-3 mb-2 min-h-[52px] @md:min-h-[34px] @3xl:min-h-4"
+      />
+      <div
+        className={`relative touch-pan-y ${aoSelecionar ? "cursor-crosshair" : ""}`}
+        style={{ height: altura }}
+        onPointerMove={arrastar}
+        onPointerDown={comecarArrasto}
+        onPointerUp={soltar}
+        onPointerCancel={() => setAtivo(null)}
+      >
         {marcas
           .filter((m) => m !== 0)
           .map((m) => (
@@ -227,6 +332,13 @@ export function DesenhoDaCurva({
           <path d={tracado} fill="none" stroke={cores.alta} strokeWidth={cores.linha} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" clipPath={`url(#${id}-acima)`} />
           <path d={tracado} fill="none" stroke={cores.baixa} strokeWidth={cores.linha} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" clipPath={`url(#${id}-abaixo)`} />
         </svg>
+        {selecao ? (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-y-0 border-x"
+            style={{ left: `${selecao.de * 100}%`, width: `${(selecao.ate - selecao.de) * 100}%`, background: "rgba(255,255,255,0.08)", borderColor: PROFIT.textoFraco }}
+          />
+        ) : null}
         {/* Marcadores em HTML, como o ponto ativo: dentro do SVG esticado o círculo viraria uma elipse. Ficam antes
             do ponto ativo no DOM para nunca cobrirem o ponto ativo, e o círculo some quando o hover cai no ponto
             desenhado mais perto dele (em série fatiada o marcador pode não coincidir com nenhum ponto). O rótulo
@@ -254,19 +366,34 @@ export function DesenhoDaCurva({
             </div>
           );
         })}
+        {/* a mira em cruz do Profit: as duas linhas tracejadas finas se cruzam no ponto */}
         {atual && ativo !== null ? (
           <>
-            <div aria-hidden className="absolute inset-y-0 border-l border-dashed" style={{ left: `${x(ativo)}%`, borderColor: PROFIT.textoFraco }} />
+            <div aria-hidden className="pointer-events-none absolute inset-y-0 border-l border-dashed" style={{ left: `${x(ativo)}%`, borderColor: PROFIT.textoFraco }} />
+            <div aria-hidden className="pointer-events-none absolute inset-x-0 border-t border-dashed" style={{ top: `${y(atual.acumulado)}%`, borderColor: PROFIT.textoFraco }} />
             <div
               aria-hidden
-              className="absolute size-2 -translate-x-1/2 -translate-y-1/2 rounded-full"
-              style={{ left: `${x(ativo)}%`, top: `${y(atual.acumulado)}%`, background: atual.acumulado >= 0 ? cores.alta : cores.baixa }}
+              className="pointer-events-none absolute size-2 -translate-x-1/2 -translate-y-1/2 rounded-full"
+              style={{ left: `${x(ativo)}%`, top: `${y(atual.acumulado)}%`, background: corDoValor(atual.acumulado) }}
             />
-            <Dica conteudo={atual.dica} emPct={x(ativo)} />
           </>
         ) : null}
       </div>
-      <EixoProfit marcas={marcas} y={y} altura={altura} formatar={formatarEixo} />
+      {/* no eixo, a etiqueta colorida do último valor fica sempre; a da mira, cinza, vem por cima quando se aponta */}
+      <div className="relative">
+        <EixoProfit marcas={marcas} y={y} altura={altura} formatar={formatarEixo} />
+        <span aria-hidden className="invisible block h-0 overflow-hidden px-1.5 text-[11px] font-medium whitespace-nowrap tabular-nums">
+          {etiquetaMaisLarga}
+        </span>
+        <EtiquetaDoEixo topo={y(ultimo.acumulado)} fundo={corDoValor(ultimo.acumulado)}>
+          {formatarEixo(ultimo.acumulado)}
+        </EtiquetaDoEixo>
+        {atual ? (
+          <EtiquetaDoEixo topo={y(atual.acumulado)} fundo={PROFIT.abaAtiva}>
+            {formatarEixo(atual.acumulado)}
+          </EtiquetaDoEixo>
+        ) : null}
+      </div>
       <RotuloVertical altura={altura}>{rotuloVertical}</RotuloVertical>
 
       {comDrawdown ? (
@@ -276,6 +403,7 @@ export function DesenhoDaCurva({
             style={{ height: alturaDoDrawdown, borderColor: PROFIT.zero }}
             onPointerMove={apontar}
             onPointerDown={apontar}
+            onPointerCancel={() => setAtivo(null)}
           >
             {escalaDD.marcas
               .filter((m) => m !== 0)
@@ -292,13 +420,13 @@ export function DesenhoDaCurva({
                     width={larguraDaBarra.toFixed(3)}
                     height={escalaDD.y(p.drawdown).toFixed(2)}
                     fill={PROFIT.baixa}
-                    fillOpacity={ativo === i ? 0.95 : 0.62}
+                    fillOpacity={atual && ativo === i ? 0.95 : 0.62}
                   />
                 ) : null,
               )}
             </svg>
-            {ativo !== null ? (
-              <div aria-hidden className="absolute inset-y-0 border-l border-dashed" style={{ left: `${x(ativo)}%`, borderColor: PROFIT.textoFraco }} />
+            {atual && ativo !== null ? (
+              <div aria-hidden className="pointer-events-none absolute inset-y-0 border-l border-dashed" style={{ left: `${x(ativo)}%`, borderColor: PROFIT.textoFraco }} />
             ) : null}
           </div>
           <div className="mt-4">
@@ -320,6 +448,15 @@ export function DesenhoDaCurva({
             {m.rotulo}
           </span>
         ))}
+        {/* a etiqueta da mira no eixo de baixo; o deslocamento proporcional mantém a caixa dentro do desenho nas pontas */}
+        {atual?.eixo && ativo !== null ? (
+          <span
+            className="absolute -top-0.5 rounded-[3px] px-1.5 py-0.5 font-medium whitespace-nowrap"
+            style={{ left: `${x(ativo)}%`, transform: `translateX(-${x(ativo)}%)`, background: PROFIT.abaAtiva, color: PROFIT.titulo }}
+          >
+            {atual.eixo}
+          </span>
+        ) : null}
       </div>
       <div />
       <div />
@@ -327,21 +464,29 @@ export function DesenhoDaCurva({
   );
 }
 
-/** A moldura grafite do Profit: título centralizado em cima, legenda embaixo do gráfico e, quando há, as abas no rodapé. */
+/**
+ * A moldura grafite do Profit: título centralizado em cima, legenda embaixo do gráfico e, quando há, as abas no rodapé.
+ * O título pode trazer o i do "o que é" (19/09/2026, RotuloComInfo). O i vem com as cores do tema, e o cinza
+ * dele no tema claro some no grafite; aqui ele usa as da moldura: textoFraco (5:1 sobre o fundo) e branco ao
+ * passar o mouse, no foco e aberto.
+ */
 export function MolduraProfit({
   titulo,
   legenda,
   abas,
   children,
 }: {
-  titulo: string;
+  titulo: React.ReactNode;
   legenda?: React.ReactNode;
   abas?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
     <div className="rounded-lg" style={{ background: PROFIT.fundo }}>
-      <p className="px-4 pt-3 pb-2 text-center text-xs font-semibold" style={{ color: PROFIT.titulo }}>
+      <p
+        className="px-4 pt-3 pb-2 text-center text-xs font-semibold [&_button]:text-(--moldura-i)! [&_button:focus-visible]:text-(--moldura-titulo)! [&_button:hover]:text-(--moldura-titulo)! [&_button[data-popup-open]]:text-(--moldura-titulo)!"
+        style={{ color: PROFIT.titulo, "--moldura-i": PROFIT.textoFraco, "--moldura-titulo": PROFIT.titulo } as React.CSSProperties}
+      >
         {titulo}
       </p>
       <div className="px-3">{children}</div>

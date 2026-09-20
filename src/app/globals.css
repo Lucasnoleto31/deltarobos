@@ -2,16 +2,18 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-/* Ficha visual (kit estético do Artur), identidade Delta Flow, 14/09/2026. Só os VALORES dos
-   tokens mudaram; os nomes são os do shadcn e do projeto, então nenhum componente precisou saber
-   da troca.
-   fundo: preto de cinema #0A0A0B no escuro (padrão), cartão só com fio (18/09) e popover #1C1C1F. Em
-   16/09/2026 o Artur trocou o marinho da marca (#00162E) por preto ("o azul não gostei muito");
-   é a mesma variante .cinema da área do cliente do Hub. No claro, papel quente #F7F5F1 com texto
-   quase preto #141416.
-   acento: o dourado do logo. Escuro #C39A5A (8,3:1 sobre o preto); claro #86652D, porque o
-   dourado da marca sobre branco dá 2,5:1 e reprova. "info" é o mesmo acento: um acento só.
-   semânticas: verde positivo, vermelho negativo, laranja alerta (âmbar competia com o dourado)
+/* Ficha visual (kit estético do Artur), identidade Quants Robôs desde 19/09/2026 (até então a marca
+   antiga, com o dourado). Só os VALORES dos tokens mudaram; os nomes são os do shadcn e do projeto,
+   então nenhum componente precisou saber da troca.
+   fundo: preto de cinema #0A0A0B no escuro (padrão), cartão só com fio (18/09) e popover #1C1C1F. No
+   claro, papel quente #F7F5F1 com texto quase preto #141416.
+   acento: o verde da Quants, só no detalhe (símbolo, Posicionado, foco, seleção) e no botão
+   principal. Escuro #00FF88, o do quantsrobos.com (14,8:1 sobre o preto, e o preto do botão sobre
+   ele também). Claro #007A41, a mesma matiz (152°) escurecida, porque o neon sobre branco dá 1,3:1:
+   5,4:1 sobre o branco, 5,0:1 sobre o papel, e o branco do botão sobre ele 5,4:1. "info" é o mesmo
+   acento: um acento só.
+   semânticas: verde positivo (o do resultado, mais sóbrio; não é o acento), vermelho negativo,
+   laranja alerta
    tipografia: Inter, números tabulares · raio base 10 (o --radius que já existia) */
 
 @custom-variant dark (&:is(.dark *));
@@ -20,7 +22,7 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --font-heading: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -51,7 +53,7 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  /* semântica Delta: verde positivo, vermelho negativo, laranja alerta, dourado info */
+  /* semântica: verde positivo, vermelho negativo, laranja alerta; info é o acento (verde da Quants) */
   --color-positivo: var(--positivo);
   --color-negativo: var(--negativo);
   --color-alerta: var(--alerta);
@@ -73,7 +75,7 @@
   --card-foreground: #141416;
   --popover: #ffffff;
   --popover-foreground: #141416;
-  --primary: #86652d;
+  --primary: #007a41;
   --primary-foreground: #ffffff;
   --secondary: #efebe4;
   --secondary-foreground: #141416;
@@ -84,27 +86,29 @@
   --destructive: #b22222;
   --border: #cfc8bd;
   --input: #d1cbc2;
-  --ring: #86652d;
-  --chart-1: #86652d;
-  --chart-2: #b38a50;
-  --chart-3: #c39a5a;
-  --chart-4: #d1be8f;
-  --chart-5: #e8dcc0;
+  --ring: #007a41;
+  /* escala do acento para gráfico: o verde e as tintas dele sobre o branco. Passam de 3:1 sobre o
+     papel só os dois primeiros (5,0:1 e 3,4:1); os outros são preenchimento */
+  --chart-1: #007a41;
+  --chart-2: #339567;
+  --chart-3: #73b696;
+  --chart-4: #a6d0bc;
+  --chart-5: #d1e7dd;
   --radius: 0.625rem;
   --sidebar: #efebe4;
   --sidebar-foreground: #141416;
-  --sidebar-primary: #86652d;
+  --sidebar-primary: #007a41;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #e4e0da;
   --sidebar-accent-foreground: #141416;
   --sidebar-border: #e4e0da;
-  --sidebar-ring: #86652d;
+  --sidebar-ring: #007a41;
   --positivo: #2e6f40;
   --negativo: #b22222;
   --alerta: #a14a17;
-  --info: #86652d;
-  /* texto sobre o degradê dourado do botão, nos dois temas */
-  --sobre-dourado: #0a0a0b;
+  --info: #007a41;
+  /* fundo da seleção de texto: o acento a 15% sobre o papel (#d2e3d7) */
+  --selecao: color-mix(in srgb, #007a41 15%, transparent);
 }
 
 .dark {
@@ -114,7 +118,7 @@
   --card-foreground: #f8f5ef;
   --popover: #1c1c1f;
   --popover-foreground: #f8f5ef;
-  --primary: #c39a5a;
+  --primary: #00ff88;
   --primary-foreground: #0a0a0b;
   --secondary: #1c1c1f;
   --secondary-foreground: #f8f5ef;
@@ -125,33 +129,66 @@
   --destructive: #e8594b;
   --border: #2a2a2e;
   --input: #3a3a40;
-  --ring: #c39a5a;
-  --chart-1: #d1be8f;
-  --chart-2: #c39a5a;
-  --chart-3: #b38a50;
-  --chart-4: #86652d;
-  --chart-5: #5c4520;
+  --ring: #00ff88;
+  /* escala do acento na mesma matiz, do claro ao escuro; todos passam de 3:1 sobre o preto (o último, 3,2:1) */
+  --chart-1: #80ffc4;
+  --chart-2: #00ff88;
+  --chart-3: #00cc6d;
+  --chart-4: #009952;
+  --chart-5: #00703c;
   --sidebar: #141416;
   --sidebar-foreground: #f8f5ef;
-  --sidebar-primary: #c39a5a;
+  --sidebar-primary: #00ff88;
   --sidebar-primary-foreground: #0a0a0b;
   --sidebar-accent: #1c1c1f;
   --sidebar-accent-foreground: #f8f5ef;
   --sidebar-border: #2a2a2e;
-  --sidebar-ring: #c39a5a;
+  --sidebar-ring: #00ff88;
   --positivo: #53b86f;
   --negativo: #e8594b;
   --alerta: #f08a4b;
-  --info: #c39a5a;
+  --info: #00ff88;
+  /* o neon a 20% sobre o preto (#083b24) */
+  --selecao: color-mix(in srgb, #00ff88 20%, transparent);
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    /* 19/09/2026: barra de rolagem fina em tudo; as faixas que escondem a barra ([scrollbar-width:none])
+       são utilitário e vencem esta regra */
+    scrollbar-width: thin;
   }
   html {
     @apply font-sans;
     color-scheme: dark;
+    /* superfícies do navegador na paleta (19/09/2026): a barra no fio forte, o cursor de texto e os
+       controles nativos na cor do texto */
+    scrollbar-color: var(--painel-fio-forte) transparent;
+    caret-color: var(--foreground);
+    accent-color: var(--foreground);
+    /* 19/09/2026: a âncora não pode parar debaixo do cabeçalho fixo, então a rolagem desconta a altura
+       MEDIDA dele no navegador: 91 px até lg (a navegação desce para uma segunda linha) e 57 px a
+       partir de lg, onde a barra tem uma linha só (h-14 mais o fio). Os 0,75 rem de folga são para o
+       título não encostar na barra. Isto substitui o scroll-mt-* que cada seção da home carregava:
+       scroll-margin do alvo e scroll-padding da página SOMAM, e os dois juntos deixavam a seção
+       80 px mais abaixo do que precisava. */
+    --altura-cabecalho: 91px;
+    scroll-padding-top: calc(var(--altura-cabecalho) + 0.75rem);
+  }
+  @media (width >= 64rem) {
+    html {
+      --altura-cabecalho: 57px;
+    }
+  }
+  /* O "scroll lento" que o Artur pediu (referência: zero7) fica NAS ÂNCORAS, não na roda do mouse —
+     sequestrar a rolagem quebra trackpad, teclado e leitura de tabela. O data-scroll-behavior="smooth"
+     no <html> do layout raiz é o par obrigatório disto no Next 16: sem ele, trocar de página passa a
+     deslizar a tela inteira até o topo em vez de ir direto. */
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
   }
   html:not(.dark) {
     color-scheme: light;
@@ -160,6 +197,25 @@
     @apply bg-background text-foreground;
     /* cv11 saiu com a troca para Inter: nela é o "a" de um andar só */
     font-feature-settings: "tnum";
+    text-underline-offset: 0.2em;
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+  /* seleção no acento translúcido, o texto mantém a própria cor. 19/09/2026, com o verde da Quants no
+     lugar do dourado: 15% no claro e 20% no escuro (--selecao), para o texto apagado ficar no mesmo
+     nível de antes: 4,1:1 sobre o papel (4,4:1 no branco) e 5,1:1 no escuro. Com 25% o claro caía
+     para 3,5:1 */
+  ::selection {
+    background-color: var(--selecao);
+  }
+  /* um foco só, visível nos dois temas, no lugar do outline automático do navegador (19/09/2026). Quem
+     desenha o próprio anel (outline-none + focus-visible:ring) continua como está: utilitário vence base. */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
   }
   .tabular-nums {
     font-variant-numeric: tabular-nums;
@@ -171,18 +227,66 @@
   .conteudo {
     @apply mx-auto w-full max-w-6xl px-4 sm:px-6;
   }
+
+  /* Faixa que rola de lado com as pontas esmaecendo (19/09/2026): no celular a navegação, as abas do
+     robô e os segmentados cortavam o último item sem sinal nenhum. A ponta só esmaece do lado em que
+     ainda há conteúdo, medido pela própria rolagem (animation-timeline); faixa que cabe inteira não rola,
+     a linha do tempo fica inativa e nada esmaece. Sem suporte (Firefox), fica sem o esmaecido; o
+     scroll-fade-x do shadcn faz o mesmo, mas sem suporte esmaece as duas pontas sempre, até na faixa que
+     cabe inteira. O scroll-padding vale junto com o scrollIntoView que cada faixa chama no foco
+     (AbasRobo, AbasRobos, LinksNav, Segmentado): a rolagem do próprio Tab deixava o item focado cortado
+     debaixo do esmaecido. */
+  .borda-esmaece {
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 var(--esmaece-ini), #000 calc(100% - var(--esmaece-fim)), transparent);
+    mask-image: linear-gradient(to right, transparent, #000 var(--esmaece-ini), #000 calc(100% - var(--esmaece-fim)), transparent);
+    scroll-padding-inline: 1.5rem;
+  }
+  @supports (animation-timeline: scroll()) {
+    .borda-esmaece {
+      animation: borda-esmaece linear both;
+      animation-timeline: scroll(self inline);
+    }
+  }
+}
+
+@property --esmaece-ini {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --esmaece-fim {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@keyframes borda-esmaece {
+  0% {
+    --esmaece-ini: 0px;
+    --esmaece-fim: 1.5rem;
+  }
+  10% {
+    --esmaece-ini: 1.5rem;
+  }
+  90% {
+    --esmaece-fim: 1.5rem;
+  }
+  100% {
+    --esmaece-ini: 1.5rem;
+    --esmaece-fim: 0px;
+  }
 }
 
 
 /* ------------------------------------------------------------------------------------------
-   Superfícies no desenho do Habitto (17/09/2026, pedido do Artur: "quero usar estilos dele no
-   delta robôs"). O cartão é chapado: um tom acima do chão e um fio de 1px, sem sombra nem anel
+   Superfícies no desenho do Habitto (17/09/2026, pedido do Artur: "quero usar estilos dele
+   aqui"). O cartão é chapado: um tom acima do chão e um fio de 1px, sem sombra nem anel
    forte; o que separa as coisas é o espaço. O rótulo do grupo fica FORA do cartão, em caixa alta
    e apagado, como nas listas agrupadas do iOS. Vidro só no que flutua (o cabeçalho).
    Os valores mudam por tema; as classes são as mesmas. */
 /* 18/09/2026, Artur: "o dourado de fundo da página com esse cinza não está legal". O realce dourado
    do chão saiu e o cartão escuro deixou de ter fundo: é só o fio sobre o preto, como ele escolheu no
-   Hub ("dourado sobre preto, não sobre cinza"). O chão é a cor de fundo, sem gradiente. */
+   Hub ("dourado sobre preto, não sobre cinza"). O chão é a cor de fundo, sem gradiente. Desde
+   19/09/2026 o acento é o verde da Quants; o chão continua sem cor. */
 /* 18/09/2026 à tarde ("os cards ainda estão feios"): o cartão ganhou um gradiente quase imperceptível
    de cima para baixo e um brilho de 1px na borda de cima, como o vidro escuro das páginas de trading
    que ele mostrou; no claro, uma sombra curta. Canto de 16px. */
@@ -200,7 +304,9 @@
 .dark {
   --painel-fundo: linear-gradient(180deg, rgba(255, 255, 255, 0.065) 0%, rgba(255, 255, 255, 0.025) 100%);
   --painel-brilho: rgba(255, 255, 255, 0.09);
-  --painel-sombra: none;
+  /* sombra nula válida: "none" no meio da lista do box-shadow do .painel invalidava a regra inteira e o
+     brilho de 1px no topo nunca aparecia no escuro (0 de 81 painéis, medido em 19/09/2026) */
+  --painel-sombra: 0 0 #0000;
   --painel-fio: rgba(255, 255, 255, 0.1);
   --painel-fio-forte: rgba(255, 255, 255, 0.26);
   --painel-hover: rgba(255, 255, 255, 0.04);
@@ -222,6 +328,43 @@
       inset 0 1px 0 var(--painel-brilho),
       var(--painel-sombra);
   }
+  /* Vidro ("liquid glass", pedido do Artur em 18/09/2026 à noite): translúcido, brilho na borda de
+     cima e um reflexo suave no canto. A luz colorida atrás dele (.aura) saiu no mesmo dia: o Artur não
+     gostou do verde atrás do cartão. 19/09/2026: o desfoque de fundo saiu. Atrás do cartão o chão é
+     chapado, e ligar ou desligar o blur mudava no máximo 0,095% dos pixels; o material é o gradiente, o
+     fio, o brilho e o reflexo. O blur fica só na .barra-vidro, que tem conteúdo passando por baixo. */
+  .vidro {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.085) 0%, rgba(255, 255, 255, 0.03) 60%, rgba(255, 255, 255, 0.05) 100%);
+    border-color: rgba(255, 255, 255, 0.13);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.16),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.04),
+      0 24px 60px -36px rgba(0, 0, 0, 0.9);
+    isolation: isolate;
+    overflow: hidden;
+  }
+  .vidro::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: radial-gradient(120% 70% at 12% -10%, rgba(255, 255, 255, 0.12) 0%, transparent 55%);
+    pointer-events: none;
+  }
+  html:not(.dark) .vidro {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0.6) 100%);
+    border-color: rgba(20, 20, 22, 0.1);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.9),
+      0 20px 40px -28px rgba(20, 20, 22, 0.35);
+  }
+  .vidro.painel-interativo:hover {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.05) 60%, rgba(255, 255, 255, 0.07) 100%);
+  }
+  html:not(.dark) .vidro.painel-interativo:hover {
+    background: rgba(255, 255, 255, 0.95);
+  }
+
   /* só para o que é clicável ou navegável: o fio acende junto com o fundo */
   .painel-interativo {
     transition:
@@ -287,6 +430,28 @@
     @apply text-2xl leading-none font-semibold tracking-tight tabular-nums;
   }
 
+  /* Elevação de 2 px no hover, por cima do fio que já acende (19/09/2026, inspiração zero7). É uma
+     classe à parte, e não um acréscimo ao .painel-interativo, porque o cartão do /embed usa a mesma
+     interatividade dentro de um iframe de tamanho fixo, onde levantar não faz sentido. Mesma curva e
+     mesmos 180 ms do .painel-interativo, para os dois andarem juntos. */
+  .painel-eleva {
+    transition-property: background-color, border-color, box-shadow, transform;
+    /* a duração e a curva vêm repetidas aqui de propósito (19/09/2026): elas chegavam do atalho
+       `transition` do .painel-interativo, e quem usasse .painel-eleva sozinho teria o salto de 2 px
+       sem transição nenhuma — um defeito que nem tsc nem lint veem */
+    transition-duration: 180ms;
+    transition-timing-function: ease-out;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .painel-eleva:hover {
+      transform: translateY(-2px);
+    }
+    /* no clique volta ao lugar: o cartão "afunda" de novo sob o dedo */
+    .painel-eleva:active {
+      transform: translateY(0);
+    }
+  }
+
   /* cabeçalho fixo: o vidro da barra fina do Habitto */
   .barra-vidro {
     border-bottom: 1px solid var(--painel-fio);
@@ -294,9 +459,40 @@
     -webkit-backdrop-filter: blur(16px) saturate(1.5);
     backdrop-filter: blur(16px) saturate(1.5);
   }
+}
 
-  /* a caixa das dicas dos gráficos, a mesma em todos (como no Hub) */
-  .dica-caixa {
-    @apply pointer-events-none absolute z-20 w-max max-w-[15rem] min-w-[10rem] rounded-lg bg-popover px-3 py-2.5 text-left text-[11px] leading-snug font-normal text-popover-foreground shadow-xl ring-1 ring-border;
+/* ------------------------------------------------------------------------------------------
+   Aparecer ao rolar (19/09/2026, pedido do Artur com o zero7 como referência: "as coisas
+   aparecendo quando scroola"). O site de lá usa AOS + GSAP + Lenis; aqui é só isto, porque
+   entrar biblioteca nova está fora de questão e o efeito cabe em uma transição.
+
+   Quem liga é o RevelarNaRolagem (src/components/compartilhados): o IntersectionObserver marca
+   data-revelar="espera" no que ainda está abaixo da dobra e "ok" quando o bloco entra na tela. Sem
+   JavaScript o atributo nunca aparece — e o bloco, que nasce visível, fica visível.
+
+   Os números: 460 ms, 12 px e a curva ease-out exponencial (a mesma da entrada dos cartões). Uma
+   entrada por bloco, sem zoom, sem giro e sem bounce. */
+@layer components {
+  .revelar {
+    transition:
+      opacity 460ms cubic-bezier(0.16, 1, 0.3, 1),
+      transform 460ms cubic-bezier(0.16, 1, 0.3, 1);
+    transition-delay: var(--revelar-atraso, 0ms);
+  }
+  .revelar[data-revelar="espera"] {
+    opacity: 0;
+    /* --revelar-dy: 8 px dentro de um painel, que corta ou deixa vazar o que passa da borda;
+       12 px solto na página */
+    transform: translateY(var(--revelar-dy, 12px));
+  }
+  /* Cinto de segurança: o componente nem chega a marcar o atributo com movimento reduzido, mas quem
+     troca a preferência com a página aberta já tem blocos marcados esperando. */
+  @media (prefers-reduced-motion: reduce) {
+    .revelar,
+    .revelar[data-revelar="espera"] {
+      opacity: 1;
+      transform: none;
+      transition: none;
+    }
   }
 }

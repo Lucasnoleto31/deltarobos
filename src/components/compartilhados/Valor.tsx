@@ -15,7 +15,7 @@ interface Props {
   className?: string;
 }
 
-/** Número formatado em pt-BR, tabular, colorido pelo sinal. */
+/** Número formatado em pt-BR, tabular, colorido pelo sinal. Não quebra linha: sinal, "R$" e "pts" ficam com o número (19/09/2026). */
 export function Valor({
   valor,
   unidade = "brl",
@@ -40,5 +40,5 @@ export function Valor({
         ? "text-negativo"
         : "text-muted-foreground";
 
-  return <span className={cn("tabular-nums", cor, className)}>{texto}</span>;
+  return <span className={cn("whitespace-nowrap tabular-nums", cor, className)}>{texto}</span>;
 }

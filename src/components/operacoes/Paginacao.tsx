@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
+import { formatarNumero } from "@/lib/formato";
 import { queryDeFiltros, type FiltrosUrl } from "./params";
 
 interface Props {
@@ -24,7 +25,7 @@ export function Paginacao({ slug, filtros, pagina, paginas }: Props) {
         Anterior
       </Link>
       <span className="text-muted-foreground tabular-nums">
-        Página {pagina} de {paginas}
+        Página {formatarNumero(pagina)} de {formatarNumero(paginas)}
       </span>
       <Link
         href={`${base}${queryDeFiltros(filtros, pagina + 1)}`}
