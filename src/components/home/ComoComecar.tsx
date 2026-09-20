@@ -12,18 +12,21 @@ interface Props {
 // 20/09/2026: o passo 2 tinha ficado sem texto e o Artur viu o cartão vazio na tela. A frase de antes
 // repetia a convenção do hero ("por 1 contrato e líquidos de custo"); esta diz onde está o que serve
 // para escolher — as abas que cada robô tem — em vez de repetir o título.
+// 20/09/2026, correção dele sobre como o produto funciona de verdade: (1) o robô roda numa conta
+// DESSA corretora, não numa subconta; (3) a equipe NÃO instala — libera a licença e ajuda com
+// treinamento, e a instalação no MetaTrader 5 é do cliente (a equipe só entra quando ele não consegue).
 const PASSOS: { titulo: string; texto: string }[] = [
   {
     titulo: "Abra sua conta na corretora parceira",
-    texto: "Pelo link do assessor. Os robôs rodam numa subconta dessa conta.",
+    texto: "Pelo link do assessor. O robô roda numa conta dessa corretora.",
   },
   {
     titulo: "Escolha o robô",
     texto: "Cada robô tem página própria, com desempenho, risco e todas as operações.",
   },
   {
-    titulo: "Libere a licença",
-    texto: "A equipe configura o robô na sua conta.",
+    titulo: "Instale e libere a licença",
+    texto: "A instalação no MetaTrader 5 é sua. A equipe libera a licença e ajuda com treinamento.",
   },
 ];
 
