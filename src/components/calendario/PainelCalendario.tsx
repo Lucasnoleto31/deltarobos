@@ -268,7 +268,10 @@ export function PainelCalendario({ linhas, pacote, feriados, hoje, valorPonto, c
         </p>
       </header>
 
-      <div ref={mesRef} className="grid scroll-mt-20 items-stretch gap-4 lg:grid-cols-[1.35fr_1fr]">
+      {/* 19/09/2026: o scroll-mt-20 saiu daqui e do detalhe. Quem desconta o cabeçalho fixo passou a ser
+          o scroll-padding-top do html (globals.css), e os dois SOMAVAM: o scrollIntoView do clique no dia
+          parava o painel 183 px do topo no celular, com 92 px de vão vazio debaixo da barra (medido). */}
+      <div ref={mesRef} className="grid items-stretch gap-4 lg:grid-cols-[1.35fr_1fr]">
         {/* mês: casas de altura fixa; quem acompanha a altura do lado é a curva do detalhe (19/09/2026) */}
         <section ref={calendarioRef} className="painel">
           <div className="flex items-center justify-between gap-2 border-b px-4 py-3">
@@ -388,7 +391,7 @@ export function PainelCalendario({ linhas, pacote, feriados, hoje, valorPonto, c
         </section>
 
         {/* detalhe do dia */}
-        <section ref={detalheRef} className="painel scroll-mt-20">
+        <section ref={detalheRef} className="painel">
           <div className="border-b px-4 py-3">
             <h3 className="font-semibold">Detalhe do dia</h3>
             <p className="text-xs text-muted-foreground first-letter:uppercase">

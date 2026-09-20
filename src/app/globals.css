@@ -167,6 +167,28 @@
     scrollbar-color: var(--painel-fio-forte) transparent;
     caret-color: var(--foreground);
     accent-color: var(--foreground);
+    /* 19/09/2026: a âncora não pode parar debaixo do cabeçalho fixo, então a rolagem desconta a altura
+       MEDIDA dele no navegador: 91 px até lg (a navegação desce para uma segunda linha) e 57 px a
+       partir de lg, onde a barra tem uma linha só (h-14 mais o fio). Os 0,75 rem de folga são para o
+       título não encostar na barra. Isto substitui o scroll-mt-* que cada seção da home carregava:
+       scroll-margin do alvo e scroll-padding da página SOMAM, e os dois juntos deixavam a seção
+       80 px mais abaixo do que precisava. */
+    --altura-cabecalho: 91px;
+    scroll-padding-top: calc(var(--altura-cabecalho) + 0.75rem);
+  }
+  @media (width >= 64rem) {
+    html {
+      --altura-cabecalho: 57px;
+    }
+  }
+  /* O "scroll lento" que o Artur pediu (referência: zero7) fica NAS ÂNCORAS, não na roda do mouse —
+     sequestrar a rolagem quebra trackpad, teclado e leitura de tabela. O data-scroll-behavior="smooth"
+     no <html> do layout raiz é o par obrigatório disto no Next 16: sem ele, trocar de página passa a
+     deslizar a tela inteira até o topo em vez de ir direto. */
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
   }
   html:not(.dark) {
     color-scheme: light;
@@ -408,11 +430,69 @@
     @apply text-2xl leading-none font-semibold tracking-tight tabular-nums;
   }
 
+  /* Elevação de 2 px no hover, por cima do fio que já acende (19/09/2026, inspiração zero7). É uma
+     classe à parte, e não um acréscimo ao .painel-interativo, porque o cartão do /embed usa a mesma
+     interatividade dentro de um iframe de tamanho fixo, onde levantar não faz sentido. Mesma curva e
+     mesmos 180 ms do .painel-interativo, para os dois andarem juntos. */
+  .painel-eleva {
+    transition-property: background-color, border-color, box-shadow, transform;
+    /* a duração e a curva vêm repetidas aqui de propósito (19/09/2026): elas chegavam do atalho
+       `transition` do .painel-interativo, e quem usasse .painel-eleva sozinho teria o salto de 2 px
+       sem transição nenhuma — um defeito que nem tsc nem lint veem */
+    transition-duration: 180ms;
+    transition-timing-function: ease-out;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .painel-eleva:hover {
+      transform: translateY(-2px);
+    }
+    /* no clique volta ao lugar: o cartão "afunda" de novo sob o dedo */
+    .painel-eleva:active {
+      transform: translateY(0);
+    }
+  }
+
   /* cabeçalho fixo: o vidro da barra fina do Habitto */
   .barra-vidro {
     border-bottom: 1px solid var(--painel-fio);
     background: color-mix(in srgb, var(--background) 75%, transparent);
     -webkit-backdrop-filter: blur(16px) saturate(1.5);
     backdrop-filter: blur(16px) saturate(1.5);
+  }
+}
+
+/* ------------------------------------------------------------------------------------------
+   Aparecer ao rolar (19/09/2026, pedido do Artur com o zero7 como referência: "as coisas
+   aparecendo quando scroola"). O site de lá usa AOS + GSAP + Lenis; aqui é só isto, porque
+   entrar biblioteca nova está fora de questão e o efeito cabe em uma transição.
+
+   Quem liga é o RevelarNaRolagem (src/components/compartilhados): o IntersectionObserver marca
+   data-revelar="espera" no que ainda está abaixo da dobra e "ok" quando o bloco entra na tela. Sem
+   JavaScript o atributo nunca aparece — e o bloco, que nasce visível, fica visível.
+
+   Os números: 460 ms, 12 px e a curva ease-out exponencial (a mesma da entrada dos cartões). Uma
+   entrada por bloco, sem zoom, sem giro e sem bounce. */
+@layer components {
+  .revelar {
+    transition:
+      opacity 460ms cubic-bezier(0.16, 1, 0.3, 1),
+      transform 460ms cubic-bezier(0.16, 1, 0.3, 1);
+    transition-delay: var(--revelar-atraso, 0ms);
+  }
+  .revelar[data-revelar="espera"] {
+    opacity: 0;
+    /* --revelar-dy: 8 px dentro de um painel, que corta ou deixa vazar o que passa da borda;
+       12 px solto na página */
+    transform: translateY(var(--revelar-dy, 12px));
+  }
+  /* Cinto de segurança: o componente nem chega a marcar o atributo com movimento reduzido, mas quem
+     troca a preferência com a página aberta já tem blocos marcados esperando. */
+  @media (prefers-reduced-motion: reduce) {
+    .revelar,
+    .revelar[data-revelar="espera"] {
+      opacity: 1;
+      transform: none;
+      transition: none;
+    }
   }
 }

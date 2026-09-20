@@ -2,6 +2,7 @@
 
 import { Search } from "lucide-react";
 import { useMemo, useState } from "react";
+import { RevelarNaRolagem } from "@/components/compartilhados/RevelarNaRolagem";
 import { Segmentado } from "@/components/compartilhados/Segmentado";
 import { useAgora } from "@/hooks/useAgora";
 import { formatarBRL } from "@/lib/formato";
@@ -83,8 +84,10 @@ export function GradeRobos({ cards }: Props) {
         : "Resultado por 1 contrato, líquido de custos.";
 
   return (
-    <section id="robos" className="conteudo scroll-mt-20 py-8">
-      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+    // o scroll-mt-20 saiu em 19/09/2026: quem desconta o cabeçalho agora é o scroll-padding-top do
+    // html, medido; os dois juntos somavam e paravam a seção 80 px abaixo da barra
+    <section id="robos" className="conteudo py-8">
+      <RevelarNaRolagem className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">Os robôs</h2>
           <p className="text-sm text-muted-foreground">{subtitulo}</p>
@@ -111,7 +114,7 @@ export function GradeRobos({ cards }: Props) {
             </label>
           </div>
         ) : null}
-      </div>
+      </RevelarNaRolagem>
 
       {visiveis.length === 0 ? (
         <p className="painel p-5 text-sm text-muted-foreground">
@@ -137,16 +140,17 @@ export function GradeRobos({ cards }: Props) {
               temColetor: card.temColetor,
             });
             return (
-              <li key={card.slug}>
+              // o próprio <li> é o elemento revelado: um <div> a mais aqui deixaria de ser filho da
+              // grade e os cartões parariam de ficar com a mesma altura (19/09/2026)
+              <RevelarNaRolagem como="li" key={card.slug} indice={i}>
                 <CardRobo
                   card={card}
                   status={status}
                   hojeOperacoes={card.hojeOperacoes}
                   hojeGains={card.hojeGains}
                   ultimoPregao={(fechado || !card.temColetor) && !operouHoje ? card.ultimoPregao : null}
-                  atraso={Math.min(i, 8) * 70}
                 />
-              </li>
+              </RevelarNaRolagem>
             );
           })}
         </ul>

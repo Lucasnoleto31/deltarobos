@@ -2,6 +2,7 @@
 
 import { cn } from "cn";
 import Link from "next/link";
+import { RevelarNaRolagem } from "@/components/compartilhados/RevelarNaRolagem";
 import { Valor } from "@/components/compartilhados/Valor";
 import { formatarBRL, formatarDataLonga, formatarNumero, formatarPct } from "@/lib/formato";
 import { useCasa, usePregaoAberto } from "./CasaAoVivoProvider";
@@ -44,11 +45,14 @@ export function ResumoDoDia() {
         : `${melhor.nome}: ${formatarBRL(melhor.resultado_liquido_por_contrato, { sinal: true })} hoje.`;
 
   return (
-    <section id="resumo-do-dia" className="conteudo scroll-mt-20 py-8">
-      <div className="mb-4">
+    // o scroll-mt-20 saiu em 19/09/2026: quem desconta o cabeçalho é o scroll-padding-top do html
+    <section id="resumo-do-dia" className="conteudo py-8">
+      {/* só o título entra ao rolar. O painel abaixo é número ao vivo: ele muda sozinho durante o
+          pregão, e uma entrada ali competiria com a própria atualização (19/09/2026) */}
+      <RevelarNaRolagem className="mb-4">
         <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">{fechamento ? "Fechamento de hoje" : "Hoje, robô a robô"}</h2>
         <p className="text-sm text-muted-foreground">{fechamento ? formatarDataLonga(resumo.dia ?? hoje) : fato}</p>
-      </div>
+      </RevelarNaRolagem>
 
       <div className="painel vidro p-5 sm:p-6">
         {fechamento ? (

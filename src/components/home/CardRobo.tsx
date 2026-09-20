@@ -22,8 +22,6 @@ interface Props {
   hojeGains?: number;
   /** quando vem, o destaque é esse dia já fechado no lugar de hoje (pregão fechado ou robô sem coletor, sem operação hoje) */
   ultimoPregao?: UltimoPregao | null;
-  /** ms de atraso da entrada, para a grade aparecer em cascata */
-  atraso?: number;
 }
 
 /**
@@ -35,8 +33,12 @@ interface Props {
  * Com memo (18/09/2026): a grade recalcula o status a cada 5 s, mas as props são primitivas ou
  * estáveis, então o cartão só renderiza de novo quando algo nele muda. Fora do pregão (ou, no robô sem
  * coletor, sempre) e sem operação hoje, o número grande é o do último pregão, com o dia no rótulo
- * (19/09/2026). A entrada dura 500 ms
- * só na animação: o duration-500 esticava também o hover do .painel-interativo, que é de 180 ms.
+ * (19/09/2026).
+ *
+ * 19/09/2026, à noite: a entrada deixou de ser no carregamento e passou a ser quando o cartão entra na
+ * tela — quem faz isso é o RevelarNaRolagem, no <li> da GradeRobos, que também cuida da cascata. Aqui
+ * ficou só o hover: o fio que acende (.painel-interativo), 2 px de elevação (.painel-eleva) e um
+ * empurrãozinho na seta, os três na mesma curva e nos mesmos 180 ms.
  *
  * 19/09/2026 (Artur: "em todos os cards deve ter uma info sobre o que é"): cada número ganhou o i do
  * glossário. Botão dentro de link é inválido, então o cartão deixou de ser um <a>: o link é o nome do
@@ -50,7 +52,6 @@ export const CardRobo = memo(function CardRobo({
   hojeOperacoes,
   hojeGains,
   ultimoPregao,
-  atraso = 0,
 }: Props) {
   const emBreve = card.status === "em_breve";
   const destaque = ultimoPregao
@@ -64,12 +65,10 @@ export const CardRobo = memo(function CardRobo({
 
   return (
     <article
-      style={{ animationDelay: `${atraso}ms` }}
       className={cn(
-        "group relative flex h-full flex-col painel vidro painel-interativo p-5 has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-ring/50",
+        "group relative flex h-full flex-col painel vidro painel-interativo painel-eleva p-5 has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-ring/50",
         // os i ficam acima do ::after do link (o InfoIndicador já é relative)
         "[&_button]:z-10",
-        "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:fill-mode-both motion-safe:animation-duration-500 motion-safe:[--tw-ease:cubic-bezier(0.16,1,0.3,1)]",
         emBreve && "opacity-80",
       )}
     >
@@ -139,9 +138,14 @@ export const CardRobo = memo(function CardRobo({
               <RotuloComInfo chave="drawdown">DD máx.</RotuloComInfo>{" "}
               <Valor valor={-card.drawdownMaximo} inteiro colorir={false} className="text-foreground" />
             </span>
+            {/* o empurrãozinho da seta (2 px para cima e para a direita) é o que o cartão inteiro faz
+                em miniatura; mesma curva e mesmos 180 ms do .painel-interativo. A propriedade da
+                transição é "translate", não "transform": o translate-* do Tailwind 4 escreve na
+                propriedade translate, e com "transform" na lista a seta pulava sem transição
+                (conferido no navegador em 19/09/2026). */}
             <span
               aria-hidden
-              className="grid size-8 place-items-center rounded-full border border-(--painel-fio-forte) text-foreground transition-colors group-hover:bg-foreground group-hover:text-background"
+              className="grid size-8 place-items-center rounded-full border border-(--painel-fio-forte) text-foreground transition-[color,background-color,border-color,translate] duration-[180ms] ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:bg-foreground group-hover:text-background motion-safe:group-hover:-translate-y-0.5 motion-safe:group-hover:translate-x-0.5"
             >
               <ArrowUpRight className="size-4" />
             </span>

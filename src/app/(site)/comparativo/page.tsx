@@ -4,9 +4,11 @@ import { BarrasPorRobo } from "@/components/comparativo/BarrasPorRobo";
 import { resumirPorPeriodo } from "@/components/comparativo/resumo-por-periodo";
 import type { ChaveIndicador } from "@/components/compartilhados/glossario";
 import { RotuloComInfo } from "@/components/compartilhados/InfoIndicador";
+import { RevelarNaRolagem } from "@/components/compartilhados/RevelarNaRolagem";
 import { Valor } from "@/components/compartilhados/Valor";
 import { CardsKpi, type ItemKpi } from "@/components/desempenho/CardsKpi";
 import { GraficoBarras } from "@/components/desempenho/GraficoBarras";
+import { NavSecoes } from "@/components/layout/NavSecoes";
 import { Voltar } from "@/components/layout/Voltar";
 import { listarEstatisticas, listarRobos } from "@/lib/consultas/publico";
 import { formatarBRL, formatarData, formatarMesAno, formatarMultiplo, formatarNumero, formatarPct } from "@/lib/formato";
@@ -25,6 +27,17 @@ export const metadata: Metadata = {
 };
 
 const OPCOES: OpcoesSerie = { base: "liquido", unidade: "brl", valorPonto: 1 };
+
+/**
+ * As seções da barra da lateral direita, na ordem (19/09/2026). "Mês a mês" tem âncora como as outras
+ * (#mes-a-mes abre no gráfico), mas fica fora da barra: é um gráfico DENTRO de "Todos juntos" e os dois
+ * terminam no mesmo ponto, no fim da página — medido aqui, o traço dele nunca chegaria a acender.
+ */
+const SECOES = [
+  { id: "lado-a-lado", rotulo: "Lado a lado" },
+  { id: "quem-rendeu-mais", rotulo: "Quem rendeu mais" },
+  { id: "todos-juntos", rotulo: "Todos juntos" },
+];
 
 /** Soma as séries diárias (1 contrato de cada robô) num único robô "casa". */
 function somarSeries(series: LinhaDiaria[][]): LinhaDiaria[] {
@@ -206,125 +219,146 @@ export default async function PaginaComparativo() {
   ];
 
   return (
-    <div className="conteudo space-y-8 py-8">
-      <Voltar href="/">Início</Voltar>
-      <header className="space-y-1">
-        <h1 className="text-3xl font-semibold tracking-tight">Comparativo</h1>
-        <p className="text-muted-foreground">Por 1 contrato, líquido de custos.</p>
-      </header>
+    <>
+      {/* fora do .conteudo de propósito: o space-y-8 daria margem ao <nav>, e margem em elemento fixo
+          empurra a barra para baixo do meio da tela (19/09/2026) */}
+      {colunas.length > 0 ? <NavSecoes secoes={SECOES} /> : null}
+      <div className="conteudo space-y-8 py-8">
+        <Voltar href="/">Início</Voltar>
+        <header className="space-y-1">
+          <h1 className="text-3xl font-semibold tracking-tight">Comparativo</h1>
+          <p className="text-muted-foreground">Por 1 contrato, líquido de custos.</p>
+        </header>
 
-      {colunas.length === 0 ? (
-        <p className="painel px-4 py-8 text-center text-sm text-muted-foreground">Nenhum robô com operações fechadas ainda.</p>
-      ) : (
-        <>
-          <section className="painel">
-            <div className="border-b px-4 py-3 sm:px-5">
-              <h2 className="font-semibold">Lado a lado</h2>
-            </div>
-
-            {/* celular: os nomes uma vez no topo, e cada métrica com os robôs em colunas embaixo */}
-            <div className="md:hidden">
-              <div className="grid gap-2 border-b px-4 py-2.5 text-right text-sm" style={{ gridTemplateColumns: `repeat(${colunas.length}, minmax(0, 1fr))` }}>
-                {colunas.map((c) => (
-                  <div key={c.robo.slug} className="flex min-w-0 flex-col justify-end px-1.5">
-                    <Link href={`/robos/${c.robo.slug}`} className="block leading-snug font-medium break-words hover:underline">
-                      {c.robo.nome}
-                    </Link>
-                    <span className="text-xs text-muted-foreground">{c.robo.ativo}</span>
-                  </div>
-                ))}
+        {colunas.length === 0 ? (
+          <p className="painel px-4 py-8 text-center text-sm text-muted-foreground">Nenhum robô com operações fechadas ainda.</p>
+        ) : (
+          <>
+            {/* as âncoras da barra de seções; quem tira o título de baixo do cabeçalho fixo é o
+                scroll-padding-top do html (globals.css), então aqui não entra scroll-mt (19/09/2026) */}
+            <section id="lado-a-lado" className="painel">
+              <div className="border-b px-4 py-3 sm:px-5">
+                <h2 className="font-semibold">Lado a lado</h2>
               </div>
-              <dl>
-                {METRICAS.map((m) => {
-                  const melhor = melhorDe(m, colunas);
-                  return (
-                    <div key={m.rotulo} className="sep px-4 py-2.5">
-                      <dt className="text-xs text-muted-foreground">
-                        <RotuloMetrica m={m} />
-                      </dt>
-                      <dd
-                        className={`mt-1 grid gap-2 text-right tabular-nums ${colunas.length > 3 ? "text-xs" : "text-sm"}`}
-                        style={{ gridTemplateColumns: `repeat(${colunas.length}, minmax(0, 1fr))` }}
-                      >
-                        {colunas.map((c, i) => (
-                          <span key={c.robo.slug} className={`min-w-0 truncate rounded-md px-1.5 py-0.5 ${melhor === i ? "bg-(--linha-hover) font-semibold" : ""}`}>
-                            <span className="sr-only">{c.robo.nome}: </span>
-                            {m.valor(c)}
-                          </span>
-                        ))}
-                      </dd>
-                    </div>
-                  );
-                })}
-              </dl>
-            </div>
 
-            <div className="hidden overflow-x-auto md:block">
-              <table className="w-full min-w-[40rem] text-sm">
-                <thead>
-                  <tr className="[&>th]:px-4 [&>th]:py-3 [&>th]:font-medium">
-                    <th className="text-left text-xs text-muted-foreground">Métrica</th>
-                    {colunas.map((c) => (
-                      <th key={c.robo.slug} className="text-right">
-                        <Link href={`/robos/${c.robo.slug}`} className="hover:underline">
-                          {c.robo.nome}
-                        </Link>
-                        <span className="ml-1.5 text-xs font-normal text-muted-foreground">{c.robo.ativo}</span>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="[&>tr]:border-t">
+              {/* celular: os nomes uma vez no topo, e cada métrica com os robôs em colunas embaixo */}
+              <div className="md:hidden">
+                <div className="grid gap-2 border-b px-4 py-2.5 text-right text-sm" style={{ gridTemplateColumns: `repeat(${colunas.length}, minmax(0, 1fr))` }}>
+                  {colunas.map((c) => (
+                    <div key={c.robo.slug} className="flex min-w-0 flex-col justify-end px-1.5">
+                      <Link href={`/robos/${c.robo.slug}`} className="block leading-snug font-medium break-words hover:underline">
+                        {c.robo.nome}
+                      </Link>
+                      <span className="text-xs text-muted-foreground">{c.robo.ativo}</span>
+                    </div>
+                  ))}
+                </div>
+                <dl>
                   {METRICAS.map((m) => {
                     const melhor = melhorDe(m, colunas);
                     return (
-                      <tr key={m.rotulo} className="tabular-nums [&>td]:px-4 [&>td]:py-2.5">
-                        <td className="text-muted-foreground">
+                      <div key={m.rotulo} className="sep px-4 py-2.5">
+                        <dt className="text-xs text-muted-foreground">
                           <RotuloMetrica m={m} />
-                        </td>
-                        {colunas.map((c, i) => (
-                          <td key={c.robo.slug} className={`text-right ${melhor === i ? "bg-(--linha-hover) font-semibold" : ""}`}>
-                            {m.valor(c)}
-                          </td>
-                        ))}
-                      </tr>
+                        </dt>
+                        <dd
+                          className={`mt-1 grid gap-2 text-right tabular-nums ${colunas.length > 3 ? "text-xs" : "text-sm"}`}
+                          style={{ gridTemplateColumns: `repeat(${colunas.length}, minmax(0, 1fr))` }}
+                        >
+                          {colunas.map((c, i) => (
+                            <span key={c.robo.slug} className={`min-w-0 truncate rounded-md px-1.5 py-0.5 ${melhor === i ? "bg-(--linha-hover) font-semibold" : ""}`}>
+                              <span className="sr-only">{c.robo.nome}: </span>
+                              {m.valor(c)}
+                            </span>
+                          ))}
+                        </dd>
+                      </div>
                     );
                   })}
-                </tbody>
-              </table>
-            </div>
-          </section>
+                </dl>
+              </div>
 
-          {/* os totais por período saem prontos daqui: a série diária de cada robô era 85% do HTML (18/09/2026) */}
-          <BarrasPorRobo
-            robos={colunas.map((c) => ({
-              slug: c.robo.slug,
-              nome: c.robo.nome,
-              ativo: c.robo.ativo,
-              porPeriodo: resumirPorPeriodo(c.linhas, c.robo.valor_ponto_brl, hoje),
-            }))}
-          />
+              <div className="hidden overflow-x-auto md:block">
+                <table className="w-full min-w-[40rem] text-sm">
+                  <thead>
+                    <tr className="[&>th]:px-4 [&>th]:py-3 [&>th]:font-medium">
+                      <th className="text-left text-xs text-muted-foreground">Métrica</th>
+                      {colunas.map((c) => (
+                        <th key={c.robo.slug} className="text-right">
+                          <Link href={`/robos/${c.robo.slug}`} className="hover:underline">
+                            {c.robo.nome}
+                          </Link>
+                          <span className="ml-1.5 text-xs font-normal text-muted-foreground">{c.robo.ativo}</span>
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="[&>tr]:border-t">
+                    {METRICAS.map((m) => {
+                      const melhor = melhorDe(m, colunas);
+                      return (
+                        <tr key={m.rotulo} className="tabular-nums [&>td]:px-4 [&>td]:py-2.5">
+                          <td className="text-muted-foreground">
+                            <RotuloMetrica m={m} />
+                          </td>
+                          {colunas.map((c, i) => (
+                            <td key={c.robo.slug} className={`text-right ${melhor === i ? "bg-(--linha-hover) font-semibold" : ""}`}>
+                              {m.valor(c)}
+                            </td>
+                          ))}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </section>
 
-          <section className="space-y-3">
-            <div>
-              <h2 className="text-lg font-semibold tracking-tight">Todos juntos</h2>
-              <p className="text-sm text-muted-foreground">{colunas.map((c) => c.robo.nome).join(" + ")}, 1 contrato de cada</p>
+            {/* os totais por período saem prontos daqui: a série diária de cada robô era 85% do HTML (18/09/2026).
+                A âncora fica neste invólucro porque o título mora dentro do componente (19/09/2026).
+                A entrada ao rolar vai DENTRO do invólucro, nunca nele: o elemento com o id não pode ser
+                o que translada, senão o clique na barra de seções mira a posição ainda deslocada e o
+                título para 12 px mais alto, encostado no cabeçalho (19/09/2026). */}
+            <div id="quem-rendeu-mais">
+              <RevelarNaRolagem>
+                <BarrasPorRobo
+                  robos={colunas.map((c) => ({
+                    slug: c.robo.slug,
+                    nome: c.robo.nome,
+                    ativo: c.robo.ativo,
+                    porPeriodo: resumirPorPeriodo(c.linhas, c.robo.valor_ponto_brl, hoje),
+                  }))}
+                />
+              </RevelarNaRolagem>
             </div>
-            <CardsKpi itens={tiles} className="lg:grid-cols-4" />
-            <div className="painel p-4 sm:p-5">
-              <h3 className="mb-2 text-sm font-medium">
-                <RotuloComInfo
-                  chave="resultadoMensal"
-                  texto="Quanto os robôs somados, com 1 contrato de cada, ganharam ou perderam em cada mês, já descontados os custos."
-                >
-                  Mês a mês
-                </RotuloComInfo>
-              </h3>
-              <GraficoBarras dados={mensal} unidade="brl" altura={220} rotuloN="Dias de pregão" />
-            </div>
-          </section>
-        </>
-      )}
-    </div>
+
+            {/* uma entrada só para a seção inteira (19/09/2026): título, cartões e gráfico chegam juntos.
+                Cartão a cartão ficaria agitado numa página que se lê comparando números de um lado para
+                o outro. "Lado a lado" não ganha entrada de propósito: ela abre acima da dobra nos dois
+                tamanhos, e o observador só esconde o que está abaixo da janela. */}
+            <section id="todos-juntos">
+              <RevelarNaRolagem className="space-y-3">
+                <div>
+                  <h2 className="text-lg font-semibold tracking-tight">Todos juntos</h2>
+                  <p className="text-sm text-muted-foreground">{colunas.map((c) => c.robo.nome).join(" + ")}, 1 contrato de cada</p>
+                </div>
+                <CardsKpi itens={tiles} className="lg:grid-cols-4" />
+                <div id="mes-a-mes" className="painel p-4 sm:p-5">
+                  <h3 className="mb-2 text-sm font-medium">
+                    <RotuloComInfo
+                      chave="resultadoMensal"
+                      texto="Quanto os robôs somados, com 1 contrato de cada, ganharam ou perderam em cada mês, já descontados os custos."
+                    >
+                      Mês a mês
+                    </RotuloComInfo>
+                  </h3>
+                  <GraficoBarras dados={mensal} unidade="brl" altura={220} rotuloN="Dias de pregão" />
+                </div>
+              </RevelarNaRolagem>
+            </section>
+          </>
+        )}
+      </div>
+    </>
   );
 }

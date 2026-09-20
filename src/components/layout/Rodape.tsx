@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { comMarcaAtual } from "@/components/compartilhados/marca";
 import { Simbolo } from "@/components/marca/Simbolo";
 import type { Links, Textos } from "@/lib/tipos";
 
@@ -115,7 +116,7 @@ export function Rodape({ links, textos, robos }: Props) {
 
       <div className="border-t">
         <div className="conteudo space-y-2 py-6 text-xs text-muted-foreground">
-          <p className="[font-feature-settings:normal]">{textos.disclaimer}</p>
+          <p className="[font-feature-settings:normal]">{comMarcaAtual(textos.disclaimer)}</p>
           <p>© {ano} Quants Robôs. Todos os direitos reservados.</p>
         </div>
       </div>

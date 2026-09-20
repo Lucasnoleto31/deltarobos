@@ -59,7 +59,10 @@ export function NumeroHero({ ultimoPregao }: Props) {
       : null;
 
   return (
-    <div className="relative painel vidro p-6 sm:p-8">
+    // 19/09/2026: uma entrada só, no carregamento, e curta. O cartão já está na tela quando a página
+    // abre, então não teria o que "revelar ao rolar"; e o número dentro dele nunca ganha efeito, porque
+    // muda sozinho durante o pregão e animar a troca faria o valor parecer outra coisa.
+    <div className="relative painel vidro p-6 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:animation-duration-500 motion-safe:[--tw-ease:cubic-bezier(0.16,1,0.3,1)] sm:p-8">
       <p className="text-sm text-muted-foreground">
         <RotuloComInfo chave="resultadoDia" texto={TEXTO_RESULTADO}>
           {dia?.rotulo ?? "Hoje, todos os robôs"}

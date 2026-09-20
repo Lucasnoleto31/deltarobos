@@ -1,3 +1,4 @@
+import { RevelarNaRolagem } from "@/components/compartilhados/RevelarNaRolagem";
 import { buttonVariants } from "@/components/ui/button";
 import type { Links } from "@/lib/tipos";
 
@@ -27,29 +28,35 @@ const PASSOS: { titulo: string; texto?: string }[] = [
 /** Item 13 da home: como começar em 3 passos. */
 export function ComoComecar({ links }: Props) {
   return (
-    <section id="como-comecar" className="conteudo scroll-mt-20 py-8">
-      <div className="mb-4">
+    // o scroll-mt-20 saiu em 19/09/2026: quem desconta o cabeçalho é o scroll-padding-top do html
+    <section id="como-comecar" className="conteudo py-8">
+      <RevelarNaRolagem className="mb-4">
         <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">Como começar</h2>
-      </div>
+      </RevelarNaRolagem>
 
       <ol className="painel grid sm:grid-cols-3">
         {PASSOS.map((p, i) => (
+          // 19/09/2026: os passos entram um a um, mas quem sobe é o CONTEÚDO, não o <li>. O fio que
+          // separa as colunas é a borda do <li>: levando ele junto, os fios saíam do lugar por meio
+          // segundo enquanto o painel ficava parado. O padding mudou de lugar pelo mesmo motivo.
           <li
             key={p.titulo}
-            className="flex gap-4 border-(--painel-fio) p-5 not-first:border-t sm:not-first:border-t-0 sm:not-first:border-l"
+            className="border-(--painel-fio) not-first:border-t sm:not-first:border-t-0 sm:not-first:border-l"
           >
-            <span className="shrink-0 text-2xl font-semibold leading-none text-muted-foreground tabular-nums">
-              {i + 1}
-            </span>
-            <div>
-              <h3 className="font-semibold">{p.titulo}</h3>
-              {p.texto ? <p className="mt-1 text-sm text-muted-foreground">{p.texto}</p> : null}
-            </div>
+            <RevelarNaRolagem className="flex gap-4 p-5" indice={i} desloca={8}>
+              <span className="shrink-0 text-2xl font-semibold leading-none text-muted-foreground tabular-nums">
+                {i + 1}
+              </span>
+              <div>
+                <h3 className="font-semibold">{p.titulo}</h3>
+                {p.texto ? <p className="mt-1 text-sm text-muted-foreground">{p.texto}</p> : null}
+              </div>
+            </RevelarNaRolagem>
           </li>
         ))}
       </ol>
 
-      <div className="mt-5 flex flex-wrap gap-3">
+      <RevelarNaRolagem className="mt-5 flex flex-wrap gap-3" indice={PASSOS.length}>
         {links.btg_abertura_conta ? (
           <a
             href={links.btg_abertura_conta}
@@ -70,7 +77,7 @@ export function ComoComecar({ links }: Props) {
             Falar com a equipe
           </a>
         ) : null}
-      </div>
+      </RevelarNaRolagem>
     </section>
   );
 }

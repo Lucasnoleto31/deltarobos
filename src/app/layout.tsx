@@ -42,6 +42,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html
       lang="pt-BR"
       suppressHydrationWarning
+      // par obrigatório do scroll-behavior: smooth do globals.css (19/09/2026): sem este atributo, o
+      // Next 16 deixa a troca de página deslizar a tela inteira até o topo em vez de ir direto
+      data-scroll-behavior="smooth"
       className={`${inter.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col">

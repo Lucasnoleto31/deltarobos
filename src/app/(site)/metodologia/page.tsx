@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { GLOSSARIO, type ChaveIndicador } from "@/components/compartilhados/glossario";
+import { RevelarNaRolagem } from "@/components/compartilhados/RevelarNaRolagem";
+import { NavSecoes } from "@/components/layout/NavSecoes";
 import { Voltar } from "@/components/layout/Voltar";
 import { formatarMultiplo, formatarNumero, formatarPct } from "@/lib/formato";
 import { PARAMETROS_FAIXAS_PADRAO } from "@/lib/stats/faixas";
@@ -42,9 +44,17 @@ const vezes = (v: number) => `${formatarNumero(v, Number.isInteger(v) ? 0 : 1)}�
 
 function Secao({ id, titulo, children }: { id: string; titulo: string; children: React.ReactNode }) {
   return (
-    <section id={id} className="scroll-mt-24 space-y-3">
-      <h2 className="text-xl font-semibold tracking-tight">{titulo}</h2>
-      <div className="space-y-3 text-pretty text-muted-foreground [&_strong]:text-foreground">{children}</div>
+    // 19/09/2026: sem scroll-mt aqui — o scroll-padding-top do html (globals.css) já desconta o
+    // cabeçalho fixo, e os dois somavam, deixando a seção quase 100 px abaixo do necessário.
+    // A entrada ao rolar fica DENTRO da <section>, nunca nela: quem carrega o id não pode ser o
+    // elemento que translada, senão o clique na âncora mira a posição ainda deslocada e o título
+    // termina encostado no cabeçalho (medido: 12 px a menos de folga). A casca parada não aparece,
+    // porque a <section> não tem fio nem fundo — o que entra é o texto inteiro, de uma vez só.
+    <section id={id}>
+      <RevelarNaRolagem className="space-y-3" desloca={10}>
+        <h2 className="text-xl font-semibold tracking-tight">{titulo}</h2>
+        <div className="space-y-3 text-pretty text-muted-foreground [&_strong]:text-foreground">{children}</div>
+      </RevelarNaRolagem>
     </section>
   );
 }
@@ -72,25 +82,16 @@ function Indicador({ chave, nome = false, children }: { chave: ChaveIndicador; n
 
 /** Spec §8.7: definição de cada métrica, coleta, custos, normalização e glossário. */
 export default function PaginaMetodologia() {
-  const indice = (
-    <ol className="space-y-1 text-sm">
-      {SECOES.map((s) => (
-        <li key={s.id}>
-          <a href={`#${s.id}`} className="text-muted-foreground hover:text-foreground">
-            {s.titulo}
-          </a>
-        </li>
-      ))}
-    </ol>
-  );
-
   return (
     <div className="conteudo grid gap-8 py-8 lg:grid-cols-[220px_1fr] lg:gap-10 lg:py-10">
       {/* o índice só no computador, na lateral; no celular a página se lê de cima a baixo (18/09/2026).
-          O rótulo "Seções" em caixa alta é rótulo de grupo e fica, por preferência do dono (19/09/2026) */}
-      <nav aria-label="Seções" className="hidden lg:sticky lg:top-20 lg:block lg:self-start">
-        <p className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">Seções</p>
-        {indice}
+          O rótulo "Seções" em caixa alta é rótulo de grupo e fica, por preferência do dono (19/09/2026).
+          19/09/2026: o índice acompanha a rolagem e marca a seção que está sendo lida (NavSecoes); o
+          pl-3 do rótulo alinha com os links, que agora têm o fio da marca à esquerda. A altura máxima é
+          a da tela menos o cabeçalho: com 17 seções a lista rola no próprio lugar em tela baixa. */}
+      <nav aria-label="Seções" className="hidden lg:sticky lg:top-20 lg:block lg:max-h-[calc(100dvh-6rem)] lg:self-start lg:overflow-y-auto">
+        <p className="mb-2 pl-3 text-xs font-medium tracking-wide text-muted-foreground uppercase">Seções</p>
+        <NavSecoes variante="lista" secoes={SECOES.map(({ id, titulo }) => ({ id, rotulo: titulo }))} />
       </nav>
 
       <article className="max-w-prose space-y-12">
@@ -336,7 +337,7 @@ export default function PaginaMetodologia() {
             <dd>Máxima exposição positiva e negativa do dia: o ponto mais alto e o mais baixo do acumulado do dia, medidos a cada fechamento de operação.</dd>
           </dl>
           {/* 19/09/2026: os selos ao lado do nome do robô, com as condições de statusAoVivo (lib/stats/status-robo) */}
-          <h3 id="status" className="scroll-mt-24 pt-4 text-base font-semibold text-foreground">
+          <h3 id="status" className="pt-4 text-base font-semibold text-foreground">
             Selo de status
           </h3>
           <dl className="grid gap-3 sm:grid-cols-[160px_1fr]">

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { comMarcaAtual } from "@/components/compartilhados/marca";
 import { seriePorDia, seriePorOperacaoCompacta, type SerieCompacta } from "@/components/graficos/series-da-curva";
 import { Disclaimer } from "@/components/robo/Disclaimer";
 import { KpisRobo } from "@/components/robo/KpisRobo";
@@ -148,7 +149,7 @@ export default async function PaginaRobo({ params }: Props) {
 
       <Disclaimer
         nomeRobo={robo.nome}
-        texto={parametros.textos.disclaimer}
+        texto={comMarcaAtual(parametros.textos.disclaimer)}
         linkCta={parametros.links.whatsapp}
       />
     </div>
