@@ -123,8 +123,8 @@ export default function PaginaMetodologia() {
             então a curva, os números e os relatórios usam o mesmo conjunto de operações.
           </p>
           <p>
-            Também pode ter uma <strong>duração mínima</strong>: operações abertas e fechadas em menos tempo que isso
-            ficam fora, a partir de uma data. A regra existe porque a conta pode preencher uma ordem a mercado num preço
+            Também pode ter uma <strong>duração mínima</strong>: operações coletadas do MetaTrader abertas e fechadas em
+            menos tempo que isso ficam fora (o histórico importado não tem duração e não entra nessa regra). A regra existe porque a conta pode preencher uma ordem a mercado num preço
             defasado e bater o alvo milissegundos depois, um ganho que nenhuma corretora daria de verdade; esses
             registros continuam no banco, mas não entram na performance.
           </p>

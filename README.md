@@ -86,12 +86,13 @@ Cada robô pode ter `robos.hora_minima_operacao` (migration 0016): operação ab
 recalcula a série pelo trigger; `update robos set hora_minima_operacao = null where slug = 'apollo'`
 volta atrás.
 
-Também por robô, `robos.duracao_minima_seg` e `robos.duracao_minima_desde` (migration 0018): operação com
-`duracao_seg` menor que a mínima, em pregão igual ou posterior a `desde`, fica fora do site e das
-estatísticas (`desde` nulo = histórico inteiro). Existe porque a conta demo preenche a ordem a mercado num
+Também por robô, `robos.duracao_minima_seg` e `robos.duracao_minima_desde` (migrations 0018 e 0019): operação
+do MT5 com `duracao_seg` menor que a mínima, em pregão igual ou posterior a `desde`, fica fora do site e das
+estatísticas (`desde` nulo = histórico inteiro). Importação manual ignora a regra: o histórico antigo não tem
+horário de fechamento e toda linha dele tem duração 0. Existe porque a conta demo preenche a ordem a mercado num
 preço defasado e o take-profit bate milissegundos depois: centenas de "operações" de 0 s ganhando exatamente
-o alvo. Apollo e Orion usam `2` segundos desde 21/09/2026; para estender ao histórico,
-`update robos set duracao_minima_desde = null where slug in ('apollo','orion')`.
+o alvo. Apollo e Orion usam `2` segundos no histórico inteiro (`desde` nulo);
+`update robos set duracao_minima_seg = null where slug = 'apollo'` volta atrás.
 
 Operações do Profit (Nelogica) entram por `scripts/importar-profit.py`, que lê o CSV da aba
 Operações do Relatório de Performance ou o CSV da Lista de Ordens (casa as ordens executadas
