@@ -35,10 +35,14 @@ export function totalAbertas(grupos: ReadonlyArray<GrupoAberto>): number {
   return grupos.reduce((s, g) => s + contagem(g.n_abertas), 0);
 }
 
-/** "1 operação em aberto", "3 operações em aberto"; zero (ou inválido) devolve null: nada a mostrar. */
-export function rotuloOperacoesEmAberto(n: number): string | null {
+/**
+ * "1 operação em aberto", "3 operações em aberto". Zero (ou inválido) devolve null, salvo com mostrarZero:
+ * aí sai "0 operações em aberto", para o contador existir mesmo com o robô zerado (21/09/2026, o Lucas
+ * abriu o site num momento sem posição e "não estava vendo" nada). Quem chama decide pelo "ao vivo".
+ */
+export function rotuloOperacoesEmAberto(n: number, mostrarZero = false): string | null {
   const c = contagem(n);
-  if (c === 0) return null;
+  if (c === 0 && !mostrarZero) return null;
   return `${formatarNumero(c)} ${c === 1 ? "operação" : "operações"} em aberto`;
 }
 
@@ -67,9 +71,17 @@ export function abertasAoVivo(
   agora: Date | null,
   pregaoAberto: boolean,
 ): number {
-  if (!pregaoAberto || !agora) return 0;
-  if (coletaParada(ultimoHeartbeatEm, agora, true)) return 0;
-  return contagem(n);
+  return estaAoVivo(ultimoHeartbeatEm, agora, pregaoAberto) ? contagem(n) : 0;
+}
+
+/**
+ * O "ao vivo" em si, separado do número: pregão aberto, relógio presente e coletor em dia. É o que decide
+ * se o contador aparece; com ele verdadeiro e nada aberto, o site mostra "0 operações em aberto" em vez
+ * de esconder o número (21/09/2026).
+ */
+export function estaAoVivo(ultimoHeartbeatEm: string | null | undefined, agora: Date | null, pregaoAberto: boolean): boolean {
+  if (!pregaoAberto || !agora) return false;
+  return !coletaParada(ultimoHeartbeatEm, agora, true);
 }
 
 /** Saúde do coletor por slug, como o estado da casa guarda (evento "coleta" ou robos_publico). */
@@ -88,6 +100,8 @@ export interface AbertasCasa {
   /** por slug, já com o gating; robô fora do pregão, com coletor parado ou fora do cadastro ativo vale 0 */
   porRobo: Record<string, number>;
   total: number;
+  /** algum robô ativo está ao vivo (pregão aberto, coletor em dia): aí o zero aparece como "0 operações em aberto" */
+  aoVivo: boolean;
 }
 
 /**
@@ -112,14 +126,17 @@ export function abertasDaCasa(
   const slugs = new Set([...Object.keys(coleta), ...doResumo.keys()]);
   const porRobo: Record<string, number> = {};
   let total = 0;
+  let aoVivo = false;
   for (const slug of slugs) {
     const c = coleta[slug];
     const r = doResumo.get(slug);
     const ativo = r ? r.status === undefined || r.status === "ativo" : robos.length === 0;
+    const vivo = ativo && estaAoVivo(c?.ultimo_heartbeat_em ?? null, agora, pregaoAberto);
     const bruto = c?.n_posicoes_abertas ?? r?.n_posicoes_abertas ?? 0;
-    const n = ativo ? abertasAoVivo(bruto, c?.ultimo_heartbeat_em ?? null, agora, pregaoAberto) : 0;
+    const n = vivo ? contagem(bruto) : 0;
     porRobo[slug] = n;
     total += n;
+    aoVivo = aoVivo || vivo;
   }
-  return { porRobo, total };
+  return { porRobo, total, aoVivo };
 }

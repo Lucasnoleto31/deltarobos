@@ -45,7 +45,7 @@ export function NumeroHero({ ultimoPregao }: Props) {
   // manhã, antes da abertura, e o HTML chegava com "Hoje R$ 0,00" (19/09/2026)
   const aberto = usePregaoAberto();
   const passado = !aberto && (resumo?.n_operacoes ?? 0) === 0 ? ultimoPregao : null;
-  const { total: emAberto } = useOperacoesEmAberto();
+  const { total: emAberto, aoVivo } = useOperacoesEmAberto();
 
   const dia = passado
     ? {
@@ -66,7 +66,8 @@ export function NumeroHero({ ultimoPregao }: Props) {
           terceiro: { rotulo: "Posicionados", valor: formatarNumero(resumo.n_robos_posicionados), emAberto },
         }
       : null;
-  const rotuloEmAberto = dia ? rotuloOperacoesEmAberto(dia.terceiro.emAberto) : null;
+  // ao vivo mostra o zero ("0 em aberto"); sem ao vivo o apoio some (21/09/2026)
+  const rotuloEmAberto = dia ? rotuloOperacoesEmAberto(dia.terceiro.emAberto, aoVivo) : null;
 
   return (
     // 19/09/2026: uma entrada só, no carregamento, e curta. O cartão já está na tela quando a página

@@ -3,7 +3,7 @@
 import { cn } from "cn";
 import { RotuloComInfo } from "@/components/compartilhados/InfoIndicador";
 import { useAgora } from "@/hooks/useAgora";
-import { abertasAoVivo, rotuloOperacoesEmAberto, totalAbertas } from "@/lib/stats/posicoes";
+import { estaAoVivo, rotuloOperacoesEmAberto, totalAbertas } from "@/lib/stats/posicoes";
 import { usePregaoAberto, useRobo } from "./RoboAoVivoProvider";
 
 interface Props {
@@ -27,8 +27,9 @@ export function OperacoesEmAberto({ comInfo = true, className }: Props) {
   const agora = useAgora(5000);
 
   if (robo.status !== "ativo" || !robo.tem_coletor) return null;
-  const n = abertasAoVivo(totalAbertas(estado.posicoes), estado.ultimoHeartbeatEm, agora, aberto);
-  const rotulo = rotuloOperacoesEmAberto(n);
+  // ao vivo e zerado mostra "0 operações em aberto": o número existe sempre que dá para confiar nele (21/09/2026)
+  if (!estaAoVivo(estado.ultimoHeartbeatEm, agora, aberto)) return null;
+  const rotulo = rotuloOperacoesEmAberto(totalAbertas(estado.posicoes), true);
   if (!rotulo) return null;
 
   return (

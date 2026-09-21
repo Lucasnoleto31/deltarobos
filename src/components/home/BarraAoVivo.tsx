@@ -29,8 +29,9 @@ export function BarraAoVivo() {
   // o valor do servidor vale até a hidratação: o HTML já chega sem os zeros (19/09/2026)
   const aberto = usePregaoAberto();
   const resumo = estado.resumo;
-  const { total: emAberto } = useOperacoesEmAberto();
-  const rotuloEmAberto = rotuloOperacoesEmAberto(emAberto);
+  // com algum coletor ao vivo o zero aparece ("0 operações em aberto"), senão o número some (21/09/2026)
+  const { total: emAberto, aoVivo } = useOperacoesEmAberto();
+  const rotuloEmAberto = rotuloOperacoesEmAberto(emAberto, aoVivo);
 
   const posicionados = resumo?.n_robos_posicionados ?? contarPosicionados(Object.values(estado.coleta));
   const semDia = !aberto && (resumo?.n_operacoes ?? 0) === 0;

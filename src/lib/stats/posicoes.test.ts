@@ -43,6 +43,12 @@ describe("rotuloOperacoesEmAberto", () => {
     expect(rotuloOperacoesEmAberto(Number.NaN)).toBeNull();
   });
 
+  it("com mostrarZero o zero vira texto, e só ele muda", () => {
+    expect(rotuloOperacoesEmAberto(0, true)).toBe("0 operações em aberto");
+    expect(rotuloOperacoesEmAberto(Number.NaN, true)).toBe("0 operações em aberto");
+    expect(rotuloOperacoesEmAberto(1, true)).toBe("1 operação em aberto");
+  });
+
   it("número grande sai formatado em pt-BR", () => {
     expect(rotuloOperacoesEmAberto(1000)).toBe("1.000 operações em aberto");
   });
@@ -146,5 +152,13 @@ describe("abertasDaCasa", () => {
 
   it("só sem resumo nenhum (RPC falhou) a coleta decide sozinha", () => {
     expect(abertasDaCasa(coleta, [], agora, true).porRobo.apollo).toBe(2);
+  });
+
+  it("aoVivo diz se algum robô ativo está com o coletor em dia no pregão; é o que libera o zero na tela", () => {
+    expect(abertasDaCasa(coleta, robos, agora, true).aoVivo).toBe(true);
+    expect(abertasDaCasa({ orion: coleta.orion }, robos, agora, true).aoVivo).toBe(false); // sinal velho
+    expect(abertasDaCasa(coleta, robos, agora, false).aoVivo).toBe(false);
+    expect(abertasDaCasa(coleta, robos, null, true).aoVivo).toBe(false);
+    expect(abertasDaCasa(coleta, [{ slug: "apollo", status: "pausado" }], agora, true).aoVivo).toBe(false);
   });
 });
