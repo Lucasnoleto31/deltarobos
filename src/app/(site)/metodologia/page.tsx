@@ -122,6 +122,12 @@ export default function PaginaMetodologia() {
             fora do site e das estatísticas, embora continuem registradas. O horário vale para todo o histórico do robô,
             então a curva, os números e os relatórios usam o mesmo conjunto de operações.
           </p>
+          <p>
+            Também pode ter uma <strong>duração mínima</strong>: operações abertas e fechadas em menos tempo que isso
+            ficam fora, a partir de uma data. A regra existe porque a conta pode preencher uma ordem a mercado num preço
+            defasado e bater o alvo milissegundos depois, um ganho que nenhuma corretora daria de verdade; esses
+            registros continuam no banco, mas não entram na performance.
+          </p>
         </Secao>
 
         <Secao id="normalizacao" titulo="Por contrato">

@@ -118,6 +118,7 @@
 - **MEP e MEN do dia.** MEP = máxima exposição positiva do dia = o maior valor positivo que o saldo líquido acumulado do dia atingiu, por 1 contrato, medido a cada fechamento de operação (sem o resultado não realizado); MEN = máxima exposição negativa = o menor valor negativo do mesmo acumulado. Se o acumulado nunca ficou positivo, MEP = 0 e não há operação do MEP; idem para o MEN. Em empate vale a primeira operação em que o extremo ocorreu. É sempre igual ou menor (em módulo) que o MEP/MEN do Profit, que acompanha tick a tick; a interface e a Metodologia dizem isso com honestidade, sem fingir que é o número do Profit.
 - Carteira: soma das séries diárias dos robôs escolhidos com pesos em contratos, drawdown conjunto e correlação dos retornos diários.
 - Dia de pregão em Brasília; sábado, domingo e `feriados_b3` não contam.
+- **Regras por robô que tiram operações da conta pública** (`robos.hora_minima_operacao`; `robos.duracao_minima_seg` com `duracao_minima_desde`): operação aberta antes da hora mínima, ou mais curta que a duração mínima em pregão igual ou posterior a `desde`, fica fora do site e das estatísticas, mas continua no banco. Nada é apagado, a ressincronização do MT5 não recria nada e voltar atrás é um update. A Metodologia explica as duas regras.
 
 ## 8. Páginas
 
