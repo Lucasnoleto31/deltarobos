@@ -117,6 +117,32 @@ conta nem coletor: `custo_por_contrato = 0`, `capital_referencia = 25000`, corte
 Robô só com histórico importado (sem conta principal, como o Alaska & Square) aparece com status
 "Histórico" e sem painel ao vivo; `robos_publico.tem_coletor` diz isso ao front.
 
+### Operações em aberto (ao vivo)
+
+O site mostra quantas operações cada robô tem abertas agora (barra e cards da home, "Hoje ao vivo" e
+`/robos/<slug>/ao-vivo`). Conta-se **entradas abertas**: cada ticket (posição) aberto no MT5 vale 1; nunca
+volume nem contratos. A regra é uma só, em todo lugar (migration 0020): só a conta principal do robô e só
+tickets que já passaram de `robos.atraso_publico_segundos`. É a mesma expressão do booleano `posicionado`,
+que continua existindo. `coleta_status.n_posicoes` não serve para isso (é por conta e sem atraso).
+
+| onde                                  | campo                              | o que é                                              |
+| ------------------------------------- | ---------------------------------- | ---------------------------------------------------- |
+| `posicoes_abertas_publico`            | `n_abertas`                        | tickets abertos no grupo (robô, símbolo, lado)       |
+| `robos_publico`                       | `n_posicoes_abertas`               | tickets abertos do robô; `posicionado` = `> 0`       |
+| `resumo_casa_hoje()`                  | `robos[].n_posicoes_abertas`, raiz `n_posicoes_abertas` | por robô e soma da casa; `n_robos_posicionados` continua |
+| evento `coleta` (topics `casa`, `robo:<slug>`) | `n_posicoes_abertas`      | junto de `slug`, `ultimo_heartbeat_em`, `posicionado` |
+| evento `posicao`                      | `n_abertas`                        | é a linha da view; `posicao_fechada` remove o grupo  |
+
+Abertura e fechamento (INSERT/DELETE em `posicoes_abertas`) disparam `posicao`/`posicao_fechada` e o
+`resumo` da casa na hora; o throttle de 10 s vale só para UPDATE de flutuante. Um ticket que acaba de passar
+do atraso público conta como abertura; um ticket ainda dentro do atraso não transmite nada (nem um `posicao`
+fora do ritmo, que denunciaria a entrada antes da hora). O evento `coleta` é throttled a 30 s por robô e
+conta antes da sincronização do próprio heartbeat, então na home o `resumo` (imediato) é fundido no mapa de
+coleta ao chegar, e na página do robô a `coleta` serve de corretor: se o número dela diverge do que a tela
+soma, o hook ressincroniza. No front vale a regra de sempre: sem heartbeat há mais de 2 min em pregão o
+contador some ou vira "sem atualização", fora do pregão ele não aparece, e sem relógio (HTML do servidor e
+hidratação) também não, como o selo Posicionado.
+
 ### Relatórios mensais
 
 `/robos/<slug>/relatorios` lista os meses com operação; `/api/relatorios/<slug>/<YYYY-MM>/pdf`

@@ -19,6 +19,7 @@ const SECOES = [
   { id: "normalizacao", titulo: "Por contrato" },
   { id: "custos", titulo: "Bruto e líquido" },
   { id: "operacao", titulo: "O que é uma operação" },
+  { id: "operacoes-em-aberto", titulo: "Operações em aberto" },
   { id: "resultado", titulo: "Resultado do dia, mês, ano e acumulado" },
   { id: "mep-men", titulo: "MEP e MEN do dia" },
   { id: "drawdown", titulo: "Drawdown e recuperação" },
@@ -88,7 +89,7 @@ export default function PaginaMetodologia() {
           O rótulo "Seções" em caixa alta é rótulo de grupo e fica, por preferência do dono (19/09/2026).
           19/09/2026: o índice acompanha a rolagem e marca a seção que está sendo lida (NavSecoes); o
           pl-3 do rótulo alinha com os links, que agora têm o fio da marca à esquerda. A altura máxima é
-          a da tela menos o cabeçalho: com 17 seções a lista rola no próprio lugar em tela baixa. */}
+          a da tela menos o cabeçalho: com 18 seções a lista rola no próprio lugar em tela baixa. */}
       <nav aria-label="Seções" className="hidden lg:sticky lg:top-20 lg:block lg:max-h-[calc(100dvh-6rem)] lg:self-start lg:overflow-y-auto">
         <p className="mb-2 pl-3 text-xs font-medium tracking-wide text-muted-foreground uppercase">Seções</p>
         <NavSecoes secoes={SECOES.map(({ id, titulo }) => ({ id, rotulo: titulo }))} />
@@ -167,6 +168,23 @@ export default function PaginaMetodologia() {
             Os <strong>pontos por contrato</strong> são a diferença entre a saída e a entrada, a favor da posição: na
             compra, saída menos entrada; na venda, entrada menos saída. O resultado em reais é o do MetaTrader, para bater
             no centavo com o relatório da corretora.
+          </p>
+        </Secao>
+
+        {/* 21/09/2026: o contador "operações em aberto" da barra, dos cards, do Hoje ao vivo e da tela Ao vivo */}
+        <Secao id="operacoes-em-aberto" titulo="Operações em aberto">
+          <p>
+            <strong>Operações em aberto</strong> é quantas entradas o robô fez e ainda não fechou neste momento, na conta
+            principal. Cada entrada ainda aberta conta 1: se o robô entrou duas vezes e nenhuma zerou, são 2 operações em
+            aberto; quando uma delas fecha, o número cai. É uma contagem de entradas, não de contratos: o site não mostra
+            quantos contratos há em cada entrada nem o tamanho da conta.
+          </p>
+          <p>
+            O número vem do sinal do coletor, que manda as posições abertas a cada 3 segundos, e aparece na barra da
+            home, no card do robô, no painel Hoje ao vivo e na tela Ao vivo. Respeita o atraso configurável de cada robô:
+            uma entrada só passa a contar depois desse atraso. Fora do pregão o contador não aparece, e se o coletor ficar
+            mais de {MINUTOS_SEM_SINAL} minutos sem mandar sinal ele some, pela mesma regra do selo{" "}
+            <strong>&quot;sem atualização&quot;</strong>.
           </p>
         </Secao>
 
@@ -339,6 +357,8 @@ export default function PaginaMetodologia() {
             <dd>Saldo, posições abertas e cotação que o coletor manda a cada 3 segundos.</dd>
             <dt className="font-medium text-foreground">Flutuante</dt>
             <dd>Resultado da posição aberta se fosse fechada agora, por contrato.</dd>
+            <dt className="font-medium text-foreground">Operações em aberto</dt>
+            <dd>Quantas entradas o robô ainda não fechou agora, cada uma contando 1. Nunca é número de contratos.</dd>
             <dt className="font-medium text-foreground">MEP / MEN</dt>
             <dd>Máxima exposição positiva e negativa do dia: o ponto mais alto e o mais baixo do acumulado do dia, medidos a cada fechamento de operação.</dd>
           </dl>
@@ -350,7 +370,7 @@ export default function PaginaMetodologia() {
             <dt className="font-medium text-foreground">Operando</dt>
             <dd>Pregão aberto, sinal do coletor em dia, sem posição aberta e dentro do horário de operação do robô.</dd>
             <dt className="font-medium text-foreground">Posicionado</dt>
-            <dd>Pregão aberto, sinal do coletor em dia e o robô com posição aberta agora.</dd>
+            <dd>Pregão aberto, sinal do coletor em dia e o robô com posição aberta agora (1 ou mais operações em aberto).</dd>
             <dt className="font-medium text-foreground">Fora do horário</dt>
             <dd>Pregão do ativo fechado; ou pregão aberto, sinal em dia, sem posição e fora do horário de operação do robô.</dd>
             <dt className="font-medium text-foreground">Sem atualização</dt>

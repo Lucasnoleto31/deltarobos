@@ -75,7 +75,7 @@
 ### Realtime no site
 - Frontend assina, via Supabase Realtime, as views públicas de posições abertas e operações do dia. Nada de F5.
 - Estatísticas pesadas (curva, drawdown, mensal) são recalculadas por job a cada 1 min em horário de pregão e servidas com cache. Só o painel "hoje" é realtime puro.
-- Saúde: sem heartbeat por mais de 2 min em horário de pregão, o site mostra "sem atualização há X min" e status do robô vira "desconhecido". Nunca mostrar dado velho parecendo vivo.
+- Saúde: sem heartbeat por mais de 2 min em horário de pregão, o site mostra "sem atualização há X min" e status do robô vira "desconhecido". Nunca mostrar dado velho parecendo vivo. O contador de operações em aberto segue a mesma regra: sem heartbeat ele some ou vira "sem atualização", e fora do pregão não aparece.
 - Config `atraso_publico_segundos` por robô (padrão 0) caso a casa queira exibir posição aberta com atraso.
 
 ## 6. Modelo de dados (Postgres)
@@ -100,9 +100,9 @@
 - `alertas_inscricoes`: contato, canal (whatsapp | push | email), robo_id, tipo
 
 ### Views públicas (RLS: anon só SELECT nessas views)
-- `robos_publico`
+- `robos_publico`: dados públicos do robô, `posicionado` e `n_posicoes_abertas` (quantas entradas ainda estão abertas na conta principal, cada ticket conta 1, só as que já passaram do atraso configurado). Sem volume, sem conta.
 - `operacoes_publico`: robô, horários, lado, preços, pontos por contrato, R$ por contrato. Sem conta, sem volume real.
-- `posicoes_abertas_publico`: robô, lado, preço de abertura, flutuante por contrato, respeitando o atraso configurado
+- `posicoes_abertas_publico`: robô, lado, preço de abertura, flutuante por contrato e `n_abertas` (quantas entradas do grupo ainda estão abertas, cada ticket conta 1). Sem volume, sem conta, respeitando o atraso configurado. Risco conhecido (21/09/2026, a decidir): como o preço de abertura do grupo é a média ponderada pelo volume e os preços de cada entrada ficam públicos em `operacoes_publico` quando fecham, com `n_abertas` dá para inferir a proporção entre os volumes das entradas de um grupo (nunca o tamanho: 2:1 pode ser 2 e 1 ou 20 e 10). Só vira informação se o robô escala posição com lotes diferentes. Alternativa, se não for aceito: publicar a média simples dos preços.
 - `estatisticas_publico`
 - `comunicados_publico`
 
@@ -123,9 +123,9 @@
 ## 8. Páginas
 
 ### 8.1 Home `/` (ordem de cima pra baixo)
-1. Barra ao vivo: pregão aberto ou fechado, WIN e WDO agora, quantos robôs estão posicionados, resultado do dia da casa, "atualizado há Xs"
+1. Barra ao vivo: pregão aberto ou fechado, WIN e WDO agora, quantos robôs estão posicionados e quantas operações em aberto a casa tem (número de entradas ainda abertas na conta principal de cada robô, nunca contratos), resultado do dia da casa, "atualizado há Xs"
 2. Hero: frase curta, número grande com o resultado do dia somado por contrato, botões "ver os robôs" e "entrar na comunidade"
-3. Cards dos robôs (quantos existirem, hoje Apollo e Orion): nome, ativo, status (operando, posicionado, parado, fora do horário, em breve), dia, mês, acumulado, drawdown, mini curva de 30 dias. Grid responsivo que fica bom com 2 ou com 12 robôs, ordenado pelo mês. Com mais de 6 robôs, filtro por ativo (WIN, WDO) e busca.
+3. Cards dos robôs (quantos existirem, hoje Apollo e Orion): nome, ativo, status (operando, posicionado, parado, fora do horário, em breve), operações em aberto (número de entradas ainda abertas, nunca contratos; 1 = "1 operação em aberto"), dia, mês, acumulado, drawdown, mini curva de 30 dias. Grid responsivo que fica bom com 2 ou com 12 robôs, ordenado pelo mês. Com mais de 6 robôs, filtro por ativo (WIN, WDO) e busca.
 4. Resumo do dia: operações feitas, acerto do dia, melhor robô do dia. Após o fechamento vira "fechamento de hoje" (layout pensado pra print)
 5. Ranking: robô do mês, robô do ano, maior sequência positiva
 6. Carteira Delta: combinação sugerida com curva combinada e drawdown conjunto, link pra montar a própria
@@ -143,7 +143,7 @@ No celular, os itens 1, 2, 3 e 8 ficam acima da dobra. Na v1 entram 1, 2, 3, 8, 
 
 ### 8.2 Página do robô `/robos/[slug]`
 - Cabeçalho: nome, ativo, descrição pública, horário, contratos padrão, "conta real desde", status ao vivo, "última operação há X min"
-- Hoje ao vivo: resultado do dia em pontos e R$, posição aberta (lado, preço, flutuante), operações do dia entrando na hora
+- Hoje ao vivo: resultado do dia em pontos e R$, posição aberta (lado, preço, flutuante), operações em aberto (número de entradas ainda abertas na conta principal, nunca contratos), operações do dia entrando na hora
 - KPIs (cards): acumulado, mês, média mensal, drawdown máximo, taxa de acerto, fator de lucro, payoff, nº de operações, melhor e pior dia, dias positivos x negativos, maior sequência de perdas
 - Curva de capital com drawdown, filtros de período, toggle pontos/R$, toggle bruto/líquido, seletor de contratos ("com 5 contratos seria...")
 - Mensal: heatmap ano x mês
@@ -158,7 +158,7 @@ No celular, os itens 1, 2, 3 e 8 ficam acima da dobra. Na v1 entram 1, 2, 3, 8, 
 Tabela completa paginada, filtros por período, lado e resultado, export CSV, realtime nas do dia.
 
 ### 8.4 Ao vivo `/robos/[slug]/ao-vivo`
-Tela cheia só com o dia: resultado grande, posição aberta, últimas operações. Feita pra compartilhar e deixar aberta no celular.
+Tela cheia só com o dia: resultado grande, posição aberta, operações em aberto (mesmo número da home e da página do robô: entradas ainda abertas, nunca contratos), últimas operações. Feita pra compartilhar e deixar aberta no celular.
 
 ### 8.5 Carteira `/carteira`
 Seleciona robôs e contratos de cada um, vê curva combinada, drawdown conjunto, correlação e KPIs da carteira.
