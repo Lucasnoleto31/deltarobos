@@ -22,6 +22,11 @@ export interface RoboPublico {
   ultimo_heartbeat_em: string | null;
   ultima_operacao_em: string | null;
   posicionado: boolean;
+  /**
+   * Operações em aberto (21/09/2026): tickets ainda abertos na conta principal que já passaram do atraso
+   * público, cada um contando 1 (nunca volume). Opcional: falta em snapshot anterior à migration 0020.
+   */
+  n_posicoes_abertas?: number;
   relatorio_mt5_url: string | null;
   conta_tipo: "real" | "demo" | null;
   /** false = robô só com histórico importado, sem conta/coletor no MT5 */
@@ -61,6 +66,11 @@ export interface PosicaoPublica {
   lucro_flutuante_por_contrato: number;
   aberta_em: string;
   atualizado_em: string;
+  /**
+   * Quantos tickets do grupo (símbolo, lado) ainda estão abertos e já passaram do atraso público, cada um
+   * contando 1 (21/09/2026). Opcional: falta em snapshot ou evento anteriores à migration 0020.
+   */
+  n_abertas?: number;
 }
 
 /** Linha de estatisticas_publico */
@@ -96,6 +106,8 @@ export interface ResumoRobo {
   n_operacoes: number;
   n_gain: number;
   posicionado: boolean;
+  /** operações em aberto do robô (entradas, nunca contratos); opcional em resumo anterior à migration 0020 */
+  n_posicoes_abertas?: number;
 }
 
 /** Retorno de resumo_casa_hoje() e payload do evento "resumo" no topic casa */
@@ -106,15 +118,19 @@ export interface ResumoCasa {
   n_operacoes: number;
   n_gain: number;
   n_robos_posicionados: number;
+  /** soma de n_posicoes_abertas dos robôs; opcional em resumo anterior à migration 0020 */
+  n_posicoes_abertas?: number;
   robos: ResumoRobo[];
   gerado_em: string;
 }
 
-/** Payload do evento "coleta" */
+/** Payload do evento "coleta" (topic casa e robo:<slug>) */
 export interface EventoColeta {
   slug: string;
   ultimo_heartbeat_em: string | null;
   posicionado: boolean;
+  /** operações em aberto do robô no momento do heartbeat; opcional em evento anterior à migration 0020 */
+  n_posicoes_abertas?: number;
 }
 
 /** Payload do evento "cotacao" */

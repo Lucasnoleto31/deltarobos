@@ -60,6 +60,7 @@ export type ChaveIndicador =
   | "men"
   | "flutuante"
   | "posicionados"
+  | "operacoesEmAberto"
   // base dos números
   | "pontos"
   | "valorPonto"
@@ -295,7 +296,13 @@ export const GLOSSARIO: Record<ChaveIndicador, EntradaGlossario> = {
   },
   posicionados: {
     nome: "Posicionados",
-    texto: "Quantos robôs estão com uma operação aberta neste momento, esperando a saída.",
+    texto: "Quantos robôs estão com pelo menos uma operação aberta neste momento, esperando a saída.",
+  },
+  // 21/09/2026: o contador da barra, dos cards, do Hoje ao vivo e da tela Ao vivo. Conta entradas, nunca
+  // contratos (spec §6: nada de volume na conta pública)
+  operacoesEmAberto: {
+    nome: "Operações em aberto",
+    texto: "Cada entrada que o robô fez e ainda não fechou conta 1, mesmo que seja no mesmo ativo e no mesmo sentido. Não é a quantidade de contratos: é quantas operações estão esperando a saída neste momento.",
   },
 
   // ── base dos números ─────────────────────────────────────────────────────────────────────────────

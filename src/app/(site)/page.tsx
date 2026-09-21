@@ -119,6 +119,7 @@ export default async function Home() {
         horarioInicio: r.horario_inicio,
         horarioFim: r.horario_fim,
         posicionado: r.posicionado,
+        nPosicoesAbertas: r.n_posicoes_abertas,
         ultimoHeartbeatEm: r.ultimo_heartbeat_em,
         temColetor: r.tem_coletor,
         hoje: resumoRobo.hoje,
@@ -135,7 +136,12 @@ export default async function Home() {
   const coleta: Record<string, EventoColeta> = Object.fromEntries(
     robos.map((r) => [
       r.slug,
-      { slug: r.slug, ultimo_heartbeat_em: r.ultimo_heartbeat_em, posicionado: r.posicionado },
+      {
+        slug: r.slug,
+        ultimo_heartbeat_em: r.ultimo_heartbeat_em,
+        posicionado: r.posicionado,
+        n_posicoes_abertas: r.n_posicoes_abertas,
+      },
     ]),
   );
 

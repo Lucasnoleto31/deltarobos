@@ -8,6 +8,7 @@ import { Valor } from "@/components/compartilhados/Valor";
 import { Simbolo } from "@/components/marca/Simbolo";
 import { CurvaDoDia } from "@/components/robo/CurvaDoDia";
 import { LinhaOperacao } from "@/components/robo/LinhaOperacao";
+import { OperacoesEmAberto } from "@/components/robo/OperacoesEmAberto";
 import { usePregaoAberto, useRobo } from "@/components/robo/RoboAoVivoProvider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -98,6 +99,8 @@ export function TelaAoVivo() {
             Quants <span className="text-muted-foreground">Robôs</span>
           </span>
         </div>
+        {/* só o status (21/09/2026): "Posicionado · 3 em aberto" não cabe ao lado da marca a 375 px, e o
+            "3 operações em aberto" já aparece por extenso ao lado de "Posição aberta", logo abaixo */}
         <BadgeStatusRobo status={status} />
       </header>
 
@@ -136,6 +139,9 @@ export function TelaAoVivo() {
         <section className="painel-grupo">
           <div className="painel-cabeca">
             <h2 className="painel-titulo">Posição aberta</h2>
+            {/* "3 operações em aberto" ao lado do título (21/09/2026), sem o i: num print de story ele é um
+                botão que não abre; a explicação fica na página do robô e na Metodologia */}
+            <OperacoesEmAberto comInfo={false} className="painel-acao" />
           </div>
           <ul className="space-y-2">
             {estado.posicoes.map((p) => (

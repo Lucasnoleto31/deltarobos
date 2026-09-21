@@ -50,6 +50,10 @@ export function GradeRobos({ cards }: Props) {
         mes: card.mes + delta,
         acumulado: card.acumulado + delta,
         posicionado: coleta?.posicionado ?? vivo?.posicionado ?? card.posicionado,
+        // operações em aberto (21/09/2026), na mesma ordem do posicionado: mapa de coleta (que useCasaAoVivo
+        // mantém fresco fundindo nele o resumo, o evento imediato; o "coleta" chega no máximo a cada 30 s),
+        // resumo, snapshot do servidor. O selo só mostra o número com o status Posicionado, que já tem o gating
+        posicoesAbertas: coleta?.n_posicoes_abertas ?? vivo?.n_posicoes_abertas ?? card.nPosicoesAbertas,
         ultimoHeartbeatEm: coleta?.ultimo_heartbeat_em ?? card.ultimoHeartbeatEm,
       };
     });
@@ -146,6 +150,7 @@ export function GradeRobos({ cards }: Props) {
                 <CardRobo
                   card={card}
                   status={status}
+                  posicoesAbertas={card.posicoesAbertas}
                   hojeOperacoes={card.hojeOperacoes}
                   hojeGains={card.hojeGains}
                   ultimoPregao={(fechado || !card.temColetor) && !operouHoje ? card.ultimoPregao : null}

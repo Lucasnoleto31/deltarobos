@@ -17,6 +17,8 @@ import type { DadosCardRobo, UltimoPregao } from "./tipos";
 interface Props {
   card: DadosCardRobo;
   status: StatusAoVivo;
+  /** operações em aberto agora (entradas, nunca contratos); vai no selo, "Posicionado · 3 em aberto" (21/09/2026) */
+  posicoesAbertas?: number;
   /** operações e gains de hoje, do resumo ao vivo (quando há) */
   hojeOperacoes?: number;
   hojeGains?: number;
@@ -49,6 +51,7 @@ interface Props {
 export const CardRobo = memo(function CardRobo({
   card,
   status,
+  posicoesAbertas,
   hojeOperacoes,
   hojeGains,
   ultimoPregao,
@@ -83,7 +86,7 @@ export const CardRobo = memo(function CardRobo({
             {card.ativoNome} · {card.ativo}
           </p>
         </div>
-        <BadgeStatusRobo status={status} className="relative z-10" />
+        <BadgeStatusRobo status={status} abertas={posicoesAbertas} className="relative z-10" />
       </div>
 
       {emBreve ? (

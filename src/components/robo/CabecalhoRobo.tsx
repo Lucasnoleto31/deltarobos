@@ -5,6 +5,7 @@ import { BadgeStatusRobo } from "@/components/compartilhados/BadgeStatusRobo";
 import { Badge } from "@/components/ui/badge";
 import { useAgora } from "@/hooks/useAgora";
 import { formatarData, formatarNumero, haQuanto } from "@/lib/formato";
+import { totalAbertas } from "@/lib/stats/posicoes";
 import { normalizarHora, pregaoAberto } from "@/lib/stats/pregao";
 import { statusAoVivo } from "@/lib/stats/status-robo";
 import { useRobo } from "./RoboAoVivoProvider";
@@ -51,7 +52,9 @@ export function CabecalhoRobo() {
             <p className="max-w-prose text-pretty text-muted-foreground">{robo.descricao_publica}</p>
           ) : null}
         </div>
-        <BadgeStatusRobo status={status} className="h-6 px-2.5 text-sm" />
+        {/* "Posicionado · 3 em aberto" (21/09/2026): operações em aberto no selo, só com o status Posicionado;
+            o flex-wrap do cabeçalho absorve o selo mais longo no celular */}
+        <BadgeStatusRobo status={status} abertas={totalAbertas(estado.posicoes)} className="h-6 px-2.5 text-sm" />
       </div>
 
       <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm sm:flex sm:flex-wrap sm:gap-x-6 sm:gap-y-2">

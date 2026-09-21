@@ -35,6 +35,14 @@ describe("glossário de indicadores", () => {
     expect(`${e.nome} ${e.texto}`).not.toMatch(/delta|btg/i);
   });
 
+  // 21/09/2026: o contador conta entradas ainda abertas, e o texto tem que dizer que não é contrato
+  it("operações em aberto: cada entrada conta 1, e não é número de contratos", () => {
+    const e = GLOSSARIO.operacoesEmAberto;
+    expect(e.nome).toBe("Operações em aberto");
+    expect(e.texto).toMatch(/conta 1/);
+    expect(e.texto).toMatch(/contratos/);
+  });
+
   it("o lote sai da constante das faixas", () => {
     expect(GLOSSARIO.lote.texto).toContain("100% em Ligar");
     expect(GLOSSARIO.lote.texto).toContain("0% em Evitar");

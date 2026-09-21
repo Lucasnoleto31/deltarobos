@@ -1,6 +1,7 @@
 import { cn } from "cn";
 import { Badge } from "@/components/ui/badge";
 import { formatarNumero } from "@/lib/formato";
+import { rotuloOperacoesEmAberto } from "@/lib/stats/posicoes";
 import { LIMITE_SEM_HEARTBEAT_SEG } from "@/lib/stats/pregao";
 import {
   ROTULO_STATUS,
@@ -44,18 +45,40 @@ const DEFINICAO_STATUS: Record<StatusAoVivo, string> = {
 
 export function BadgeStatusRobo({
   status,
+  abertas,
   explicar = true,
   className,
 }: {
   status: StatusAoVivo;
+  /**
+   * operações em aberto do robô (entradas ainda abertas, nunca contratos; 21/09/2026). Só aparece com o selo
+   * Posicionado, que já passou pelo gating de statusAoVivo (cadastro ativo, coletor, pregão aberto, sinal em
+   * dia): "Posicionado · 3 em aberto". A unidade curta vai no visível: um "· 3" solto ao lado de um robô de
+   * mini índice se lê como contratos, e o title não existe no toque. Zero ou ausente não muda nada.
+   */
+  abertas?: number;
   /** põe a definição no selo para leitor de tela (padrão sim); o title vai sempre */
   explicar?: boolean;
   className?: string;
 }) {
   const definicao = DEFINICAO_STATUS[status];
+  const rotuloAbertas = status === "posicionado" && abertas ? rotuloOperacoesEmAberto(abertas) : null;
   return (
-    <Badge variant="outline" title={definicao} className={cn(CLASSES[TOM_STATUS[status]], className)}>
+    <Badge
+      variant="outline"
+      title={rotuloAbertas ? `${definicao} ${rotuloAbertas}.` : definicao}
+      className={cn(CLASSES[TOM_STATUS[status]], className)}
+    >
       {ROTULO_STATUS[status]}
+      {rotuloAbertas ? (
+        <>
+          {/* o "· 3 em aberto" é só visual; o leitor de tela ouve o rótulo inteiro. O gap-1 do Badge separa do texto */}
+          <span aria-hidden className="tabular-nums">
+            · {formatarNumero(abertas ?? 0)} em aberto
+          </span>
+          <span className="sr-only">, {rotuloAbertas}</span>
+        </>
+      ) : null}
       {explicar ? <span className="sr-only">. {definicao}</span> : null}
     </Badge>
   );

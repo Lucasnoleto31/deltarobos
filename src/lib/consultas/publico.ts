@@ -118,6 +118,8 @@ export async function listarUltimasOperacoes(slug: string, limite = 50): Promise
 
 export async function listarPosicoes(slug?: string): Promise<PosicaoPublica[]> {
   try {
+    // "*" já traz n_abertas (operações em aberto por grupo, migration 0020), como listarRobos traz
+    // n_posicoes_abertas e resumoCasaHoje o total: nada de volume nem conta, a view não tem
     let q = supabasePublico().from("posicoes_abertas_publico").select("*");
     if (slug) q = q.eq("slug", slug);
     const { data, error } = await q;

@@ -13,6 +13,8 @@ export interface DadosCardRobo {
   horarioInicio: string | null;
   horarioFim: string | null;
   posicionado: boolean;
+  /** operações em aberto no snapshot do servidor (entradas, nunca contratos); falta antes da migration 0020 */
+  nPosicoesAbertas?: number;
   ultimoHeartbeatEm: string | null;
   temColetor: boolean;
   hoje: number;

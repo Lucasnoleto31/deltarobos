@@ -8,6 +8,7 @@ import { formatarNumero, formatarPreco, rotuloLado } from "@/lib/formato";
 import { brlParaPontos } from "@/lib/stats/normalizacao";
 import { CurvaDoDia } from "./CurvaDoDia";
 import { LinhaOperacao } from "./LinhaOperacao";
+import { OperacoesEmAberto } from "./OperacoesEmAberto";
 import { usePregaoAberto, useRobo } from "./RoboAoVivoProvider";
 
 // Quantas operações aparecem em lista antes do "mostrar as outras". O dia inteiro está na curva
@@ -67,9 +68,15 @@ export function HojeAoVivo() {
 
           <div>
             {/* o número de cada posição é o flutuante: o i explica, e só aparece quando há posição (19/09/2026) */}
-            <p className="mb-2 text-sm font-medium">
-              {estado.posicoes.length > 0 ? <RotuloComInfo chave="flutuante">Posição aberta</RotuloComInfo> : "Posição aberta"}
-            </p>
+            <div className="mb-2 flex items-baseline justify-between gap-2">
+              <p className="text-sm font-medium">
+                {estado.posicoes.length > 0 ? <RotuloComInfo chave="flutuante">Posição aberta</RotuloComInfo> : "Posição aberta"}
+              </p>
+              {/* "3 operações em aberto" (21/09/2026): cada entrada ainda aberta conta 1, e a lista abaixo agrupa
+                  por símbolo e lado, então o número pode ser maior que o de linhas. Some fora do pregão e com o
+                  coletor parado (aí o aviso do cabeçalho é quem fala), como o selo Posicionado */}
+              <OperacoesEmAberto className="text-xs text-muted-foreground" />
+            </div>
             {/* sem moldura (19/09/2026): já está dentro do painel */}
             {estado.posicoes.length === 0 ? (
               <p className="text-sm text-muted-foreground">Nenhuma posição aberta agora.</p>

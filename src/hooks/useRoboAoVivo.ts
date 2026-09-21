@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { totalAbertas } from "@/lib/stats/posicoes";
 import { supabaseBrowser } from "@/lib/supabase/cliente";
 import type { EventoColeta, OperacaoPublica, PosicaoPublica } from "@/lib/tipos";
 
@@ -40,6 +41,13 @@ export function useRoboAoVivo(slug: string, inicial: InicialRoboAoVivo): EstadoR
     conectado: false,
   });
 
+  // As posições mais recentes, para o handler do evento "coleta" comparar sem depender do closure do
+  // efeito (que só vê o estado do primeiro render). Escrita no efeito, lida só em handler: nunca no render.
+  const posicoesAtuais = useRef<PosicaoPublica[]>(inicial.posicoes);
+  useEffect(() => {
+    posicoesAtuais.current = estado.posicoes;
+  }, [estado.posicoes]);
+
   useEffect(() => {
     let sb: ReturnType<typeof supabaseBrowser>;
     try {
@@ -52,10 +60,18 @@ export function useRoboAoVivo(slug: string, inicial: InicialRoboAoVivo): EstadoR
     const marcar = () => new Date().toISOString();
     const canal = sb.channel(`robo:${slug}`, { config: { private: true } });
 
+    // Sobem a cada evento que mexe na lista. A ressincronização guarda o valor antes de consultar e, se
+    // chegou evento enquanto a consulta estava no ar, não aplica a foto: o evento é mais novo que ela.
+    // Sem isso, um "posicao_fechada" recebido durante a consulta era atropelado pela resposta, que
+    // ressuscitava o grupo fechado, e nada corrigia depois (21/09/2026).
+    let versaoPosicoes = 0;
+    let versaoOperacoes = 0;
+
     canal
       .on("broadcast", { event: "operacao" }, ({ payload }) => {
         const op = payload as OperacaoPublica;
         if (op.dia_pregao !== inicial.dia) return;
+        versaoOperacoes++;
         setEstado((s) => ({
           ...s,
           operacoes: ordenarOperacoes([...s.operacoes.filter((o) => o.id !== op.id), op]),
@@ -64,15 +80,18 @@ export function useRoboAoVivo(slug: string, inicial: InicialRoboAoVivo): EstadoR
       })
       .on("broadcast", { event: "operacao_removida" }, ({ payload }) => {
         const { id } = payload as { id: number };
+        versaoOperacoes++;
         setEstado((s) => ({
           ...s,
           operacoes: s.operacoes.filter((o) => o.id !== id),
           ultimaMensagemEm: marcar(),
         }));
       })
-      // posições vêm agregadas por (símbolo, lado)
+      // posições vêm agregadas por (símbolo, lado); cada evento é a linha inteira da view, então o
+      // n_abertas do grupo (operações em aberto, 21/09/2026) chega junto e substitui o anterior
       .on("broadcast", { event: "posicao" }, ({ payload }) => {
         const p = payload as PosicaoPublica;
+        versaoPosicoes++;
         setEstado((s) => ({
           ...s,
           posicoes: [
@@ -84,6 +103,7 @@ export function useRoboAoVivo(slug: string, inicial: InicialRoboAoVivo): EstadoR
       })
       .on("broadcast", { event: "posicao_fechada" }, ({ payload }) => {
         const { simbolo, lado } = payload as { simbolo: string; lado?: PosicaoPublica["lado"] };
+        versaoPosicoes++;
         setEstado((s) => ({
           ...s,
           posicoes: s.posicoes.filter(
@@ -94,6 +114,17 @@ export function useRoboAoVivo(slug: string, inicial: InicialRoboAoVivo): EstadoR
       })
       .on("broadcast", { event: "coleta" }, ({ payload }) => {
         const c = payload as EventoColeta;
+        // O broadcast não tem replay: um "posicao_fechada" perdido (aba em segundo plano, reconexão no
+        // meio) deixava o grupo preso e "2 operações em aberto" congelado até a próxima reconexão. A
+        // coleta traz n_posicoes_abertas a cada <= 30 s: quando diverge do que a tela soma, ressincroniza.
+        // A coleta conta antes da sincronização do mesmo heartbeat, então a divergência pode ser
+        // passageira; a ressincronização (três consultas pequenas) resolve nos dois casos.
+        if (
+          typeof c.n_posicoes_abertas === "number" &&
+          c.n_posicoes_abertas !== totalAbertas(posicoesAtuais.current)
+        ) {
+          void ressincronizar();
+        }
         setEstado((s) => ({
           ...s,
           ultimoHeartbeatEm: c.ultimo_heartbeat_em ?? s.ultimoHeartbeatEm,
@@ -108,6 +139,8 @@ export function useRoboAoVivo(slug: string, inicial: InicialRoboAoVivo): EstadoR
       });
 
     async function ressincronizar() {
+      const vPos = versaoPosicoes;
+      const vOps = versaoOperacoes;
       try {
         const [ops, pos, robo] = await Promise.all([
           sb
@@ -116,13 +149,18 @@ export function useRoboAoVivo(slug: string, inicial: InicialRoboAoVivo): EstadoR
             .eq("slug", slug)
             .eq("dia_pregao", inicial.dia)
             .order("fechamento_em", { ascending: true }),
+          // "*" traz n_abertas junto quando a view tiver a coluna (migration 0020)
           sb.from("posicoes_abertas_publico").select("*").eq("slug", slug),
           sb.from("robos_publico").select("ultimo_heartbeat_em").eq("slug", slug).maybeSingle(),
         ]);
         setEstado((s) => ({
           ...s,
-          operacoes: ops.data ? ordenarOperacoes(ops.data as OperacaoPublica[]) : s.operacoes,
-          posicoes: pos.data ? (pos.data as PosicaoPublica[]) : s.posicoes,
+          // foto só entra se nenhum evento da lista chegou enquanto a consulta estava no ar
+          operacoes:
+            ops.data && vOps === versaoOperacoes
+              ? ordenarOperacoes(ops.data as OperacaoPublica[])
+              : s.operacoes,
+          posicoes: pos.data && vPos === versaoPosicoes ? (pos.data as PosicaoPublica[]) : s.posicoes,
           ultimoHeartbeatEm:
             (robo.data?.ultimo_heartbeat_em as string | null | undefined) ?? s.ultimoHeartbeatEm,
         }));

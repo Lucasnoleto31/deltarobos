@@ -4,7 +4,8 @@ import { AtualizadoHa } from "@/components/compartilhados/AtualizadoHa";
 import { RotuloComInfo } from "@/components/compartilhados/InfoIndicador";
 import { Valor } from "@/components/compartilhados/Valor";
 import { formatarDataLonga, formatarNumero, formatarPct } from "@/lib/formato";
-import { useCasa, usePregaoAberto } from "./CasaAoVivoProvider";
+import { rotuloOperacoesEmAberto } from "@/lib/stats/posicoes";
+import { useCasa, useOperacoesEmAberto, usePregaoAberto } from "./CasaAoVivoProvider";
 import { formatarDiaLongo } from "./datas";
 import type { UltimoPregaoCasa } from "./tipos";
 
@@ -27,6 +28,13 @@ const TEXTO_OPERACOES =
  * O número grande, as operações e os acertos têm o i do glossário (19/09/2026). O número grande e as
  * operações somam todos os robôs, então o texto do glossário, escrito para um robô, vai trocado aqui pelo
  * da casa.
+ *
+ * 21/09/2026: no modo ao vivo o tile "Posicionados" continua com o número de robôs e ganha, em apoio, as
+ * operações em aberto da casa ("3 em aberto", com o i que explica: entradas, nunca contratos). Ficou o
+ * apoio, e não um tile novo "Em aberto", porque a coluna tem uns 90 px no celular: "Posicionados" cabe
+ * hoje, e "3 em aberto" com o i mede uns 85 px, enquanto "3 operações em aberto" não caberia; e fora do
+ * pregão, quando o contador não pode aparecer, o tile teria que virar outra coisa, e o de robôs
+ * posicionados já existe. O apoio só aparece com o pregão aberto, o coletor em dia e pelo menos uma.
  */
 export function NumeroHero({ ultimoPregao }: Props) {
   const { estado, hoje } = useCasa();
@@ -37,6 +45,7 @@ export function NumeroHero({ ultimoPregao }: Props) {
   // manhã, antes da abertura, e o HTML chegava com "Hoje R$ 0,00" (19/09/2026)
   const aberto = usePregaoAberto();
   const passado = !aberto && (resumo?.n_operacoes ?? 0) === 0 ? ultimoPregao : null;
+  const { total: emAberto } = useOperacoesEmAberto();
 
   const dia = passado
     ? {
@@ -45,7 +54,7 @@ export function NumeroHero({ ultimoPregao }: Props) {
         data: formatarDiaLongo(passado.dia),
         operacoes: passado.nOperacoes,
         gains: passado.nGain,
-        terceiro: { rotulo: "Melhor robô", valor: passado.melhor?.nome ?? "–" },
+        terceiro: { rotulo: "Melhor robô", valor: passado.melhor?.nome ?? "–", emAberto: 0 },
       }
     : resumo && temRobos
       ? {
@@ -54,9 +63,10 @@ export function NumeroHero({ ultimoPregao }: Props) {
           data: formatarDataLonga(resumo.dia ?? hoje),
           operacoes: resumo.n_operacoes,
           gains: resumo.n_gain,
-          terceiro: { rotulo: "Posicionados", valor: formatarNumero(resumo.n_robos_posicionados) },
+          terceiro: { rotulo: "Posicionados", valor: formatarNumero(resumo.n_robos_posicionados), emAberto },
         }
       : null;
+  const rotuloEmAberto = dia ? rotuloOperacoesEmAberto(dia.terceiro.emAberto) : null;
 
   return (
     // 19/09/2026: uma entrada só, no carregamento, e curta. O cartão já está na tela quando a página
@@ -100,6 +110,16 @@ export function NumeroHero({ ultimoPregao }: Props) {
             {/* sem o i: no celular a coluna tem 90 px e "Melhor robô" com o i quebrava em duas linhas */}
             <dt className="text-muted-foreground">{dia.terceiro.rotulo}</dt>
             <dd className="truncate text-lg font-semibold tabular-nums">{dia.terceiro.valor}</dd>
+            {rotuloEmAberto ? (
+              // o visível é curto para caber na coluna; o leitor de tela ouve "3 operações em aberto"
+              <dd className="text-xs text-muted-foreground tabular-nums">
+                <RotuloComInfo chave="operacoesEmAberto">
+                  {/* nowrap: a coluna tem 90 px no celular e "12 em aberto" com o i partia em duas linhas */}
+                  <span aria-hidden className="whitespace-nowrap">{formatarNumero(dia.terceiro.emAberto)} em aberto</span>
+                  <span className="sr-only">{rotuloEmAberto}</span>
+                </RotuloComInfo>
+              </dd>
+            ) : null}
           </div>
         </dl>
       ) : (

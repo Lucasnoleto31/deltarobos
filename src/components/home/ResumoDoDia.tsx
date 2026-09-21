@@ -87,6 +87,9 @@ export function ResumoDoDia() {
                   <div className="flex items-baseline justify-between gap-3 text-sm">
                     <span className="font-medium group-hover:underline">
                       {r.nome}
+                      {/* sem o contador de operações em aberto aqui (21/09/2026): a 375 px "posicionado · 3 op."
+                          quebrava a linha do robô e "op." ficava com dois sentidos a 100 px de "12 op."; o card
+                          logo acima já mostra o número, e esta seção é a comparação */}
                       {r.posicionado ? <span className="ml-2 text-xs font-normal text-info">posicionado</span> : null}
                     </span>
                     <span className="flex items-baseline gap-3">

@@ -4,7 +4,8 @@ import { cn } from "cn";
 import { AtualizadoHa } from "@/components/compartilhados/AtualizadoHa";
 import { Valor } from "@/components/compartilhados/Valor";
 import { formatarNumero, formatarPreco } from "@/lib/formato";
-import { useCasa, usePregaoAberto } from "./CasaAoVivoProvider";
+import { contarPosicionados, rotuloOperacoesEmAberto } from "@/lib/stats/posicoes";
+import { useCasa, useOperacoesEmAberto, usePregaoAberto } from "./CasaAoVivoProvider";
 
 // 19/09/2026: o ponto era muted/40, com contraste 2,2 no escuro e 1,7 no claro; como divisor ele
 // precisa ser visto, então vai na mesma cor do texto de apoio.
@@ -18,16 +19,20 @@ function Separador() {
  * saem: ficavam logo acima do hero com o último pregão (19/09/2026). Voltam com o pregão aberto ou com
  * a primeira operação do dia; robô posicionado aparece sempre. "Pregão aberto" na cor do texto: verde é
  * só resultado em dinheiro.
+ *
+ * 21/09/2026: depois dos robôs posicionados vêm as operações em aberto da casa ("2 robôs posicionados ·
+ * 3 operações em aberto"): entradas ainda abertas, nunca contratos. Só com o pregão aberto, o coletor
+ * mandando sinal e pelo menos uma; o hook já zera fora disso.
  */
 export function BarraAoVivo() {
   const { estado } = useCasa();
   // o valor do servidor vale até a hidratação: o HTML já chega sem os zeros (19/09/2026)
   const aberto = usePregaoAberto();
   const resumo = estado.resumo;
+  const { total: emAberto } = useOperacoesEmAberto();
+  const rotuloEmAberto = rotuloOperacoesEmAberto(emAberto);
 
-  const posicionados =
-    resumo?.n_robos_posicionados ??
-    Object.values(estado.coleta).filter((c) => c.posicionado).length;
+  const posicionados = resumo?.n_robos_posicionados ?? contarPosicionados(Object.values(estado.coleta));
   const semDia = !aberto && (resumo?.n_operacoes ?? 0) === 0;
 
   const ultimoHeartbeat = Object.values(estado.coleta)
@@ -72,6 +77,12 @@ export function BarraAoVivo() {
             <span className="tabular-nums">
               {formatarNumero(posicionados)} {posicionados === 1 ? "robô posicionado" : "robôs posicionados"}
             </span>
+            {rotuloEmAberto ? (
+              <>
+                <Separador />
+                <span className="tabular-nums">{rotuloEmAberto}</span>
+              </>
+            ) : null}
           </>
         )}
 
