@@ -31,6 +31,15 @@ export interface RoboPublico {
   conta_tipo: "real" | "demo" | null;
   /** false = robô só com histórico importado, sem conta/coletor no MT5 */
   tem_coletor: boolean;
+  /**
+   * Regras que tiram operações da conta pública (spec §7; migrations 0016 e 0018): operação aberta antes de
+   * hora_minima_operacao (Brasília), ou de MT5 com menos de duracao_minima_seg a partir de duracao_minima_desde
+   * (nulo = histórico inteiro). Nulo = sem regra. O MEP/MEN medido pelo EA só vale num dia em que nenhuma
+   * operação ficou fora (exposicao_dia_publico já exclui esse dia; aqui é só para quem precisar saber).
+   */
+  hora_minima_operacao: string | null;
+  duracao_minima_seg: number | null;
+  duracao_minima_desde: string | null;
 }
 
 /** Linha de operacoes_publico */
@@ -54,6 +63,17 @@ export interface OperacaoPublica {
   dia_pregao: string;
   resultado_liquido_por_contrato: number;
   origem: "mt5" | "manual";
+  /**
+   * Excursão medida pelo EA 1.1.0 tick a tick (22/09/2026): máxima a favor (>= 0) e máxima contra (<= 0),
+   * em pontos por contrato, com o instante de cada extremo. Nulos quando não medido (EA antigo, importação
+   * manual, operação anterior ao EA 1.1.0). Opcionais: faltam em snapshot anterior à migration 0021.
+   */
+  mfe_pontos_por_contrato?: number | null;
+  mae_pontos_por_contrato?: number | null;
+  mfe_em?: string | null;
+  mae_em?: string | null;
+  /** true = o EA não viu a posição inteira (subiu com ela aberta): MFE/MAE podem estar subestimados */
+  excursao_parcial?: boolean | null;
 }
 
 /** Linha de posicoes_abertas_publico */
@@ -71,6 +91,12 @@ export interface PosicaoPublica {
    * contando 1 (21/09/2026). Opcional: falta em snapshot ou evento anteriores à migration 0020.
    */
   n_abertas?: number;
+  /**
+   * Excursão do grupo até agora, medida pelo EA 1.1.0 (22/09/2026): maior MFE e menor MAE entre os tickets
+   * do grupo, em pontos por contrato. Nulos sem medição. Opcionais: faltam antes da migration 0021.
+   */
+  mfe_pontos_por_contrato?: number | null;
+  mae_pontos_por_contrato?: number | null;
 }
 
 /** Linha de estatisticas_publico */
@@ -124,6 +150,33 @@ export interface ResumoCasa {
   gerado_em: string;
 }
 
+/**
+ * Linha de exposicao_dia_publico: MEP/MEN do dia medidos pelo EA 1.1.0 tick a tick (22/09/2026), em R$
+ * BRUTOS por contrato (realizado do dia + flutuante), agregados nos magics do robô na conta principal.
+ * Líquido = bruto - n_saidas x custo_por_contrato (n_saidas = ciclos fechados, não deals); pontos = /
+ * valor_ponto. Não existe linha para dia com importação manual, dia em que alguma operação do robô ficou
+ * fora da conta pública (hora/duração mínima: o saldo do EA não bateria com a curva) nem dia anterior ao
+ * EA 1.1.0: aí vale excursaoDoDia (por fechamento).
+ */
+export interface ExposicaoDiaPublica {
+  robo_id: string;
+  slug: string;
+  dia: string;
+  /** maior saldo do dia (>= 0) e instante em que ocorreu; null = nenhum magic mediu ainda */
+  mep_ea: number | null;
+  mep_ea_em: string | null;
+  /** quantas operações (ciclos) já tinham fechado no MEP: posição do marcador na curva (mep_ea_n_saidas / nOperacoes) */
+  mep_ea_n_saidas: number | null;
+  /** menor saldo do dia (<= 0) e instante em que ocorreu; null = nenhum magic mediu ainda */
+  men_ea: number | null;
+  men_ea_em: string | null;
+  men_ea_n_saidas: number | null;
+  /** true = algum magic já tinha deal antes de o EA subir naquele dia: extremos podem estar subestimados */
+  excursao_ea_parcial: boolean | null;
+  /** quantos magics do robô contribuíram */
+  n_magics: number;
+}
+
 /** Payload do evento "coleta" (topic casa e robo:<slug>) */
 export interface EventoColeta {
   slug: string;
@@ -131,6 +184,15 @@ export interface EventoColeta {
   posicionado: boolean;
   /** operações em aberto do robô no momento do heartbeat; opcional em evento anterior à migration 0020 */
   n_posicoes_abertas?: number;
+  /**
+   * MEP/MEN de hoje pelo EA (campos de exposicao_dia_publico, 22/09/2026). Nulos quando nenhum magic do
+   * robô mandou exposição hoje; opcionais em evento anterior à migration 0021.
+   */
+  mep_ea?: number | null;
+  men_ea?: number | null;
+  mep_ea_n_saidas?: number | null;
+  men_ea_n_saidas?: number | null;
+  excursao_ea_parcial?: boolean | null;
 }
 
 /** Payload do evento "cotacao" */

@@ -1,5 +1,6 @@
 import "server-only";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { excursaoDoDeal, type ExcursaoParaRegistrar } from "./excursoes";
 import { parearPosicao, type DealParaParear } from "./parear";
 import type { Deal } from "./schemas";
 
@@ -332,16 +333,39 @@ export async function repararPosicoes(
   return resultado;
 }
 
+/**
+ * MFE/MAE que o EA 1.1.0 mediu tick a tick. Upsert idempotente no banco (greatest/least), então
+ * reenvio do mesmo deal não estraga nada. Falha aqui NÃO derruba o deal: a excursão é acessória e um
+ * 500 devolveria o deal para a fila do EA, que é FIFO e travaria todos os deals seguintes atrás de um
+ * erro que se repete (ex.: migration ainda não aplicada).
+ */
+async function registrarExcursoes(contaId: string, itens: ExcursaoParaRegistrar[]): Promise<number> {
+  if (itens.length === 0) return 0;
+  try {
+    const { error } = await supabaseAdmin().rpc("registrar_excursoes", { p_conta_id: contaId, p: itens });
+    if (error) throw error;
+    return itens.length;
+  } catch (e) {
+    console.error("[ingest] falha ao registrar excursão (deal segue)", e);
+    return 0;
+  }
+}
+
 export async function processarDeal(contaId: string, deal: Deal) {
   const ctx = await carregarContexto(contaId);
   const gravacao = await gravarDeals(contaId, [deal], ctx);
+  // Antes de parear: a operação nasce com o join de excursoes_posicao preenchido, e o evento
+  // "operacao" (to_jsonb da linha de operacoes_publico) já sai com MFE/MAE.
+  const excursao = excursaoDoDeal(deal);
+  const excursoes = await registrarExcursoes(contaId, excursao ? [excursao] : []);
   const pareamento =
     deal.posicao_id > 0 && (deal.tipo === "buy" || deal.tipo === "sell")
       ? await repararPosicoes(contaId, [deal.posicao_id], ctx)
       : { operacoes: 0, posicoes_abertas: 0, sem_prefixo: 0 };
-  return { ...gravacao, ...pareamento };
+  return { ...gravacao, ...pareamento, excursoes };
 }
 
+/** Página de histórico: nunca registra excursão (o EA não a manda no history; se vier, é ignorada). */
 export async function processarHistorico(contaId: string, deals: Deal[]) {
   const ctx = await carregarContexto(contaId);
   const gravacao = await gravarDeals(contaId, deals, ctx);

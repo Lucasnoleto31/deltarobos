@@ -27,4 +27,12 @@ describe("rate limit", () => {
     expect(permitirEndpoint("conta-b", "history", t0 + limite + 1).ok).toBe(true);
     expect(permitirEndpoint("conta-a", "heartbeat", t0 + limite + 1).ok).toBe(true);
   });
+
+  it("candles (EA 1.1.0) tem limite próprio de 20/min, separado do heartbeat", () => {
+    const t0 = 1_000_000;
+    expect(LIMITES_POR_MINUTO.candles).toBe(20);
+    for (let i = 0; i < 20; i++) expect(permitirEndpoint("conta-a", "candles", t0 + i).ok).toBe(true);
+    expect(permitirEndpoint("conta-a", "candles", t0 + 21).ok).toBe(false);
+    expect(permitirEndpoint("conta-a", "heartbeat", t0 + 21).ok).toBe(true);
+  });
 });

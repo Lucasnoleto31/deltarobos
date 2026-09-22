@@ -11,6 +11,7 @@ export const LIMITES_POR_MINUTO = {
   history: 60, // 1 página a cada 3 s = 20/min; folga pra reenvios
   reconciliar: 5,
   ping: 30,
+  candles: 20, // 1 página por minuto por símbolo (barra M1 fechada); folga pro backfill em páginas de 200
 } as const;
 
 export type EndpointIngest = keyof typeof LIMITES_POR_MINUTO;
