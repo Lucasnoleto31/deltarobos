@@ -65,3 +65,8 @@ export function periodoInicial(
   if (agora.operacoesHoje > 0 || agora.pregaoAberto) return "hoje";
   return PERIODOS_FECHADOS.find((p) => noPeriodo(linhas, p, hoje).some((l) => l.n_operacoes > 0)) ?? "hoje";
 }
+
+/** O período como chega na URL de /api/robos/[slug]/curva/[periodo]: só os quatro fechados valem. */
+export function ehPeriodoFechado(v: unknown): v is PeriodoFechado {
+  return typeof v === "string" && (PERIODOS_FECHADOS as readonly string[]).includes(v);
+}

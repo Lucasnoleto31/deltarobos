@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo, useState } from "react";
+import { startTransition, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Valor } from "@/components/compartilhados/Valor";
 import { formatarNumero, formatarPontos } from "@/lib/formato";
 import type { OperacaoCompacta } from "@/lib/stats/operacoes";
@@ -15,7 +15,7 @@ import {
   PROFIT,
   type PontoDoDesenho,
 } from "./CurvaProfit";
-import { rotulosDeData, seriePorDia, seriePorOperacao } from "./series-da-curva";
+import { extremosPorOperacao, rotulosDeData, seriePorDia, seriePorOperacao } from "./series-da-curva";
 
 interface Props {
   /** série já filtrada pelo período desejado */
@@ -23,15 +23,30 @@ interface Props {
   opcoes: OpcoesSerie;
   altura?: number;
   mostrarResumo?: boolean;
-  /** operações do mesmo período: liga a aba "Por operação" (a série é montada aqui) */
+  /** operações do mesmo período: liga a aba "Por operação" (a série é montada aqui, quando a aba abre) */
   operacoes?: readonly OperacaoCompacta[];
-  /** a série por operação já montada (a visão geral monta no servidor e manda só os pontos) */
+  /** a série por operação já montada (a visão geral monta no servidor e manda só os pontos da leve) */
   pontosPorOperacao?: PontoDoDesenho[];
+  /**
+   * Busca a série por operação completa (uma operação por ponto) quando a aba "Por operação" abre:
+   * `pontosPorOperacao` é a leve, que pinta na hora e fica até a completa chegar. Uma chamada por
+   * carregador, guardada nesta instância (alternar as abas não pede de novo). Null deixa a leve de
+   * vez; erro (promessa rejeitada) deixa a leve e a próxima abertura da aba tenta de novo. O sinal
+   * cancela o pedido quando a instância desmonta. Quem troca de período troca o carregador.
+   */
+  carregarPorOperacao?: (sinal: AbortSignal) => Promise<PontoDoDesenho[] | null>;
+  /**
+   * Valores que entram na régua vertical além dos pontos desenhados: os extremos da série completa
+   * (SerieCompacta.extremos), para a leve e a fiel dividirem a mesma escala. Com `operacoes`, os
+   * extremos saem delas aqui mesmo.
+   */
+  escalaExtra?: readonly number[];
   /** com que agrupamento abre (padrão: por dia) */
   modoInicial?: Modo;
 }
 
 type Modo = "operacao" | "dia";
+type Carregador = NonNullable<Props["carregarPorOperacao"]>;
 const MODOS: Array<[Modo, string]> = [
   ["operacao", "Por operação"],
   ["dia", "Por dia"],
@@ -59,16 +74,42 @@ export function CurvaCapital({
   mostrarResumo = true,
   operacoes,
   pontosPorOperacao,
+  carregarPorOperacao,
+  escalaExtra,
   modoInicial = "dia",
 }: Props) {
   const id = `curva-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   // abre por dia, como no Hub: a linha limpa é a do fechamento de cada pregão
   const [modo, setModo] = useState<Modo>(modoInicial);
+  // A série montada das operações (aba Desempenho: até 20 mil pontos com a dica escrita) só se monta
+  // quando "Por operação" abre pela primeira vez (22/09/2026): antes era montada na hidratação e a cada
+  // troca de filtro, mesmo com "Por dia" na tela, e pesava no celular. Uma vez aberta, fica montada:
+  // alternar as abas não refaz.
+  const [abriuPorOperacao, setAbriuPorOperacao] = useState(modoInicial === "operacao");
+  const escolherModo = (m: Modo) => {
+    setModo(m);
+    if (m === "operacao") setAbriuPorOperacao(true);
+  };
+
+  // A série completa, pedida uma vez por carregador ao abrir "Por operação" (22/09/2026). A carga diz
+  // de que carregador veio: carregador novo (outro período) é outra carga, e a anterior não vale.
+  // `pontos` null é erro ou resposta vazia: fica a leve. "Carregando" não é estado: enquanto o modo é
+  // por operação, há carregador e a carga dele não chegou, está carregando.
+  const [carga, setCarga] = useState<{ carregador: Carregador; pontos: PontoDoDesenho[] | null } | null>(null);
+  const pedido = useRef<Carregador | null>(null);
+  const emVoo = useRef<AbortController | null>(null);
+  const cargaAtual = carga !== null && carga.carregador === carregarPorOperacao ? carga : null;
 
   const porDia = useMemo(() => seriePorDia(linhas, opcoes), [linhas, opcoes]);
-  const porOperacao = useMemo(
-    () => pontosPorOperacao ?? (operacoes ? seriePorOperacao(operacoes, opcoes, porDia.dias) : null),
-    [pontosPorOperacao, operacoes, opcoes, porDia.dias],
+  const porOperacao = useMemo(() => {
+    if (cargaAtual?.pontos) return cargaAtual.pontos;
+    if (pontosPorOperacao) return pontosPorOperacao;
+    return operacoes && abriuPorOperacao ? seriePorOperacao(operacoes, opcoes, porDia.dias) : null;
+  }, [cargaAtual, pontosPorOperacao, operacoes, abriuPorOperacao, opcoes, porDia.dias]);
+  // os extremos de todas as operações: a régua é a mesma antes e depois de a série por operação existir
+  const extremos = useMemo(
+    () => escalaExtra ?? (operacoes ? extremosPorOperacao(operacoes, opcoes) : []),
+    [escalaExtra, operacoes, opcoes],
   );
   const dd = useMemo(() => drawdownMaximo(porDia.curva), [porDia.curva]);
 
@@ -96,16 +137,58 @@ export function CurvaCapital({
   const curva = porDia.curva;
   const acumulado = curva.length > 0 ? curva[curva.length - 1].acumulado : 0;
   const unidade = opcoes.unidade;
-  const temAbas = porOperacao !== null && porOperacao.length > 0;
+  // as abas existem quando há operações para a segunda, montada ou não
+  const temAbas = (cargaAtual?.pontos?.length ?? pontosPorOperacao?.length ?? operacoes?.length ?? 0) > 0;
   const modoAtivo: Modo = temAbas ? modo : "dia";
+
+  useEffect(() => {
+    if (!carregarPorOperacao || modoAtivo !== "operacao" || pedido.current === carregarPorOperacao) return;
+    pedido.current = carregarPorOperacao;
+    emVoo.current?.abort();
+    const controle = new AbortController();
+    emVoo.current = controle;
+    carregarPorOperacao(controle.signal).then(
+      (pontos) => {
+        // a resposta de um pedido cancelado, ou de um carregador que o pai já trocou, não vale mais
+        if (controle.signal.aborted || pedido.current !== carregarPorOperacao) return;
+        // até 20 mil pontos: em transição, para a mira e o clique não travarem enquanto o traçado é refeito
+        startTransition(() => setCarga({ carregador: carregarPorOperacao, pontos: pontos && pontos.length > 0 ? pontos : null }));
+      },
+      () => {
+        if (controle.signal.aborted || pedido.current !== carregarPorOperacao) return;
+        // falhou (rede, 503 do banco): fica a leve, e a próxima abertura de "Por operação" pede de novo
+        pedido.current = null;
+        setCarga({ carregador: carregarPorOperacao, pontos: null });
+      },
+    );
+  }, [carregarPorOperacao, modoAtivo]);
+  // Desmontar (trocar de período troca a instância) cancela o pedido em voo: Semana, Mês, Ano, Tudo em
+  // sequência não deixam quatro respostas de 700 KB chegando e expandindo em componentes mortos. Zerar
+  // `pedido` é pelo StrictMode, que monta, desmonta e monta de novo: sem isso a segunda montagem acharia
+  // o pedido já feito (e cancelado) e nunca pediria.
+  useEffect(
+    () => () => {
+      emVoo.current?.abort();
+      pedido.current = null;
+    },
+    [],
+  );
+  const carregando = modoAtivo === "operacao" && carregarPorOperacao !== undefined && cargaAtual === null;
+
   const pontos = modoAtivo === "dia" ? pontosDia : (pontosOperacao ?? []);
   const cores = modoAtivo === "dia" ? CURVA_POR_DIA : CURVA_POR_OPERACAO;
-  // a escala cobre as duas séries: trocar de aba não muda a régua
-  const escalaDe = [...pontosDia.map((p) => p.acumulado), ...(pontosOperacao ?? []).map((p) => p.acumulado)];
+  // A escala cobre as duas séries e os extremos de todas as operações: trocar de aba não muda a régua, e
+  // a completa chega na régua da leve (com a completa são até 20 mil pontos: memo). No zoom só o trecho
+  // conta, senão o trecho ampliado ficaria com a régua do todo.
+  const escalaDe = useMemo(
+    () => [...pontosDia.map((p) => p.acumulado), ...(pontosOperacao ?? []).map((p) => p.acumulado), ...(zoom ? [] : extremos)],
+    [pontosDia, pontosOperacao, extremos, zoom],
+  );
 
   const alturaDaCurva = Math.round(altura * 0.66);
   const alturaDoDrawdown = Math.max(56, Math.round(altura * 0.26));
-  const formatarEixo = (v: number) => (unidade === "brl" ? escalaEmReais(v) : formatarPontos(v));
+  // referência estável: o desenho guarda o traçado (até 20 mil pontos) enquanto os props não mudam
+  const formatarEixo = useCallback((v: number) => (unidade === "brl" ? escalaEmReais(v) : formatarPontos(v)), [unidade]);
   const base = opcoes.base === "liquido" ? "líquido" : "bruto";
 
   return (
@@ -138,6 +221,11 @@ export function CurvaCapital({
         </dl>
       ) : null}
 
+      {/* a legenda da moldura é aria-hidden: o aviso de carga vai também numa região de status, só para leitor de tela */}
+      <span role="status" className="sr-only">
+        {carregando ? "Carregando a curva operação a operação." : ""}
+      </span>
+
       {pontos.length === 0 && zoom ? (
         <div className="grid place-items-center gap-2 text-sm text-muted-foreground" style={{ height: altura }}>
           Nenhum ponto nesse trecho.
@@ -159,6 +247,8 @@ export function CurvaCapital({
                 {modoAtivo === "dia" ? "Por dia" : "Por operação"} · {opcoes.contratos ?? 1}{" "}
                 {(opcoes.contratos ?? 1) === 1 ? "contrato" : "contratos"}, {base}
               </span>
+              {/* a leve (um ponto por fatia de operações) fica na tela enquanto a completa vem; só o aviso, sem spinner */}
+              {carregando ? <span>carregando operação a operação…</span> : null}
               <span className="inline-flex items-center gap-1.5">
                 <span className="size-2" style={{ background: PROFIT.baixa, opacity: 0.62 }} />
                 Drawdown
@@ -196,7 +286,7 @@ export function CurvaCapital({
                     <button
                       type="button"
                       aria-pressed={modo === chave}
-                      onClick={() => setModo(chave)}
+                      onClick={() => escolherModo(chave)}
                       className="h-7 rounded-[3px] px-4 outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-inset"
                       style={modo === chave ? { background: PROFIT.abaAtiva, color: PROFIT.titulo } : { color: PROFIT.abaTexto }}
                     >
@@ -208,8 +298,9 @@ export function CurvaCapital({
             ) : undefined
           }
         >
+          {/* sem key de propósito: o desenho guarda a fração do ponteiro, não o índice, então a completa no lugar da
+              leve, a troca de aba e o zoom trocam a lista sem remontar; a mira e um arrasto em andamento não se perdem */}
           <DesenhoDaCurva
-            key={`${modoAtivo}-${zoom ? `${zoom.de}-${zoom.ate}` : "tudo"}`}
             id={`${id}-${modoAtivo}`}
             pontos={pontos}
             aoSelecionar={(de, ate) => setZoom((z) => (z ? { de: z.de + de * (z.ate - z.de), ate: z.de + ate * (z.ate - z.de) } : { de, ate }))}

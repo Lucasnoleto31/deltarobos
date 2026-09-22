@@ -1,15 +1,11 @@
 import Link from "next/link";
 import { comMarcaAtual } from "@/components/compartilhados/marca";
-import { seriePorDia, seriePorOperacaoCompacta, type SerieCompacta } from "@/components/graficos/series-da-curva";
+import { PONTOS_LEVE, seriePorOperacaoCompacta, type SerieCompacta } from "@/components/graficos/series-da-curva";
+import { opcoesDaCurva, recorteDoPeriodo } from "@/components/robo/curva-por-periodo";
 import { Disclaimer } from "@/components/robo/Disclaimer";
 import { KpisRobo } from "@/components/robo/KpisRobo";
 import { PainelResultado } from "@/components/robo/PainelResultado";
-import {
-  PERIODOS_FECHADOS,
-  inicioDoPeriodo,
-  noPeriodo,
-  type PeriodoFechado,
-} from "@/components/robo/periodos-resumo";
+import { PERIODOS_FECHADOS, type PeriodoFechado } from "@/components/robo/periodos-resumo";
 import { Transparencia } from "@/components/robo/Transparencia";
 import { UltimasOperacoes } from "@/components/robo/UltimasOperacoes";
 import { buttonVariants } from "@/components/ui/button";
@@ -21,7 +17,6 @@ import {
   listarUltimasOperacoes,
 } from "@/lib/consultas/publico";
 import { formatarData } from "@/lib/formato";
-import { dia as diaDaOperacao } from "@/lib/stats/operacoes";
 import { hojeSP } from "@/lib/stats/periodos";
 import type { LinhaDiaria } from "@/lib/stats/tipos";
 
@@ -46,20 +41,20 @@ export default async function PaginaRobo({ params }: Props) {
   if (!robo) return null; // o layout já tratou o 404
 
   // Curva "por operação": as operações (dezenas de milhares) não vão para o navegador. A série de
-  // cada período é montada aqui, já reduzida aos 240 pontos do desenho, e só os números deles seguem;
-  // a dica é escrita no navegador (18/09/2026: com ela pronta, as quatro séries eram 54% do HTML).
-  const opcoesDaCurva = { base: "liquido" as const, unidade: "brl" as const, valorPonto: robo.valor_ponto_brl };
+  // cada período é montada aqui na versão leve (PONTOS_LEVE pontos), para pintar na hora, e só os
+  // números dela seguem; a dica é escrita no navegador (18/09/2026: com ela pronta, as quatro séries
+  // eram 54% do HTML). A série fiel, operação a operação, vem sob demanda pela rota
+  // /api/robos/[slug]/curva/[periodo] (22/09/2026), montada com o mesmo recorte (recorteDoPeriodo).
+  const opcoes = opcoesDaCurva(robo.valor_ponto_brl);
   // Os períodos se encaixam (semana dentro do mês, do ano, de tudo) e todos terminam hoje: mesma contagem
   // de operações e de dias é o mesmo recorte. Aí vai o mesmo objeto, que o React serializa uma vez só
   // ("ano" e "tudo" enquanto o robô tiver começado no ano corrente).
   const jaMontadas = new Map<string, SerieCompacta>();
   const pontosPorOperacao = Object.fromEntries(
     PERIODOS_FECHADOS.map((periodo) => {
-      const inicio = inicioDoPeriodo(periodo, hoje);
-      const opsDoPeriodo = ops.filter((op) => diaDaOperacao(op) <= hoje && (inicio === null || diaDaOperacao(op) >= inicio));
-      const dias = seriePorDia(noPeriodo(linhas, periodo, hoje), opcoesDaCurva).dias;
+      const { ops: opsDoPeriodo, dias } = recorteDoPeriodo(ops, linhas, periodo, hoje, opcoes);
       const chave = `${opsDoPeriodo.length}:${dias.length}`;
-      const serie = jaMontadas.get(chave) ?? seriePorOperacaoCompacta(opsDoPeriodo, opcoesDaCurva, dias);
+      const serie = jaMontadas.get(chave) ?? seriePorOperacaoCompacta(opsDoPeriodo, opcoes, dias, { maxPontos: PONTOS_LEVE });
       jaMontadas.set(chave, serie);
       return [periodo, serie];
     }),

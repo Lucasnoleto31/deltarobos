@@ -64,6 +64,18 @@ export async function listarOperacoes(slug: string, f: FiltrosOperacoes = {}): P
   }
 }
 
+export interface OpcoesCompactas {
+  limite?: number;
+  /** só operações com dia de pregão a partir daqui (YYYY-MM-DD); a rota da curva pede só o período */
+  de?: string | null;
+  /**
+   * Deixa o erro do banco subir em vez de devolver lista vazia. A página trata falha como "sem
+   * operação" para nunca quebrar; a rota da curva, que fica em cache, precisa distinguir para não
+   * guardar uma série vazia como se fosse resposta boa (22/09/2026).
+   */
+  lancarErro?: boolean;
+}
+
 /**
  * Operações compactas pras estatísticas por operação (distribuições,
  * sequências, por símbolo). Pega as mais recentes até o limite, em ordem
@@ -71,7 +83,7 @@ export async function listarOperacoes(slug: string, f: FiltrosOperacoes = {}): P
  */
 export async function listarOperacoesCompactas(
   slug: string,
-  limite = LIMITE_COMPACTAS,
+  { limite = LIMITE_COMPACTAS, de = null, lancarErro = false }: OpcoesCompactas = {},
 ): Promise<OperacaoCompacta[]> {
   try {
     const sb = supabasePublico();
@@ -81,30 +93,29 @@ export async function listarOperacoesCompactas(
 
     // Quantas páginas existem? Uma consulta só de contagem, depois todas as páginas em paralelo:
     // dezenas de milhares de operações deixam de custar uma ida ao banco por página.
-    const { count, error: erroContagem } = await sb
-      .from("operacoes_publico")
-      .select("id", { count: "exact", head: true })
-      .eq("slug", slug);
+    let contagem = sb.from("operacoes_publico").select("id", { count: "exact", head: true }).eq("slug", slug);
+    if (de) contagem = contagem.gte("dia_pregao", de);
+    const { count, error: erroContagem } = await contagem;
     if (erroContagem) throw erroContagem;
     const total = Math.min(count ?? 0, limite);
     if (total === 0) return [];
 
     const inicios = Array.from({ length: Math.ceil(total / passo) }, (_, i) => i * passo);
     const paginas = await Promise.all(
-      inicios.map(async (de) => {
-        const { data, error } = await sb
-          .from("operacoes_publico")
-          .select(colunas)
-          .eq("slug", slug)
+      inicios.map(async (desde) => {
+        let q = sb.from("operacoes_publico").select(colunas).eq("slug", slug);
+        if (de) q = q.gte("dia_pregao", de);
+        const { data, error } = await q
           .order("fechamento_em", { ascending: false })
           .order("id", { ascending: false })
-          .range(de, Math.min(de + passo, total) - 1);
+          .range(desde, Math.min(desde + passo, total) - 1);
         if (error) throw error;
         return (data ?? []) as Array<Parameters<typeof compactar>[0]>;
       }),
     );
     return paginas.flat().reverse().map(compactar);
   } catch (e) {
+    if (lancarErro) throw e;
     avisar("listarOperacoesCompactas", e);
     return [];
   }

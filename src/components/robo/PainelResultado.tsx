@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { AtualizadoHa } from "@/components/compartilhados/AtualizadoHa";
 import type { ChaveIndicador } from "@/components/compartilhados/glossario";
 import { InfoIndicador, RotuloComInfo } from "@/components/compartilhados/InfoIndicador";
@@ -11,6 +11,7 @@ import { expandirSerie, type SerieCompacta } from "@/components/graficos/series-
 import { formatarBRL, formatarData, formatarDataLonga, formatarNumero, formatarPct } from "@/lib/formato";
 import { calcularKpis } from "@/lib/stats/kpis";
 import type { LinhaDiaria, OpcoesSerie } from "@/lib/stats/tipos";
+import { mesmoRecorte } from "./curva-por-periodo";
 import { HojeAoVivo } from "./HojeAoVivo";
 import {
   PERIODOS_RESUMO,
@@ -35,7 +36,7 @@ const INFO_DO_PERIODO: Record<PeriodoResumo, ChaveIndicador> = {
 interface Props {
   /** a série diária inteira; o recorte por período é feito aqui */
   linhas: LinhaDiaria[];
-  /** a curva por operação de cada período, já reduzida aos pontos do desenho (montada no servidor, só os números) */
+  /** a curva por operação leve de cada período (até PONTOS_LEVE pontos, montada no servidor, só os números); a completa vem da rota /curva ao abrir "Por operação" */
   pontosPorOperacao: Record<PeriodoFechado, SerieCompacta>;
   valorPonto: number;
   capitalReferencia: number | null;
@@ -100,6 +101,7 @@ export function PainelResultado({ linhas, pontosPorOperacao, valorPonto, capital
         <ResultadoDoPeriodo
           key={periodo}
           periodo={periodo}
+          slug={robo.slug}
           linhas={linhas}
           serie={pontosPorOperacao[periodo]}
           valorPonto={valorPonto}
@@ -151,6 +153,7 @@ function Azulejo({
 
 function ResultadoDoPeriodo({
   periodo,
+  slug,
   linhas,
   serie,
   valorPonto,
@@ -158,7 +161,9 @@ function ResultadoDoPeriodo({
   hoje,
 }: {
   periodo: PeriodoFechado;
+  slug: string;
   linhas: LinhaDiaria[];
+  /** a série leve do período; a completa é pedida à rota quando a curva abre "Por operação" */
   serie: SerieCompacta;
   valorPonto: number;
   capitalReferencia: number | null;
@@ -169,6 +174,24 @@ function ResultadoDoPeriodo({
   const k = useMemo(() => calcularKpis(recorte, opcoes, { hoje, capitalReferencia }), [recorte, opcoes, hoje, capitalReferencia]);
   // a dica de cada ponto é escrita aqui, com as mesmas funções que o servidor usava (240 pontos, custo nulo)
   const pontos = useMemo(() => expandirSerie(serie, opcoes), [serie, opcoes]);
+  // A série do HTML é a leve: em período longo cada ponto junta operações (22/09/2026, Lucas: "o gráfico
+  // por operações está igual por dia"). Ao abrir "Por operação" a curva pede a completa, uma operação por
+  // ponto, à rota /api/robos/[slug]/curva/[periodo] (mesmo recorte, cache de 60 s) e escreve as dicas aqui.
+  // Quando a leve já tem uma operação por ponto (menos operações que pontos), não há o que pedir.
+  const jaCompleta = serie.total <= serie.pontos.length;
+  const carregarPorOperacao = useCallback(
+    async (sinal: AbortSignal) => {
+      const resposta = await fetch(`/api/robos/${encodeURIComponent(slug)}/curva/${periodo}`, { signal: sinal });
+      // a rota responde 503 sem cache quando o banco falha: a curva fica na leve e a próxima abertura tenta de novo
+      if (!resposta.ok) throw new Error(`curva ${periodo}: HTTP ${resposta.status}`);
+      const completa: unknown = await resposta.json();
+      // A rota é outra foto do banco (cache próprio): se chegou operação ou pregão novo desde que a página
+      // foi montada, a completa não casa com a leve, com o eixo por dia nem com os números ao lado. Fica a leve.
+      if (!mesmoRecorte(serie, completa)) return null;
+      return expandirSerie(completa, opcoes);
+    },
+    [slug, periodo, opcoes, serie],
+  );
 
   if (recorte.length === 0) {
     return <p className="px-4 py-10 text-center text-sm text-muted-foreground">{VAZIO_DO_PERIODO[periodo]}</p>;
@@ -255,6 +278,9 @@ function ResultadoDoPeriodo({
           altura={330}
           mostrarResumo={false}
           pontosPorOperacao={pontos}
+          carregarPorOperacao={jaCompleta ? undefined : carregarPorOperacao}
+          // os extremos de todas as operações: a completa chega na mesma régua da leve, sem o gráfico pular
+          escalaExtra={serie.extremos}
           // semana e mês têm poucos pregões: a curva por operação é a que mostra alguma coisa
           modoInicial={periodo === "semana" || periodo === "mes" ? "operacao" : "dia"}
         />

@@ -53,24 +53,32 @@ export async function buscarRobo(slug: string): Promise<RoboPublico | null> {
   }
 }
 
+export interface OpcoesEstatisticas {
+  /** só dias a partir daqui (YYYY-MM-DD); a rota da curva pede só o período */
+  de?: string | null;
+  /** deixa o erro do banco subir em vez de devolver lista vazia (a rota da curva, em cache, precisa distinguir) */
+  lancarErro?: boolean;
+}
+
 /**
  * Série diária completa (todos os robôs, ou um). O PostgREST devolve no máximo
  * 1.000 linhas por requisição, então pagina até acabar (robô com anos de
  * histórico passa fácil de 1.000 dias).
  */
-export async function listarEstatisticas(slug?: string): Promise<EstatisticaPublica[]> {
+export async function listarEstatisticas(slug?: string, { de = null, lancarErro = false }: OpcoesEstatisticas = {}): Promise<EstatisticaPublica[]> {
   try {
     const sb = supabasePublico();
     const passo = 1000;
     const linhas: EstatisticaPublica[] = [];
-    for (let de = 0; de < 100_000; de += passo) {
+    for (let desde = 0; desde < 100_000; desde += passo) {
       let q = sb
         .from("estatisticas_publico")
         .select("*")
         .order("dia", { ascending: true })
         .order("robo_id", { ascending: true })
-        .range(de, de + passo - 1);
+        .range(desde, desde + passo - 1);
       if (slug) q = q.eq("slug", slug);
+      if (de) q = q.gte("dia", de);
       const { data, error } = await q;
       if (error) throw error;
       const lote = (data ?? []) as EstatisticaPublica[];
@@ -79,6 +87,7 @@ export async function listarEstatisticas(slug?: string): Promise<EstatisticaPubl
     }
     return linhas;
   } catch (e) {
+    if (lancarErro) throw e;
     avisar("listarEstatisticas", e);
     return [];
   }
