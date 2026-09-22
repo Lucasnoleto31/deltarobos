@@ -41,6 +41,7 @@
 - `/metodologia` como cada métrica é calculada
 - `/embed/[slug]` widget pra colar em outros sites
 - `/api/og/[slug]` imagem OG dinâmica com resultado do dia (pra link no WhatsApp)
+- `/api/robos/[slug]/curva/[periodo]` curva por operação completa do período (JSON, só dados públicos, cache de 60 s), carregada sob demanda pela página do robô quando o visitante abre "Por operação"
 
 ### Cliente (login)
 - `/login`, `/cadastro`, `/esqueci-senha`
@@ -112,7 +113,7 @@
 - Valor do ponto (configurável na tabela `multiplicadores`): WIN = R$ 0,20 por ponto por contrato; WDO = R$ 10,00 por ponto por contrato. O símbolo real muda de série todo vencimento (WINV26, WINZ26...), então mapear pelo prefixo.
 - Custos: `custo_por_contrato` por robô (corretagem + emolumentos). Exibir líquido por padrão, com toggle bruto/líquido.
 - Métricas: resultado do dia, mês, ano, acumulado, média mensal; drawdown máximo em R$ por contrato e em % sobre `capital_referencia`; tempo de recuperação do drawdown; taxa de acerto; fator de lucro; payoff; nº de operações; média de operações por dia; melhor e pior dia; dias positivos x negativos; maior sequência de gains e de losses; resultado por dia da semana e por hora; histograma por operação; capital mínimo recomendado = margem por contrato + drawdown máximo x fator de segurança (configurável, padrão 1,5).
-- Curva de capital acumulada por contrato, ponto a ponto por dia, com drawdown desenhado embaixo.
+- Curva de capital acumulada por contrato, ponto a ponto por dia ou operação a operação (detalhe na seção 8.2), com drawdown desenhado embaixo.
 - Períodos: 7d, 30d, 3m, 12m, ano atual, tudo, personalizado.
 - Calendário diário (verde/vermelho) e heatmap ano x mês.
 - **MEP e MEN do dia.** MEP = máxima exposição positiva do dia = o maior valor positivo que o saldo líquido acumulado do dia atingiu, por 1 contrato, medido a cada fechamento de operação (sem o resultado não realizado); MEN = máxima exposição negativa = o menor valor negativo do mesmo acumulado. Se o acumulado nunca ficou positivo, MEP = 0 e não há operação do MEP; idem para o MEN. Em empate vale a primeira operação em que o extremo ocorreu. É sempre igual ou menor (em módulo) que o MEP/MEN do Profit, que acompanha tick a tick; a interface e a Metodologia dizem isso com honestidade, sem fingir que é o número do Profit.
@@ -145,7 +146,7 @@ No celular, os itens 1, 2, 3 e 8 ficam acima da dobra. Na v1 entram 1, 2, 3, 8, 
 - Cabeçalho: nome, ativo, descrição pública, horário, contratos padrão, "conta real desde", status ao vivo, "última operação há X min"
 - Hoje ao vivo: resultado do dia em pontos e R$, posição aberta (lado, preço, flutuante), operações em aberto (número de entradas ainda abertas na conta principal, nunca contratos), operações do dia entrando na hora
 - KPIs (cards): acumulado, mês, média mensal, drawdown máximo, taxa de acerto, fator de lucro, payoff, nº de operações, melhor e pior dia, dias positivos x negativos, maior sequência de perdas
-- Curva de capital com drawdown, filtros de período, toggle pontos/R$, toggle bruto/líquido, seletor de contratos ("com 5 contratos seria...")
+- Curva de capital com drawdown, filtros de período, toggle pontos/R$, toggle bruto/líquido, seletor de contratos ("com 5 contratos seria..."), abas "Por dia" e "Por operação". "Por operação" liga um ponto a cada operação fechada, uma operação por ponto até 20 mil operações no período; acima disso agrupa operações vizinhas. Na Visão geral a página chega com a série leve de 240 pontos, que pinta na hora, e a série completa é carregada sob demanda pela rota `/api/robos/[slug]/curva/[periodo]` (cache de 60 s) quando o visitante abre "Por operação"; a aba Desempenho e o calendário, que já têm as operações no navegador, desenham na resolução fiel direto. O drawdown por operação pode ser maior que o por dia, porque passa pelo saldo no meio do pregão.
 - Mensal: heatmap ano x mês
 - Diário: calendário do mês; o detalhe do dia mostra MEP e MEN (regra na seção 7)
 - Distribuição: dia da semana, hora do dia, histograma por operação

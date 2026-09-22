@@ -150,6 +150,17 @@ gera o PDF (`@react-pdf/renderer`, resumo + por dia + por série + todas as oper
 `/api/relatorios/<slug>/<YYYY-MM>/csv` o CSV, ambos a partir de `operacoes_publico`. Meses
 fechados ficam em cache por um dia.
 
+### Curva de capital por operação
+
+Na curva de capital, a aba "Por operação" liga um ponto a cada operação fechada, até 20 mil operações
+no período (`PONTOS_FIEL` em `src/components/graficos/series-da-curva.ts`); acima disso o site agrupa
+operações vizinhas. A Visão geral do robô chega com a série leve de 240 pontos (`PONTOS_LEVE`), que
+pinta na hora, e quando o visitante abre "Por operação" busca a série completa em
+`/api/robos/<slug>/curva/<periodo>` (`periodo` em `PERIODOS_FECHADOS`, hoje `semana`, `mes`, `ano` e
+`tudo`): JSON só com dados públicos, montado com as mesmas funções da página, em cache por 60 s
+(404 para robô inexistente, 400 para período inválido). A aba Desempenho e o calendário já têm as
+operações no navegador e desenham na resolução fiel direto.
+
 ### Regras de segurança do schema
 
 - RLS em toda tabela. `anon` só lê as views `*_publico` e chama `resumo_casa_hoje()`.
@@ -199,6 +210,7 @@ supabase/migrations/      schema (9 migrations, ordem numérica)
 supabase/seed.sql         dados iniciais
 src/app/(site)/           home e /robos/[slug]
 src/app/api/ingest/       ping, deal, heartbeat, history
+src/app/api/robos/        curva por operação de cada período (JSON público, cache 60 s)
 src/components/           ui (shadcn), layout, home, robo, graficos, compartilhados
 src/hooks/                realtime (useRoboAoVivo, useCasaAoVivo), relógio
 src/lib/stats/            cálculo puro + testes (curva, drawdown, KPIs, períodos, pregão, status)

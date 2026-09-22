@@ -219,6 +219,12 @@ export default function PaginaMetodologia() {
             valor que ela já tinha atingido. O drawdown máximo é a maior dessas distâncias no período, em reais por
             contrato e, quando há capital de referência, em porcentagem dele.
           </Indicador>
+          <p>
+            Na aba &quot;Por operação&quot; da curva, cada ponto é uma operação fechada, ligada à seguinte, uma a uma (até
+            20 mil operações no período; acima disso o site agrupa operações vizinhas). Como essa curva passa pelo saldo no
+            meio de cada pregão, o drawdown por operação pode ser maior que o drawdown por dia, que só olha o fechamento de
+            cada dia.
+          </p>
           <Indicador chave="tempoRecuperacao" nome>
             os dias corridos entre o último dia no topo e o primeiro dia em que a curva voltou a ele. Se ainda não voltou,
             aparece &quot;em recuperação&quot;.
