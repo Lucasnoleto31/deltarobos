@@ -58,6 +58,8 @@ export type ChaveIndicador =
   // o dia por dentro
   | "mep"
   | "men"
+  | "mfe"
+  | "mae"
   | "flutuante"
   | "posicionados"
   | "operacoesEmAberto"
@@ -282,13 +284,24 @@ export const GLOSSARIO: Record<ChaveIndicador, EntradaGlossario> = {
   },
 
   // ── o dia por dentro ─────────────────────────────────────────────────────────────────────────────
+  // 22/09/2026: duas fontes. Nos dias que o coletor 1.1.0 acompanhou, o número é medido no MetaTrader a
+  // cada movimento do preço, com a posição aberta (o mesmo do Profit); nos outros, é conferido a cada
+  // operação fechada (lib/stats/operacoes, excursaoDoDia). A tela diz qual foi a fonte do dia mostrado.
   mep: {
     nome: "MEP (máxima exposição positiva)",
-    texto: "O ponto mais alto que o saldo do dia alcançou, conferido a cada operação fechada. Posições ainda abertas não entram na conta.",
+    texto: "O ponto mais alto que o saldo do dia alcançou. Nos dias que o coletor acompanhou, é medido a cada movimento do preço, com a posição aberta; nos outros, conferido a cada operação fechada.",
   },
   men: {
     nome: "MEN (máxima exposição negativa)",
-    texto: "O ponto mais baixo que o saldo do dia alcançou, conferido a cada operação fechada. Mostra o quanto o dia chegou a ficar no prejuízo.",
+    texto: "O ponto mais baixo que o saldo do dia alcançou: o quanto o dia chegou a ficar no prejuízo. Nos dias que o coletor acompanhou, é medido a cada movimento do preço; nos outros, a cada operação fechada.",
+  },
+  mfe: {
+    nome: "MFE (máxima excursão favorável)",
+    texto: "O máximo que o preço andou a favor da operação enquanto ela esteve aberta, em pontos por contrato, medido no MetaTrader a cada movimento. Mostra quanto a operação chegou a ter de lucro antes de fechar.",
+  },
+  mae: {
+    nome: "MAE (máxima excursão adversa)",
+    texto: "O máximo que o preço andou contra a operação enquanto ela esteve aberta, em pontos por contrato, medido no MetaTrader a cada movimento. Mostra o quanto a operação chegou a ficar no prejuízo antes de fechar.",
   },
   flutuante: {
     nome: "Flutuante",

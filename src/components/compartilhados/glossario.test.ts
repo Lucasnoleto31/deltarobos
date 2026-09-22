@@ -43,6 +43,24 @@ describe("glossário de indicadores", () => {
     expect(e.texto).toMatch(/contratos/);
   });
 
+  // 22/09/2026: MEP/MEN com duas fontes (tick a tick pelo coletor 1.1.0, ou por fechamento) e MFE/MAE
+  it("MEP/MEN citam as duas fontes; MFE/MAE são por operação, em pontos", () => {
+    for (const chave of ["mep", "men"] as const) {
+      const e = GLOSSARIO[chave];
+      expect(e.texto).toMatch(/movimento do preço/);
+      expect(e.texto).toMatch(/operação fechada/);
+    }
+    expect(GLOSSARIO.mfe.nome).toMatch(/^MFE/);
+    expect(GLOSSARIO.mae.nome).toMatch(/^MAE/);
+    for (const chave of ["mfe", "mae"] as const) {
+      const e = GLOSSARIO[chave];
+      expect(e.texto).toMatch(/pontos por contrato/);
+      expect(e.texto).toMatch(/enquanto ela esteve aberta/);
+    }
+    expect(GLOSSARIO.mfe.texto).toMatch(/a favor/);
+    expect(GLOSSARIO.mae.texto).toMatch(/contra/);
+  });
+
   it("o lote sai da constante das faixas", () => {
     expect(GLOSSARIO.lote.texto).toContain("100% em Ligar");
     expect(GLOSSARIO.lote.texto).toContain("0% em Evitar");

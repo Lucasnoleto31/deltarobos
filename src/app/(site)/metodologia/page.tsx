@@ -108,7 +108,9 @@ export default function PaginaMetodologia() {
           <p>
             Em cada MetaTrader 5 da Quants Robôs roda um coletor: um programa que <strong>não opera</strong>, só lê a
             conta. A cada negócio executado ele envia o registro para o site na hora. A cada 3 segundos envia também
-            saldo, posições abertas e cotação. Ao iniciar, reenvia os últimos dias para conferência.
+            saldo, posições abertas e cotação. Ao iniciar, reenvia os últimos dias para conferência. Desde a versão
+            1.1.0, mede também, a cada movimento do preço, o MFE e o MAE de cada operação e o MEP e o MEN do dia (ver
+            abaixo).
           </p>
           <p>
             Nada é digitado à mão. Se o coletor parar por mais de {MINUTOS_SEM_SINAL} minutos em horário de pregão, o site avisa{" "}
@@ -198,18 +200,40 @@ export default function PaginaMetodologia() {
           </Indicador>
         </Secao>
 
+        {/* 22/09/2026: duas fontes. O coletor 1.1.0 mede tick a tick (o número do Profit); antes dele, por fechamento */}
         <Secao id="mep-men" titulo="MEP e MEN do dia">
           <Indicador chave="mep" nome />
           <Indicador chave="men" nome />
           <p>
-            <strong>Como se calcula:</strong> a cada operação que fecha, o site soma o resultado do dia até ali, já com
-            custos e por 1 contrato. O MEP é o maior valor positivo dessa soma e o MEN, o menor valor negativo. Se a soma
-            nunca ficou positiva, o MEP é zero e não há operação do MEP; o mesmo vale para o MEN. Em empate, o site aponta a
-            primeira operação em que o extremo aconteceu.
+            <strong>Medido no MT5, tick a tick.</strong> Desde a versão 1.1.0 do coletor, o próprio MetaTrader 5 mede o MEP e
+            o MEN: a cada movimento do preço, o coletor soma o que o robô já realizou no dia com o flutuante das posições
+            abertas, por 1 contrato, e guarda o maior e o menor valor, com a hora e quantas operações já tinham fechado. É
+            o mesmo número do Profit. O site mostra esse valor já com custos: do bruto medido, desconta o custo por
+            contrato de cada operação fechada até o momento do extremo (a posição ainda aberta não pagou custo). No detalhe
+            do dia, no calendário, e no painel &quot;Hoje ao vivo&quot; aparece <strong>&quot;medido no MT5, tick a tick&quot;</strong>;
+            quando o coletor subiu com o dia já em andamento, ou reiniciou no meio dele, aparece também{" "}
+            <strong>&quot;parcial&quot;</strong>, porque um extremo anterior pode ter ficado de fora. Num dia em que alguma
+            operação do robô ficou fora da conta pública (regra de horário ou de duração mínima), o site volta ao cálculo
+            por fechamento, para o número bater com a curva do dia.
           </p>
           <p>
-            Como só olha os fechamentos, sem a posição aberta, o número fica sempre <strong>igual ou mais perto de zero</strong>{" "}
-            que o MEP/MEN do Profit, que acompanha o resultado a cada negócio, incluindo a posição em andamento.
+            <strong>Por fechamento.</strong> Nos dias sem essa medição (antes do coletor 1.1.0, histórico importado, conta com
+            o coletor antigo), o site calcula: a cada operação que fecha, soma o resultado do dia até ali, já com custos e
+            por 1 contrato. O MEP é o maior valor positivo dessa soma e o MEN, o menor valor negativo. Se a soma nunca ficou
+            positiva, o MEP é zero e não há operação do MEP; o mesmo vale para o MEN. Em empate, o site aponta a primeira
+            operação em que o extremo aconteceu. Como só olha os fechamentos, sem a posição aberta, esse número fica
+            sempre <strong>igual ou mais perto de zero</strong> que o do Profit, e o detalhe do dia diz{" "}
+            <strong>&quot;por fechamento&quot;</strong>.
+          </p>
+          <Indicador chave="mfe" nome />
+          <Indicador chave="mae" nome />
+          <p>
+            <strong>Como se calcula:</strong> enquanto a operação está aberta, o coletor confere a cada negócio do ativo a
+            diferença entre o preço do momento e o preço de entrada, a favor da posição: na compra, preço menos entrada; na
+            venda, entrada menos preço. O MFE é a maior dessas diferenças (nunca abaixo de zero) e o MAE a menor (nunca
+            acima), em pontos por 1 contrato. Aparecem na lista de operações (coluna &quot;MFE / MAE&quot;) e no CSV; ficam
+            vazios nas operações que o coletor 1.1.0 não acompanhou, e marcados como parciais quando ele subiu com a
+            operação já aberta.
           </p>
         </Secao>
 
@@ -366,7 +390,15 @@ export default function PaginaMetodologia() {
             <dt className="font-medium text-foreground">Operações em aberto</dt>
             <dd>Quantas entradas o robô ainda não fechou agora, cada uma contando 1. Nunca é número de contratos.</dd>
             <dt className="font-medium text-foreground">MEP / MEN</dt>
-            <dd>Máxima exposição positiva e negativa do dia: o ponto mais alto e o mais baixo do acumulado do dia, medidos a cada fechamento de operação.</dd>
+            <dd>
+              Máxima exposição positiva e negativa do dia: o ponto mais alto e o mais baixo do saldo do dia. Medidos no
+              MetaTrader 5 tick a tick nos dias que o coletor 1.1.0 acompanhou; por fechamento de operação nos outros.
+            </dd>
+            <dt className="font-medium text-foreground">MFE / MAE</dt>
+            <dd>
+              Máxima excursão favorável e adversa de uma operação: o máximo que o preço andou a favor e contra enquanto ela
+              esteve aberta, em pontos por contrato, medido no MetaTrader 5.
+            </dd>
           </dl>
           {/* 19/09/2026: os selos ao lado do nome do robô, com as condições de statusAoVivo (lib/stats/status-robo) */}
           <h3 id="status" className="pt-4 text-base font-semibold text-foreground">

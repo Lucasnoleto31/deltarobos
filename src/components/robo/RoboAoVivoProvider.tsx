@@ -60,6 +60,7 @@ export function RoboAoVivoProvider({ robo, inicial, pregao, feriados, pregaoAber
     ultimoHeartbeatEm: inicial.ultimoHeartbeatEm,
     ultimaMensagemEm: null,
     conectado: false,
+    exposicaoHoje: inicial.exposicaoHoje ?? null,
   }));
   const valor = useMemo<ValorRobo>(
     () => ({ estado, robo, pregao, feriados, hoje: inicial.dia, pregaoAbertoNoServidor }),

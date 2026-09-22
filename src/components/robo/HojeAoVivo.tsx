@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { HaQuanto } from "@/components/compartilhados/HaQuanto";
 import { RotuloComInfo } from "@/components/compartilhados/InfoIndicador";
 import { Valor } from "@/components/compartilhados/Valor";
-import { formatarNumero, formatarPreco, rotuloLado } from "@/lib/formato";
+import type { MarcadorDaCurva } from "@/components/graficos/CurvaProfit";
+import { formatarHora, formatarNumero, formatarPreco, rotuloLado } from "@/lib/formato";
+import { mepMenDoDia, posicaoDoExtremo } from "@/lib/stats/exposicao";
 import { brlParaPontos } from "@/lib/stats/normalizacao";
 import { CurvaDoDia } from "./CurvaDoDia";
 import { LinhaOperacao } from "./LinhaOperacao";
@@ -15,6 +17,14 @@ import { usePregaoAberto, useRobo } from "./RoboAoVivoProvider";
 // logo acima; a lista é só o que acabou de acontecer. Num dia de 284 operações a tabela inteira
 // tinha 16.600 px no celular, e os KPIs só apareciam umas vinte telas abaixo (17/09/2026).
 const VISIVEIS = 5;
+
+// o "o que é" do MEP/MEN medidos pelo coletor (22/09/2026); o texto padrão do glossário fala das duas fontes,
+// e aqui a fonte é uma só. "Parcial" explica o que falta
+const PARCIAL = " Parcial: o coletor subiu com o dia já em andamento e pode ter perdido um extremo anterior.";
+const TEXTO_MEP_EA = (parcial: boolean) =>
+  `O ponto mais alto que o saldo de hoje alcançou, por contrato e já com custos, medido no MetaTrader 5 a cada movimento do preço, com a posição aberta: o mesmo número do Profit.${parcial ? PARCIAL : ""}`;
+const TEXTO_MEN_EA = (parcial: boolean) =>
+  `O ponto mais baixo que o saldo de hoje alcançou, por contrato e já com custos, medido no MetaTrader 5 a cada movimento do preço, com a posição aberta: o quanto o dia chegou a ficar no prejuízo.${parcial ? PARCIAL : ""}`;
 
 /**
  * O "Hoje" do painel de resultado (spec §8.2): resultado do dia, posição aberta e as operações
@@ -34,6 +44,24 @@ export function HojeAoVivo() {
   const custos = ops.reduce((s, o) => s + o.custos_brl_por_contrato, 0);
   const liquido = bruto - custos;
   const gains = ops.filter((o) => o.resultado_brl_por_contrato - o.custos_brl_por_contrato > 0).length;
+  // MEP/MEN de hoje medidos pelo EA 1.1.0 tick a tick (22/09/2026), líquidos como o número grande: o custo
+  // de cada saída feita até o extremo. Vem da view no HTML e chega atualizado pelo evento "coleta"; sem
+  // medição (EA antigo, sem coletor, dia sem operação) a linha não aparece, nada de número por fechamento
+  // aqui: a curva ao lado já mostra o dia operação a operação
+  const mepMen = useMemo(
+    () => mepMenDoDia(estado.exposicaoHoje, robo.custo_por_contrato, robo.valor_ponto_brl, "liquido", "brl"),
+    [estado.exposicaoHoje, robo.custo_por_contrato, robo.valor_ponto_brl],
+  );
+  // os mesmos marcadores do detalhe do dia no calendário: o extremo na régua da curva (saídas feitas até
+  // ele / operações do dia). Memoizado, senão o memo da CurvaDoDia refaria a curva a cada render
+  const nOps = ops.length;
+  const marcadores = useMemo(() => {
+    const lista: MarcadorDaCurva[] = [];
+    if (!mepMen) return lista;
+    if (mepMen.mep > 0) lista.push({ posicao: posicaoDoExtremo(mepMen.mepNSaidas, nOps), valor: mepMen.mep, rotulo: "MEP", tom: "positivo" });
+    if (mepMen.men < 0) lista.push({ posicao: posicaoDoExtremo(mepMen.menNSaidas, nOps), valor: mepMen.men, rotulo: "MEN", tom: "negativo" });
+    return lista;
+  }, [mepMen, nOps]);
 
   // a mais recente em cima; as novas entram no topo mesmo com a lista recolhida
   const recentes = [...ops].reverse();
@@ -65,6 +93,39 @@ export function HojeAoVivo() {
               Por contrato, líquido de custos (bruto <Valor valor={bruto} colorir={false} className="text-muted-foreground" />).
             </p>
           </div>
+
+          {mepMen ? (
+            <div>
+              <p className="mb-2 text-sm font-medium">Exposição do dia</p>
+              <dl className="flex flex-wrap gap-x-5 gap-y-1 text-sm tabular-nums">
+                <div className="flex items-baseline gap-1.5">
+                  <dt className="text-muted-foreground">
+                    <RotuloComInfo chave="mep" texto={TEXTO_MEP_EA(mepMen.parcial)}>MEP</RotuloComInfo>
+                  </dt>
+                  <dd className="font-semibold">
+                    <Valor valor={mepMen.mep} />
+                    {mepMen.mep > 0 && mepMen.mepEm ? (
+                      <span className="ml-1 text-xs font-normal text-muted-foreground">às {formatarHora(mepMen.mepEm)}</span>
+                    ) : null}
+                  </dd>
+                </div>
+                <div className="flex items-baseline gap-1.5">
+                  <dt className="text-muted-foreground">
+                    <RotuloComInfo chave="men" texto={TEXTO_MEN_EA(mepMen.parcial)}>MEN</RotuloComInfo>
+                  </dt>
+                  <dd className="font-semibold">
+                    <Valor valor={mepMen.men} />
+                    {mepMen.men < 0 && mepMen.menEm ? (
+                      <span className="ml-1 text-xs font-normal text-muted-foreground">às {formatarHora(mepMen.menEm)}</span>
+                    ) : null}
+                  </dd>
+                </div>
+              </dl>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Medido no MT5, tick a tick, com a posição aberta{mepMen.parcial ? " · parcial: o coletor não acompanhou o dia inteiro" : ""}.
+              </p>
+            </div>
+          ) : null}
 
           <div>
             {/* o número de cada posição é o flutuante: o i explica, e só aparece quando há posição (19/09/2026) */}
@@ -130,7 +191,7 @@ export function HojeAoVivo() {
                   : "Nenhuma operação hoje."}
             </p>
           ) : (
-            <CurvaDoDia operacoes={ops} altura={200} />
+            <CurvaDoDia operacoes={ops} altura={200} marcadores={marcadores} />
           )}
         </div>
       </div>

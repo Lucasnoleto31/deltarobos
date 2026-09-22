@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { Valor } from "@/components/compartilhados/Valor";
 import { LinhaOperacao } from "@/components/robo/LinhaOperacao";
-import { formatarDataCurta, formatarDuracao, formatarHora, formatarPreco, rotuloLado } from "@/lib/formato";
+import { formatarDataCurta, formatarDuracao, formatarHora, formatarMfeMae, formatarPontos, formatarPreco, rotuloLado } from "@/lib/formato";
+import { excursaoDaOperacao } from "@/lib/stats/exposicao";
 import { supabaseBrowser } from "@/lib/supabase/cliente";
 import type { OperacaoPublica } from "@/lib/tipos";
 
@@ -39,6 +40,7 @@ export function TabelaOperacoes({ itens, slug, dia, aoVivo, filtrado }: Props) {
     const canal = sb
       .channel(`robo:${slug}`, { config: { private: true } })
       .on("broadcast", { event: "operacao" }, ({ payload }) => {
+        // o evento é a linha inteira de operacoes_publico: vem com MFE/MAE (e é reemitido quando o EA os manda)
         const op = payload as OperacaoPublica;
         if (op.dia_pregao !== dia) return;
         setNovas((l) => [op, ...l.filter((x) => x.id !== op.id)]);
@@ -79,7 +81,13 @@ export function TabelaOperacoes({ itens, slug, dia, aoVivo, filtrado }: Props) {
       {/* 20/09/2026: o px-3 das doze colunas pedia 1.011 px e o .conteudo passou a ter 992 px em 1280,
           onde agora há a barra lateral de navegação — o "Líquido /ct" ficava cortado na última casa
           decimal, e valor em dinheiro cortado lê errado. Com px-2.5 a tabela pede 963 px e fecha em
-          1280 e também em 1024, onde ela já estava cortada antes desta leva. */}
+          1280 e também em 1024, onde ela já estava cortada antes desta leva.
+          22/09/2026: a coluna "MFE / MAE" (EA 1.1.0) só entra a partir de xl. Em lg não cabe: o .conteudo
+          é max-w-6xl (1.152 − 48 px de padding = 1.104 px; em 1024 são 976 px), as doze colunas pedem
+          963–994 px e a célula "+1.320 / −185" mais ~120 px; com " pts" na célula e "(pts)" no cabeçalho
+          a tabela pedia 1.145 px e rolava de lado com o "Líquido /ct" fora da tela em qualquer largura.
+          Sem a unidade na célula (ela está no title e a coluna "Pontos /ct" ao lado já a diz) fica na
+          casa dos 1.090 px, que cabem em xl. Abaixo de xl ela fica no CSV e na lista do celular. */}
       <div className="hidden overflow-x-auto painel sm:block">
         <table className="w-full text-sm">
           <thead className="text-left text-xs text-muted-foreground">
@@ -93,13 +101,18 @@ export function TabelaOperacoes({ itens, slug, dia, aoVivo, filtrado }: Props) {
               <th className="text-right">Entrada</th>
               <th className="text-right">Saída</th>
               <th className="text-right">Pontos /ct</th>
+              <th className="hidden text-right xl:table-cell" title="MFE / MAE: máxima excursão a favor e contra, em pontos por contrato, medidas no MetaTrader">
+                MFE / MAE
+              </th>
               <th className="text-right">Bruto /ct</th>
               <th className="text-right">Custos /ct</th>
               <th className="text-right">Líquido /ct</th>
             </tr>
           </thead>
           <tbody className="[&>tr]:border-t">
-            {lista.map((o) => (
+            {lista.map((o) => {
+              const excursao = excursaoDaOperacao(o);
+              return (
               <tr key={o.id} className="tabular-nums [&>td]:px-2.5 [&>td]:py-2">
                 <td>{formatarDataCurta(o.dia_pregao)}</td>
                 <td>{formatarHora(o.abertura_em)}</td>
@@ -113,6 +126,16 @@ export function TabelaOperacoes({ itens, slug, dia, aoVivo, filtrado }: Props) {
                 <td className="text-right">
                   <Valor valor={o.pontos_por_contrato} unidade="pontos" />
                 </td>
+                <td className="hidden text-right whitespace-nowrap text-muted-foreground xl:table-cell">
+                  {excursao ? (
+                    <span title={`${formatarMfeMae(excursao.mfe, excursao.mae)}${excursao.parcial ? " · medição parcial: o coletor subiu com a operação já aberta" : ""}`}>
+                      {formatarPontos(excursao.mfe, true)} / {formatarPontos(excursao.mae, true)}
+                      {excursao.parcial ? "*" : ""}
+                    </span>
+                  ) : (
+                    "–"
+                  )}
+                </td>
                 <td className="text-right">
                   <Valor valor={o.resultado_brl_por_contrato} colorir={false} />
                 </td>
@@ -123,7 +146,8 @@ export function TabelaOperacoes({ itens, slug, dia, aoVivo, filtrado }: Props) {
                   <Valor valor={o.resultado_brl_por_contrato - o.custos_brl_por_contrato} />
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>

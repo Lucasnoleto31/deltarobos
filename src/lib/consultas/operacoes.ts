@@ -30,6 +30,15 @@ function avisar(onde: string, e: unknown) {
   console.warn(`[consultas] ${onde}: ${e instanceof Error ? e.message : String(e)}`);
 }
 
+/** A view ainda não tem as colunas de MFE/MAE (código 42703 do Postgres, undefined_column). Por instância. */
+let semExcursaoNaView = false;
+
+function ehColunaInexistente(e: unknown): boolean {
+  if (!e || typeof e !== "object") return false;
+  const { code, message } = e as { code?: unknown; message?: unknown };
+  return code === "42703" || (typeof message === "string" && /mfe_pontos_por_contrato|mae_pontos_por_contrato/.test(message));
+}
+
 /** Lista paginada de operações com filtros (página de operações). */
 export async function listarOperacoes(slug: string, f: FiltrosOperacoes = {}): Promise<PaginaOperacoes> {
   const tamanho = Math.min(Math.max(f.tamanho ?? TAMANHO_PAGINA, 10), 200);
@@ -88,8 +97,10 @@ export async function listarOperacoesCompactas(
   try {
     const sb = supabasePublico();
     const passo = 1000; // teto do PostgREST por requisição
-    const colunas =
+    const colunasBase =
       "dia_pregao, abertura_em, pontos_por_contrato, resultado_brl_por_contrato, custos_brl_por_contrato, duracao_seg, lado, simbolo";
+    // MFE/MAE do EA 1.1.0 (22/09/2026, migration 0021), nulos em operação não medida
+    const colunas = semExcursaoNaView ? colunasBase : `${colunasBase}, mfe_pontos_por_contrato, mae_pontos_por_contrato`;
 
     // Quantas páginas existem? Uma consulta só de contagem, depois todas as páginas em paralelo:
     // dezenas de milhares de operações deixam de custar uma ida ao banco por página.
@@ -110,11 +121,21 @@ export async function listarOperacoesCompactas(
           .order("id", { ascending: false })
           .range(desde, Math.min(desde + passo, total) - 1);
         if (error) throw error;
-        return (data ?? []) as Array<Parameters<typeof compactar>[0]>;
+        // a lista de colunas não é literal (muda com a reserva acima), então o parser tipado do
+        // supabase-js não sabe o formato: o cast passa por unknown
+        return (data ?? []) as unknown as Array<Parameters<typeof compactar>[0]>;
       }),
     );
     return paginas.flat().reverse().map(compactar);
   } catch (e) {
+    // Deploy do site antes da migration 0021: a view ainda não tem mfe/mae e o PostgREST responde 42703
+    // (coluna inexistente). Em vez de todas as abas ficarem sem operação, refaz sem as duas colunas e
+    // lembra disso nesta instância; quando a view ganhar as colunas, a instância seguinte já pede com elas.
+    if (!semExcursaoNaView && ehColunaInexistente(e)) {
+      semExcursaoNaView = true;
+      avisar("listarOperacoesCompactas", "operacoes_publico sem mfe/mae (migration 0021 pendente): seguindo sem excursão");
+      return listarOperacoesCompactas(slug, { limite, de, lancarErro });
+    }
     if (lancarErro) throw e;
     avisar("listarOperacoesCompactas", e);
     return [];

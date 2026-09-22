@@ -7,6 +7,7 @@ import {
   CURVA_POR_OPERACAO,
   DesenhoDaCurva,
   MolduraProfit,
+  type MarcadorDaCurva,
   type PontoDoDesenho,
 } from "@/components/graficos/CurvaProfit";
 import { PONTOS_LEVE, fatiar } from "@/components/graficos/series-da-curva";
@@ -20,6 +21,8 @@ interface Props {
   titulo?: string;
   /** texto ao lado da amostra da linha; a tela ao vivo usa um mais curto, que fica bem em print */
   legenda?: string;
+  /** MEP/MEN do dia medidos pelo EA (22/09/2026), na régua da curva; quem passa memoiza, por causa do memo daqui */
+  marcadores?: ReadonlyArray<MarcadorDaCurva>;
 }
 
 const reais = (v: number) => formatarBRL(v, { sinal: true });
@@ -38,6 +41,7 @@ export const CurvaDoDia = memo(function CurvaDoDia({
   altura = 190,
   titulo = "Resultado do dia, operação a operação",
   legenda = "1 contrato, líquido de custos",
+  marcadores,
 }: Props) {
   const id = `dia-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
 
@@ -118,6 +122,7 @@ export const CurvaDoDia = memo(function CurvaDoDia({
         cores={CURVA_POR_OPERACAO}
         altura={altura}
         rotulosX={rotulosX}
+        marcadores={marcadores}
         formatarEixo={(v) => formatarNumero(v, 0)}
         rotuloVertical="Saldo do dia (R$)"
         rotuloAria="Resultado acumulado de hoje, operação a operação"

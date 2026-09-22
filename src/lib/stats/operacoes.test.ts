@@ -5,11 +5,14 @@ import {
   excursao,
   excursaoDoDia,
   histograma,
+  mae,
+  mfe,
   porDiaSemana,
   porHora,
   porSimbolo,
   resumoOperacoes,
   sequencias,
+  temExcursao,
   valorOperacao,
   type OperacaoCompacta,
   type OpcoesOperacao,
@@ -48,6 +51,54 @@ describe("compactar / valorOperacao", () => {
     expect(c[2]).toBe(5);
     expect(c[7]).toBe(-1);
     expect(c[8]).toBe("WINV26");
+  });
+
+  // 22/09/2026: MFE/MAE do EA 1.1.0 nas posições 9 e 10, só quando medidos
+  const base = {
+    dia_pregao: "2026-09-22",
+    abertura_em: "2026-09-22T13:05:00Z",
+    pontos_por_contrato: 150,
+    resultado_brl_por_contrato: 30,
+    custos_brl_por_contrato: 0.25,
+    duracao_seg: 120,
+    lado: "compra" as const,
+    simbolo: "WINV26",
+  };
+
+  it("sem MFE/MAE a tupla continua com 9 posições, e os acessores devolvem null", () => {
+    const semCampos = compactar(base);
+    expect(semCampos).toHaveLength(9);
+    const nulos = compactar({ ...base, mfe_pontos_por_contrato: null, mae_pontos_por_contrato: null });
+    expect(nulos).toHaveLength(9);
+    for (const c of [semCampos, nulos]) {
+      expect(mfe(c)).toBeNull();
+      expect(mae(c)).toBeNull();
+      expect(temExcursao(c)).toBe(false);
+    }
+    // a tupla escrita na mão, com 9 posições, lê igual
+    expect(mfe(op("2026-09-22", 10, 2, 30))).toBeNull();
+  });
+
+  it("com MFE/MAE a tupla ganha as posições 9 e 10", () => {
+    const c = compactar({ ...base, mfe_pontos_por_contrato: 320, mae_pontos_por_contrato: -85 });
+    expect(c).toHaveLength(11);
+    expect(c[9]).toBe(320);
+    expect(c[10]).toBe(-85);
+    expect(mfe(c)).toBe(320);
+    expect(mae(c)).toBe(-85);
+    expect(temExcursao(c)).toBe(true);
+    // as 9 primeiras posições não mudam
+    expect(c.slice(0, 9)).toEqual(compactar(base));
+    // zero é medição (a operação nunca andou a favor), não ausência
+    const zero = compactar({ ...base, mfe_pontos_por_contrato: 0, mae_pontos_por_contrato: -40 });
+    expect(mfe(zero)).toBe(0);
+    expect(temExcursao(zero)).toBe(true);
+  });
+
+  it("valor que não é número (NaN, texto vindo do banco) conta como não medido", () => {
+    const c = compactar({ ...base, mfe_pontos_por_contrato: Number.NaN, mae_pontos_por_contrato: -85 });
+    expect(mfe(c)).toBeNull();
+    expect(mae(c)).toBe(-85);
   });
 
   it("valor bruto, líquido, pontos e contratos", () => {

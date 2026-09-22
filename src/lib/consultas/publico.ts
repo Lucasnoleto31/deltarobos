@@ -2,6 +2,7 @@ import { PARAMETROS_FAIXAS_PADRAO, type ParametrosFaixas } from "@/lib/stats/fai
 import { supabasePublico } from "@/lib/supabase/servidor";
 import type {
   EstatisticaPublica,
+  ExposicaoDiaPublica,
   Links,
   MercadoPublico,
   OperacaoPublica,
@@ -89,6 +90,45 @@ export async function listarEstatisticas(slug?: string, { de = null, lancarErro 
   } catch (e) {
     if (lancarErro) throw e;
     avisar("listarEstatisticas", e);
+    return [];
+  }
+}
+
+export interface OpcoesExposicao {
+  /** só o dia pedido (YYYY-MM-DD): o layout do robô quer o de hoje para o painel "Hoje ao vivo" */
+  dia?: string | null;
+}
+
+/** As colunas de exposicao_dia_publico que o site lê: sem robo_id nem n_magics, que nenhum painel mostra. */
+export type ExposicaoDia = Pick<
+  ExposicaoDiaPublica,
+  "slug" | "dia" | "mep_ea" | "men_ea" | "mep_ea_em" | "men_ea_em" | "mep_ea_n_saidas" | "men_ea_n_saidas" | "excursao_ea_parcial"
+>;
+
+/**
+ * MEP/MEN do dia medidos pelo EA 1.1.0 (22/09/2026): as linhas de exposicao_dia_publico do robô, uma por
+ * dia com medição, em ordem de dia. Só as colunas que o site lê: a página do calendário manda a lista
+ * inteira ao navegador. Pagina de 1.000 em 1.000 como listarEstatisticas; view ausente (migration 0021
+ * ainda não aplicada) ou qualquer erro vira lista vazia, e aí o site fica no cálculo por fechamento.
+ */
+export async function listarExposicaoDia(slug: string, { dia = null }: OpcoesExposicao = {}): Promise<ExposicaoDia[]> {
+  try {
+    const sb = supabasePublico();
+    const passo = 1000;
+    const colunas = "slug, dia, mep_ea, men_ea, mep_ea_em, men_ea_em, mep_ea_n_saidas, men_ea_n_saidas, excursao_ea_parcial";
+    const linhas: ExposicaoDia[] = [];
+    for (let desde = 0; desde < 100_000; desde += passo) {
+      let q = sb.from("exposicao_dia_publico").select(colunas).eq("slug", slug).order("dia", { ascending: true }).range(desde, desde + passo - 1);
+      if (dia) q = q.eq("dia", dia);
+      const { data, error } = await q;
+      if (error) throw error;
+      const lote = (data ?? []) as unknown as ExposicaoDia[];
+      linhas.push(...lote);
+      if (lote.length < passo) break;
+    }
+    return linhas;
+  } catch (e) {
+    avisar("listarExposicaoDia", e);
     return [];
   }
 }

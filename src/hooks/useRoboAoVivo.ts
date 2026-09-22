@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { ExposicaoHoje } from "@/lib/stats/exposicao";
 import { totalAbertas } from "@/lib/stats/posicoes";
 import { supabaseBrowser } from "@/lib/supabase/cliente";
 import type { EventoColeta, OperacaoPublica, PosicaoPublica } from "@/lib/tipos";
@@ -12,6 +13,11 @@ export interface EstadoRoboAoVivo {
   /** última mensagem recebida no canal (qualquer evento) */
   ultimaMensagemEm: string | null;
   conectado: boolean;
+  /**
+   * MEP/MEN de hoje medidos pelo EA 1.1.0 tick a tick (22/09/2026): a linha de exposicao_dia_publico do
+   * dia, atualizada pelo evento "coleta". null = sem medição (EA antigo, robô sem coletor, dia sem operação).
+   */
+  exposicaoHoje: ExposicaoHoje | null;
 }
 
 export interface InicialRoboAoVivo {
@@ -20,6 +26,30 @@ export interface InicialRoboAoVivo {
   ultimoHeartbeatEm: string | null;
   /** dia de pregão (YYYY-MM-DD) que o painel "hoje" representa */
   dia: string;
+  /** MEP/MEN de hoje pelo EA (listarExposicaoDia com dia = hoje); opcional para quem monta o estado sem ele */
+  exposicaoHoje?: ExposicaoHoje | null;
+}
+
+/**
+ * O evento "coleta" traz, desde a migration 0021, os campos de exposicao_dia_publico de hoje (EventoColeta
+ * já os declara; as horas do extremo não vêm no evento, mas entram se um dia vierem). Evento anterior à
+ * migration vem sem nenhum deles.
+ */
+type ColetaComExposicao = EventoColeta & Partial<ExposicaoHoje>;
+
+/** A coleta trouxe os campos de MEP/MEN? Só então ela substitui o que a tela tem (evento antigo não apaga nada). */
+function exposicaoDaColeta(c: ColetaComExposicao): ExposicaoHoje | null | undefined {
+  if (!("mep_ea" in c) && !("men_ea" in c)) return undefined;
+  if (typeof c.mep_ea !== "number" && typeof c.men_ea !== "number") return null;
+  return {
+    mep_ea: typeof c.mep_ea === "number" ? c.mep_ea : null,
+    men_ea: typeof c.men_ea === "number" ? c.men_ea : null,
+    mep_ea_n_saidas: typeof c.mep_ea_n_saidas === "number" ? c.mep_ea_n_saidas : null,
+    men_ea_n_saidas: typeof c.men_ea_n_saidas === "number" ? c.men_ea_n_saidas : null,
+    excursao_ea_parcial: c.excursao_ea_parcial === true,
+    mep_ea_em: typeof c.mep_ea_em === "string" ? c.mep_ea_em : null,
+    men_ea_em: typeof c.men_ea_em === "string" ? c.men_ea_em : null,
+  };
 }
 
 function ordenarOperacoes(lista: OperacaoPublica[]): OperacaoPublica[] {
@@ -39,6 +69,7 @@ export function useRoboAoVivo(slug: string, inicial: InicialRoboAoVivo): EstadoR
     ultimoHeartbeatEm: inicial.ultimoHeartbeatEm,
     ultimaMensagemEm: null,
     conectado: false,
+    exposicaoHoje: inicial.exposicaoHoje ?? null,
   });
 
   // As posições mais recentes, para o handler do evento "coleta" comparar sem depender do closure do
@@ -113,22 +144,25 @@ export function useRoboAoVivo(slug: string, inicial: InicialRoboAoVivo): EstadoR
         }));
       })
       .on("broadcast", { event: "coleta" }, ({ payload }) => {
-        const c = payload as EventoColeta;
+        const c = payload as ColetaComExposicao;
         // O broadcast não tem replay: um "posicao_fechada" perdido (aba em segundo plano, reconexão no
         // meio) deixava o grupo preso e "2 operações em aberto" congelado até a próxima reconexão. A
         // coleta traz n_posicoes_abertas a cada <= 30 s: quando diverge do que a tela soma, ressincroniza.
         // A coleta conta antes da sincronização do mesmo heartbeat, então a divergência pode ser
-        // passageira; a ressincronização (três consultas pequenas) resolve nos dois casos.
+        // passageira; a ressincronização (quatro consultas pequenas) resolve nos dois casos.
         if (
           typeof c.n_posicoes_abertas === "number" &&
           c.n_posicoes_abertas !== totalAbertas(posicoesAtuais.current)
         ) {
           void ressincronizar();
         }
+        // MEP/MEN de hoje pelo EA (22/09/2026): a coleta traz a linha de exposicao_dia_publico do dia
+        const exposicao = exposicaoDaColeta(c);
         setEstado((s) => ({
           ...s,
           ultimoHeartbeatEm: c.ultimo_heartbeat_em ?? s.ultimoHeartbeatEm,
           ultimaMensagemEm: marcar(),
+          exposicaoHoje: exposicao === undefined ? s.exposicaoHoje : exposicao,
         }));
       })
       .subscribe((status) => {
@@ -142,7 +176,7 @@ export function useRoboAoVivo(slug: string, inicial: InicialRoboAoVivo): EstadoR
       const vPos = versaoPosicoes;
       const vOps = versaoOperacoes;
       try {
-        const [ops, pos, robo] = await Promise.all([
+        const [ops, pos, robo, exposicao] = await Promise.all([
           sb
             .from("operacoes_publico")
             .select("*")
@@ -152,6 +186,13 @@ export function useRoboAoVivo(slug: string, inicial: InicialRoboAoVivo): EstadoR
           // "*" traz n_abertas junto quando a view tiver a coluna (migration 0020)
           sb.from("posicoes_abertas_publico").select("*").eq("slug", slug),
           sb.from("robos_publico").select("ultimo_heartbeat_em").eq("slug", slug).maybeSingle(),
+          // MEP/MEN de hoje pelo EA (migration 0021); view ausente vira erro, e a tela fica com o que tem
+          sb
+            .from("exposicao_dia_publico")
+            .select("mep_ea, men_ea, mep_ea_em, men_ea_em, mep_ea_n_saidas, men_ea_n_saidas, excursao_ea_parcial")
+            .eq("slug", slug)
+            .eq("dia", inicial.dia)
+            .maybeSingle(),
         ]);
         setEstado((s) => ({
           ...s,
@@ -163,6 +204,8 @@ export function useRoboAoVivo(slug: string, inicial: InicialRoboAoVivo): EstadoR
           posicoes: pos.data && vPos === versaoPosicoes ? (pos.data as PosicaoPublica[]) : s.posicoes,
           ultimoHeartbeatEm:
             (robo.data?.ultimo_heartbeat_em as string | null | undefined) ?? s.ultimoHeartbeatEm,
+          // sem linha (data null, sem erro) é "ainda sem medição hoje"; erro (view ausente) mantém o que há
+          exposicaoHoje: exposicao.error ? s.exposicaoHoje : ((exposicao.data as unknown as ExposicaoHoje | null) ?? null),
         }));
       } catch (e) {
         console.warn("[realtime] falha ao ressincronizar robô", e);

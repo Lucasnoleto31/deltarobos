@@ -30,6 +30,15 @@ export interface OpsEmpacotadas {
   lado: number[];
   /** repetições de índices em `simbolos` */
   simbolo: number[];
+  /**
+   * MFE e MAE em pontos por contrato (22/09/2026, EA 1.1.0), ESPARSOS: só as operações medidas, com o índice
+   * de cada uma em deltas crescentes (`indice[k]` = posição menos a posição da anterior medida) e os dois
+   * valores na mesma ordem. A maior parte do histórico não foi medida e continua sem custar nada: duas
+   * colunas densas punham dois `null` em cada uma das ~15 mil tuplas (+146 KB no HTML de cada aba com UMA
+   * operação medida). Ausente quando nenhuma foi medida. Desempacotar devolve a não medida com as 9
+   * posições de sempre e a medida com 11 (round-trip exato).
+   */
+  excursao?: { indice: number[]; mfe: (number | null)[]; mae: (number | null)[] };
 }
 
 // Object.is e não ===: -0 não pode virar 0 no caminho
@@ -71,7 +80,7 @@ function indexar(valores: string[]): { tabela: string[]; indices: number[] } {
 export function empacotar(ops: OperacaoCompacta[]): OpsEmpacotadas {
   const dias = indexar(ops.map((op) => op[0]));
   const simbolos = indexar(ops.map((op) => op[8]));
-  return {
+  const pacote: OpsEmpacotadas = {
     n: ops.length,
     dias: dias.tabela,
     simbolos: simbolos.tabela,
@@ -85,6 +94,21 @@ export function empacotar(ops: OperacaoCompacta[]): OpsEmpacotadas {
     lado: emRepeticoes(ops.map((op) => op[7])),
     simbolo: emRepeticoes(simbolos.indices),
   };
+  const indice: number[] = [];
+  const mfe: (number | null)[] = [];
+  const mae: (number | null)[] = [];
+  let anterior = 0;
+  ops.forEach((op, i) => {
+    const a = op[9] ?? null;
+    const b = op[10] ?? null;
+    if (a === null && b === null) return;
+    indice.push(i - anterior);
+    anterior = i;
+    mfe.push(a);
+    mae.push(b);
+  });
+  if (indice.length > 0) pacote.excursao = { indice, mfe, mae };
+  return pacote;
 }
 
 export function desempacotar(p: OpsEmpacotadas): OperacaoCompacta[] {
@@ -111,6 +135,18 @@ export function desempacotar(p: OpsEmpacotadas): OperacaoCompacta[] {
       lado[i] as 1 | -1,
       p.simbolos[simbolo[i]],
     ];
+  }
+  if (p.excursao) {
+    const { indice, mfe, mae } = p.excursao;
+    if (mfe.length !== indice.length || mae.length !== indice.length) {
+      throw new Error(`ops-codec: excursão com colunas de tamanho diferente (${indice.length}, ${mfe.length}, ${mae.length})`);
+    }
+    let i = -1;
+    indice.forEach((delta, k) => {
+      i = i < 0 ? delta : i + delta;
+      if (!(delta >= 0) || i >= n) throw new Error(`ops-codec: índice de excursão ${i} fora de ${n}`);
+      ops[i].push(mfe[k] ?? null, mae[k] ?? null);
+    });
   }
   return ops;
 }

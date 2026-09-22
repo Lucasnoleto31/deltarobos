@@ -44,6 +44,65 @@ describe("ops-codec", () => {
     expect(desempacotar(empacotar([]))).toEqual([]);
   });
 
+  // 22/09/2026: MFE/MAE do EA 1.1.0 nas posições 9 e 10, opcionais
+  it("sem nenhuma operação medida, o pacote não tem excursão", () => {
+    const p = empacotar(AMOSTRA);
+    expect(p.excursao).toBeUndefined();
+    // tupla com 11 posições, mas as duas null, também não entra
+    const a = AMOSTRA[0];
+    const q = empacotar([[a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], null, null]]);
+    expect(q.excursao).toBeUndefined();
+    expect(desempacotar(q)[0]).toHaveLength(9);
+  });
+
+  it("só as operações medidas vão no pacote (índices em deltas); a não medida volta com 9 posições", () => {
+    const ops: OperacaoCompacta[] = [
+      ["2026-09-21", 9, 1, -780, -156, 0.25, 0, 1, "WINV26"],
+      ["2026-09-22", 10, 2, 125.5, 25.1, 0.25, 42, -1, "WINV26", 320, -85],
+      ["2026-09-22", 10, 2, 0, 0, 0.25, 7, -1, "WINV26", 0, 0],
+      ["2026-09-22", 11, 2, 30, 6, 0.25, 7, 1, "WINV26", null, null],
+      ["2026-09-22", 11, 2, 30, 6, 0.25, 7, 1, "WINV26", null, -12],
+      ["2026-09-22", 12, 2, 30, 6, 0.25, 7, 1, "WINV26", 7, null],
+    ];
+    const p = empacotar(ops);
+    expect(p.excursao).toEqual({ indice: [1, 1, 2, 1], mfe: [320, 0, null, 7], mae: [-85, 0, -12, null] });
+    const volta = desempacotar(JSON.parse(JSON.stringify(p)));
+    expect(volta).toStrictEqual([ops[0], ops[1], ops[2], ops[3].slice(0, 9), ops[4], ops[5]]);
+    expect(volta[0]).toHaveLength(9);
+    expect(volta[3]).toHaveLength(9);
+  });
+
+  it("a primeira operação medida pode ser a de índice 0 e a última a de índice n-1", () => {
+    const ops: OperacaoCompacta[] = [
+      ["2026-09-22", 10, 2, 125.5, 25.1, 0.25, 42, -1, "WINV26", 320, -85],
+      ["2026-09-22", 10, 2, 0, 0, 0.25, 7, -1, "WINV26"],
+      ["2026-09-22", 11, 2, 30, 6, 0.25, 7, 1, "WINV26", 1, -1],
+    ];
+    const p = empacotar(ops);
+    expect(p.excursao?.indice).toEqual([0, 2]);
+    expect(desempacotar(JSON.parse(JSON.stringify(p)))).toStrictEqual(ops);
+  });
+
+  it("uma operação medida entre 15 mil não medidas custa só ela no pacote", () => {
+    const muitas: OperacaoCompacta[] = Array.from({ length: 15_000 }, (_, i) => [
+      `2026-0${1 + (i % 9)}-1${i % 9}`, 9 + (i % 8), i % 5, i % 7, (i % 7) / 5, 0.25, i % 100, i % 2 ? 1 : -1, "WINV26",
+    ]);
+    const sem = JSON.stringify(empacotar(muitas)).length;
+    const m = muitas[7_000];
+    muitas[7_000] = [m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8], 320, -85];
+    const com = JSON.stringify(empacotar(muitas)).length;
+    expect(com - sem).toBeLessThan(60);
+    expect(desempacotar(JSON.parse(JSON.stringify(empacotar(muitas))))[7_000]).toStrictEqual(muitas[7_000]);
+  });
+
+  it("excursão desalinhada ou com índice fora da lista falha em vez de desalinhar", () => {
+    const p = empacotar([["2026-09-22", 10, 2, 10, 2, 0.25, 42, 1, "WINV26", 50, -10], ...AMOSTRA]);
+    expect(() => desempacotar({ ...p, excursao: { indice: [0], mfe: [50], mae: [] } })).toThrow();
+    expect(() => desempacotar({ ...p, excursao: { indice: [0, 1], mfe: [50, 1], mae: [-10, -1] } })).not.toThrow();
+    expect(() => desempacotar({ ...p, excursao: { indice: [p.n], mfe: [50], mae: [-10] } })).toThrow();
+    expect(() => desempacotar({ ...p, excursao: { indice: [1, -1], mfe: [50, 1], mae: [-10, -1] } })).toThrow();
+  });
+
   it("pacote com coluna do tamanho errado falha em vez de desalinhar", () => {
     const p = empacotar(AMOSTRA);
     expect(() => desempacotar({ ...p, pontos: p.pontos.slice(1) })).toThrow();

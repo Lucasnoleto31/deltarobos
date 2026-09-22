@@ -6,6 +6,7 @@ import { Voltar } from "@/components/layout/Voltar";
 import { RoboAoVivoProvider } from "@/components/robo/RoboAoVivoProvider";
 import {
   buscarRobo,
+  listarExposicaoDia,
   listarFeriados,
   listarMercado,
   listarOperacoesDoDia,
@@ -60,11 +61,13 @@ export default async function LayoutRobo({ children, params }: Props) {
   if (!robo) notFound();
 
   const hoje = hojeSP();
-  const [operacoes, posicoes, feriados, mercado] = await Promise.all([
+  const [operacoes, posicoes, feriados, mercado, exposicao] = await Promise.all([
     listarOperacoesDoDia(slug, hoje),
     listarPosicoes(slug),
     listarFeriados(),
     listarMercado(),
+    // MEP/MEN de hoje medidos pelo EA (22/09/2026), para o painel "Hoje ao vivo"
+    listarExposicaoDia(slug, { dia: hoje }),
   ]);
 
   const mercadoDoAtivo = mercado.find((m) => m.prefixo_simbolo === robo.ativo);
@@ -77,7 +80,7 @@ export default async function LayoutRobo({ children, params }: Props) {
       <Voltar href="/#robos">Todos os robôs</Voltar>
       <RoboAoVivoProvider
         robo={robo}
-        inicial={{ operacoes, posicoes, ultimoHeartbeatEm: robo.ultimo_heartbeat_em, dia: hoje }}
+        inicial={{ operacoes, posicoes, ultimoHeartbeatEm: robo.ultimo_heartbeat_em, dia: hoje, exposicaoHoje: exposicao[0] ?? null }}
         pregao={pregao}
         feriados={feriados}
         pregaoAbertoNoServidor={pregaoAberto(new Date(), pregao, feriados)}

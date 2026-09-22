@@ -59,6 +59,14 @@ export function formatarPontos(valor: number, sinal = false): string {
   return fmtNumero(1, sinal, 0).format(Number.isFinite(valor) ? valor : 0);
 }
 
+/**
+ * MFE e MAE de uma operação numa célula só (22/09/2026): "+320 / −85 pts". Os dois sempre com sinal, o MFE
+ * primeiro; sem medição quem chama mostra "–".
+ */
+export function formatarMfeMae(mfe: number, mae: number): string {
+  return `${formatarPontos(mfe, true)} / ${formatarPontos(mae, true)} pts`;
+}
+
 /** Preço de negociação: 135.000 (WIN) ou 5.400,5 (WDO). Nulo (importação) vira "–". */
 export function formatarPreco(preco: number | null | undefined): string {
   if (preco === null || preco === undefined || !Number.isFinite(preco)) return "–";

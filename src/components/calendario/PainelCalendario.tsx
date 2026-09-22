@@ -12,8 +12,9 @@ import { escalaDeForca, mistura } from "@/components/graficos/base";
 import { AmostraDaLinha, CURVA_POR_OPERACAO, DesenhoDaCurva, MolduraProfit, type MarcadorDaCurva } from "@/components/graficos/CurvaProfit";
 import { seriePorOperacao } from "@/components/graficos/series-da-curva";
 import { Button } from "@/components/ui/button";
-import { formatarData, formatarDataLonga, formatarMesAno, formatarNumero, formatarPct } from "@/lib/formato";
+import { formatarData, formatarDataLonga, formatarHora, formatarMesAno, formatarNumero, formatarPct } from "@/lib/formato";
 import { gradeMes, heatmapAnoMes, mesesComDados } from "@/lib/stats/calendario";
+import { mepMenDoDia, posicaoDoExtremo, type ExposicaoDoDia } from "@/lib/stats/exposicao";
 import { dia as diaOp, excursaoDoDia, porDiaSemana, porHora, valorOperacao } from "@/lib/stats/operacoes";
 import { mesDe, somarMeses } from "@/lib/stats/periodos";
 import { valorDia } from "@/lib/stats/serie";
@@ -23,10 +24,35 @@ interface Props {
   linhas: LinhaDiaria[];
   /** as operações empacotadas por ops-codec: 158 KB em vez de 699 KB no HTML (18/09/2026) */
   pacote: OpsEmpacotadas;
+  /** MEP/MEN por dia medidos pelo EA 1.1.0 (exposicao_dia_publico), só os dias com medição (22/09/2026) */
+  exposicao: ExposicaoDoDia[];
   feriados: string[];
   hoje: string;
   valorPonto: number;
+  /** custo por contrato do robô: o líquido do MEP/MEN medido desconta o custo de cada saída até o extremo */
+  custoPorContrato: number;
   capitalReferencia: number | null;
+}
+
+// o "o que é" do MEP e do MEN muda com a fonte do dia (22/09/2026)
+const PARCIAL = " Parcial: o coletor subiu com o dia já em andamento e pode ter perdido um extremo anterior.";
+const TEXTO_MEP = {
+  ea: (parcial: boolean) =>
+    `O ponto mais alto que o saldo do dia alcançou, já com custos, medido no MetaTrader 5 a cada movimento do preço, com a posição aberta: o mesmo número do Profit.${parcial ? PARCIAL : ""}`,
+  fechamento:
+    "O ponto mais alto que o saldo do dia alcançou, conferido a cada operação fechada. A posição ainda aberta não entra na conta, por isso nunca passa do MEP da plataforma Profit, que acompanha o saldo a cada movimento do preço.",
+};
+const TEXTO_MEN = {
+  ea: (parcial: boolean) =>
+    `O ponto mais baixo que o saldo do dia alcançou, já com custos, medido no MetaTrader 5 a cada movimento do preço, com a posição aberta: o quanto o dia chegou a ficar no prejuízo.${parcial ? PARCIAL : ""}`,
+  fechamento:
+    "O ponto mais baixo que o saldo do dia alcançou, conferido a cada operação fechada: o quanto o dia chegou a ficar no prejuízo. A posição ainda aberta não entra na conta, por isso nunca passa do MEN da plataforma Profit, que acompanha o saldo a cada movimento do preço.",
+};
+
+/** Quando o extremo medido foi batido: a hora, ou, sem ela, depois de quantas operações fechadas. */
+function quandoBateu(em: string | null, nSaidas: number): string {
+  if (em) return `às ${formatarHora(em)}`;
+  return nSaidas === 0 ? "antes da 1ª operação fechar" : `depois da ${formatarNumero(nSaidas)}ª operação`;
 }
 
 const CABECALHO = ["Seg", "Ter", "Qua", "Qui", "Sex"];
@@ -95,8 +121,9 @@ function Fileira({
  * faixa de largura toda embaixo, e a curva do dia ocupa a diferença para as duas colunas terminarem juntas.
  * Cada número ganhou o i do "o que é"; o aviso de como o MEP e o MEN são medidos foi para dentro dele.
  */
-export function PainelCalendario({ linhas, pacote, feriados, hoje, valorPonto, capitalReferencia }: Props) {
+export function PainelCalendario({ linhas, pacote, exposicao, feriados, hoje, valorPonto, custoPorContrato, capitalReferencia }: Props) {
   const ops = useMemo(() => desempacotar(pacote), [pacote]);
+  const exposicaoPorDia = useMemo(() => new Map(exposicao.map((e) => [e.dia, e])), [exposicao]);
   const idCurva = `cal-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   const opcoes = useMemo<OpcoesSerie>(() => ({ base: "liquido", unidade: "brl", valorPonto }), [valorPonto]);
   const meses = useMemo(() => mesesComDados(linhas), [linhas]);
@@ -173,16 +200,33 @@ export function PainelCalendario({ linhas, pacote, feriados, hoje, valorPonto, c
 
   // o dia em curva, operação a operação (as operações compactas já vêm em ordem de fechamento)
   const curvaDoDia = useMemo(() => (diaSel ? seriePorOperacao(opsDia, opcoes, [diaSel]) : []), [opsDia, opcoes, diaSel]);
-  // MEP e MEN do dia sobre TODAS as operações (a curva desenhada é fatiada em até 240 pontos e pode
-  // não passar pelo pico); a posição de cada marcador é a mesma régua da série: n-ésima operação / total
+  // MEP e MEN do dia, duas fontes (22/09/2026). Primeiro a medição do EA 1.1.0: tick a tick, com a posição
+  // aberta, o número do Profit, trazido em R$ brutos e posto aqui na base e unidade da curva (líquido: o
+  // custo de cada saída feita até o extremo). Sem medição (antes do EA 1.1.0, histórico importado, EA
+  // antigo), o cálculo por fechamento sobre TODAS as operações (a curva desenhada é fatiada em até 240
+  // pontos e pode não passar pelo pico). A posição de cada marcador é a mesma régua da série: n-ésima
+  // operação / total; no medido, quantas saídas já tinham acontecido / total
+  const mepMenEA = useMemo(
+    () => (diaSel ? mepMenDoDia(exposicaoPorDia.get(diaSel), custoPorContrato, valorPonto, opcoes.base, opcoes.unidade) : null),
+    [diaSel, exposicaoPorDia, custoPorContrato, valorPonto, opcoes],
+  );
   const excursao = useMemo(() => excursaoDoDia(opsDia, opcoes), [opsDia, opcoes]);
+  const nOpsDia = opsDia.length;
   const marcadoresDoDia = useMemo(() => {
     const lista: MarcadorDaCurva[] = [];
+    if (mepMenEA) {
+      if (mepMenEA.mep > 0) lista.push({ posicao: posicaoDoExtremo(mepMenEA.mepNSaidas, nOpsDia), valor: mepMenEA.mep, rotulo: "MEP", tom: "positivo" });
+      if (mepMenEA.men < 0) lista.push({ posicao: posicaoDoExtremo(mepMenEA.menNSaidas, nOpsDia), valor: mepMenEA.men, rotulo: "MEN", tom: "negativo" });
+      return lista;
+    }
     const n = excursao.nOperacoes || 1;
     if (excursao.operacaoMep !== null) lista.push({ posicao: excursao.operacaoMep / n, valor: excursao.mep, rotulo: "MEP", tom: "positivo" });
     if (excursao.operacaoMen !== null) lista.push({ posicao: excursao.operacaoMen / n, valor: excursao.men, rotulo: "MEN", tom: "negativo" });
     return lista;
-  }, [excursao]);
+  }, [mepMenEA, excursao, nOpsDia]);
+  // os dois números do bloco MEP/MEN, já na fonte do dia
+  const mepDoDia = mepMenEA ? mepMenEA.mep : excursao.mep;
+  const menDoDia = mepMenEA ? mepMenEA.men : excursao.men;
   // O eixo de baixo é a ordem de fechamento, e é isso que ele diz: "1ª", "31ª"... A única hora que a
   // operação compacta guarda é a de ABERTURA, e rotular por ela engana: em 02/09/2026 as posições
   // abertas às 10h só fecharam no fim do dia, e o eixo saía "9h 11h 13h 10h".
@@ -425,41 +469,54 @@ export function PainelCalendario({ linhas, pacote, feriados, hoje, valorPonto, c
                 />
               </div>
 
-              {/* MEP e MEN: o pico e o vale do saldo do dia, medidos só nos fechamentos. Não é o número do
-                  Profit, que acompanha tick a tick com a posição aberta. 19/09/2026: o aviso de como é medido,
-                  que ocupava duas linhas embaixo dos números, foi para dentro da explicação de cada um. */}
+              {/* MEP e MEN: o pico e o vale do saldo do dia. 22/09/2026: quando o EA 1.1.0 mediu o dia, é o
+                  número do Profit (tick a tick, com a posição aberta) e a linha embaixo diz "medido no MT5";
+                  senão, o cálculo por fechamento, que a mesma linha chama de "por fechamento". 19/09/2026: o
+                  aviso de como é medido tinha ido para dentro do i; volta como uma linha só, porque agora
+                  muda de um dia para o outro e a pessoa precisa saber qual dos dois está lendo. */}
               <div className="border-b">
                 <Fileira
                   colunas={2}
                   itens={[
                     {
                       rotulo: "exposição positiva (MEP)",
-                      valor: opsDia.length > 0 ? <Valor valor={excursao.mep} inteiro={Math.abs(excursao.mep) >= 1000} /> : "–",
-                      apoio:
-                        opsDia.length === 0
+                      valor: mepMenEA || opsDia.length > 0 ? <Valor valor={mepDoDia} inteiro={Math.abs(mepDoDia) >= 1000} /> : "–",
+                      apoio: mepMenEA
+                        ? mepMenEA.mep > 0
+                          ? quandoBateu(mepMenEA.mepEm, mepMenEA.mepNSaidas)
+                          : "não ficou positivo"
+                        : opsDia.length === 0
                           ? undefined
                           : excursao.operacaoMep !== null
                             ? `na ${formatarNumero(excursao.operacaoMep)}ª operação`
                             : "não ficou positivo",
                       info: "mep",
-                      textoInfo:
-                        "O ponto mais alto que o saldo do dia alcançou, conferido a cada operação fechada. A posição ainda aberta não entra na conta, por isso nunca passa do MEP da plataforma Profit, que acompanha o saldo a cada movimento do preço.",
+                      textoInfo: mepMenEA ? TEXTO_MEP.ea(mepMenEA.parcial) : TEXTO_MEP.fechamento,
                     },
                     {
                       rotulo: "exposição negativa (MEN)",
-                      valor: opsDia.length > 0 ? <Valor valor={excursao.men} inteiro={Math.abs(excursao.men) >= 1000} /> : "–",
-                      apoio:
-                        opsDia.length === 0
+                      valor: mepMenEA || opsDia.length > 0 ? <Valor valor={menDoDia} inteiro={Math.abs(menDoDia) >= 1000} /> : "–",
+                      apoio: mepMenEA
+                        ? mepMenEA.men < 0
+                          ? quandoBateu(mepMenEA.menEm, mepMenEA.menNSaidas)
+                          : "não ficou negativo"
+                        : opsDia.length === 0
                           ? undefined
                           : excursao.operacaoMen !== null
                             ? `na ${formatarNumero(excursao.operacaoMen)}ª operação`
                             : "não ficou negativo",
                       info: "men",
-                      textoInfo:
-                        "O ponto mais baixo que o saldo do dia alcançou, conferido a cada operação fechada: o quanto o dia chegou a ficar no prejuízo. A posição ainda aberta não entra na conta, por isso nunca passa do MEN da plataforma Profit, que acompanha o saldo a cada movimento do preço.",
+                      textoInfo: mepMenEA ? TEXTO_MEN.ea(mepMenEA.parcial) : TEXTO_MEN.fechamento,
                     },
                   ]}
                 />
+                {mepMenEA || opsDia.length > 0 ? (
+                  <p className="-mt-1 px-3 pb-2.5 text-center text-[11px] text-balance text-muted-foreground">
+                    {mepMenEA
+                      ? `Medido no MT5, tick a tick, com a posição aberta${mepMenEA.parcial ? " · parcial: o coletor não acompanhou o dia inteiro" : ""}.`
+                      : "Por fechamento de operação, sem a posição aberta."}
+                  </p>
+                ) : null}
               </div>
 
               <div className="p-3 sm:p-4">

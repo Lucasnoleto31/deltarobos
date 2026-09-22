@@ -161,6 +161,58 @@ pinta na hora, e quando o visitante abre "Por operação" busca a série complet
 (404 para robô inexistente, 400 para período inválido). A aba Desempenho e o calendário já têm as
 operações no navegador e desenham na resolução fiel direto.
 
+### Excursões medidas pelo EA (MFE/MAE, MEP/MEN) e candles
+
+O EA 1.1.0 mede no terminal, tick a tick, o que o servidor não consegue ver (migrations 0021 e 0022).
+Nada disso é obrigatório: o EA 1.0.0 pode continuar em alguma conta e, sem os campos novos, nada
+muda. Perder uma excursão nunca perde um deal: as medições são paralelas às operações e entram por
+`left join`.
+
+| tabela privada      | chave                          | o que guarda                                                                                                   |
+| ------------------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| `excursoes_posicao` | (conta, posição, ciclo)        | MFE e MAE em pontos por contrato, horário de cada extremo, `parcial` (o EA subiu com a posição já aberta)       |
+| `exposicao_dia`     | (conta, magic, dia)            | MEP e MEN do dia em R$ brutos por contrato, horários, quantas operações (ciclos fechados, não deals) já tinham fechado no extremo, `parcial` |
+| `candles`           | (símbolo, timeframe, abertura) | barras fechadas do índice (M1 por padrão): OHLC, `tick_volume`, `real_volume`; retenção de ~400 dias           |
+
+O upsert é monotônico: MFE e MEP só sobem, MAE e MEN só descem (`greatest`/`least`), então heartbeat,
+deal e reenvio podem chegar em qualquer ordem e repetidos; o horário do extremo troca junto com o valor
+e, com valor igual, só preenche se estava vazio (o heartbeat não manda horário, o deal manda). MEP nunca
+fica negativo nem MEN positivo (spec §7: saldo que nunca ficou positivo tem MEP = 0 e sem horário).
+`parcial` é grudento (`OR`): a linha agrega várias vidas do EA e todo reinício tem um buraco de ticks,
+então um `false` nunca corrige um `true` anterior (o EA guarda o parcial nas GlobalVariables e o traz de
+volta no init). Item de excursão sem `ciclo` é ignorado (o default 1 fundiria a medição do ciclo 2 de uma
+posição revertida na linha do ciclo 1). Reenvio igual não escreve nada (e não dispara trigger).
+
+Funções, todas só `service_role` (chamadas pelo ingest):
+
+- `registrar_excursoes(conta, itens)`: `itens` é um objeto ou lista com as chaves do deal
+  (`posicao_id, ciclo, magic, simbolo, mfe_pontos, mae_pontos, mfe_em, mae_em, excursao_parcial`) ou da
+  posição do heartbeat (`ticket` no lugar de `posicao_id`, sem horários). O ingest do deal chama antes
+  do upsert de `operacoes`, para a operação nascer com o join preenchido. Devolve quantas linhas escreveu.
+- `atualizar_heartbeat(conta, corpo)`: o passo 0 grava `exposicao_dia` a partir de
+  `corpo.exposicao_dia[]` (`magic, dia, realizado, n_saidas, mep, mep_em, mep_n_saidas, men, men_em,
+  men_n_saidas, parcial`; só dias entre ontem e amanhã), antes do `coleta_status`, para o evento
+  `coleta` já sair com o MEP/MEN novo; o passo 3b registra as excursões das posições abertas que
+  trouxerem `mfe_pontos`.
+- `gravar_candles(conta, corpo)`: `POST /api/ingest/candles` com
+  `{simbolo, timeframe, candles: [{t, o, h, l, c, v, vr}]}`; `on conflict do nothing`, barra inválida
+  descartada (e barra fora do minuto cheio é 400 no schema), símbolo sem multiplicador recusado sem erro
+  de banco, e aí a rota responde 422 e registra em `coleta_rejeicoes` (o EA loga a cada barra nova e relê
+  as mesmas barras: cadastrado o multiplicador, nada se perdeu); limpa barras com mais de 400 dias em 1%
+  das chamadas (sem cron; índice em `abre_em`).
+
+O que fica público (nunca conta, magic, volume nem número de conta; colunas novas sempre no fim):
+
+| onde                       | o que                                                                                                                                                                                                                                                                         |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `operacoes_publico`        | `mfe_pontos_por_contrato`, `mae_pontos_por_contrato`, `mfe_em`, `mae_em`, `excursao_parcial` (nulos = não medido: EA antigo ou histórico importado)                                                                                                                              |
+| `posicoes_abertas_publico` | `mfe_pontos_por_contrato` (maior do grupo) e `mae_pontos_por_contrato` (menor do grupo), do ciclo em curso de cada ticket                                                                                                                                                      |
+| `exposicao_dia_publico`    | `robo_id, slug, dia, mep_ea, men_ea, mep_ea_em, men_ea_em, mep_ea_n_saidas, men_ea_n_saidas, excursao_ea_parcial, n_magics`; só a conta principal e só dias sem importação manual e sem operação do robô fora de `operacoes_publico` (hora/duração mínima: o saldo medido não bateria com a curva); existe linha só para dia que o EA mediu (sem linha, o site calcula por fechamento). Líquido = bruto − `n_saidas × custo_por_contrato` (`n_saidas` = ciclos fechados); pontos = ÷ `valor_ponto_brl` |
+| `candles_publico`          | a tabela inteira                                                                                                                                                                                                                                                              |
+| evento `coleta`            | ganha `mep_ea, men_ea, mep_ea_em, men_ea_em, mep_ea_n_saidas, men_ea_n_saidas, excursao_ea_parcial` de hoje (nulos quando o EA não mediu)                                                                                                                                       |
+| evento `posicao`           | é a linha de `posicoes_abertas_publico`, então já traz o MFE/MAE do grupo                                                                                                                                                                                                     |
+| evento `operacao`          | é a linha de `operacoes_publico`, então já traz MFE/MAE; excursão que chegar depois da operação de hoje (reconciliação, reenvio) reemite o evento                                                                                                                              |
+
 ### Regras de segurança do schema
 
 - RLS em toda tabela. `anon` só lê as views `*_publico` e chama `resumo_casa_hoje()`.
@@ -182,12 +234,29 @@ operações no navegador e desenham na resolução fiel direto.
    - `InpHeartbeatSeg`: 3
    - `InpDiasHistorico`: 7
    - `InpSimbolos`: símbolos pra cotação na barra da home (ex.: `WINV26,WDOV26`)
+   - `InpExcursao` (1.1.0): `true` mede MFE/MAE por operação e MEP/MEN do dia tick a tick
+   - `InpAmostraMs` (1.1.0): 100 (50..1000), intervalo em que o EA lê os ticks novos em memória
+   - `InpEnviaCandles` (1.1.0): `true` em UM terminal só, envia as barras M1 fechadas do índice
+   - `InpCandlesSimbolo` (1.1.0): símbolo dos candles (vazio = o do gráfico onde o EA está)
+   - `InpCandlesBackfillMin` (1.1.0): 600, minutos de candles reenviados no init (o servidor ignora repetida)
 4. Na aba Especialistas deve aparecer `ping ok` e o resumo do histórico enviado.
 
 O EA envia cada deal assim que fecha (`/api/ingest/deal`), um heartbeat a cada 3 s com
 balance, equity, posições e cotações (`/api/ingest/heartbeat`) e, no init, os últimos dias de
 deals pra reconciliação (`/api/ingest/history`). Se a API falhar, os deals ficam numa fila e são
 reenviados no próximo timer.
+
+Na 1.1.0 o timer roda a cada `InpAmostraMs` só em memória (ticks dos símbolos com posição aberta:
+MFE/MAE por ciclo de posição, MEP/MEN por magic) e a rede continua num único slot a cada
+`InpHeartbeatSeg` (heartbeat, um item da fila, candles), porque `WebRequest` é síncrono. O deal sai
+com o MFE/MAE do ciclo e o heartbeat leva as posições abertas com a excursão até ali e o
+`exposicao_dia` por magic. O estado sobrevive a reinício do EA/terminal pelas GlobalVariables
+`DR_<posição>_<ciclo>_{mfe,mae,mfe_t,mae_t,t,p}` (`t` = até onde os ticks foram aplicados, `p` = já
+era parcial): no init o EA reaplica a lacuna pela base de ticks do terminal; sem GV a posição fica
+`parcial`, e as saídas de hoje anteriores ao init entram no realizado com o dia marcado `parcial`.
+Instalar a 1.1.0 no lugar da 1.0.0: substituir o `.mq5`, recompilar, e o EA sobe com os mesmos
+`InpUrlBase`/`InpToken` (o servidor aceita as duas versões; as migrations 0021 e 0022 precisam estar
+aplicadas para os campos novos serem guardados).
 
 ## Deploy (Vercel)
 
@@ -206,10 +275,10 @@ NEXT_PUBLIC_SITE_URL
 
 ```
 mt5/                      EA coletor
-supabase/migrations/      schema (9 migrations, ordem numérica)
+supabase/migrations/      schema (22 migrations, ordem numérica)
 supabase/seed.sql         dados iniciais
 src/app/(site)/           home e /robos/[slug]
-src/app/api/ingest/       ping, deal, heartbeat, history
+src/app/api/ingest/       ping, deal, heartbeat, history, candles, reconciliar
 src/app/api/robos/        curva por operação de cada período (JSON público, cache 60 s)
 src/components/           ui (shadcn), layout, home, robo, graficos, compartilhados
 src/hooks/                realtime (useRoboAoVivo, useCasaAoVivo), relógio

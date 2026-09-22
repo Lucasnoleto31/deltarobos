@@ -1,6 +1,7 @@
 import { buscarRobo } from "@/lib/consultas/publico";
 import { ehMes, listarOperacoesDoMes } from "@/lib/consultas/relatorios";
 import { formatarHoraSeg } from "@/lib/formato";
+import { excursaoDaOperacao } from "@/lib/stats/exposicao";
 import { hojeSP, mesDe } from "@/lib/stats/periodos";
 
 export const runtime = "nodejs";
@@ -24,6 +25,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug: s
   const ops = await listarOperacoesDoMes(slug, mes);
   if (ops.length === 0) return new Response("sem operações nesse mês", { status: 404 });
 
+  // 22/09/2026: mfe/mae no FIM, em pontos por contrato, vazios na operação não medida (quem já lê o CSV
+  // por posição de coluna não muda nada)
   const cabecalho = [
     "robo",
     "dia",
@@ -39,9 +42,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug: s
     "custos_brl_por_contrato",
     "liquido_brl_por_contrato",
     "origem",
+    "mfe_pontos_por_contrato",
+    "mae_pontos_por_contrato",
   ];
-  const linhas = ops.map((o) =>
-    [
+  const linhas = ops.map((o) => {
+    const excursao = excursaoDaOperacao(o);
+    return [
       robo.slug,
       o.dia_pregao,
       o.origem === "manual" ? null : formatarHoraSeg(o.abertura_em),
@@ -56,10 +62,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug: s
       o.custos_brl_por_contrato,
       Math.round((o.resultado_brl_por_contrato - o.custos_brl_por_contrato) * 100) / 100,
       o.origem,
+      excursao ? excursao.mfe : null,
+      excursao ? excursao.mae : null,
     ]
       .map(celula)
-      .join(";"),
-  );
+      .join(";");
+  });
   const csv = `﻿${cabecalho.join(";")}\n${linhas.join("\n")}\n`;
 
   const mesFechado = mes < mesDe(hojeSP());

@@ -4,6 +4,7 @@ import { TelaAoVivo } from "@/components/ao-vivo/TelaAoVivo";
 import { RoboAoVivoProvider } from "@/components/robo/RoboAoVivoProvider";
 import {
   buscarRobo,
+  listarExposicaoDia,
   listarFeriados,
   listarMercado,
   listarOperacoesDoDia,
@@ -48,11 +49,13 @@ export default async function PaginaAoVivo({ params }: Props) {
   if (!robo) notFound();
 
   const hoje = hojeSP();
-  const [operacoes, posicoes, feriados, mercado] = await Promise.all([
+  const [operacoes, posicoes, feriados, mercado, exposicao] = await Promise.all([
     listarOperacoesDoDia(slug, hoje),
     listarPosicoes(slug),
     listarFeriados(),
     listarMercado(),
+    // o mesmo estado inicial do layout do robô (MEP/MEN de hoje pelo EA), para o provider nascer igual
+    listarExposicaoDia(slug, { dia: hoje }),
   ]);
   const m = mercado.find((x) => x.prefixo_simbolo === robo.ativo);
   const pregao = m ? { inicio: m.pregao_inicio, fim: m.pregao_fim } : { inicio: "09:00", fim: "18:00" };
@@ -61,7 +64,7 @@ export default async function PaginaAoVivo({ params }: Props) {
     <div className="dark min-h-dvh bg-background text-foreground">
       <RoboAoVivoProvider
         robo={robo}
-        inicial={{ operacoes, posicoes, ultimoHeartbeatEm: robo.ultimo_heartbeat_em, dia: hoje }}
+        inicial={{ operacoes, posicoes, ultimoHeartbeatEm: robo.ultimo_heartbeat_em, dia: hoje, exposicaoHoje: exposicao[0] ?? null }}
         pregao={pregao}
         feriados={feriados}
         pregaoAbertoNoServidor={pregaoAberto(new Date(), pregao, feriados)}
