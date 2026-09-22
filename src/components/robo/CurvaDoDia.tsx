@@ -9,6 +9,7 @@ import {
   MolduraProfit,
   type PontoDoDesenho,
 } from "@/components/graficos/CurvaProfit";
+import { PONTOS_LEVE, fatiar } from "@/components/graficos/series-da-curva";
 import { formatarBRL, formatarDuracao, formatarHora, formatarNumero, formatarPontos, formatarPreco, rotuloLado } from "@/lib/formato";
 import type { OperacaoPublica } from "@/lib/tipos";
 
@@ -21,8 +22,6 @@ interface Props {
   legenda?: string;
 }
 
-// mesmo teto da curva de capital: acima disso cada coluna vira uma fatia de operações
-const MAX_COLUNAS = 240;
 const reais = (v: number) => formatarBRL(v, { sinal: true });
 
 /**
@@ -53,14 +52,9 @@ export const CurvaDoDia = memo(function CurvaDoDia({
       return { o, ordem: i + 1, liquido, acumulado, drawdown: Math.min(0, acumulado - pico), posicao: (i + 1) / n };
     });
 
-    const tamanho = n / MAX_COLUNAS;
-    const fatias =
-      n <= MAX_COLUNAS
-        ? brutos.map((b) => [b])
-        : Array.from({ length: MAX_COLUNAS }, (_, k) => {
-            const de = Math.floor(k * tamanho);
-            return brutos.slice(de, Math.max(de + 1, Math.floor((k + 1) * tamanho)));
-          });
+    // o mesmo teto e a mesma divisão da curva de capital (22/09/2026: a cópia local da fórmula perdia a última
+    // operação num dia de 245, 490, 505... operações, e o acumulado do fim da curva não batia com o do dia)
+    const fatias = fatiar(brutos, PONTOS_LEVE);
 
     const pontosDoDia = fatias.map((fatia): PontoDoDesenho => {
       const primeiro = fatia[0];

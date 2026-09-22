@@ -7,8 +7,8 @@
 // dia, 14/09/2026) e valem nos dois temas do site, como no Hub. Aqui só se desenha: cada ponto chega
 // com a posição, o acumulado, o drawdown e a leitura já montados.
 
-import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { Leitura, passo, type ConteudoDaDica, type PaletaDaLeitura } from "./base";
+import { useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { Leitura, indiceMaisPerto, passo, type ConteudoDaDica, type PaletaDaLeitura } from "./base";
 
 export const PROFIT = {
   fundo: "#222222",
@@ -125,6 +125,25 @@ function escalaDoDrawdown(quedas: number[]) {
   return { marcas, y: (v: number) => (v / fundo) * 100 };
 }
 
+/** Acima disso o drawdown deixa de ser uma barra por ponto (um nó de SVG cada) e vira uma área só. */
+export const MAX_BARRAS = 600;
+
+/**
+ * A área do drawdown de uma série longa (22/09/2026, com a série por operação de até 20 mil pontos):
+ * do zero, no alto, até o drawdown de cada ponto, na cor das barras. Coordenadas em % do desenho; o x
+ * vai com três casas porque 20 mil pontos em 100 unidades ficam a 0,005 um do outro.
+ */
+export function caminhoDoDrawdown(pontos: readonly PontoDoDesenho[], y: (drawdown: number) => number): string {
+  const n = pontos.length;
+  if (n === 0) return "";
+  const x = (p: PontoDoDesenho) => (p.posicao * 100).toFixed(3);
+  let d = `M${x(pontos[0])},0`;
+  for (const p of pontos) d += `L${x(p)},${y(p.drawdown).toFixed(2)}`;
+  return `${d}L${x(pontos[n - 1])},0Z`;
+}
+
+const SEM_MARCADORES: readonly MarcadorDaCurva[] = [];
+
 function EixoProfit({ marcas, y, altura, formatar }: { marcas: number[]; y: (v: number) => number; altura: number; formatar: (v: number) => string }) {
   return (
     <div aria-hidden className="relative text-[11px] tabular-nums" style={{ height: altura, color: PROFIT.texto }}>
@@ -209,49 +228,76 @@ export function DesenhoDaCurva({
   rotuloVertical,
   rotuloAria,
   aoSelecionar,
-  marcadores = [],
+  marcadores = SEM_MARCADORES,
 }: Props) {
-  const [ativo, setAtivo] = useState<number | null>(null);
+  // Onde o ponteiro está, em fração do eixo; o ponto apontado é o mais perto dela, achado a cada
+  // desenho (busca binária, custo nulo). Guardar a fração em vez do índice (22/09/2026) é o que deixa
+  // trocar a lista de pontos sem remontar: quando a série completa chega no lugar da leve, ou o zoom
+  // muda, a mira vai para o ponto novo mais perto do ponteiro em vez de sumir ou apontar outro ponto.
+  const [alvo, setAlvo] = useState<number | null>(null);
   // trecho sendo arrastado, em frações do eixo; só com mouse, para não brigar com a rolagem no toque
   const [selecao, setSelecao] = useState<{ de: number; ate: number } | null>(null);
   const inicioDoArrasto = useRef<number | null>(null);
   // a seleção também numa ref: o soltar pode vir antes do React redesenhar o último arrasto
   const selecaoRef = useRef<{ de: number; ate: number } | null>(null);
   const n = pontos.length;
-  if (n === 0) return null;
 
-  const x = (i: number) => pontos[i].posicao * 100;
-  // os marcadores entram na escala: em série fatiada o pico real pode não estar entre os pontos desenhados
-  const { marcas, y } = escalaDaCurva([...(escalaDe ?? pontos.map((p) => p.acumulado)), ...marcadores.map((m) => m.valor)]);
-  const zero = y(0);
-  // a linha nasce no zero, na borda esquerda, antes do primeiro ponto
-  const tracado = `M0,${zero.toFixed(2)}${pontos.map((p, i) => `L${x(i).toFixed(2)},${y(p.acumulado).toFixed(2)}`).join("")}`;
-  const area = `${tracado}L${x(n - 1).toFixed(2)},${zero.toFixed(2)}Z`;
-  const topoDaCurva = y(Math.max(0, ...pontos.map((p) => p.acumulado)));
-  const fundoDaCurva = y(Math.min(0, ...pontos.map((p) => p.acumulado)));
-  const escalaDD = escalaDoDrawdown(pontos.map((p) => p.drawdown));
-  const larguraDaBarra = Math.min((100 / n) * 0.72, 3);
+  // O que não muda ao apontar fica montado uma vez (22/09/2026): com a série por operação de até 20 mil
+  // pontos, refazer o traçado, a escala e a etiqueta mais larga a cada movimento do ponteiro travava a mira.
+  const desenho = useMemo(() => {
+    if (n === 0) return null;
+    const x = (i: number) => pontos[i].posicao * 100;
+    // os marcadores entram na escala: em série fatiada o pico real pode não estar entre os pontos desenhados
+    const { marcas, y } = escalaDaCurva([...(escalaDe ?? pontos.map((p) => p.acumulado)), ...marcadores.map((m) => m.valor)]);
+    const zero = y(0);
+    // com muitos pontos o x leva uma casa a mais: 20 mil pontos em 100 unidades ficam a 0,005 um do outro
+    const casas = n > MAX_BARRAS ? 3 : 2;
+    // a linha nasce no zero, na borda esquerda, antes do primeiro ponto
+    let tracado = `M0,${zero.toFixed(2)}`;
+    let maior = 0;
+    let menor = 0;
+    // a coluna do eixo reserva a largura da etiqueta mais larga, para ela não invadir o rótulo vertical
+    let etiquetaMaisLarga = "";
+    for (let i = 0; i < n; i++) {
+      const p = pontos[i];
+      tracado += `L${x(i).toFixed(casas)},${y(p.acumulado).toFixed(2)}`;
+      if (p.acumulado > maior) maior = p.acumulado;
+      if (p.acumulado < menor) menor = p.acumulado;
+      const t = formatarEixo(p.acumulado);
+      if (t.length > etiquetaMaisLarga.length) etiquetaMaisLarga = t;
+    }
+    const escalaDD = escalaDoDrawdown(pontos.map((p) => p.drawdown));
+    return {
+      x,
+      marcas,
+      y,
+      zero,
+      tracado,
+      area: `${tracado}L${x(n - 1).toFixed(casas)},${zero.toFixed(2)}Z`,
+      topoDaCurva: y(maior),
+      fundoDaCurva: y(menor),
+      escalaDD,
+      larguraDaBarra: Math.min((100 / n) * 0.72, 3),
+      // acima de MAX_BARRAS o drawdown é uma área só; abaixo, as barras de sempre
+      areaDoDrawdown: n > MAX_BARRAS ? caminhoDoDrawdown(pontos, escalaDD.y) : null,
+      etiquetaMaisLarga,
+    };
+  }, [pontos, n, escalaDe, marcadores, formatarEixo]);
+  if (n === 0 || desenho === null) return null;
+
+  const { x, marcas, y, zero, tracado, area, topoDaCurva, fundoDaCurva, escalaDD, larguraDaBarra, areaDoDrawdown, etiquetaMaisLarga } = desenho;
   const comDrawdown = alturaDoDrawdown > 0;
 
   const apontar = (e: ReactPointerEvent<HTMLDivElement>) => {
     const caixa = e.currentTarget.getBoundingClientRect();
-    const fracao = (e.clientX - caixa.left) / (caixa.width || 1);
-    // o ponto mais perto do dedo: com as operações espalhadas dentro de cada dia, o passo entre pontos não é fixo
-    let perto = 0;
-    pontos.forEach((p, i) => {
-      if (Math.abs(p.posicao - fracao) < Math.abs(pontos[perto].posicao - fracao)) perto = i;
-    });
-    setAtivo(perto);
+    setAlvo((e.clientX - caixa.left) / (caixa.width || 1));
   };
-  // o índice apontado pode ter ficado de uma série mais longa (troca de período com o ponteiro parado)
-  const atual = ativo !== null && ativo < n ? pontos[ativo] : null;
+  // o ponto mais perto do ponteiro: com as operações espalhadas dentro de cada dia, o passo entre pontos não
+  // é fixo; como eles vêm em ordem de posição, a busca é binária
+  const ativo = alvo === null ? null : indiceMaisPerto(pontos, alvo);
+  const atual = ativo !== null ? pontos[ativo] : null;
   const ultimo = pontos[n - 1];
   const corDoValor = (v: number) => (v >= 0 ? cores.alta : cores.baixa);
-  // a coluna do eixo reserva a largura da etiqueta mais larga, para ela não invadir o rótulo vertical
-  const etiquetaMaisLarga = pontos.reduce((m, p) => {
-    const t = formatarEixo(p.acumulado);
-    return t.length > m.length ? t : m;
-  }, "");
 
   const fracaoDe = (e: ReactPointerEvent<HTMLDivElement>) => {
     const caixa = e.currentTarget.getBoundingClientRect();
@@ -287,7 +333,7 @@ export function DesenhoDaCurva({
       className="@container grid grid-cols-[minmax(0,1fr)_auto_auto] gap-x-2"
       // no toque o "sair" vem logo depois de soltar o dedo: a mira fica onde ele parou
       onPointerLeave={(e) => {
-        if (e.pointerType !== "touch") setAtivo(null);
+        if (e.pointerType !== "touch") setAlvo(null);
       }}
     >
       {/* a altura reservada acompanha a largura (uma linha no largo, três no celular), para o desenho não pular */}
@@ -302,7 +348,7 @@ export function DesenhoDaCurva({
         onPointerMove={arrastar}
         onPointerDown={comecarArrasto}
         onPointerUp={soltar}
-        onPointerCancel={() => setAtivo(null)}
+        onPointerCancel={() => setAlvo(null)}
       >
         {marcas
           .filter((m) => m !== 0)
@@ -347,8 +393,7 @@ export function DesenhoDaCurva({
         {marcadores.map((m, i) => {
           const px = m.posicao * 100;
           const cor = m.tom === "positivo" ? cores.alta : cores.baixa;
-          const maisPerto = pontos.reduce((k, p, j) => (Math.abs(p.posicao - m.posicao) < Math.abs(pontos[k].posicao - m.posicao) ? j : k), 0);
-          const sobOAtivo = ativo === maisPerto;
+          const sobOAtivo = ativo === indiceMaisPerto(pontos, m.posicao);
           return (
             <div key={`${m.rotulo}-${i}`} aria-hidden className="pointer-events-none absolute" style={{ left: `${px}%`, top: `${y(m.valor)}%` }}>
               {sobOAtivo ? null : (
@@ -403,7 +448,7 @@ export function DesenhoDaCurva({
             style={{ height: alturaDoDrawdown, borderColor: PROFIT.zero }}
             onPointerMove={apontar}
             onPointerDown={apontar}
-            onPointerCancel={() => setAtivo(null)}
+            onPointerCancel={() => setAlvo(null)}
           >
             {escalaDD.marcas
               .filter((m) => m !== 0)
@@ -411,18 +456,24 @@ export function DesenhoDaCurva({
                 <div key={m} aria-hidden className="absolute inset-x-0 border-t" style={{ top: `${escalaDD.y(m)}%`, borderColor: PROFIT.grade }} />
               ))}
             <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 h-full w-full" aria-hidden>
-              {pontos.map((p, i) =>
-                p.drawdown < 0 ? (
-                  <rect
-                    key={i}
-                    x={(x(i) - larguraDaBarra / 2).toFixed(3)}
-                    y="0"
-                    width={larguraDaBarra.toFixed(3)}
-                    height={escalaDD.y(p.drawdown).toFixed(2)}
-                    fill={PROFIT.baixa}
-                    fillOpacity={atual && ativo === i ? 0.95 : 0.62}
-                  />
-                ) : null,
+              {/* série longa: uma área só do zero até o drawdown de cada ponto (a mira tracejada marca o apontado);
+                  série curta: uma barra por ponto, a apontada mais forte */}
+              {areaDoDrawdown !== null ? (
+                <path d={areaDoDrawdown} fill={PROFIT.baixa} fillOpacity={0.62} />
+              ) : (
+                pontos.map((p, i) =>
+                  p.drawdown < 0 ? (
+                    <rect
+                      key={i}
+                      x={(x(i) - larguraDaBarra / 2).toFixed(3)}
+                      y="0"
+                      width={larguraDaBarra.toFixed(3)}
+                      height={escalaDD.y(p.drawdown).toFixed(2)}
+                      fill={PROFIT.baixa}
+                      fillOpacity={atual && ativo === i ? 0.95 : 0.62}
+                    />
+                  ) : null,
+                )
               )}
             </svg>
             {atual && ativo !== null ? (

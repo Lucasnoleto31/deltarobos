@@ -159,6 +159,32 @@ export function indiceApontado(e: ReactPointerEvent<HTMLDivElement>, total: numb
 }
 
 /**
+ * O índice do ponto mais perto de `alvo` numa lista ordenada por `posicao` (crescente, empates
+ * permitidos), por busca binária. Em empate de distância vale o primeiro, como a varredura que havia
+ * até 22/09/2026 fazia; com a série por operação de até 20 mil pontos, varrer a lista a cada movimento
+ * do ponteiro pesava. Lista vazia dá 0: quem chama já não desenha sem pontos.
+ */
+export function indiceMaisPerto(pontos: ReadonlyArray<{ posicao: number }>, alvo: number): number {
+  const n = pontos.length;
+  if (n === 0) return 0;
+  // o primeiro índice com posição >= alvo
+  let baixo = 0;
+  let alto = n;
+  while (baixo < alto) {
+    const meio = (baixo + alto) >> 1;
+    if (pontos[meio].posicao < alvo) baixo = meio + 1;
+    else alto = meio;
+  }
+  let k: number;
+  if (baixo === 0) k = 0;
+  else if (baixo === n) k = n - 1;
+  else k = alvo - pontos[baixo - 1].posicao <= pontos[baixo].posicao - alvo ? baixo - 1 : baixo;
+  // pontos na mesma posição: o primeiro deles
+  while (k > 0 && pontos[k - 1].posicao === pontos[k].posicao) k -= 1;
+  return k;
+}
+
+/**
  * A força de 0 a 1 de cada valor, para pintar calendário e mapas (lição do Hub). O teto é o 9º décimo
  * dos valores absolutos, e não o maior: com o maior dia como régua, um dia fora da curva deixava
  * todos os outros no tom mais fraco, e o calendário inteiro ficava da mesma cor. Acima do teto, cor cheia.

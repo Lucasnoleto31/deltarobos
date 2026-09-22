@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Eixo, Guias, Leitura, indiceApontado, mistura, passo, type ConteudoDaDica } from "@/components/graficos/base";
-import { rotulosDeData } from "@/components/graficos/series-da-curva";
+import { PONTOS_LEVE, fatiar, rotulosDeData } from "@/components/graficos/series-da-curva";
 import { formatarBRL, formatarData, formatarPct } from "@/lib/formato";
 import type { PontoCurva } from "@/lib/stats/tipos";
 
@@ -12,8 +12,6 @@ interface Props {
   altura?: number;
 }
 
-// acima disso cada coluna vira uma fatia de dias, como na curva de capital
-const MAX_COLUNAS = 240;
 const ALTURA_DOS_ROTULOS = 22;
 
 /**
@@ -28,16 +26,10 @@ export function AbaixoDoPico({ curva, capitalReferencia, altura = 240 }: Props) 
   const temCapital = Boolean(capitalReferencia && capitalReferencia > 0);
 
   const colunas = useMemo(() => {
-    const n = curva.length;
-    if (n === 0) return [];
-    const tamanho = n / MAX_COLUNAS;
-    const fatias =
-      n <= MAX_COLUNAS
-        ? curva.map((p) => [p])
-        : Array.from({ length: MAX_COLUNAS }, (_, k) => {
-            const de = Math.floor(k * tamanho);
-            return curva.slice(de, Math.max(de + 1, Math.floor((k + 1) * tamanho)));
-          });
+    // acima de PONTOS_LEVE pregões cada coluna vira uma fatia de dias, com a mesma divisão da curva de capital
+    // (22/09/2026: a cópia local da fórmula perdia o último pregão com 245, 490, 505... dias, e a leitura
+    // padrão, "o último pregão", mostrava o penúltimo)
+    const fatias = fatiar(curva, PONTOS_LEVE);
     // cada coluna mostra o pior dia da fatia; o pico é o da curva (o mesmo para todos os dias da fatia)
     return fatias.map((fatia) => {
       const pior = fatia.reduce((m, p) => (p.drawdown < m.drawdown ? p : m), fatia[0]);
