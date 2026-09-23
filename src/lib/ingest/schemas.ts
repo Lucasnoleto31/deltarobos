@@ -174,6 +174,57 @@ export const cotacaoSchema = z.object({
   fechamento_anterior: z.number().nonnegative().nullish(),
 });
 
+/**
+ * Balde da série do saldo do dia (EA 1.1.2): [t, min, max, ultimo]. t = início do balde em epoch UTC (segundos,
+ * inteiro); min/max/ultimo = mínimo, máximo e último valor do saldo do dia do magic (realizado + flutuante) dentro
+ * do balde, em R$ BRUTOS por contrato com 4 casas: o mesmo valor que alimenta o MEP/MEN de exposicao_dia.
+ * t < 1e11 (ano 5138): epoch em MILISSEGUNDOS (EA com bug) cai aqui como balde malformado, com aviso no log, em vez
+ * de passar e sumir em silêncio no banco (que também filtra t < 1e11).
+ */
+export const baldeSaldoSchema = z.tuple([
+  z.number().int().positive().lt(100_000_000_000),
+  z.number(),
+  z.number(),
+  z.number(),
+]);
+
+/** Teto de baldes por item: o buffer circular do EA (InpSaldoBucketSeg = 1 s por 12 min, ou 5 s por 1 h). */
+export const MAX_BALDES_SALDO_DIA = 720;
+
+/** Teto de itens (magic, dia, regras) de saldo_dia por heartbeat; o EA envia só o que cabe e guarda o resto. */
+export const MAX_ITENS_SALDO_DIA = 50;
+
+/**
+ * Item de saldo_dia do heartbeat (EA 1.1.2): os baldes fechados e ainda não confirmados de um magic. Diferente da
+ * exposicao_dia (cumulativa, reenviada inteira a cada 3 s), o EA marca o lote como enviado no 2xx e não reenvia:
+ * recusar o item inteiro por causa de um balde perderia até 720 baldes. Por isso balde malformado é descartado
+ * sozinho (um aviso por item) e os demais seguem para o banco, que faz upsert do que chega.
+ */
+export const saldoDiaSchema = z
+  .object({
+    magic: z.number().int().nonnegative(),
+    dia: diaIso,
+    // true quando o EA mediu o balde já aplicando a regra pública do magic (GET /api/ingest/ping). Ausente ou
+    // malformado vira undefined e o banco grava false (só true é publicado); nunca derruba o item.
+    regras_aplicadas: tolerante("regras_aplicadas", z.boolean()),
+    baldes: z.array(z.unknown()).max(MAX_BALDES_SALDO_DIA),
+  })
+  .transform((item) => {
+    const baldes: BaldeSaldo[] = [];
+    let descartados = 0;
+    for (const b of item.baldes) {
+      const r = baldeSaldoSchema.safeParse(b);
+      if (r.success) baldes.push(r.data);
+      else descartados++;
+    }
+    if (descartados > 0) {
+      console.warn(
+        `[ingest] saldo_dia: ${descartados} balde(s) malformado(s) ignorado(s) no magic ${item.magic} (${item.dia})`,
+      );
+    }
+    return { ...item, baldes };
+  });
+
 export const corpoHeartbeatSchema = z.object({
   ea_versao: z.string().max(32).optional(),
   em: dataIso.optional(),
@@ -192,6 +243,36 @@ export const corpoHeartbeatSchema = z.object({
       const onde = i?.path?.length ? ` em ${i.path.join(".")}` : "";
       console.warn(`[ingest] exposicao_dia ignorada${onde}: ${i?.message ?? "valor inválido"}`);
       return [];
+    }),
+  // EA 1.1.2: série do saldo do dia por magic (baldes de InpSaldoBucketSeg fechados e ainda não confirmados).
+  // Ausente (EA <= 1.1.1) é [] em silêncio. Nunca vira 400: o que não é lista vira [] com aviso; item malformado é
+  // ignorado sozinho, com aviso, e os outros magics seguem (o EA marca o lote como enviado no 2xx, então cada item
+  // que dá para salvar deve ser salvo; o que este schema descarta está PERDIDO, não "preso na fila"). Mais de
+  // MAX_ITENS_SALDO_DIA itens: seguem os primeiros, com aviso, em vez de zerar a lista inteira. Dentro do item, balde
+  // malformado é descartado sozinho (saldoDiaSchema).
+  saldo_dia: z
+    .array(z.unknown())
+    .default([])
+    .catch((ctx) => {
+      console.warn(`[ingest] saldo_dia ignorado: ${ctx.issues[0]?.message ?? "valor inválido"}`);
+      return [];
+    })
+    .transform((itens) => {
+      let lista = itens;
+      if (lista.length > MAX_ITENS_SALDO_DIA) {
+        console.warn(
+          `[ingest] saldo_dia: ${lista.length} itens, só os ${MAX_ITENS_SALDO_DIA} primeiros seguem (o EA nunca passa disso)`,
+        );
+        lista = lista.slice(0, MAX_ITENS_SALDO_DIA);
+      }
+      return lista.flatMap((x, indice) => {
+        const r = saldoDiaSchema.safeParse(x);
+        if (r.success) return [r.data];
+        const i = r.error.issues[0];
+        const onde = i?.path?.length ? ` em ${i.path.join(".")}` : "";
+        console.warn(`[ingest] saldo_dia: item ${indice} ignorado${onde}: ${i?.message ?? "valor inválido"}`);
+        return [];
+      });
     }),
 });
 
@@ -252,5 +333,7 @@ export type CorpoHeartbeat = z.output<typeof corpoHeartbeatSchema>;
 export type CorpoHistory = z.output<typeof corpoHistorySchema>;
 export type Posicao = z.output<typeof posicaoSchema>;
 export type ExposicaoDia = z.output<typeof exposicaoDiaSchema>;
+export type BaldeSaldo = z.output<typeof baldeSaldoSchema>;
+export type SaldoDia = z.output<typeof saldoDiaSchema>;
 export type Candle = z.output<typeof candleSchema>;
 export type CorpoCandles = z.output<typeof corpoCandlesSchema>;

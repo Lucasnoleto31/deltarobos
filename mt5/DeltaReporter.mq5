@@ -6,7 +6,7 @@
 //|  Roda num gráfico próprio em cada terminal da matriz e envia:    |
 //|    - cada deal fechado (+ MFE/MAE)  -> POST /api/ingest/deal     |
 //|    - balance/equity/posições/       -> POST /api/ingest/heartbeat|
-//|      cotações/MEP-MEN do dia a cada N segundos                   |
+//|      cotações/MEP-MEN/série do saldo do dia a cada N segundos    |
 //|    - últimos N dias no init         -> POST /api/ingest/history  |
 //|    - candles M1 fechados (opcional) -> POST /api/ingest/candles  |
 //|                                                                  |
@@ -26,12 +26,25 @@
 //|  do robô; regra que muda no meio do pregão refaz o dia pelo      |
 //|  histórico (parcial). MFE/MAE medem todas as posições.           |
 //|                                                                  |
+//|  v1.1.2 grava a série do saldo público do dia (a curva real que  |
+//|  o site desenha): a cada InpSaldoBucketSeg (5 s) fecha um balde  |
+//|  por magic com o mínimo, o máximo e o último valor do MESMO      |
+//|  saldo que alimenta o MEP/MEN (realizado + flutuante, regras     |
+//|  públicas aplicadas), amostrado a cada tick e a cada Medir().    |
+//|  O balde é o do instante do tick (não o do relógio na hora de    |
+//|  processar), então tick lido com atraso e replay de lacuna caem  |
+//|  no balde certo; a série de um magic só anda pra frente. Os      |
+//|  baldes fechados vão no heartbeat (saldo_dia) e esperam numa     |
+//|  fila de até 720 até o servidor aceitar (2xx). Regra pública que |
+//|  muda no meio do dia descarta a fila (o servidor apaga os baldes |
+//|  do dia medidos com a regra anterior).                           |
+//|                                                                  |
 //|  Configuração no MT5: Ferramentas > Opções > Expert Advisors >   |
 //|  "Permitir WebRequest para as URLs listadas" e adicionar a URL.  |
 //+------------------------------------------------------------------+
 #property copyright   "Delta Robôs"
-#property version     "1.11"
-#property description "Envia deals, posições, heartbeat, MFE/MAE, MEP/MEN e candles da conta para o site da Delta Robôs. Não opera."
+#property version     "1.12"
+#property description "Envia deals, posições, heartbeat, MFE/MAE, MEP/MEN, série do saldo do dia e candles da conta para o site da Delta Robôs. Não opera."
 #property strict
 
 //--- inputs
@@ -45,12 +58,19 @@ input string InpSimbolos      = "";                           // Símbolos extra
 input bool   InpLog           = true;                         // Log na aba Especialistas
 input bool   InpExcursao      = true;                         // Mede MFE/MAE e MEP/MEN tick a tick
 input int    InpAmostraMs     = 100;                          // Amostragem dos ticks (ms, 50..1000)
+input int    InpSaldoBucketSeg = 5;                           // Balde da série do saldo do dia (s, 1..60)
 input bool   InpEnviaCandles  = false;                        // Envia candles M1 fechados (ligar em UM terminal só)
 input string InpCandlesSimbolo = "";                          // Símbolo dos candles (vazio = o do gráfico)
 input int    InpCandlesBackfillMin = 600;                     // Minutos de candles reenviados no init
 
-#define EA_VERSAO         "1.1.1"
+#define EA_VERSAO         "1.1.2"
 #define FILA_MAX          500
+#define BALDES_MAX        720      // baldes da série do saldo à espera de envio (1 h a 5 s com UM magic; a fila é compartilhada); cheia descarta o mais antigo
+// tetos do servidor pro saldo_dia de UM heartbeat (schemas.ts e gravar_saldo_intradiario): o que passar
+// disso fica na fila pro próximo heartbeat (SaldoDiaJson), nunca é enviado pra ser descartado com 2xx
+#define ENVIO_ITENS_MAX   50       // itens (magic, dia, regras) por heartbeat
+#define ENVIO_BALDES_ITEM 720      // baldes por item
+#define ENVIO_BALDES_MAX  2000     // baldes por heartbeat
 #define PAGINA_HIST       100
 #define TICKS_PAGINA      4096     // ticks por CopyTicks
 #define TICKS_PAGINAS_MAX 4        // páginas por amostra (só o replay de posição restaurada chega nisso)
@@ -120,6 +140,23 @@ struct ExposicaoDia
    long   men_msc;
    bool   parcial;         // já havia deal (ou posição) antes do EA subir
    bool   regras;          // o magic tinha regra do servidor quando o dia foi calculado (regras_aplicadas; o item leva a versão dela)
+   long   bal_t0;          // série do saldo: início do balde corrente (segundos do relógio do servidor, múltiplo de g_balde_seg);
+                           // com bal_n == 0 é o do último balde fechado (piso do próximo: a série nunca volta), 0 = nenhum
+   double bal_min;         // mínimo, máximo e último saldo amostrado no balde corrente
+   double bal_max;
+   double bal_ult;
+   int    bal_n;           // amostras no balde corrente (0 = vazio)
+  };
+
+//--- balde fechado da série do saldo do dia, à espera de um heartbeat que o servidor aceite
+struct Balde
+  {
+   long   magic;
+   long   t0;              // início do balde, segundos do relógio do servidor (vira epoch UTC no JSON)
+   double minimo;          // R$ brutos por contrato
+   double maximo;
+   double ultimo;
+   bool   regras;          // regras_aplicadas do magic quando o balde foi medido
   };
 
 //--- regra pública de um magic (robos.hora_minima_operacao / duracao_minima_seg / duracao_minima_desde),
@@ -153,11 +190,18 @@ ulong        g_regras_prox_ms = 0;     // GetTickCount64 do próximo ping pelas 
 string       g_tick_sim[];      // símbolos com leitura de ticks
 long         g_tick_msc[];      // último tick lido por símbolo (0 = parado)
 double       g_tick_vp[];       // R$ por ponto por contrato do símbolo
+bool         g_tick_atras[];    // a leitura de ticks do símbolo ainda não alcançou o presente (replay em páginas): a amostra "agora" da série do saldo espera
 MqlTick      g_ticks[];         // buffer reaproveitado do CopyTicks
 int          g_dia = 0;         // dia do servidor da exposição corrente
 long         g_inicio_msc = 0;  // tick anterior ao init não mexe no MEP/MEN (só no MFE/MAE)
 ulong        g_ultimo_deal_contab = 0; // maior deal já somado na semeadura (não contar 2x)
 int          g_amostra_ms = 100;
+int          g_balde_seg  = 5;         // InpSaldoBucketSeg validado
+Balde        g_baldes[BALDES_MAX];     // fila circular de baldes fechados ainda não enviados
+int          g_baldes_ini = 0;         // índice do mais antigo
+int          g_baldes_n   = 0;
+int          g_baldes_enviando = 0;    // quantos foram no último heartbeat (saem da fila no 2xx)
+bool         g_baldes_perda_avisada = false; // já logou descarte por fila cheia (loga de novo depois que a fila esvazia)
 ulong        g_ultimo_hb_ms = 0;
 bool         g_candle_ok = false;      // g_candle_ate já foi inicializado
 datetime     g_candle_ate = 0;         // última barra M1 aceita pelo servidor
@@ -650,7 +694,10 @@ void AplicarRegrasNovas()
    for(int i = 0; i < ArraySize(g_exc); i++) LembrarMagic(magics, g_exc[i].magic);
    Log(StringFormat("regras do servidor mudaram com o dia em andamento: MEP/MEN de %d magics refeitos pelo histórico com as regras novas (parcial)",
                     ArraySize(magics)));
-   ArrayResize(g_exp, 0);
+   ArrayResize(g_exp, 0);   // o balde corrente da série do saldo vai junto
+   // os fechados também: foram medidos com a regra anterior e o servidor apaga os do dia já gravados
+   // quando o item de exposicao_dia chega com a versão nova (o que sai daqui em diante é da regra nova)
+   ZerarBaldes("regras do servidor mudaram: baldes medidos com a regra anterior");
    for(int i = 0; i < ArraySize(g_exc); i++)
      {
       g_exc[i].real_pc = 0;   // a semeadura recalcula o que cada ciclo aberto já realizou
@@ -826,10 +873,12 @@ int TickSimboloIdx(string simbolo)
    ArrayResize(g_tick_sim, n + 1);
    ArrayResize(g_tick_msc, n + 1);
    ArrayResize(g_tick_vp, n + 1);
+   ArrayResize(g_tick_atras, n + 1);
    SymbolSelect(simbolo, true);   // CopyTicks precisa do símbolo na Observação do Mercado
-   g_tick_sim[n] = simbolo;
-   g_tick_msc[n] = 0;
-   g_tick_vp[n]  = ValorPonto(simbolo);
+   g_tick_sim[n]   = simbolo;
+   g_tick_msc[n]   = 0;
+   g_tick_vp[n]    = ValorPonto(simbolo);
+   g_tick_atras[n] = false;
    LogValorPonto(simbolo);
    return n;
   }
@@ -844,7 +893,11 @@ void RebasearTicks(int s, long desde_msc)
       MqlTick t;
       desde_msc = (SymbolInfoTick(g_tick_sim[s], t) ? t.time_msc : MscServidor());
      }
-   if(g_tick_msc[s] == 0 || g_tick_msc[s] > desde_msc) g_tick_msc[s] = desde_msc;
+   if(g_tick_msc[s] == 0 || g_tick_msc[s] > desde_msc)
+     {
+      g_tick_msc[s]   = desde_msc;
+      g_tick_atras[s] = true;   // até o LerTicks alcançar o presente (a lacuna pode levar várias amostras)
+     }
   }
 
 //--- GlobalVariables: DR_<posicao>_<ciclo>_{mfe,mae,mfe_t,mae_t,t,p}. Sobrevivem a reinício do
@@ -1091,6 +1144,7 @@ void AtualizarExposicao(long magic, long msc)
      }
    g_exp[x].flut_pc = flut;
    double saldo = g_exp[x].realizado_pc + flut;
+   AmostrarSaldo(x, saldo, msc);   // série do saldo: o mesmo valor que decide o MEP/MEN, no balde do instante do tick/deal
    if(saldo > g_exp[x].mep)
      {
       g_exp[x].mep     = saldo;
@@ -1103,6 +1157,146 @@ void AtualizarExposicao(long magic, long msc)
       g_exp[x].men_msc = msc;
       g_exp[x].men_n   = g_exp[x].n_saidas;
      }
+  }
+
+//+------------------------------------------------------------------+
+//| Série do saldo do dia (baldes)                                   |
+//+------------------------------------------------------------------+
+// O site desenha a curva real do dia do robô com o saldo público do magic (realizado do dia + flutuante
+// por contrato, regras públicas aplicadas): é o MESMO valor que o AtualizarExposicao acaba de calcular
+// pro MEP/MEN, nunca recalculado aqui. Cada valor entra no balde do INSTANTE da amostra (o time_msc do
+// tick, o do deal, ou o relógio do servidor na amostra "agora" do Medir()), intervalo de g_balde_seg
+// segundos com t0 múltiplo de g_balde_seg: a cada tick (AtualizarExposicao) e uma vez por Medir()
+// (AmostrarSaldos, pra série seguir contínua quando o símbolo fica sem tick e pro balde fechar na hora
+// certa). É o instante do tick, não o relógio na hora de processar: o Medir() fica travado pelo
+// WebRequest do heartbeat (0,2 s a vários segundos sem rede) e depois lê os ticks acumulados de uma vez;
+// cada um cai no seu balde, não todos no de agora. A série de um magic só anda pra frente: amostra com
+// instante anterior ao balde corrente (tick atrasado, deal rebobinado, relógio do servidor que recuou na
+// reconexão) entra no corrente, nunca reabre um fechado (t0 repetido na fila nunca). Quando a amostra
+// passa pro balde seguinte, o corrente vai pra fila circular g_baldes (BALDES_MAX, compartilhada pelos
+// magics; cheia descarta o mais antigo e loga uma vez por episódio) e o heartbeat leva a fila em
+// "saldo_dia" (o corrente não vai; SaldoDiaJson respeita os tetos do servidor): 2xx tira da fila, falha
+// deixa (o próximo heartbeat reenvia; o banco faz upsert por (magic, t0)). Rede só no slot do heartbeat.
+// Virada do dia zera balde corrente e fila; init também (a fila não vai a disco). Regras que mudam com o
+// dia em andamento refazem o MEP/MEN (AplicarRegrasNovas) e zeram balde corrente e fila: o servidor apaga
+// os baldes do dia já gravados quando vê a versão nova, e o que sai daqui em diante é da regra nova.
+// Replay de ticks anteriores ao init (posição restaurada sem GV) não entra, como não entra no MEP/MEN; a
+// lacuna das GV (reinício com posição aberta), que o MEP/MEN reconstrói, gera os baldes da lacuna com o
+// instante de cada tick. Enquanto algum símbolo do magic ainda está em replay (g_tick_atras: LerTicks
+// pagina TICKS_PAGINAS_MAX páginas por Medir(), 1 h de WIN leva algumas amostras) ou alguma posição viva
+// ainda não tem tick de hoje aplicado, a amostra "agora" espera (SaldoEmReplay): senão abriria o balde
+// corrente com um flutuante do meio da lacuna e o resto do replay colapsaria nele.
+
+long BaldeT0(datetime instante)
+  {
+   return ((long)instante / g_balde_seg) * g_balde_seg;
+  }
+
+// Empurra o balde corrente do magic x pra fila de envio e esvazia (bal_t0 fica: é o piso do próximo)
+void FecharBalde(int x)
+  {
+   if(g_exp[x].bal_n == 0) return;
+   if(g_baldes_n >= BALDES_MAX)
+     {
+      g_baldes_ini = (g_baldes_ini + 1) % BALDES_MAX;
+      g_baldes_n--;
+      if(!g_baldes_perda_avisada)
+        {
+         int n_magics = 0;
+         for(int y = 0; y < ArraySize(g_exp); y++)
+            if(g_exp[y].dia == g_dia) n_magics++;
+         if(n_magics < 1) n_magics = 1;
+         Log(StringFormat("série do saldo: fila de %d baldes cheia (%d magics medindo: ~%d s sem heartbeat aceito); descarto o mais antigo até a fila esvaziar",
+                          BALDES_MAX, n_magics, BALDES_MAX * g_balde_seg / n_magics));
+         g_baldes_perda_avisada = true;
+        }
+     }
+   int k = (g_baldes_ini + g_baldes_n) % BALDES_MAX;
+   g_baldes[k].magic  = g_exp[x].magic;
+   g_baldes[k].t0     = g_exp[x].bal_t0;
+   g_baldes[k].minimo = g_exp[x].bal_min;
+   g_baldes[k].maximo = g_exp[x].bal_max;
+   g_baldes[k].ultimo = g_exp[x].bal_ult;
+   g_baldes[k].regras = g_exp[x].regras;
+   g_baldes_n++;
+   g_exp[x].bal_n = 0;
+  }
+
+// Um saldo do magic x medido no instante msc (ms do relógio do servidor) entra no balde desse instante;
+// balde virado vai pra fila. A série nunca volta: instante anterior ao balde corrente fica no corrente
+// e, com o corrente já fechado, abre o seguinte (relógio que recua ou tick atrasado nunca repete t0).
+void AmostrarSaldo(int x, double saldo, long msc)
+  {
+   long t0 = BaldeT0((datetime)(msc / 1000));
+   if(t0 <= 0) return;   // sem instante (relógio do servidor ainda zerado)
+   if(g_exp[x].bal_n > 0)
+     {
+      if(t0 < g_exp[x].bal_t0)      t0 = g_exp[x].bal_t0;
+      else if(t0 > g_exp[x].bal_t0) FecharBalde(x);
+     }
+   else if(g_exp[x].bal_t0 > 0 && t0 <= g_exp[x].bal_t0)
+      t0 = g_exp[x].bal_t0 + g_balde_seg;
+   if(g_exp[x].bal_n == 0)
+     {
+      g_exp[x].bal_t0  = t0;
+      g_exp[x].bal_min = saldo;
+      g_exp[x].bal_max = saldo;
+     }
+   else
+     {
+      if(saldo < g_exp[x].bal_min) g_exp[x].bal_min = saldo;
+      if(saldo > g_exp[x].bal_max) g_exp[x].bal_max = saldo;
+     }
+   g_exp[x].bal_ult = saldo;
+   g_exp[x].bal_n++;
+  }
+
+// O flut_pc do magic ainda não é o de agora: alguma posição viva sem tick de hoje aplicado (replay de
+// restaurada sem GV, ou símbolo sem tick desde o init) ou com o símbolo ainda em replay paginado (lacuna
+// das GV, g_tick_atras). A amostra "agora" do Medir() espera; os ticks do replay já geram os baldes deles.
+bool SaldoEmReplay(long magic)
+  {
+   for(int i = 0; i < ArraySize(g_exc); i++)
+     {
+      if(g_exc[i].magic != magic || g_exc[i].sumiu_ms != 0 || g_exc[i].vol_entradas <= 0) continue;
+      if(g_exc[i].ultimo_msc == 0 || g_exc[i].ultimo_msc < g_inicio_msc) return true;
+      if(g_exc[i].sim_idx >= 0 && g_exc[i].sim_idx < ArraySize(g_tick_atras) && g_tick_atras[g_exc[i].sim_idx]) return true;
+     }
+   return false;
+  }
+
+// Uma amostra por Medir() de cada magic com exposição do dia, no instante de agora, com o último saldo
+// calculado (realizado + flut_pc, o mesmo do MEP/MEN): a série segue sem tick e o balde vencido fecha na
+// hora. Roda depois do LerTicks: os ticks lidos já fecharam os baldes deles, em ordem, e esta vem por último
+void AmostrarSaldos()
+  {
+   long agora = MscServidor();
+   for(int x = 0; x < ArraySize(g_exp); x++)
+     {
+      if(g_exp[x].dia != g_dia) continue;
+      if(SaldoEmReplay(g_exp[x].magic)) continue;
+      AmostrarSaldo(x, g_exp[x].realizado_pc + g_exp[x].flut_pc, agora);
+     }
+  }
+
+void ZerarBaldes(string motivo)
+  {
+   if(g_baldes_n > 0)
+      Log(StringFormat("série do saldo: %d baldes não enviados descartados (%s)", g_baldes_n, motivo));
+   g_baldes_ini = 0;
+   g_baldes_n   = 0;
+   g_baldes_enviando = 0;
+   g_baldes_perda_avisada = false;
+  }
+
+// Heartbeat aceito (2xx): os baldes que foram nele saem da fila
+void MarcarBaldesEnviados()
+  {
+   int n = MathMin(g_baldes_enviando, g_baldes_n);
+   g_baldes_ini = (g_baldes_ini + n) % BALDES_MAX;
+   g_baldes_n  -= n;
+   g_baldes_enviando = 0;
+   if(g_baldes_n == 0) g_baldes_perda_avisada = false;
   }
 
 // Um preço num instante, pra excursão i
@@ -1169,8 +1363,13 @@ void LerTicks(int s)
         }
       for(int k = 0; k < n; k++) AplicarTick(s, g_ticks[k]);
       if(n > 0) g_tick_msc[s] = g_ticks[n - 1].time_msc;
-      if(n < TICKS_PAGINA) return;
+      if(n < TICKS_PAGINA)
+        {
+         g_tick_atras[s] = false;   // página curta: alcançou o presente
+         return;
+        }
      }
+   g_tick_atras[s] = true;   // saiu com a última página cheia: ainda há lacuna, continua na próxima amostra
   }
 
 // Casa g_exc com o PositionsTotal (por POSITION_IDENTIFIER). Posição que apareceu antes do
@@ -1240,7 +1439,11 @@ void SincronizarPosicoes()
       bool usado = false;
       for(int i = 0; i < ArraySize(g_exc); i++)
          if(g_exc[i].sim_idx == s) { usado = true; break; }
-      if(!usado) g_tick_msc[s] = 0;
+      if(!usado)
+        {
+         g_tick_msc[s]   = 0;
+         g_tick_atras[s] = false;
+        }
      }
   }
 
@@ -1250,9 +1453,10 @@ void Medir()
    int dia = DiaServidor();
    if(dia != g_dia)
      {
-      // MEP/MEN são do dia; posição que virou a noite continua em g_exc
+      // MEP/MEN e a série do saldo são do dia; posição que virou a noite continua em g_exc
       bool primeiro = (g_dia == 0);
-      ArrayResize(g_exp, 0);
+      ArrayResize(g_exp, 0);      // leva junto o balde corrente de cada magic
+      ZerarBaldes("virada do dia");
       for(int i = 0; i < ArraySize(g_exc); i++)
         {
          g_exc[i].real_pc = 0;   // o realizado (e a parcial pendente) são do dia
@@ -1262,13 +1466,14 @@ void Medir()
       if(primeiro) SemearDia();   // EA subiu sem conexão e só agora sabe o dia
       else
         {
-         Log("novo dia no servidor: MEP/MEN zerados; regras do servidor de novo no próximo slot de rede");
+         Log("novo dia no servidor: MEP/MEN e série do saldo zerados; regras do servidor de novo no próximo slot de rede");
          g_regras_prox_ms = GetTickCount64();   // rede só no slot do heartbeat (WebRequest é síncrono)
         }
      }
    SincronizarPosicoes();
    for(int s = 0; s < ArraySize(g_tick_sim); s++)
       LerTicks(s);
+   AmostrarSaldos();   // série do saldo: uma amostra por magic com o saldo recém-calculado; fecha balde vencido
    GravarGvSujas();
   }
 
@@ -1745,6 +1950,73 @@ string ExposicaoJson()
    return "[" + itens + "]";
   }
 
+// Série do saldo do dia: os baldes fechados à espera de envio, do mais antigo em diante, agrupados por
+// (magic, dia, regras). Cada balde é [t, min, max, ultimo]: t = início em epoch UTC (segundos inteiros),
+// valores em R$ brutos por contrato com 4 casas. Vai um PREFIXO da fila que cabe nos tetos do servidor
+// (ENVIO_ITENS_MAX itens, ENVIO_BALDES_ITEM por item, ENVIO_BALDES_MAX no total; com BALDES_MAX = 720 é a
+// fila inteira): o que passar do teto seria descartado lá com 2xx e sumiria da fila, então espera o próximo
+// heartbeat. Guarda em g_baldes_enviando quantos foram: o 2xx do heartbeat tira exatamente esses da fila.
+string SaldoDiaJson()
+  {
+   long   off   = OffsetServidorSeg();
+   long   f_magic[];
+   int    f_dia[];
+   bool   f_regras[];
+   int    f_n[];
+   // 1) grupos e tamanho do prefixo que cabe
+   int n_env = 0;
+   for(; n_env < g_baldes_n && n_env < ENVIO_BALDES_MAX; n_env++)
+     {
+      int  k      = (g_baldes_ini + n_env) % BALDES_MAX;
+      long magic  = g_baldes[k].magic;
+      int  dia    = (int)(g_baldes[k].t0 / 86400);
+      bool regras = g_baldes[k].regras;
+      int  g      = -1;
+      for(int j = 0; j < ArraySize(f_magic) && g < 0; j++)
+         if(f_magic[j] == magic && f_dia[j] == dia && f_regras[j] == regras) g = j;
+      if(g < 0)
+        {
+         int nf = ArraySize(f_magic);
+         if(nf >= ENVIO_ITENS_MAX) break;
+         ArrayResize(f_magic, nf + 1);
+         ArrayResize(f_dia, nf + 1);
+         ArrayResize(f_regras, nf + 1);
+         ArrayResize(f_n, nf + 1);
+         f_magic[nf]  = magic;
+         f_dia[nf]    = dia;
+         f_regras[nf] = regras;
+         f_n[nf]      = 0;
+         g = nf;
+        }
+      if(f_n[g] >= ENVIO_BALDES_ITEM) break;
+      f_n[g]++;
+     }
+   // 2) JSON por grupo, só com os baldes do prefixo
+   string itens = "";
+   for(int g = 0; g < ArraySize(f_magic); g++)
+     {
+      if(f_n[g] == 0) continue;
+      string baldes = "";
+      for(int j = 0; j < n_env; j++)
+        {
+         int q = (g_baldes_ini + j) % BALDES_MAX;
+         if(g_baldes[q].magic != f_magic[g] || g_baldes[q].regras != f_regras[g] || (int)(g_baldes[q].t0 / 86400) != f_dia[g]) continue;
+         if(baldes != "") baldes += ",";
+         baldes += "[" + IntegerToString(g_baldes[q].t0 - off) +
+                   "," + Num(g_baldes[q].minimo, 4) +
+                   "," + Num(g_baldes[q].maximo, 4) +
+                   "," + Num(g_baldes[q].ultimo, 4) + "]";
+        }
+      if(itens != "") itens += ",";
+      itens += "{\"magic\":"            + IntegerToString(f_magic[g]) +
+               ",\"dia\":"              + DiaIso(f_dia[g]) +
+               ",\"regras_aplicadas\":" + Bool(f_regras[g]) +
+               ",\"baldes\":["          + baldes + "]}";
+     }
+   g_baldes_enviando = n_env;
+   return "[" + itens + "]";
+  }
+
 //+------------------------------------------------------------------+
 //| Envios                                                           |
 //+------------------------------------------------------------------+
@@ -1775,11 +2047,14 @@ void EnviarHeartbeat()
                   ",\"equity\":"   + Num(AccountInfoDouble(ACCOUNT_EQUITY), 2) +
                   ",\"posicoes\":" + PosicoesJson() +
                   ",\"cotacoes\":" + CotacoesJson();
-   if(InpExcursao) corpo += ",\"exposicao_dia\":" + ExposicaoJson();
+   if(InpExcursao) corpo += ",\"exposicao_dia\":" + ExposicaoJson() + ",\"saldo_dia\":" + SaldoDiaJson();
    corpo += "}";
    string resp;
    if(!Http("POST", "/api/ingest/heartbeat", corpo, resp))
-      Log("heartbeat falhou; tenta de novo no próximo timer");
+      Log("heartbeat falhou; tenta de novo no próximo timer");   // os baldes da série do saldo ficam na fila e vão de novo
+   else if(g_http_codigo >= 200 && g_http_codigo < 300)
+      MarcarBaldesEnviados();
+   // 4xx que o Http dá por encerrado (400/401/404/413/422): os baldes também ficam; a fila é limitada e o log já avisou
   }
 
 // Monta os últimos N dias em páginas e coloca na fila; o OnTimer envia uma
@@ -1980,6 +2255,9 @@ int OnInit()
    g_amostra_ms = InpAmostraMs;
    if(g_amostra_ms < 50)   g_amostra_ms = 50;
    if(g_amostra_ms > 1000) g_amostra_ms = 1000;
+   g_balde_seg = InpSaldoBucketSeg;
+   if(g_balde_seg < 1)  g_balde_seg = 1;
+   if(g_balde_seg > 60) g_balde_seg = 60;
 
    ArrayResize(g_simbolos, 0);
    LembrarSimbolo(Symbol());
@@ -2000,9 +2278,9 @@ int OnInit()
         }
      }
 
-   Log(StringFormat("v%s iniciando. conta %I64d, servidor %s, offset UTC %d s, amostra %d ms, excursão %s, candles %s",
+   Log(StringFormat("v%s iniciando. conta %I64d, servidor %s, offset UTC %d s, amostra %d ms, balde do saldo %d s, excursão %s, candles %s",
                     EA_VERSAO, AccountInfoInteger(ACCOUNT_LOGIN), AccountInfoString(ACCOUNT_SERVER),
-                    (int)OffsetServidorSeg(), g_amostra_ms, (InpExcursao ? "ligada" : "desligada"),
+                    (int)OffsetServidorSeg(), g_amostra_ms, g_balde_seg, (InpExcursao ? "ligada" : "desligada"),
                     (InpEnviaCandles ? CandlesSimbolo() : "desligados")));
    for(int i = 0; i < ArraySize(g_simbolos); i++) LogValorPonto(g_simbolos[i]);
 
@@ -2010,6 +2288,7 @@ int OnInit()
    g_regras_ok      = false;
    g_regras_prox_ms = 0;
    ArrayResize(g_exp, 0);   // antes do ping: regras novas só refazem um dia já calculado
+   ZerarBaldes("init");     // a fila da série do saldo não sobrevive a reinício/troca de parâmetro
    Ping();                  // valida URL/token e traz as regras públicas por magic
 
    g_dia        = DiaServidor();
@@ -2018,6 +2297,7 @@ int OnInit()
    ArrayResize(g_tick_sim, 0);
    ArrayResize(g_tick_msc, 0);
    ArrayResize(g_tick_vp, 0);
+   ArrayResize(g_tick_atras, 0);
    if(InpExcursao)
      {
       RestaurarExcursoes();   // posições abertas: continua das GV ou marca parcial
@@ -2054,7 +2334,7 @@ void OnDeinit(const int reason)
   {
    EventKillTimer();
    if(InpExcursao) GravarGvSujas(true);   // extremos e "até onde mediu" ficam nas GV pro próximo init
-   Log(StringFormat("parando (motivo %d). itens na fila: %d", reason, g_fila_n));
+   Log(StringFormat("parando (motivo %d). itens na fila: %d; baldes da série do saldo não enviados: %d", reason, g_fila_n, g_baldes_n));
   }
 
 void OnTimer()

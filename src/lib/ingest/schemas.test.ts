@@ -7,6 +7,7 @@ import {
   dealSchema,
   exposicaoDiaSchema,
   posicaoSchema,
+  saldoDiaSchema,
 } from "./schemas";
 
 /** Deal exatamente como o EA 1.0.0 manda (tipo e entry numéricos, sem excursão). */
@@ -323,6 +324,163 @@ describe("heartbeat: posições com excursão e exposicao_dia", () => {
       expect(r.exposicao_dia[1].regras_versao).toBeUndefined();
       expect(avisos).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe("heartbeat: saldo_dia (EA 1.1.2)", () => {
+  /** Item exatamente como o EA 1.1.2 manda: baldes fechados [t_epoch_utc_s, min, max, ultimo]. */
+  const saldoDia = {
+    magic: 1001,
+    dia: "2026-09-23",
+    regras_aplicadas: true,
+    baldes: [
+      [1790000000, -12.5, 30, 18.25],
+      [1790000005, 18.25, 42.1234, 40],
+      [1790000010, 35, 40, 35],
+    ],
+  };
+
+  it("EA antigo sem o campo: saldo_dia = [] sem aviso, e o resto do heartbeat igual", () => {
+    const r = corpoHeartbeatSchema.parse({
+      ea_versao: "1.1.1",
+      balance: 1000,
+      equity: 1030,
+      posicoes: [posicaoAntiga],
+      exposicao_dia: [{ ...exposicao, regras_aplicadas: true, regras_versao: "||" }],
+    });
+    expect(r.saldo_dia).toEqual([]);
+    expect(r.posicoes).toHaveLength(1);
+    expect(r.exposicao_dia).toHaveLength(1);
+    expect(avisos).not.toHaveBeenCalled();
+  });
+
+  it("item válido passa inteiro, com os baldes como tuplas de 4 números", () => {
+    const r = corpoHeartbeatSchema.parse({ ea_versao: "1.1.2", posicoes: [], saldo_dia: [saldoDia] });
+    expect(r.saldo_dia).toEqual([saldoDia]);
+    expect(r.saldo_dia[0].baldes[1]).toEqual([1790000005, 18.25, 42.1234, 40]);
+    expect(avisos).not.toHaveBeenCalled();
+  });
+
+  it("item com baldes vazio é válido (nada novo desde o último heartbeat)", () => {
+    const r = saldoDiaSchema.parse({ ...saldoDia, baldes: [] });
+    expect(r.baldes).toEqual([]);
+    expect(avisos).not.toHaveBeenCalled();
+  });
+
+  it("regras_aplicadas ausente fica undefined (o banco grava false); malformada vira undefined com aviso e o item fica", () => {
+    const semRegras = saldoDiaSchema.parse({ magic: 1001, dia: "2026-09-23", baldes: saldoDia.baldes });
+    expect(semRegras.regras_aplicadas).toBeUndefined();
+    expect("regras_aplicadas" in JSON.parse(JSON.stringify(semRegras))).toBe(false);
+    expect(semRegras.baldes).toHaveLength(3);
+    expect(avisos).not.toHaveBeenCalled();
+
+    expect(saldoDiaSchema.parse({ ...saldoDia, regras_aplicadas: false }).regras_aplicadas).toBe(false);
+
+    const malformada = saldoDiaSchema.parse({ ...saldoDia, regras_aplicadas: "sim" });
+    expect(malformada.regras_aplicadas).toBeUndefined();
+    expect(malformada.baldes).toHaveLength(3);
+    expect(avisos).toHaveBeenCalledTimes(1);
+    expect(String(avisos.mock.calls[0][0])).toContain("[ingest] campo regras_aplicadas ignorado");
+  });
+
+  it("item malformado é ignorado sozinho, com aviso; os outros itens e o resto do heartbeat ficam", () => {
+    const r = corpoHeartbeatSchema.safeParse({
+      ea_versao: "1.1.2",
+      balance: 1000,
+      posicoes: [posicaoAntiga],
+      saldo_dia: [
+        saldoDia,
+        { ...saldoDia, magic: 1002, dia: "23/09/2026" }, // dia fora do formato
+        { ...saldoDia, magic: -1 }, // magic negativo
+        { ...saldoDia, magic: 1003, baldes: "x" }, // baldes que não é lista
+        "lixo", // nem objeto é
+        { ...saldoDia, magic: 1004 },
+      ],
+    });
+    expect(r.success).toBe(true);
+    if (!r.success) return;
+    expect(r.data.saldo_dia.map((s) => s.magic)).toEqual([1001, 1004]);
+    expect(r.data.posicoes).toHaveLength(1);
+    expect(r.data.balance).toBe(1000);
+    expect(avisos).toHaveBeenCalledTimes(4);
+    expect(String(avisos.mock.calls[0][0])).toContain("[ingest] saldo_dia: item 1 ignorado em dia");
+    expect(String(avisos.mock.calls[1][0])).toContain("[ingest] saldo_dia: item 2 ignorado em magic");
+    expect(String(avisos.mock.calls[2][0])).toContain("[ingest] saldo_dia: item 3 ignorado em baldes");
+    expect(String(avisos.mock.calls[3][0])).toContain("[ingest] saldo_dia: item 4 ignorado");
+  });
+
+  it("balde malformado é descartado sozinho, com UM aviso por item; os demais baldes ficam", () => {
+    const r = corpoHeartbeatSchema.parse({
+      saldo_dia: [
+        {
+          ...saldoDia,
+          baldes: [
+            [1790000000, -12.5, 30, 18.25],
+            [1790000005, 1, 2], // faltou o último
+            ["1790000010", 1, 2, 3], // t como texto
+            [1790000015.5, 1, 2, 3], // t não inteiro
+            [0, 1, 2, 3], // t zero
+            [1790000020, 1, 2, 3, 4], // sobrou posição
+            [1790000000000, 1, 2, 3], // t em milissegundos (o banco também descartaria, mas em silêncio)
+            null,
+            [1790000025, 35, 40, 35],
+          ],
+        },
+        { ...saldoDia, magic: 1002 },
+      ],
+    });
+    expect(r.saldo_dia).toHaveLength(2);
+    expect(r.saldo_dia[0].baldes).toEqual([
+      [1790000000, -12.5, 30, 18.25],
+      [1790000025, 35, 40, 35],
+    ]);
+    expect(r.saldo_dia[1].baldes).toHaveLength(3);
+    expect(avisos).toHaveBeenCalledTimes(1);
+    expect(String(avisos.mock.calls[0][0])).toContain("[ingest] saldo_dia: 7 balde(s) malformado(s) ignorado(s) no magic 1001 (2026-09-23)");
+  });
+
+  it("t no limite: 99_999_999_999 passa, 100_000_000_000 (já é milissegundo) não", () => {
+    expect(saldoDiaSchema.parse({ ...saldoDia, baldes: [[99_999_999_999, 1, 2, 1.5]] }).baldes).toHaveLength(1);
+    expect(saldoDiaSchema.parse({ ...saldoDia, baldes: [[100_000_000_000, 1, 2, 1.5]] }).baldes).toHaveLength(0);
+    expect(avisos).toHaveBeenCalledTimes(1);
+  });
+
+  it("mais de 720 baldes num item: o item é ignorado com aviso (o EA nunca passa do buffer)", () => {
+    const muitos = Array.from({ length: 721 }, (_, i) => [1790000000 + i * 5, 1, 2, 1.5]);
+    const r = corpoHeartbeatSchema.parse({ saldo_dia: [{ ...saldoDia, baldes: muitos }, { ...saldoDia, magic: 1002 }] });
+    expect(r.saldo_dia.map((s) => s.magic)).toEqual([1002]);
+    expect(avisos).toHaveBeenCalledTimes(1);
+    expect(String(avisos.mock.calls[0][0])).toContain("[ingest] saldo_dia: item 0 ignorado em baldes");
+    // exatamente 720 passa
+    expect(saldoDiaSchema.parse({ ...saldoDia, baldes: muitos.slice(0, 720) }).baldes).toHaveLength(720);
+  });
+
+  it("saldo_dia que não é lista vira [] com aviso (nunca 400)", () => {
+    expect(corpoHeartbeatSchema.parse({ saldo_dia: "x" }).saldo_dia).toEqual([]);
+    expect(corpoHeartbeatSchema.parse({ saldo_dia: null }).saldo_dia).toEqual([]);
+    expect(corpoHeartbeatSchema.parse({ saldo_dia: { magic: 1001 } }).saldo_dia).toEqual([]);
+    expect(avisos).toHaveBeenCalledTimes(3);
+    expect(String(avisos.mock.calls[0][0])).toContain("[ingest] saldo_dia ignorado");
+  });
+
+  it("mais de 50 itens: seguem os 50 primeiros com aviso (zerar a lista perderia baldes que o EA já dá por enviados)", () => {
+    const muitos = Array.from({ length: 51 }, (_, i) => ({ ...saldoDia, magic: 1000 + i }));
+    const r = corpoHeartbeatSchema.parse({ saldo_dia: muitos });
+    expect(r.saldo_dia).toHaveLength(50);
+    expect(r.saldo_dia[0].magic).toBe(1000);
+    expect(r.saldo_dia[49].magic).toBe(1049);
+    expect(avisos).toHaveBeenCalledTimes(1);
+    expect(String(avisos.mock.calls[0][0])).toContain("[ingest] saldo_dia: 51 itens, só os 50 primeiros seguem");
+    // exatamente 50 passa sem aviso
+    expect(corpoHeartbeatSchema.parse({ saldo_dia: muitos.slice(0, 50) }).saldo_dia).toHaveLength(50);
+    expect(avisos).toHaveBeenCalledTimes(1);
+  });
+
+  it("o JSON que vai para a RPC leva só o que o banco espera (baldes validados, sem undefined)", () => {
+    const r = corpoHeartbeatSchema.parse({
+      saldo_dia: [{ magic: 1001, dia: "2026-09-23", baldes: [[1790000000, -1, 1, 0], [1790000005, 1, 2]] }],
+    });
+    expect(JSON.parse(JSON.stringify(r.saldo_dia))).toEqual([{ magic: 1001, dia: "2026-09-23", baldes: [[1790000000, -1, 1, 0]] }]);
   });
 });
 
