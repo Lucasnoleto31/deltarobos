@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { formatarBRL, formatarData, formatarDataCurta, formatarNumero, formatarPontos } from "@/lib/formato";
+import { formatarBRL, formatarData, formatarDataCurta, formatarMfeMae, formatarNumero, formatarPontos } from "@/lib/formato";
 import { curvaPorOperacao, hora as horaDaOperacao, valorOperacao, type OperacaoCompacta } from "@/lib/stats/operacoes";
+import { epochBrasilia, janelaDoDia, type BaldeReduzido } from "@/lib/stats/saldo-dia";
 import type { LinhaDiaria, OpcoesSerie } from "@/lib/stats/tipos";
 import { tomDe, type ConteudoDaDica } from "./base";
 import type { PontoDoDesenho } from "./CurvaProfit";
@@ -11,6 +12,8 @@ import {
   extremosPorOperacao,
   fatiar,
   limitesDaFatia,
+  marcadoresDoSaldo,
+  serieDoSaldoParaDesenho,
   seriePorDia,
   seriePorOperacao,
   seriePorOperacaoCompacta,
@@ -508,5 +511,202 @@ describe("operação por operação (22/09/2026)", () => {
       expect(pontos).toHaveLength(15_000);
     }
     expect(melhor).toBeLessThan(300);
+  });
+});
+
+describe("dentes de MFE/MAE (23/09/2026)", () => {
+  const dia = "2026-09-23";
+  /** operação do dia (WIN, R$ 0,20 o ponto) com custo fixo e, quando dados, o MFE e o MAE em pontos nas posições 9/10 */
+  const op = (hora: number, pontos: number, mfe?: number | null, mae?: number | null): OperacaoCompacta =>
+    mfe === undefined && mae === undefined
+      ? [dia, hora, 3, pontos, pontos * 0.2, 0.5, 60, 1, "WINV26"]
+      : [dia, hora, 3, pontos, pontos * 0.2, 0.5, 60, 1, "WINV26", mfe ?? null, mae ?? null];
+  const ultimaLinha = (p: PontoDoDesenho) => p.dica.linhas[p.dica.linhas.length - 1];
+
+  it("operação com posições 9/10 vira dentes[k] com de = antes + mae × 0,2 e ate = antes + mfe × 0,2", () => {
+    const ops = [op(9, 50), op(10, -20, 200, -75), op(11, 30)];
+    const compacta = seriePorOperacaoCompacta(ops, brl, [dia], { arredondar: false });
+    const antes = valorOperacao(ops[0], brl); // 10 − 0,5 = 9,5: o acumulado antes da 2ª
+    expect(compacta.dentes).toEqual([[1, antes + -75 * 0.2, antes + 200 * 0.2, 200, -75]]);
+    const pontos = expandirSerie(compacta, brl);
+    expect(pontos[1].dente).toEqual({ de: antes - 15, ate: antes + 40, mfe: 200, mae: -75 });
+    // a linha "MFE / MAE" vem por último, depois de Resultado, Acumulado e Drawdown
+    expect(pontos[1].dica.linhas.map((l) => l.rotulo)).toEqual(["Resultado", "Acumulado", "Drawdown", "MFE / MAE"]);
+    expect(ultimaLinha(pontos[1])).toEqual({ rotulo: "MFE / MAE", valor: formatarMfeMae(200, -75) });
+    expect(pontos[0].dente).toBeUndefined();
+    expect(pontos[2].dente).toBeUndefined();
+    expect(pontos[0].dica.linhas.map((l) => l.rotulo)).toEqual(["Resultado", "Acumulado", "Drawdown"]);
+    // seriePorOperacao (sem arredondar) tem o mesmo dente
+    expect(seriePorOperacao(ops, brl, [dia])[1].dente).toEqual(pontos[1].dente);
+  });
+
+  it("fatia de 2+ operações vira o envelope: menor de, maior ate, maior MFE, menor MAE, rotulado (extremos)", () => {
+    const ops = [op(9, 50, 100, -20), op(10, -20, 200, -75), op(11, 30, 40, -300), op(12, 10)];
+    const compacta = seriePorOperacaoCompacta(ops, brl, [dia], { arredondar: false, maxPontos: 2 });
+    const curva = curvaPorOperacao(ops, brl);
+    // fatia 0 = 1ª e 2ª: a 1ª parte do zero, a 2ª do acumulado da 1ª
+    const de0 = Math.min(-20 * 0.2, curva[0].acumulado + -75 * 0.2);
+    const ate0 = Math.max(100 * 0.2, curva[0].acumulado + 200 * 0.2);
+    // fatia 1 = 3ª e 4ª: só a 3ª medida
+    const de1 = curva[1].acumulado + -300 * 0.2;
+    const ate1 = curva[1].acumulado + 40 * 0.2;
+    expect(compacta.dentes).toEqual([
+      [0, de0, ate0, 200, -75],
+      [1, de1, ate1, 40, -300],
+    ]);
+    const pontos = expandirSerie(compacta, brl);
+    expect(pontos[0].dente).toEqual({ de: de0, ate: ate0, mfe: 200, mae: -75 });
+    expect(ultimaLinha(pontos[0])).toEqual({ rotulo: "MFE / MAE (extremos)", valor: formatarMfeMae(200, -75) });
+    expect(ultimaLinha(pontos[1])).toEqual({ rotulo: "MFE / MAE (extremos)", valor: formatarMfeMae(40, -300) });
+  });
+
+  it("operação sem excursão não gera dente; série sem nenhuma medição não leva o campo e expande igual", () => {
+    const { ops, dias } = gerarOperacoes(3, () => 10);
+    const compacta = seriePorOperacaoCompacta(ops, brl, dias);
+    expect("dentes" in compacta).toBe(false);
+    const pontos = expandirSerie(compacta, brl);
+    expect(pontos.every((p) => p.dente === undefined && !p.dica.linhas.some((l) => l.rotulo.startsWith("MFE")))).toBe(true);
+    // uma só medida no meio de várias: um dente só, no ponto dela
+    const umaMedida: OperacaoCompacta[] = [...ops.slice(0, 5), [dias[0], 12, 3, 15, 3, 0.5, 60, 1, "WINV26", 90, -10], ...ops.slice(5)];
+    const c = seriePorOperacaoCompacta(umaMedida, brl, dias);
+    expect(c.dentes).toHaveLength(1);
+    expect(c.dentes![0][0]).toBe(5);
+    expect(expandirSerie(c, brl).filter((p) => p.dente).map((p) => p.dica.subtitulo)).toEqual(["6ª operação"]);
+  });
+
+  it("leve (240) e fiel do mesmo conjunto: o envelope da leve contém os dentes da fiel; o JSON preserva", () => {
+    // 300 operações, todas medidas de forma determinística
+    const base = gerarOperacoes(6, () => 50);
+    const ops = base.ops.map((o, i): OperacaoCompacta => [o[0], o[1], o[2], o[3], o[4], o[5], o[6], o[7], o[8], (i * 37) % 400, -((i * 53) % 250)]);
+    const { dias } = base;
+    const leve = seriePorOperacaoCompacta(ops, brl, dias, { arredondar: false, maxPontos: PONTOS_LEVE });
+    const fiel = seriePorOperacaoCompacta(ops, brl, dias, { arredondar: false });
+    expect(fiel.dentes).toHaveLength(300);
+    expect(leve.dentes).toHaveLength(240);
+    const daFiel = new Map(fiel.dentes!.map((d) => [d[0], d]));
+    for (const [k, de, ate, mfeK, maeK] of leve.dentes!) {
+      const [i, f] = limitesDaFatia(k, 300, 240);
+      const dentro = Array.from({ length: f - i }, (_, j) => daFiel.get(i + j)!);
+      expect(de).toBe(Math.min(...dentro.map((d) => d[1])));
+      expect(ate).toBe(Math.max(...dentro.map((d) => d[2])));
+      expect(mfeK).toBe(Math.max(...dentro.map((d) => d[3])));
+      expect(maeK).toBe(Math.min(...dentro.map((d) => d[4])));
+    }
+    // a fiel: um dente por operação, do acumulado antes dela
+    const curva = curvaPorOperacao(ops, brl);
+    fiel.dentes!.forEach(([k, de, ate, m, a], i) => {
+      expect(k).toBe(i);
+      const antes = i > 0 ? curva[i - 1].acumulado : 0;
+      expect(de).toBe(antes + a * 0.2);
+      expect(ate).toBe(antes + m * 0.2);
+    });
+    // com arredondar (o que a página e a rota serializam): de/ate com 2 casas, e o JSON devolve o mesmo
+    const serializada = seriePorOperacaoCompacta(ops, brl, dias, { maxPontos: PONTOS_LEVE });
+    for (const [, de, ate] of serializada.dentes!) {
+      expect(Math.round(de * 100) / 100).toBe(de);
+      expect(Math.round(ate * 100) / 100).toBe(ate);
+    }
+    const viaJson = JSON.parse(JSON.stringify(serializada));
+    expect(viaJson.dentes).toEqual(serializada.dentes);
+    const pontos = expandirSerie(viaJson, brl);
+    expect(pontos.every((p) => p.dente !== undefined)).toBe(true);
+    expect(pontos.every((p) => ultimaLinha(p).rotulo.startsWith("MFE / MAE"))).toBe(true);
+    // a fatia de 2 diz "(extremos)", a de 1 não
+    expect(ultimaLinha(pontos.find((p) => p.dica.subtitulo?.startsWith("2 "))!).rotulo).toBe("MFE / MAE (extremos)");
+    expect(ultimaLinha(pontos.find((p) => p.dica.subtitulo?.endsWith("ª operação"))!).rotulo).toBe("MFE / MAE");
+    // dente malformado no JSON é ignorado sem derrubar a série
+    expect(expandirSerie({ ...viaJson, dentes: [[999, 0, 1, 1, -1], [0, "x", 1, 1, -1], [1, 0, 1]] }, brl)).toHaveLength(240);
+  });
+
+  it("em pontos a conversão é × contratos", () => {
+    const ops = [op(9, 50, 200, -75)];
+    const emPontos: OpcoesSerie = { base: "liquido", unidade: "pontos", valorPonto: 0.2, contratos: 2 };
+    const pontos = seriePorOperacao(ops, emPontos, [dia]);
+    expect(pontos[0].dente).toEqual({ de: -150, ate: 400, mfe: 200, mae: -75 });
+    expect(pontos[0].acumulado).toBe(valorOperacao(ops[0], emPontos));
+    expect(ultimaLinha(pontos[0]).valor).toBe(formatarMfeMae(200, -75));
+  });
+
+  it("os extremos da série (e extremosPorOperacao) contêm os dentes: a régua não muda ao abrir Por operação (revisão de 23/09/2026)", () => {
+    // uma operação de +50 pts (R$ 9,50 líquidos) que chegou a −400 pts (R$ −80) e a +100 pts (R$ 20) enquanto aberta
+    const ops = [op(9, 50, 100, -400), op(10, 20)];
+    const compacta = seriePorOperacaoCompacta(ops, brl, [dia], { arredondar: false });
+    expect(compacta.extremos).toEqual([-80, 20]);
+    expect(extremosPorOperacao(ops, brl)).toEqual([-80, 20]);
+    // a leve e a fiel do mesmo conjunto levam os mesmos extremos, e o JSON os preserva
+    const leve = seriePorOperacaoCompacta(ops, brl, [dia], { maxPontos: 1 });
+    expect(leve.extremos).toEqual(compacta.extremos);
+    expect(JSON.parse(JSON.stringify(leve)).extremos).toEqual([-80, 20]);
+    // sem medição, os extremos são só os acumulados, como antes
+    expect(extremosPorOperacao([op(9, 50), op(10, -100)], brl)).toEqual([valorOperacao(op(9, 50), brl) + valorOperacao(op(10, -100), brl), valorOperacao(op(9, 50), brl)]);
+  });
+});
+
+describe("série do saldo (23/09/2026)", () => {
+  const dia = "2026-09-23";
+  const janela = janelaDoDia(dia, { inicio: "09:00", fim: "18:00" }, [], 5);
+  const t1 = epochBrasilia(dia, "10:41:35");
+  const baldes: BaldeReduzido[] = [
+    [t1, -30, 10, 5, 1, t1],
+    [t1 + 5, 5, 40, 40, 1, t1 + 5],
+    // um grupo de 4 baldes (10:41:45 a 10:42:00): o valor é o do último, e é nele que o ponto se desenha
+    [t1 + 10, 20, 60, 25, 4, t1 + 25],
+  ];
+  const fmt = (v: number) => formatarBRL(v, { sinal: true, inteiro: Math.abs(v) >= 1000 });
+
+  it("posições pela janela (no último balde do grupo), faixa mín./máx., dica com a hora e o grupo, eixo com a mesma hora", () => {
+    const pontos = serieDoSaldoParaDesenho(baldes, { janela, unidade: "brl", bucketSeg: 5, comFaixa: true });
+    expect(pontos).toHaveLength(3);
+    // 10:41:35 está a 1 h 41 min 35 s (6.095 s) do início das 9 h, numa janela de 9 h (32.400 s)
+    expect(pontos[0].posicao).toBeCloseTo(6095 / 32400, 12);
+    expect(pontos[1].posicao).toBeCloseTo(6100 / 32400, 12);
+    // o grupo: a posição do ÚLTIMO balde (10:42:00), não a do primeiro (revisão de 23/09/2026)
+    expect(pontos[2].posicao).toBeCloseTo(6120 / 32400, 12);
+    expect(pontos.map((p) => p.acumulado)).toEqual([5, 40, 25]);
+    expect(pontos.map((p) => p.drawdown)).toEqual([0, 0, -15]);
+    expect(pontos.map((p) => p.faixa)).toEqual([
+      [-30, 10],
+      [5, 40],
+      [20, 60],
+    ]);
+    expect(pontos[0].dica).toEqual({
+      titulo: "10:41:35",
+      subtitulo: undefined,
+      linhas: [
+        { rotulo: "Saldo", valor: fmt(5), tom: "positivo" },
+        { rotulo: "Faixa", valor: `${fmt(-30)} a ${fmt(10)}` },
+      ],
+    });
+    expect(pontos[0].eixo).toBe("10:41:35");
+    expect(pontos[2].dica.titulo).toBe("10:41:45");
+    expect(pontos[2].dica.subtitulo).toBe("4 intervalos de 5 s");
+    expect(pontos[2].eixo).toBe("10:41:45");
+    // em pontos, o formatador de pontos
+    const emPontos = serieDoSaldoParaDesenho(baldes, { janela, unidade: "pontos", bucketSeg: 5, comFaixa: true });
+    expect(emPontos[0].dica.linhas[0].valor).toBe(`${formatarPontos(5, true)} pts`);
+    expect(emPontos[0].dica.linhas[1].valor).toBe(`${formatarPontos(-30, true)} pts a ${formatarPontos(10, true)} pts`);
+  });
+
+  it("comFaixa = false (aproximado) não põe faixa nem a linha; min = max também não", () => {
+    const semFaixa = serieDoSaldoParaDesenho(baldes, { janela, unidade: "brl", bucketSeg: 5, comFaixa: false });
+    expect(semFaixa.every((p) => !("faixa" in p))).toBe(true);
+    expect(semFaixa[0].dica.linhas.map((l) => l.rotulo)).toEqual(["Saldo"]);
+    expect(semFaixa.map((p) => p.acumulado)).toEqual([5, 40, 25]);
+    const plano = serieDoSaldoParaDesenho([[t1, 7, 7, 7, 1, t1]], { janela, unidade: "brl", bucketSeg: 5, comFaixa: true });
+    expect(plano[0].faixa).toBeUndefined();
+    expect(serieDoSaldoParaDesenho([], { janela, unidade: "brl", bucketSeg: 5, comFaixa: true })).toEqual([]);
+  });
+
+  it("marcadoresDoSaldo acha o pico e o vale, na régua da janela", () => {
+    expect(marcadoresDoSaldo(baldes, janela)).toEqual([
+      { posicao: 6105 / 32400, valor: 60, rotulo: "MEP", tom: "positivo" },
+      { posicao: 6095 / 32400, valor: -30, rotulo: "MEN", tom: "negativo" },
+    ]);
+    expect(marcadoresDoSaldo([[t1, 1, 5, 3]], janela).map((m) => m.rotulo)).toEqual(["MEP"]);
+    expect(marcadoresDoSaldo([[t1, -5, -1, -3]], janela).map((m) => m.rotulo)).toEqual(["MEN"]);
+    // o subtítulo do grupo e a legenda não usam a palavra "balde" (texto público; revisão de 23/09/2026)
+    const pontos = serieDoSaldoParaDesenho(baldes, { janela, unidade: "brl", bucketSeg: 5, comFaixa: true });
+    for (const p of pontos) expect(`${p.dica.titulo} ${p.dica.subtitulo ?? ""}`).not.toMatch(/balde/i);
+    expect(marcadoresDoSaldo([], janela)).toEqual([]);
   });
 });

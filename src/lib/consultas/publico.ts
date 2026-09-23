@@ -1,6 +1,8 @@
 import { PARAMETROS_FAIXAS_PADRAO, type ParametrosFaixas } from "@/lib/stats/faixas";
+import { baldeDaLinha, fundirBaldes } from "@/lib/stats/saldo-dia";
 import { supabasePublico } from "@/lib/supabase/servidor";
 import type {
+  BaldeCompacto,
   EstatisticaPublica,
   ExposicaoDiaPublica,
   Links,
@@ -10,6 +12,7 @@ import type {
   PosicaoPublica,
   ResumoCasa,
   RoboPublico,
+  SaldoDiaPublico,
   Textos,
 } from "@/lib/tipos";
 
@@ -39,7 +42,11 @@ export async function listarRobos(): Promise<RoboPublico[]> {
   }
 }
 
-export async function buscarRobo(slug: string): Promise<RoboPublico | null> {
+/**
+ * O robô pelo slug, ou null quando não existe. Com `lancarErro` a falha do banco sobe em vez de virar null (a rota
+ * de saldo, em cache, precisa distinguir "não achou" de "o banco caiu"; revisão de 23/09/2026).
+ */
+export async function buscarRobo(slug: string, { lancarErro = false }: { lancarErro?: boolean } = {}): Promise<RoboPublico | null> {
   try {
     const { data, error } = await supabasePublico()
       .from("robos_publico")
@@ -49,6 +56,7 @@ export async function buscarRobo(slug: string): Promise<RoboPublico | null> {
     if (error) throw error;
     return (data as RoboPublico | null) ?? null;
   } catch (e) {
+    if (lancarErro) throw e;
     avisar("buscarRobo", e);
     return null;
   }
@@ -133,7 +141,12 @@ export async function listarExposicaoDia(slug: string, { dia = null }: OpcoesExp
   }
 }
 
-export async function listarOperacoesDoDia(slug: string, dia: string): Promise<OperacaoPublica[]> {
+/**
+ * As operações públicas de um dia do robô, em ordem de fechamento. Com `lancarErro` o erro do banco sobe
+ * (a rota de saldo, em cache, precisa distinguir falha de dia sem operação; 23/09/2026). Limite conhecido:
+ * sem paginação, então um dia com mais de 1.000 operações (o teto do PostgREST por requisição) viria cortado.
+ */
+export async function listarOperacoesDoDia(slug: string, dia: string, { lancarErro = false }: { lancarErro?: boolean } = {}): Promise<OperacaoPublica[]> {
   try {
     const { data, error } = await supabasePublico()
       .from("operacoes_publico")
@@ -144,8 +157,98 @@ export async function listarOperacoesDoDia(slug: string, dia: string): Promise<O
     if (error) throw error;
     return (data ?? []) as OperacaoPublica[];
   } catch (e) {
+    if (lancarErro) throw e;
     avisar("listarOperacoesDoDia", e);
     return [];
+  }
+}
+
+export interface OpcoesSaldoDoDia {
+  /** deixa o erro do banco subir (a rota, em cache, precisa distinguir falha de série vazia) */
+  lancarErro?: boolean;
+}
+
+export interface SaldoDoDiaConsultado {
+  baldes: BaldeCompacto[];
+  aproximado: boolean;
+}
+
+/** A view saldo_dia_publico ainda não existe nesta instância (migration 0024 pendente). Por instância, como semExcursaoNaView. */
+let semViewDeSaldo = false;
+
+/** "relation does not exist": 42P01 do Postgres; o PostgREST mais novo responde PGRST205 (tabela fora do schema cache) para o mesmo caso. */
+function ehViewInexistente(e: unknown): boolean {
+  if (!e || typeof e !== "object") return false;
+  const { code, message } = e as { code?: unknown; message?: unknown };
+  return code === "42P01" || code === "PGRST205" || (typeof message === "string" && /saldo_dia_publico/.test(message) && /does not exist|schema cache/i.test(message));
+}
+
+type LinhaDeSaldo = Pick<SaldoDiaPublico, "em" | "min_brl_por_contrato" | "max_brl_por_contrato" | "ultimo_brl_por_contrato" | "n_magics">;
+
+/**
+ * A série do saldo do dia de um robô em saldo_dia_publico (23/09/2026): baldes compactos em ordem de `em`, e o
+ * aviso de aproximação (n_magics > 1 em algum balde). Pagina como listarOperacoesCompactas: uma contagem
+ * (head: true) e as páginas de 1.000 em paralelo, cada uma com .order("em") e .range(). Erro: lista vazia +
+ * avisar("listarSaldoDoDia", e), ou lança com lancarErro. EXCEÇÃO: view inexistente (código "42P01",
+ * migration 0024 ainda não aplicada) é "sem série" mesmo com lancarErro — avisa uma vez por instância
+ * (flag de módulo, como semExcursaoNaView em consultas/operacoes.ts) e devolve { baldes: [], aproximado: false }.
+ */
+export async function listarSaldoDoDia(slug: string, dia: string, { lancarErro = false }: OpcoesSaldoDoDia = {}): Promise<SaldoDoDiaConsultado> {
+  const vazio: SaldoDoDiaConsultado = { baldes: [], aproximado: false };
+  if (semViewDeSaldo) return vazio;
+  try {
+    const sb = supabasePublico();
+    const passo = 1000; // teto do PostgREST por requisição: um dia inteiro a 5 s são ~6.500 baldes
+    const colunas = "em, min_brl_por_contrato, max_brl_por_contrato, ultimo_brl_por_contrato, n_magics";
+
+    const { count, error: erroContagem } = await sb.from("saldo_dia_publico").select("em", { count: "exact", head: true }).eq("slug", slug).eq("dia", dia);
+    if (erroContagem) throw erroContagem;
+    const total = count ?? 0;
+    if (total === 0) return vazio;
+
+    const pagina = async (desde: number): Promise<LinhaDeSaldo[]> => {
+      const { data, error } = await sb
+        .from("saldo_dia_publico")
+        .select(colunas)
+        .eq("slug", slug)
+        .eq("dia", dia)
+        .order("em", { ascending: true })
+        .range(desde, desde + passo - 1);
+      if (error) throw error;
+      return (data ?? []) as unknown as LinhaDeSaldo[];
+    };
+    // as páginas em paralelo; a última vai até o fim da página e não até `total`, porque hoje a série cresce
+    // entre a contagem e a leitura (baldes novos têm `em` maior e caem no fim: fundirBaldes tira o que repetir)
+    const inicios = Array.from({ length: Math.ceil(total / passo) }, (_, i) => i * passo);
+    const paginas = await Promise.all(inicios.map(pagina));
+    // A contagem e as páginas não são uma foto consistente (revisão de 23/09/2026): hoje, um reenvio de baldes
+    // ANTIGOS entre as duas (a fila do EA depois de heartbeats falhos, com `em` menor que os já lidos) desloca os
+    // offsets, e o que passasse das páginas planejadas ficaria de fora até a próxima carga. Enquanto a última
+    // página vier cheia, pede mais uma, em sequência, até vir incompleta. Dia passado não muda e só paga a
+    // página a mais quando o total é múltiplo exato de 1.000.
+    let desde = inicios.length * passo;
+    while (paginas[paginas.length - 1].length === passo && desde < 100_000) {
+      paginas.push(await pagina(desde));
+      desde += passo;
+    }
+    const linhas = paginas.flat();
+    const lista: BaldeCompacto[] = [];
+    for (const l of linhas) {
+      const balde = baldeDaLinha(l);
+      if (balde) lista.push(balde);
+    }
+    return { baldes: fundirBaldes([], lista), aproximado: linhas.some((l) => l.n_magics > 1) };
+  } catch (e) {
+    if (ehViewInexistente(e)) {
+      if (!semViewDeSaldo) {
+        semViewDeSaldo = true;
+        avisar("listarSaldoDoDia", "saldo_dia_publico inexistente (migration 0024 pendente): seguindo sem a série do saldo");
+      }
+      return vazio;
+    }
+    if (lancarErro) throw e;
+    avisar("listarSaldoDoDia", e);
+    return vazio;
   }
 }
 

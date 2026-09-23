@@ -9,13 +9,32 @@
 // a série por operação deixou de ser reduzida a 240 pontos. Até PONTOS_FIEL operações cada ponto é UMA
 // operação; a visão geral continua mandando a série leve (PONTOS_LEVE) no HTML e busca a fiel sob
 // demanda. As duas expandem com a mesma função, porque a série se descreve sozinha (ver SerieCompacta).
+//
+// 23/09/2026 (Lucas: "quero ver de fato o que o robô passou de 'calor' até pagar, em todas as telas"): duas
+// séries a mais. A do SALDO do dia medido pelo EA 1.1.2 (serieDoSaldoParaDesenho, marcadoresDoSaldo), que
+// desenha a posição aberta oscilando em vez de um degrau por fechamento, e os DENTES de MFE/MAE nas curvas
+// por operação (o traço vertical do "calor" de cada operação), que viajam em SerieCompacta.dentes.
 
-import { formatarBRL, formatarData, formatarDataCurta, formatarNumero, formatarPct, formatarPontos } from "@/lib/formato";
-import { curvaPorOperacao, hora as horaDaOperacao, type OperacaoCompacta } from "@/lib/stats/operacoes";
+import { formatarBRL, formatarData, formatarDataCurta, formatarHoraSeg, formatarMfeMae, formatarNumero, formatarPct, formatarPontos } from "@/lib/formato";
+import { curvaPorOperacao, hora as horaDaOperacao, mae, mfe, temExcursao, valorOperacao, type OperacaoCompacta } from "@/lib/stats/operacoes";
+import {
+  dentesPorOperacao,
+  envelopeDeDentes,
+  mepMenDaSerie,
+  posicaoNaJanela,
+  type BaldeQualquer,
+  type BaldeReduzido,
+  type DenteDoPonto,
+  type ExtrasDoPonto,
+  type JanelaEpoch,
+} from "@/lib/stats/saldo-dia";
 import { curvaAcumulada } from "@/lib/stats/serie";
-import type { LinhaDiaria, OpcoesSerie, PontoCurva } from "@/lib/stats/tipos";
+import type { LinhaDiaria, OpcoesSerie, PontoCurva, Unidade } from "@/lib/stats/tipos";
 import { tomDe, type ConteudoDaDica } from "./base";
-import type { PontoDoDesenho } from "./CurvaProfit";
+import type { MarcadorDaCurva, PontoDoDesenho } from "./CurvaProfit";
+
+/** um ponto que pode levar faixa e dente; PontoDoDesenho passa a estender ExtrasDoPonto, então é o mesmo tipo depois do merge */
+export type PontoDaSerie = PontoDoDesenho & ExtrasDoPonto;
 
 /**
  * A série leve: a que a visão geral manda no HTML para pintar na hora, e o teto da série por dia
@@ -41,7 +60,7 @@ export function fatiar<T>(itens: readonly T[], max: number): T[][] {
   return Array.from({ length: Math.min(itens.length, max) }, (_, k) => itens.slice(...limitesDaFatia(k, itens.length, max)));
 }
 
-function formatador(o: OpcoesSerie) {
+function formatador(o: { unidade: Unidade }) {
   return (v: number) =>
     o.unidade === "brl" ? formatarBRL(v, { sinal: true, inteiro: Math.abs(v) >= 1000 }) : `${formatarPontos(v, true)} pts`;
 }
@@ -143,30 +162,56 @@ export interface SerieCompacta {
   total: number;
   pontos: PontoCompacto[];
   /**
-   * O menor e o maior acumulado de TODAS as operações, com o zero. A leve só guarda o fim de cada
-   * fatia, e os picos e vales de dentro dela só aparecem na fiel: sem isto a régua da curva mudava
-   * quando a fiel chegava, e o gráfico inteiro pulava. Ausente só na série vazia.
+   * O menor e o maior acumulado de TODAS as operações, com o zero e com o `de`/`ate` dos dentes de MFE/MAE
+   * (23/09/2026). A leve só guarda o fim de cada fatia, e os picos e vales de dentro dela só aparecem na
+   * fiel: sem isto a régua da curva mudava quando a fiel chegava, e o gráfico inteiro pulava. Ausente só
+   * na série vazia.
    */
   extremos?: [number, number];
+  /** ausente quando nenhuma operação da série tem MFE/MAE (22/09/2026: quase todo o histórico) */
+  dentes?: DenteCompacto[];
 }
 
-function extremosDe(curva: ReadonlyArray<{ acumulado: number }>): [number, number] {
+/** [k = índice em `pontos`, de, ate, mfe, mae]: o dente (ou o envelope da fatia) do ponto k; só pontos com alguma operação medida. */
+export type DenteCompacto = [number, number, number, number, number];
+
+/**
+ * O menor e o maior valor que a régua vertical precisa conter, com o zero: os acumulados e, quando há, o `de` e o
+ * `ate` dos dentes de MFE/MAE (revisão de 23/09/2026: o MAE costuma descer abaixo do menor acumulado, e sem ele
+ * aqui a régua mudava ao trocar de "Por dia" para "Por operação", que é o que os extremos existem para evitar).
+ */
+function extremosDe(curva: ReadonlyArray<{ acumulado: number }>, dentes: ReadonlyArray<DenteDoPonto | null> | null = null): [number, number] {
   let menor = 0;
   let maior = 0;
   for (const p of curva) {
     if (p.acumulado < menor) menor = p.acumulado;
     if (p.acumulado > maior) maior = p.acumulado;
   }
+  for (const d of dentes ?? []) {
+    if (!d) continue;
+    if (d.de < menor) menor = d.de;
+    if (d.ate > maior) maior = d.ate;
+  }
   return [menor, maior];
 }
 
 /**
- * O menor e o maior acumulado operação a operação, com o zero (a curva nasce nele): a régua vertical da
- * curva que recebe as operações (aba Desempenho), a mesma antes e depois de a série por operação ser
- * montada. Só a soma corrida, sem dica nem ponto: custa nada mesmo com dezenas de milhares de operações.
+ * Os dentes de MFE/MAE de todas as operações (23/09/2026), do acumulado ANTES de cada uma + MAE até o acumulado
+ * antes + MFE, ou null quando nenhuma foi medida (quase todo o histórico: a série vai sem o campo). Calculados de
+ * uma vez, porque o acumulado antes é a mesma soma corrida de curvaPorOperacao (valorOperacao somado na mesma
+ * ordem dá o mesmo número, bit a bit).
+ */
+function dentesDasOperacoes(ops: readonly OperacaoCompacta[], opcoes: OpcoesSerie): Array<DenteDoPonto | null> | null {
+  return ops.some(temExcursao) ? dentesPorOperacao(ops.map((op) => ({ valor: valorOperacao(op, opcoes), mfe: mfe(op), mae: mae(op) })), opcoes) : null;
+}
+
+/**
+ * O menor e o maior acumulado operação a operação, com o zero (a curva nasce nele) e com os dentes de MFE/MAE: a
+ * régua vertical da curva que recebe as operações (aba Desempenho), a mesma antes e depois de a série por
+ * operação ser montada. Só a soma corrida, sem dica nem ponto: custa nada mesmo com dezenas de milhares de operações.
  */
 export function extremosPorOperacao(ops: readonly OperacaoCompacta[], opcoes: OpcoesSerie): [number, number] {
-  return extremosDe(curvaPorOperacao(ops, opcoes));
+  return extremosDe(curvaPorOperacao(ops, opcoes), dentesDasOperacoes(ops, opcoes));
 }
 
 /**
@@ -190,6 +235,9 @@ export function seriePorOperacaoCompacta(
   const fmt = formatador(opcoes);
   const curva = curvaPorOperacao(ops, opcoes);
   const total = curva.length;
+
+  // Dentes de MFE/MAE (23/09/2026): o "calor" de cada operação medido pelo EA, ver dentesDasOperacoes
+  const dentes = dentesDasOperacoes(ops, opcoes);
 
   const indiceDoDia = new Map(dias.map((d, k) => [d, k]));
   const opsNoDia = new Map<string, number>();
@@ -272,9 +320,23 @@ export function seriePorOperacaoCompacta(
     return fatia.length === 1 ? [...numeros, ultimo.hora] : numeros;
   });
 
-  // os extremos passam pelo mesmo arredondamento dos pontos: na fiel são exatamente dois dos pontos
-  const [menor, maior] = extremosDe(curva);
-  return { dias: diasCitados, total, pontos, extremos: [dinheiroEnxuto(menor), dinheiroEnxuto(maior)] };
+  // os extremos passam pelo mesmo arredondamento dos pontos: na fiel são exatamente dois dos pontos (ou dois dentes)
+  const [menor, maior] = extremosDe(curva, dentes);
+  const serie: SerieCompacta = { dias: diasCitados, total, pontos, extremos: [dinheiroEnxuto(menor), dinheiroEnxuto(maior)] };
+
+  if (dentes) {
+    // um dente por ponto que tenha operação medida: o da operação, ou o envelope da fatia (pior MAE, melhor
+    // MFE); de/ate com 2 casas quando a série é serializada, mfe/mae como vêm (pontos inteiros no WIN)
+    const arredondado = (v: number) => (arredondar ? Math.round(v * 100) / 100 : v);
+    const compactos: DenteCompacto[] = [];
+    for (let k = 0; k < pontos.length; k++) {
+      const [de, ate] = limitesDaFatia(k, total, maxPontos);
+      const envelope = envelopeDeDentes(dentes.slice(de, ate));
+      if (envelope) compactos.push([k, arredondado(envelope.de), arredondado(envelope.ate), envelope.mfe, envelope.mae]);
+    }
+    if (compactos.length > 0) serie.dentes = compactos;
+  }
+  return serie;
 }
 
 /**
@@ -283,7 +345,7 @@ export function seriePorOperacaoCompacta(
  * "Neste trecho", e o da operação única diz a ordem dela e a hora em que abriu. Na série de um dia só
  * (a do calendário) a etiqueta da mira no eixo de baixo é a ordem, como o eixo; nas outras, a data.
  */
-export function expandirSerie(serie: SerieCompacta, opcoes: OpcoesSerie): PontoDoDesenho[] {
+export function expandirSerie(serie: SerieCompacta, opcoes: OpcoesSerie): PontoDaSerie[] {
   const fmt = formatador(opcoes);
   const { dias, total } = serie;
   // a série se descreve: a divisão em fatias é a que montou estes pontos (leve ou fiel), não uma constante
@@ -291,7 +353,7 @@ export function expandirSerie(serie: SerieCompacta, opcoes: OpcoesSerie): PontoD
   // cada dia é citado por centenas de pontos na série fiel: a data formatada uma vez só
   const datas = dias.map((d) => formatarData(d));
   const umDiaSo = dias.length === 1;
-  return serie.pontos.map(([posicao, acumulado, drawdown, valor, iDe, iAte, hora], k): PontoDoDesenho => {
+  const pontos = serie.pontos.map(([posicao, acumulado, drawdown, valor, iDe, iAte, hora], k): PontoDaSerie => {
     // o número das operações de cada ponto sai da mesma divisão em fatias que montou a série
     const [de, ate] = limitesDaFatia(k, total, max);
     const uma = ate - de === 1;
@@ -310,6 +372,20 @@ export function expandirSerie(serie: SerieCompacta, opcoes: OpcoesSerie): PontoD
     };
     return { posicao, acumulado, drawdown, dica, eixo: umDiaSo ? ordinal(ate) : datas[iAte] };
   });
+
+  // Os dentes de MFE/MAE (23/09/2026): o traço do ponto e, no FIM da dica, "MFE / MAE" ("+200 / −75 pts");
+  // na fatia de várias operações é o envelope, e o rótulo diz "(extremos)". A série sem medição não traz o
+  // campo e sai exatamente como antes. O JSON vem de fora: só entra o que tem a forma [k, de, ate, mfe, mae].
+  for (const d of serie.dentes ?? []) {
+    if (!Array.isArray(d) || d.length !== 5 || !d.every((v) => typeof v === "number" && Number.isFinite(v))) continue;
+    const [k, de, ate, mfeDoPonto, maeDoPonto] = d;
+    const p = pontos[k];
+    if (!p) continue;
+    const [inicio, fim] = limitesDaFatia(k, total, max);
+    p.dente = { de, ate, mfe: mfeDoPonto, mae: maeDoPonto };
+    p.dica.linhas.push({ rotulo: fim - inicio === 1 ? "MFE / MAE" : "MFE / MAE (extremos)", valor: formatarMfeMae(mfeDoPonto, maeDoPonto) });
+  }
+  return pontos;
 }
 
 /**
@@ -321,8 +397,54 @@ export function seriePorOperacao(
   opcoes: OpcoesSerie,
   dias: readonly string[],
   maxPontos = PONTOS_FIEL,
-): PontoDoDesenho[] {
+): PontoDaSerie[] {
   return expandirSerie(seriePorOperacaoCompacta(ops, opcoes, dias, { arredondar: false, maxPontos }), opcoes);
+}
+
+export interface OpcoesSerieDoSaldo {
+  janela: JanelaEpoch;
+  unidade: Unidade;
+  bucketSeg: number;
+  /** false quando aproximado (n_magics > 1: min = max = soma, a faixa não diz nada) */
+  comFaixa: boolean;
+}
+
+/**
+ * A série do saldo do dia medida pelo EA 1.1.2 (23/09/2026), já líquida (liquidarSerie) e reduzida
+ * (reduzirBaldes), pronta para o desenho: a linha passa pelo "último" de cada grupo, a faixa clara vai do
+ * mínimo ao máximo dele, e a posição no eixo é a do ÚLTIMO balde do grupo na janela do pregão
+ * (posicaoNaJanela), para a curva crescer da esquerda para a direita como um gráfico intradiário e o vértice
+ * cair no instante do valor que ele mostra (revisão de 23/09/2026: no primeiro balde, cada vértice ficava até 20 s
+ * à esquerda e a linha terminava antes do fim real da série). O drawdown é contra o pico dos últimos até ali,
+ * como na série por operação. A dica diz a hora com segundos do início do grupo, quantos intervalos o ponto
+ * junta, o saldo e a faixa; a etiqueta do eixo de baixo na mira é a mesma hora.
+ */
+export function serieDoSaldoParaDesenho(baldes: readonly BaldeReduzido[], opcoes: OpcoesSerieDoSaldo): PontoDaSerie[] {
+  const fmt = formatador(opcoes);
+  let pico = 0;
+  return baldes.map(([t, min, max, ultimo, nBaldes, tUltimo]): PontoDaSerie => {
+    pico = Math.max(pico, ultimo);
+    const faixa = opcoes.comFaixa && min !== max ? ([min, max] as const) : undefined;
+    const titulo = formatarHoraSeg(new Date(t * 1000));
+    const dica: ConteudoDaDica = {
+      titulo,
+      // "intervalo", e não "balde": texto público (revisão de 23/09/2026)
+      subtitulo: nBaldes > 1 ? `${nBaldes} intervalos de ${opcoes.bucketSeg} s` : undefined,
+      linhas: [{ rotulo: "Saldo", valor: fmt(ultimo), tom: tomDe(ultimo) }, ...(faixa ? [{ rotulo: "Faixa", valor: `${fmt(min)} a ${fmt(max)}` }] : [])],
+    };
+    const ponto: PontoDaSerie = { posicao: posicaoNaJanela(tUltimo, opcoes.janela), acumulado: ultimo, drawdown: Math.min(0, ultimo - pico), dica, eixo: titulo };
+    if (faixa) ponto.faixa = faixa;
+    return ponto;
+  });
+}
+
+/** MEP/MEN da própria série (mepMenDaSerie) como marcadores: { posicao: posicaoNaJanela(t), valor, rotulo: "MEP"|"MEN", tom }; só os que passam de zero. */
+export function marcadoresDoSaldo(baldes: ReadonlyArray<BaldeQualquer>, janela: JanelaEpoch): MarcadorDaCurva[] {
+  const { mep, mepT, men, menT } = mepMenDaSerie(baldes);
+  const marcadores: MarcadorDaCurva[] = [];
+  if (mep > 0 && mepT !== null) marcadores.push({ posicao: posicaoNaJanela(mepT, janela), valor: mep, rotulo: "MEP", tom: "positivo" });
+  if (men < 0 && menT !== null) marcadores.push({ posicao: posicaoNaJanela(menT, janela), valor: men, rotulo: "MEN", tom: "negativo" });
+  return marcadores;
 }
 
 /** Datas espaçadas por igual no eixo de baixo: cada rótulo marca o começo do dia dele, igual nos dois agrupamentos. */

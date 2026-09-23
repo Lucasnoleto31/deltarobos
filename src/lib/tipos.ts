@@ -205,6 +205,58 @@ export interface EventoColeta {
   excursao_ea_parcial?: boolean | null;
 }
 
+/**
+ * Linha de saldo_dia_publico (migration 0024, EA 1.1.2, 23/09/2026): um balde de InpSaldoBucketSeg (padrão 5 s)
+ * com o mínimo, o máximo e o último valor do SALDO DO DIA do robô (realizado + flutuante), em R$ BRUTOS por
+ * 1 contrato, já com as regras públicas aplicadas. Só conta principal, só balde medido com regras e só dia sem
+ * importação manual. n_magics > 1: min = max = soma dos últimos (aproximação: a faixa não deve ser desenhada).
+ */
+export interface SaldoDiaPublico {
+  robo_id: string;
+  slug: string;
+  /** YYYY-MM-DD, dia de pregão em Brasília */
+  dia: string;
+  /** início do balde, timestamptz em UTC, alinhado ao múltiplo do balde */
+  em: string;
+  min_brl_por_contrato: number;
+  max_brl_por_contrato: number;
+  ultimo_brl_por_contrato: number;
+  n_magics: number;
+  atualizado_em: string;
+}
+
+/** Payload do evento "saldo" (topic robo:<slug>): os baldes públicos de HOJE gravados nos últimos 30 s, sem replay. */
+export interface EventoSaldo {
+  slug: string;
+  dia: string;
+  baldes: Array<{ em: string; min: number; max: number; ultimo: number }>;
+}
+
+/**
+ * Um balde no formato COMPACTO que viaja pela rota e vive no estado: [t, min, max, ultimo], t = epoch UTC em
+ * SEGUNDOS do início do balde, valores em R$ BRUTOS por contrato (como na view). Tupla, e não objeto: um dia a
+ * 5 s são ~6.500 baldes, e quatro nomes de campo repetidos em cada um custariam mais que os números.
+ */
+export type BaldeCompacto = [number, number, number, number];
+
+/** Um fechamento de operação do dia: [t (epoch UTC em segundos de fechamento_em), custos_brl_por_contrato]. */
+export type FechamentoCompacto = [number, number];
+
+/** Corpo de GET /api/robos/[slug]/saldo/[dia]. */
+export interface SaldoDoDia {
+  dia: string;
+  /** em ordem crescente de t, sem t repetido */
+  baldes: BaldeCompacto[];
+  /** algum balde veio com n_magics > 1: min = max = soma; a faixa mín./máx. não é desenhada */
+  aproximado: boolean;
+  /** tamanho do balde em segundos, inferido do menor intervalo entre baldes (5 quando não dá para inferir) */
+  bucketSeg: number;
+  /** fechamentos das operações públicas do dia, em ordem de t: o líquido no instante t desconta os custos até ali */
+  fechamentos: FechamentoCompacto[];
+  /** ISO de quando a resposta foi montada */
+  geradoEm: string;
+}
+
 /** Payload do evento "cotacao" */
 export interface EventoCotacao {
   mercado: MercadoPublico[];
