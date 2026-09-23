@@ -8,6 +8,7 @@ import type { MarcadorDaCurva } from "@/components/graficos/CurvaProfit";
 import { formatarHora, formatarNumero, formatarPreco, rotuloLado } from "@/lib/formato";
 import { mepMenDoDia, posicaoDoExtremo } from "@/lib/stats/exposicao";
 import { brlParaPontos } from "@/lib/stats/normalizacao";
+import { horarioDaJanela } from "@/lib/stats/saldo-dia";
 import { CurvaDoDia } from "./CurvaDoDia";
 import { LinhaOperacao } from "./LinhaOperacao";
 import { OperacoesEmAberto } from "./OperacoesEmAberto";
@@ -32,7 +33,7 @@ const TEXTO_MEN_EA = (parcial: boolean) =>
  * com ela na coluna da direita, a esquerda terminava uma tela antes ("melhore a questão da assimetria").
  */
 export function HojeAoVivo() {
-  const { estado, robo } = useRobo();
+  const { estado, robo, pregao, hoje } = useRobo();
   const aberto = usePregaoAberto();
   // sem relógio aqui (18/09/2026): o "aberta há …" anda sozinho no HaQuanto e o painel só
   // renderiza de novo quando chega operação ou posição
@@ -62,6 +63,12 @@ export function HojeAoVivo() {
     if (mepMen.men < 0) lista.push({ posicao: posicaoDoExtremo(mepMen.menNSaidas, nOps), valor: mepMen.men, rotulo: "MEN", tom: "negativo" });
     return lista;
   }, [mepMen, nOps]);
+
+  // A série do saldo de hoje medida pelo EA 1.1.2 (23/09/2026): só depois de a rota responder (carregado) e
+  // com balde; até lá, e nos dias sem série, a curva por fechamento. O eixo do tempo é o horário do robô,
+  // ou o do pregão do ativo; memoizado porque a CurvaDoDia é memo e compara por referência
+  const horario = useMemo(() => horarioDaJanela(robo, pregao), [robo, pregao]);
+  const temSerie = estado.saldoHoje.carregado && estado.saldoHoje.baldes.length > 0;
 
   // a mais recente em cima; as novas entram no topo mesmo com a lista recolhida
   const recentes = [...ops].reverse();
@@ -180,7 +187,9 @@ export function HojeAoVivo() {
 
         {/* o dia em curva */}
         <div className="min-w-0">
-          {ops.length === 0 ? (
+          {/* vazio só sem operação E sem série (23/09/2026): com posição aberta e nenhuma saída a série já
+              mostra o calor do dia */}
+          {ops.length === 0 && !temSerie ? (
             <p className="py-6 text-center text-sm text-muted-foreground">
               {/* o mesmo texto da tela ao vivo: robô sem coletor não tem dia ao vivo (19/09/2026).
                   "ainda" só com o pregão aberto: no sábado não vem mais nenhuma */}
@@ -191,7 +200,15 @@ export function HojeAoVivo() {
                   : "Nenhuma operação hoje."}
             </p>
           ) : (
-            <CurvaDoDia operacoes={ops} altura={200} marcadores={marcadores} />
+            <CurvaDoDia
+              operacoes={ops}
+              saldo={estado.saldoHoje}
+              dia={hoje}
+              horario={horario}
+              valorPonto={robo.valor_ponto_brl}
+              altura={200}
+              marcadores={marcadores}
+            />
           )}
         </div>
       </div>

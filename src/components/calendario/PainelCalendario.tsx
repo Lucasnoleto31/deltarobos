@@ -9,16 +9,29 @@ import { desempacotar, type OpsEmpacotadas } from "@/components/compartilhados/o
 import { Valor } from "@/components/compartilhados/Valor";
 import { Heatmap } from "@/components/desempenho/Heatmap";
 import { escalaDeForca, mistura } from "@/components/graficos/base";
-import { AmostraDaLinha, CURVA_POR_OPERACAO, DesenhoDaCurva, MolduraProfit, type MarcadorDaCurva } from "@/components/graficos/CurvaProfit";
-import { seriePorOperacao } from "@/components/graficos/series-da-curva";
+import { AmostraDaLinha, CURVA_POR_OPERACAO, DesenhoDaCurva, MolduraProfit, PROFIT, type MarcadorDaCurva } from "@/components/graficos/CurvaProfit";
+import { marcadoresDoSaldo, serieDoSaldoParaDesenho, seriePorOperacao } from "@/components/graficos/series-da-curva";
 import { Button } from "@/components/ui/button";
 import { formatarData, formatarDataLonga, formatarHora, formatarMesAno, formatarNumero, formatarPct } from "@/lib/formato";
 import { gradeMes, heatmapAnoMes, mesesComDados } from "@/lib/stats/calendario";
 import { mepMenDoDia, posicaoDoExtremo, type ExposicaoDoDia } from "@/lib/stats/exposicao";
 import { dia as diaOp, excursaoDoDia, porDiaSemana, porHora, valorOperacao } from "@/lib/stats/operacoes";
 import { mesDe, somarMeses } from "@/lib/stats/periodos";
+import type { HorarioPregao } from "@/lib/stats/pregao";
+import {
+  PONTOS_SALDO,
+  ehCorpoSaldoDoDia,
+  fechamentosNaCurva,
+  inicioDaMedicao,
+  janelaDoDia,
+  legendaDoSaldo,
+  liquidarSerie,
+  reduzirBaldes,
+  rotulosDeHora,
+} from "@/lib/stats/saldo-dia";
 import { valorDia } from "@/lib/stats/serie";
 import type { LinhaDiaria, OpcoesSerie } from "@/lib/stats/tipos";
+import type { SaldoDoDia } from "@/lib/tipos";
 
 interface Props {
   linhas: LinhaDiaria[];
@@ -32,6 +45,12 @@ interface Props {
   /** custo por contrato do robô: o líquido do MEP/MEN medido desconta o custo de cada saída até o extremo */
   custoPorContrato: number;
   capitalReferencia: number | null;
+  /** o robô, para pedir a série do saldo do dia escolhido à rota /api/robos/[slug]/saldo/[dia] (23/09/2026) */
+  slug: string;
+  /** false = só histórico importado: não há série do EA a pedir */
+  temColetor: boolean;
+  /** o horário que dimensiona o eixo do tempo da série: o do robô, ou o do pregão do ativo */
+  horario: HorarioPregao;
 }
 
 // o "o que é" do MEP e do MEN muda com a fonte do dia (22/09/2026)
@@ -121,7 +140,7 @@ function Fileira({
  * faixa de largura toda embaixo, e a curva do dia ocupa a diferença para as duas colunas terminarem juntas.
  * Cada número ganhou o i do "o que é"; o aviso de como o MEP e o MEN são medidos foi para dentro dele.
  */
-export function PainelCalendario({ linhas, pacote, exposicao, feriados, hoje, valorPonto, custoPorContrato, capitalReferencia }: Props) {
+export function PainelCalendario({ linhas, pacote, exposicao, feriados, hoje, valorPonto, custoPorContrato, capitalReferencia, slug, temColetor, horario }: Props) {
   const ops = useMemo(() => desempacotar(pacote), [pacote]);
   const exposicaoPorDia = useMemo(() => new Map(exposicao.map((e) => [e.dia, e])), [exposicao]);
   const idCurva = `cal-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
@@ -198,8 +217,79 @@ export function PainelCalendario({ linhas, pacote, exposicao, feriados, hoje, va
   const horasDia = useMemo(() => porHora(opsDia, opcoes).filter((f) => f.n > 0), [opsDia, opcoes]);
   const maiorHora = Math.max(1, ...horasDia.map((f) => Math.abs(f.total)));
 
-  // o dia em curva, operação a operação (as operações compactas já vêm em ordem de fechamento)
+  // o dia em curva, operação a operação (as operações compactas já vêm em ordem de fechamento); desde
+  // 23/09/2026 é a reserva: vale nos dias sem a série do saldo medida pelo EA, e enquanto ela carrega
   const curvaDoDia = useMemo(() => (diaSel ? seriePorOperacao(opsDia, opcoes, [diaSel]) : []), [opsDia, opcoes, diaSel]);
+
+  // A série do saldo do dia escolhido, medida pelo EA 1.1.2 (23/09/2026): carregada sob demanda pela rota
+  // /api/robos/[slug]/saldo/[dia] e guardada por dia nesta instância (o próprio estado é o cache: voltar a
+  // um dia já visto não pede de novo). "erro" também fica guardado, para o "Tentar de novo" ser um gesto
+  // da pessoa e não um laço de pedidos. Sem coletor não há o que pedir: o robô só tem histórico importado.
+  // O setSaldos só acontece na resposta, nunca no corpo do efeito.
+  const [saldos, setSaldos] = useState<Record<string, SaldoDoDia | "erro">>({});
+  const emVoo = useRef(new Map<string, AbortController>());
+  useEffect(() => {
+    if (!temColetor || !diaSel || diaSel in saldos || emVoo.current.has(diaSel)) return;
+    const dia = diaSel;
+    const controle = new AbortController();
+    emVoo.current.set(dia, controle);
+    const concluir = () => {
+      // só o próprio pedido sai do mapa: um pedido cancelado (StrictMode) não pode apagar o que o substituiu
+      if (emVoo.current.get(dia) === controle) emVoo.current.delete(dia);
+    };
+    fetch(`/api/robos/${encodeURIComponent(slug)}/saldo/${dia}`, { signal: controle.signal })
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const corpo: unknown = await r.json();
+        // o JSON vem de fora: a forma é conferida antes de entrar no estado, como mesmoRecorte faz com a curva
+        if (!ehCorpoSaldoDoDia(corpo) || corpo.dia !== dia) throw new Error("resposta em formato inesperado");
+        return corpo;
+      })
+      .then(
+        (corpo) => {
+          concluir();
+          if (controle.signal.aborted) return;
+          setSaldos((s) => ({ ...s, [dia]: corpo }));
+        },
+        (e: unknown) => {
+          concluir();
+          if (controle.signal.aborted) return;
+          console.warn(`[calendario] saldo de ${dia}:`, e);
+          setSaldos((s) => ({ ...s, [dia]: "erro" }));
+        },
+      );
+  }, [diaSel, slug, temColetor, saldos]);
+  // desmontar cancela o que está no ar: a resposta não cai num componente morto
+  useEffect(() => {
+    const mapa = emVoo.current;
+    return () => {
+      for (const c of mapa.values()) c.abort();
+      mapa.clear();
+    };
+  }, []);
+  const saldoSel = diaSel ? saldos[diaSel] : undefined;
+  const carregando = temColetor && diaSel !== null && saldoSel === undefined;
+  const temSerie = typeof saldoSel === "object" && saldoSel.baldes.length > 0;
+  const nOpsDoDia = opsDia.length;
+  // A série pronta para o desenho: bruta na rota, líquida aqui (o custo de cada operação fechada até o fim
+  // do balde), reduzida a PONTOS_SALDO grupos, com o MEP/MEN da própria série, os fechamentos marcados na
+  // linha e o eixo do tempo no horário do robô, esticado pelos dados do dia
+  const serieDoDia = useMemo(() => {
+    if (!diaSel || typeof saldoSel !== "object" || saldoSel.baldes.length === 0) return null;
+    const { baldes, fechamentos, bucketSeg, aproximado } = saldoSel;
+    const liquida = liquidarSerie(baldes, fechamentos, bucketSeg, { base: opcoes.base, unidade: opcoes.unidade, valorPonto });
+    const janela = janelaDoDia(diaSel, horario, baldes, bucketSeg, fechamentos);
+    return {
+      pontos: serieDoSaldoParaDesenho(reduzirBaldes(liquida, PONTOS_SALDO), { janela, unidade: opcoes.unidade, bucketSeg, comFaixa: !aproximado }),
+      marcadores: marcadoresDoSaldo(liquida, janela),
+      fechamentos: fechamentosNaCurva(fechamentos, liquida, janela),
+      rotulosX: rotulosDeHora(janela),
+      // "medido a partir de HH:MM" também quando o primeiro balde vem bem depois do início do eixo, sem saída antes
+      legenda: `${legendaDoSaldo({ bucketSeg, aproximado, comFechamentos: nOpsDoDia > 0, medidoDesdeT: inicioDaMedicao(liquida, fechamentos, janela.inicio) })} · 1 contrato, líquido`,
+    };
+  }, [diaSel, saldoSel, opcoes, valorPonto, horario, nOpsDoDia]);
+  // tirar o dia do cache faz o efeito pedir de novo (o botão "Tentar de novo" do erro)
+  const tentarDeNovo = (dia: string) => setSaldos((s) => Object.fromEntries(Object.entries(s).filter(([d]) => d !== dia)));
   // MEP e MEN do dia, duas fontes (22/09/2026). Primeiro a medição do EA 1.1.0: tick a tick, com a posição
   // aberta, o número do Profit, trazido em R$ brutos e posto aqui na base e unidade da curva (líquido: o
   // custo de cada saída feita até o extremo). Sem medição (antes do EA 1.1.0, histórico importado, EA
@@ -246,7 +336,7 @@ export function PainelCalendario({ linhas, pacote, exposicao, feriados, hoje, va
   // ajuste ao começar a observar, e de novo quando o mês troca de 4 para 5 semanas ou o texto quebra.
   const [alturaCurva, setAlturaCurva] = useState(ALTURA_CURVA);
   const alturaCurvaRef = useRef(ALTURA_CURVA);
-  const temCurva = curvaDoDia.length > 0;
+  const temCurva = curvaDoDia.length > 0 || temSerie;
   useEffect(() => {
     const cal = calendarioRef.current;
     const det = detalheRef.current;
@@ -520,14 +610,67 @@ export function PainelCalendario({ linhas, pacote, exposicao, feriados, hoje, va
               </div>
 
               <div className="p-3 sm:p-4">
-                {curvaDoDia.length > 0 ? (
+                {/* a legenda da moldura é aria-hidden: o aviso de carga (e o de falha) vai também numa região de status, só para leitor de tela */}
+                <span role="status" className="sr-only">
+                  {carregando && curvaDoDia.length > 0 ? "Carregando o saldo medido do dia." : saldoSel === "erro" ? "O saldo medido do dia não carregou." : ""}
+                </span>
+                {/* A curva do dia (23/09/2026): a série do saldo medida pelo EA quando o dia a tem (a faixa mín./máx.
+                    de cada balde, os fechamentos marcados e o MEP/MEN da série); senão, e enquanto ela carrega, a
+                    curva por fechamento de sempre, rotulada assim, com os dentes de MFE/MAE das operações medidas */}
+                {serieDoDia !== null && diaSel ? (
                   <MolduraProfit
                     // o i vai no título, que é lido; a legenda é aria-hidden (19/09/2026)
+                    titulo={<RotuloComInfo chave="curvaDoDia">O dia, medido no MT5</RotuloComInfo>}
+                    legenda={
+                      <span className="inline-flex items-center gap-1.5">
+                        <AmostraDaLinha cores={CURVA_POR_OPERACAO} />
+                        {serieDoDia.legenda}
+                      </span>
+                    }
+                  >
+                    {/* a linha nasce no primeiro balde, não no zero da abertura: o coletor que subiu no meio do dia
+                        não pode virar uma rampa que nunca aconteceu (revisão de 23/09/2026) */}
+                    <DesenhoDaCurva
+                      key={diaSel}
+                      id={idCurva}
+                      pontos={serieDoDia.pontos}
+                      cores={CURVA_POR_OPERACAO}
+                      altura={alturaCurva}
+                      marcadores={serieDoDia.marcadores}
+                      fechamentos={serieDoDia.fechamentos}
+                      comecarNoPrimeiroPonto
+                      rotulosX={serieDoDia.rotulosX}
+                      formatarEixo={(v) => formatarNumero(v, 0)}
+                      rotuloVertical="Saldo do dia (R$)"
+                      rotuloAria={`Saldo de ${formatarData(diaSel)} medido no MetaTrader 5 ao longo do pregão`}
+                    />
+                  </MolduraProfit>
+                ) : curvaDoDia.length > 0 ? (
+                  <MolduraProfit
                     titulo={<RotuloComInfo chave="curvaDoDia">O dia, operação a operação</RotuloComInfo>}
                     legenda={
                       <span className="inline-flex items-center gap-1.5">
-                        <AmostraDaLinha cores={CURVA_POR_OPERACAO} />1 contrato, líquido, por ordem de fechamento
+                        <AmostraDaLinha cores={CURVA_POR_OPERACAO} />1 contrato, líquido · por fechamento, na ordem em que fecharam
+                        {carregando ? " · carregando o saldo medido…" : ""}
                       </span>
+                    }
+                    // A rota falhou (rede, 503 do banco): o aviso e o "Tentar de novo" ficam no rodapé da moldura, FORA
+                    // da legenda, que é aria-hidden (revisão de 23/09/2026: um botão dentro de aria-hidden chega pelo Tab
+                    // e não é anunciado, e para quem enxerga o erro não tinha nome). O botão é o "Ver tudo" da curva de capital
+                    abas={
+                      saldoSel === "erro" ? (
+                        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 px-3 pb-2.5 text-[11px]" style={{ color: PROFIT.textoFraco }}>
+                          <span>saldo medido do dia indisponível</span>
+                          <button
+                            type="button"
+                            onClick={() => tentarDeNovo(diaSel)}
+                            className="rounded-full border px-2 py-0.5 text-[11px] font-medium outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+                            style={{ borderColor: PROFIT.abasBorda, color: PROFIT.titulo }}
+                          >
+                            Tentar de novo
+                          </button>
+                        </div>
+                      ) : undefined
                     }
                   >
                     <DesenhoDaCurva

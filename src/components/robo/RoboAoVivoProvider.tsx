@@ -4,6 +4,8 @@ import { createContext, useCallback, useContext, useMemo, useState, useSyncExter
 import dynamic from "next/dynamic";
 import type { EstadoRoboAoVivo, InicialRoboAoVivo } from "@/hooks/useRoboAoVivo";
 import { pregaoAberto, type HorarioPregao } from "@/lib/stats/pregao";
+// o estado inicial da série do saldo vem da lib, nunca do hook: o import do hook tem de continuar só de tipos
+import { SALDO_HOJE_VAZIO } from "@/lib/stats/saldo-dia";
 import type { OperacaoPublica, RoboPublico } from "@/lib/tipos";
 
 // Do hook só vêm tipos: o hook (e com ele o cliente do Supabase, ~63 KB gz)
@@ -61,14 +63,19 @@ export function RoboAoVivoProvider({ robo, inicial, pregao, feriados, pregaoAber
     ultimaMensagemEm: null,
     conectado: false,
     exposicaoHoje: inicial.exposicaoHoje ?? null,
+    saldoHoje: SALDO_HOJE_VAZIO,
   }));
   const valor = useMemo<ValorRobo>(
     () => ({ estado, robo, pregao, feriados, hoje: inicial.dia, pregaoAbertoNoServidor }),
     [estado, robo, pregao, feriados, inicial.dia, pregaoAbertoNoServidor],
   );
+  // o vigia da série do saldo (23/09/2026) só relê a rota com o pregão aberto: o provider já sabe, e passa. O
+  // tem_coletor também (revisão de 23/09/2026): robô só com histórico importado não tem série a pedir, e o hook
+  // não faz nenhum GET à rota; vem daqui, e não de `inicial`, porque o robô já está nas mãos do provider
+  const pregaoAbertoAgora = usePregaoAbertoDe(pregao, feriados, pregaoAbertoNoServidor);
   return (
     <Ctx.Provider value={valor}>
-      <AssinanteRobo slug={robo.slug} inicial={inicial} aoMudar={setEstado} />
+      <AssinanteRobo slug={robo.slug} inicial={inicial} aoMudar={setEstado} pregaoAberto={pregaoAbertoAgora} temColetor={robo.tem_coletor} />
       {children}
     </Ctx.Provider>
   );
@@ -87,12 +94,21 @@ function assinarMeioMinuto(avisar: () => void) {
 }
 
 /**
+ * O pregão está aberto agora, dado o horário e os feriados (23/09/2026: o corpo de usePregaoAberto, solto
+ * do contexto para o próprio provider usar). No servidor e na hidratação vale `noServidor`, o que o
+ * servidor calculou ao montar a página, a mesma resposta dos dois lados; depois, o relógio do navegador.
+ */
+export function usePregaoAbertoDe(pregao: HorarioPregao, feriados: string[], noServidor: boolean): boolean {
+  const ler = useCallback(() => pregaoAberto(new Date(), pregao, feriados), [pregao, feriados]);
+  return useSyncExternalStore(assinarMeioMinuto, ler, () => noServidor);
+}
+
+/**
  * O pregão está aberto agora? (19/09/2026) No servidor e na hidratação vale o que o servidor calculou
  * ao montar a página, a mesma resposta dos dois lados; depois, o relógio do navegador. Quem usa só
  * renderiza de novo quando a resposta muda, não a cada volta do relógio.
  */
 export function usePregaoAberto(): boolean {
   const { pregao, feriados, pregaoAbertoNoServidor } = useRobo();
-  const ler = useCallback(() => pregaoAberto(new Date(), pregao, feriados), [pregao, feriados]);
-  return useSyncExternalStore(assinarMeioMinuto, ler, () => pregaoAbertoNoServidor);
+  return usePregaoAbertoDe(pregao, feriados, pregaoAbertoNoServidor);
 }

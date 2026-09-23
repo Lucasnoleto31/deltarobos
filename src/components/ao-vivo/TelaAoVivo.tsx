@@ -2,6 +2,7 @@
 
 import { ArrowLeft, ArrowUpRight, Share2 } from "lucide-react";
 import Link from "next/link";
+import { useMemo } from "react";
 import { AtualizadoHa } from "@/components/compartilhados/AtualizadoHa";
 import { BadgeStatusRobo } from "@/components/compartilhados/BadgeStatusRobo";
 import { Valor } from "@/components/compartilhados/Valor";
@@ -16,6 +17,7 @@ import { useAgora } from "@/hooks/useAgora";
 import { useMontado } from "@/hooks/useMontado";
 import { formatarBRL, formatarDataLonga, formatarNumero, formatarPct, formatarPontos, formatarPreco, rotuloLado } from "@/lib/formato";
 import { pregaoAberto } from "@/lib/stats/pregao";
+import { horarioDaJanela } from "@/lib/stats/saldo-dia";
 import { statusAoVivo } from "@/lib/stats/status-robo";
 
 // A tela é um cartão de story: o que importa cabe na primeira tela do celular, e o resto rola.
@@ -53,6 +55,11 @@ export function TelaAoVivo() {
   const liquido = ops.reduce((s, o) => s + o.resultado_brl_por_contrato - o.custos_brl_por_contrato, 0);
   const pontos = ops.reduce((s, o) => s + o.pontos_por_contrato, 0);
   const gains = ops.filter((o) => o.resultado_brl_por_contrato - o.custos_brl_por_contrato > 0).length;
+
+  // a mesma curva do painel "Hoje ao vivo" (23/09/2026): a série do saldo medida pelo EA quando a rota já
+  // respondeu com balde, senão por fechamento. O horário do robô (ou do pregão) dimensiona o eixo
+  const horario = useMemo(() => horarioDaJanela(robo, pregao), [robo, pregao]);
+  const temSerie = estado.saldoHoje.carregado && estado.saldoHoje.baldes.length > 0;
 
   const aberto = agora ? pregaoAberto(agora, pregao, feriados) : false;
   const status = statusAoVivo({
@@ -164,8 +171,19 @@ export function TelaAoVivo() {
       </div>
 
       <div className="contents lg:flex lg:flex-col lg:gap-5">
-      {ops.length > 0 ? (
-        <CurvaDoDia operacoes={ops} altura={200} titulo="O dia, operação a operação" legenda="por contrato, líquido de custos" />
+      {/* vazio só sem operação E sem série (23/09/2026): com posição aberta a série já mostra o calor do dia */}
+      {ops.length > 0 || temSerie ? (
+        <CurvaDoDia
+          operacoes={ops}
+          saldo={estado.saldoHoje}
+          dia={hoje}
+          horario={horario}
+          valorPonto={robo.valor_ponto_brl}
+          altura={200}
+          titulo="O dia, operação a operação"
+          tituloSerie="O dia, medido no MT5"
+          legenda="por contrato, líquido de custos"
+        />
       ) : (
         <p className="painel px-4 py-8 text-center text-sm text-muted-foreground">
           {/* robô sem coletor (só histórico importado) não tem dia ao vivo: a tela diz isso, em vez de parecer parada.

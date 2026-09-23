@@ -177,13 +177,23 @@ export function CurvaCapital({
 
   const pontos = modoAtivo === "dia" ? pontosDia : (pontosOperacao ?? []);
   const cores = modoAtivo === "dia" ? CURVA_POR_DIA : CURVA_POR_OPERACAO;
+  // a série por operação traz os dentes de MFE/MAE quando as operações foram medidas pelo EA (23/09/2026):
+  // a legenda só os explica quando existem, senão o histórico antigo, sem medição, ganharia um item à toa.
+  // Os dentes viajam dentro de cada ponto, então o recorte do zoom os leva junto sem código a mais
+  const temDentes = useMemo(() => modoAtivo === "operacao" && (pontosOperacao ?? []).some((p) => p.dente !== undefined), [modoAtivo, pontosOperacao]);
   // A escala cobre as duas séries e os extremos de todas as operações: trocar de aba não muda a régua, e
   // a completa chega na régua da leve (com a completa são até 20 mil pontos: memo). No zoom só o trecho
-  // conta, senão o trecho ampliado ficaria com a régua do todo.
-  const escalaDe = useMemo(
-    () => [...pontosDia.map((p) => p.acumulado), ...(pontosOperacao ?? []).map((p) => p.acumulado), ...(zoom ? [] : extremos)],
-    [pontosDia, pontosOperacao, extremos, zoom],
-  );
+  // conta, senão o trecho ampliado ficaria com a régua do todo. Os dentes de MFE/MAE da série por operação
+  // entram aqui, e não só no desenho (revisão de 23/09/2026): o MAE costuma descer abaixo do menor acumulado,
+  // e a régua mudava ao trocar de "Por dia" para "Por operação"; `extremos` já os traz para a série inteira
+  const escalaDe = useMemo(() => {
+    const valores = [...pontosDia.map((p) => p.acumulado), ...(zoom ? [] : extremos)];
+    for (const p of pontosOperacao ?? []) {
+      valores.push(p.acumulado);
+      if (p.dente) valores.push(p.dente.de, p.dente.ate);
+    }
+    return valores;
+  }, [pontosDia, pontosOperacao, extremos, zoom]);
 
   const alturaDaCurva = Math.round(altura * 0.66);
   const alturaDoDrawdown = Math.max(56, Math.round(altura * 0.26));
@@ -253,6 +263,7 @@ export function CurvaCapital({
                 <span className="size-2" style={{ background: PROFIT.baixa, opacity: 0.62 }} />
                 Drawdown
               </span>
+              {temDentes ? <span>MFE/MAE em traço vertical</span> : null}
               {zoom ? (
                 <button
                   type="button"

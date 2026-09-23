@@ -8,6 +8,7 @@
 // com a posição, o acumulado, o drawdown e a leitura já montados.
 
 import { useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import type { ExtrasDoPonto, FechamentoNaCurva } from "@/lib/stats/saldo-dia";
 import { Leitura, indiceMaisPerto, passo, type ConteudoDaDica, type PaletaDaLeitura } from "./base";
 
 export const PROFIT = {
@@ -79,7 +80,14 @@ export const CURVA_POR_DIA: CoresDaCurva = {
   zeroLargura: 1,
 };
 
-export interface PontoDoDesenho {
+/**
+ * Um ponto da curva. Desde 23/09/2026 estende ExtrasDoPonto (src/lib/stats/saldo-dia.ts): `faixa` é o
+ * mínimo e o máximo do saldo dentro do balde da série medida pelo EA 1.1.2, e `dente` é o MFE/MAE de uma
+ * operação (ou o envelope da fatia) na curva por operação. Os dois são opcionais: ponto sem eles se
+ * desenha como sempre. Os campos são declarados lá, e não aqui, para a série (que não é "use client")
+ * e o desenho compilarem cada um por si.
+ */
+export interface PontoDoDesenho extends ExtrasDoPonto {
   /** de 0 a 1 no eixo de baixo */
   posicao: number;
   acumulado: number;
@@ -142,7 +150,76 @@ export function caminhoDoDrawdown(pontos: readonly PontoDoDesenho[], y: (drawdow
   return `${d}L${x(pontos[n - 1])},0Z`;
 }
 
+/**
+ * A faixa mín./máx. da série do saldo (23/09/2026): uma área fechada que vai pelos máximos de cada
+ * ponto e volta pelos mínimos, em % do desenho, com o x na mesma precisão do traçado (`casas`). Ponto
+ * sem faixa entra com o próprio acumulado nas duas pontas, para a área acompanhar a linha sem furo
+ * (a série põe faixa só no balde em que o saldo oscilou). Sem nenhum ponto com faixa, "" (nada a
+ * desenhar). É uma área só para 1.500 pontos custarem um nó de SVG.
+ */
+export function caminhoDaFaixa(pontos: readonly PontoDoDesenho[], x: (i: number) => number, y: (v: number) => number, casas: number): string {
+  const n = pontos.length;
+  if (n === 0 || !pontos.some((p) => p.faixa !== undefined)) return "";
+  let ida = "";
+  // a volta é montada de trás para a frente: os mínimos em ordem inversa fecham o polígono
+  const volta: string[] = [];
+  for (let i = 0; i < n; i++) {
+    const p = pontos[i];
+    const [min, max] = p.faixa ?? [p.acumulado, p.acumulado];
+    const px = x(i).toFixed(casas);
+    ida += `${i === 0 ? "M" : "L"}${px},${y(max).toFixed(2)}`;
+    volta.push(`L${px},${y(min).toFixed(2)}`);
+  }
+  volta.reverse();
+  return `${ida}${volta.join("")}Z`;
+}
+
+/**
+ * Os dentes de MFE/MAE (23/09/2026): um traço vertical por ponto com `dente`, do `de` (acumulado antes
+ * da operação mais o MAE) ao `ate` (mais o MFE), todos num caminho só ("M x,y(de) L x,y(ate)" por
+ * ponto): 20 mil operações medidas são um nó de SVG, não 20 mil. "" sem nenhum ponto com dente.
+ */
+export function caminhoDosDentes(pontos: readonly PontoDoDesenho[], x: (i: number) => number, y: (v: number) => number, casas: number): string {
+  let d = "";
+  for (let i = 0; i < pontos.length; i++) {
+    const dente = pontos[i].dente;
+    if (!dente) continue;
+    const px = x(i).toFixed(casas);
+    d += `M${px},${y(dente.de).toFixed(2)}L${px},${y(dente.ate).toFixed(2)}`;
+  }
+  return d;
+}
+
+/**
+ * A linha e a área da curva, em % do desenho. De sempre: a linha nasce no zero, na borda esquerda, antes do
+ * primeiro ponto (as curvas por operação e por dia começam do nada). Com `doPrimeiroPonto` (a série do saldo,
+ * revisão de 23/09/2026) ela nasce no PRIMEIRO PONTO: o coletor que subiu às 11:30 virava uma rampa de
+ * (09:00, R$ 0) até (11:30, o saldo de lá), com a área pintada embaixo, um caminho que nunca aconteceu e o
+ * oposto da "curva real" pedida; a área vai do zero sob o primeiro ponto até o zero sob o último. Com o
+ * primeiro ponto em x = 0 os dois modos desenham a mesma coisa (só some o risco vertical na borda).
+ */
+export function caminhoDaLinha(
+  pontos: readonly PontoDoDesenho[],
+  x: (i: number) => number,
+  y: (v: number) => number,
+  casas: number,
+  zero: number,
+  doPrimeiroPonto: boolean,
+): { tracado: string; area: string } {
+  const n = pontos.length;
+  if (n === 0) return { tracado: "", area: "" };
+  const z = zero.toFixed(2);
+  const x0 = x(0).toFixed(casas);
+  let tracado = doPrimeiroPonto ? `M${x0},${y(pontos[0].acumulado).toFixed(2)}` : `M0,${z}`;
+  for (let i = doPrimeiroPonto ? 1 : 0; i < n; i++) tracado += `L${x(i).toFixed(casas)},${y(pontos[i].acumulado).toFixed(2)}`;
+  const fecho = `L${x(n - 1).toFixed(casas)},${z}Z`;
+  // a área começa no zero: no modo de sempre o traçado já começa lá; no outro, desce do zero até o primeiro ponto
+  const area = doPrimeiroPonto ? `M${x0},${z}L${tracado.slice(1)}${fecho}` : `${tracado}${fecho}`;
+  return { tracado, area };
+}
+
 const SEM_MARCADORES: readonly MarcadorDaCurva[] = [];
+const SEM_FECHAMENTOS: readonly FechamentoNaCurva[] = [];
 
 function EixoProfit({ marcas, y, altura, formatar }: { marcas: number[]; y: (v: number) => number; altura: number; formatar: (v: number) => string }) {
   return (
@@ -208,6 +285,21 @@ interface Props {
   aoSelecionar?: (de: number, ate: number) => void;
   /** pontos marcados em cima da curva, com rótulo; entram na escala vertical para nunca ficarem fora do desenho */
   marcadores?: ReadonlyArray<MarcadorDaCurva>;
+  /**
+   * Um pontinho por operação fechada em cima da linha (a série do saldo do EA, 23/09/2026): a posição
+   * na régua do eixo e o valor da linha ali. Sem eles, o desenho de sempre. Não passam pelo zoom por
+   * arrasto: nenhuma tela com zoom os manda (a série do saldo é de um dia só, sem arrasto).
+   */
+  fechamentos?: ReadonlyArray<FechamentoNaCurva>;
+  /** desenha a faixa mín./máx. dos pontos que a têm (padrão true) */
+  mostrarFaixa?: boolean;
+  /** desenha os dentes de MFE/MAE dos pontos que os têm (padrão true) */
+  mostrarDentes?: boolean;
+  /**
+   * A linha e a área nascem no primeiro ponto, e não no zero da borda esquerda (a série do saldo, cujo eixo é o
+   * horário do dia: o coletor que subiu no meio do dia não pode virar uma rampa desde a abertura). Ver caminhoDaLinha.
+   */
+  comecarNoPrimeiroPonto?: boolean;
 }
 
 /**
@@ -235,6 +327,10 @@ export function DesenhoDaCurva({
   rotuloAria,
   aoSelecionar,
   marcadores = SEM_MARCADORES,
+  fechamentos = SEM_FECHAMENTOS,
+  mostrarFaixa = true,
+  mostrarDentes = true,
+  comecarNoPrimeiroPonto = false,
 }: Props) {
   // Onde o ponteiro está, em fração do eixo; o ponto apontado é o mais perto dela, achado a cada
   // desenho (busca binária, custo nulo). Guardar a fração em vez do índice (22/09/2026) é o que deixa
@@ -253,20 +349,25 @@ export function DesenhoDaCurva({
   const desenho = useMemo(() => {
     if (n === 0) return null;
     const x = (i: number) => pontos[i].posicao * 100;
-    // os marcadores entram na escala: em série fatiada o pico real pode não estar entre os pontos desenhados
-    const { marcas, y } = escalaDaCurva([...(escalaDe ?? pontos.map((p) => p.acumulado)), ...marcadores.map((m) => m.valor)]);
+    // os marcadores entram na escala: em série fatiada o pico real pode não estar entre os pontos desenhados.
+    // A faixa e os dentes também (23/09/2026): o mínimo do balde e o MAE da operação passam do acumulado, e
+    // fora da régua a faixa sairia do desenho
+    const valoresDaEscala = [...(escalaDe ?? pontos.map((p) => p.acumulado)), ...marcadores.map((m) => m.valor)];
+    for (const p of pontos) {
+      if (mostrarFaixa && p.faixa) valoresDaEscala.push(p.faixa[0], p.faixa[1]);
+      if (mostrarDentes && p.dente) valoresDaEscala.push(p.dente.de, p.dente.ate);
+    }
+    const { marcas, y } = escalaDaCurva(valoresDaEscala);
     const zero = y(0);
     // com muitos pontos o x leva uma casa a mais: 20 mil pontos em 100 unidades ficam a 0,005 um do outro
     const casas = n > MAX_BARRAS ? 3 : 2;
-    // a linha nasce no zero, na borda esquerda, antes do primeiro ponto
-    let tracado = `M0,${zero.toFixed(2)}`;
+    // a linha e a área: do zero na borda esquerda, ou do primeiro ponto (a série do saldo)
+    const { tracado, area } = caminhoDaLinha(pontos, x, y, casas, zero, comecarNoPrimeiroPonto);
     let maior = 0;
     let menor = 0;
     // a coluna do eixo reserva a largura da etiqueta mais larga, para ela não invadir o rótulo vertical
     let etiquetaMaisLarga = "";
-    for (let i = 0; i < n; i++) {
-      const p = pontos[i];
-      tracado += `L${x(i).toFixed(casas)},${y(p.acumulado).toFixed(2)}`;
+    for (const p of pontos) {
       if (p.acumulado > maior) maior = p.acumulado;
       if (p.acumulado < menor) menor = p.acumulado;
       const t = formatarEixo(p.acumulado);
@@ -279,7 +380,7 @@ export function DesenhoDaCurva({
       y,
       zero,
       tracado,
-      area: `${tracado}L${x(n - 1).toFixed(casas)},${zero.toFixed(2)}Z`,
+      area,
       topoDaCurva: y(maior),
       fundoDaCurva: y(menor),
       escalaDD,
@@ -287,11 +388,14 @@ export function DesenhoDaCurva({
       // acima de MAX_BARRAS o drawdown é uma área só; abaixo, as barras de sempre
       areaDoDrawdown: n > MAX_BARRAS ? caminhoDoDrawdown(pontos, escalaDD.y) : null,
       etiquetaMaisLarga,
+      // a faixa mín./máx. e os dentes de MFE/MAE (23/09/2026), um caminho cada; "" quando nenhum ponto os tem
+      faixa: mostrarFaixa ? caminhoDaFaixa(pontos, x, y, casas) : "",
+      dentes: mostrarDentes ? caminhoDosDentes(pontos, x, y, casas) : "",
     };
-  }, [pontos, n, escalaDe, marcadores, formatarEixo]);
+  }, [pontos, n, escalaDe, marcadores, formatarEixo, mostrarFaixa, mostrarDentes, comecarNoPrimeiroPonto]);
   if (n === 0 || desenho === null) return null;
 
-  const { x, marcas, y, zero, tracado, area, topoDaCurva, fundoDaCurva, escalaDD, larguraDaBarra, areaDoDrawdown, etiquetaMaisLarga } = desenho;
+  const { x, marcas, y, zero, tracado, area, topoDaCurva, fundoDaCurva, escalaDD, larguraDaBarra, areaDoDrawdown, etiquetaMaisLarga, faixa, dentes } = desenho;
   const comDrawdown = alturaDoDrawdown > 0;
 
   const apontar = (e: ReactPointerEvent<HTMLDivElement>) => {
@@ -342,11 +446,14 @@ export function DesenhoDaCurva({
         if (e.pointerType !== "touch") setAlvo(null);
       }}
     >
-      {/* a altura reservada acompanha a largura (uma linha no largo, três no celular), para o desenho não pular */}
+      {/* A altura reservada acompanha a largura (uma linha no largo, três no celular), para o desenho não pular.
+          Com dentes na série a dica tem uma linha a mais ("MFE / MAE"), só nas operações medidas: a reserva sobe
+          uma linha em cada largura (revisão de 23/09/2026), senão o desenho pulava ~18 px quando o dedo passava de
+          uma operação não medida para uma medida */}
       <Leitura
         conteudo={(atual ?? ultimo).dica}
         paleta={PALETA_DA_LEITURA}
-        className="col-span-3 mb-2 min-h-[52px] @md:min-h-[34px] @3xl:min-h-4"
+        className={`col-span-3 mb-2 ${dentes ? "min-h-[70px] @md:min-h-[52px] @3xl:min-h-[34px]" : "min-h-[52px] @md:min-h-[34px] @3xl:min-h-4"}`}
       />
       <div
         className={`relative touch-pan-y ${aoSelecionar ? "cursor-crosshair" : ""}`}
@@ -379,8 +486,21 @@ export function DesenhoDaCurva({
             </linearGradient>
           </defs>
           <line x1="0" x2="100" y1={zero} y2={zero} stroke={cores.zero} strokeWidth={cores.zeroLargura} vectorEffect="non-scaling-stroke" />
+          {/* a faixa mín./máx. do saldo dentro de cada balde (23/09/2026), antes da área para ficar por baixo dela:
+              verde acima do zero, vermelha abaixo, no mesmo corte das áreas */}
+          {faixa ? (
+            <>
+              <path d={faixa} fill={cores.alta} fillOpacity={0.18} clipPath={`url(#${id}-acima)`} />
+              <path d={faixa} fill={cores.baixa} fillOpacity={0.18} clipPath={`url(#${id}-abaixo)`} />
+            </>
+          ) : null}
           <path d={area} fill={`url(#${id}-alta)`} clipPath={`url(#${id}-acima)`} />
           <path d={area} fill={`url(#${id}-baixa)`} clipPath={`url(#${id}-abaixo)`} />
+          {/* os dentes de MFE/MAE (23/09/2026): traço fino por cima da área e por baixo da linha, para o
+              acumulado continuar sendo o que se lê primeiro */}
+          {dentes ? (
+            <path d={dentes} fill="none" stroke={PROFIT.texto} strokeOpacity={0.55} strokeWidth={1} vectorEffect="non-scaling-stroke" />
+          ) : null}
           <path d={tracado} fill="none" stroke={cores.alta} strokeWidth={cores.linha} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" clipPath={`url(#${id}-acima)`} />
           <path d={tracado} fill="none" stroke={cores.baixa} strokeWidth={cores.linha} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" clipPath={`url(#${id}-abaixo)`} />
         </svg>
@@ -417,6 +537,17 @@ export function DesenhoDaCurva({
             </div>
           );
         })}
+        {/* Os fechamentos em cima da linha da série do saldo (23/09/2026): em HTML, como os marcadores, porque
+            no SVG esticado o círculo viraria uma elipse. Brancos e pequenos, com o fio do fundo em volta para
+            se destacarem da linha; antes do ponto ativo no DOM, para nunca cobri-lo */}
+        {fechamentos.map((f, i) => (
+          <div
+            key={i}
+            aria-hidden
+            className="pointer-events-none absolute size-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full"
+            style={{ left: `${f.posicao * 100}%`, top: `${y(f.valor)}%`, background: PROFIT.titulo, opacity: 0.9, boxShadow: `0 0 0 1px ${PROFIT.fundo}` }}
+          />
+        ))}
         {/* a mira em cruz do Profit: as duas linhas tracejadas finas se cruzam no ponto */}
         {atual && ativo !== null ? (
           <>
