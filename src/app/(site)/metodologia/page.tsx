@@ -22,6 +22,7 @@ const SECOES = [
   { id: "operacoes-em-aberto", titulo: "Operações em aberto" },
   { id: "resultado", titulo: "Resultado do dia, mês, ano e acumulado" },
   { id: "mep-men", titulo: "MEP e MEN do dia" },
+  { id: "curva-do-dia", titulo: "A curva do dia" },
   { id: "drawdown", titulo: "Drawdown e recuperação" },
   { id: "taxa-acerto", titulo: "Taxa de acerto" },
   { id: "fator-lucro", titulo: "Fator de lucro" },
@@ -110,7 +111,8 @@ export default function PaginaMetodologia() {
             Em cada MetaTrader 5 da Quants Robôs roda um coletor: um programa que <strong>não opera</strong>, só lê a
             conta. A cada negócio executado ele envia o registro para o site na hora. A cada 3 segundos envia também
             saldo, posições abertas e cotação. Ao iniciar, reenvia os últimos dias para conferência. Desde a versão
-            1.1.0, mede também, a cada movimento do preço, o MFE e o MAE de cada operação e o MEP e o MEN do dia (ver
+            1.1.0, mede também, a cada movimento do preço, o MFE e o MAE de cada operação e o MEP e o MEN do dia; desde
+            a 1.1.2, guarda a cada 5 segundos o saldo do dia com a posição aberta, que desenha a curva do dia (ver
             abaixo).
           </p>
           <p>
@@ -213,9 +215,15 @@ export default function PaginaMetodologia() {
             contrato de cada operação fechada até o momento do extremo (a posição ainda aberta não pagou custo). No detalhe
             do dia, no calendário, e no painel &quot;Hoje ao vivo&quot; aparece <strong>&quot;medido no MT5, tick a tick&quot;</strong>;
             quando o coletor subiu com o dia já em andamento, ou reiniciou no meio dele, aparece também{" "}
-            <strong>&quot;parcial&quot;</strong>, porque um extremo anterior pode ter ficado de fora. Num dia em que alguma
-            operação do robô ficou fora da conta pública (regra de horário ou de duração mínima), o site volta ao cálculo
-            por fechamento, para o número bater com a curva do dia.
+            <strong>&quot;parcial&quot;</strong>, porque um extremo anterior pode ter ficado de fora. Desde a 1.1.1 o coletor
+            recebe do site as regras que tiram operações da conta pública (hora mínima, duração mínima) e mede o saldo já
+            sem elas; num dia medido sem essas regras (coletor 1.1.0) em que alguma operação ficou fora, o site volta ao
+            cálculo por fechamento, para o número bater com a curva do dia. A partir do coletor 1.1.2 o caminho inteiro
+            entre esses dois extremos aparece na{" "}
+            <Link href="#curva-do-dia" className="underline underline-offset-4 hover:text-foreground">
+              curva do dia
+            </Link>
+            .
           </p>
           <p>
             <strong>Por fechamento.</strong> Nos dias sem essa medição (antes do coletor 1.1.0, histórico importado, conta com
@@ -235,6 +243,44 @@ export default function PaginaMetodologia() {
             acima), em pontos por 1 contrato. Aparecem na lista de operações (coluna &quot;MFE / MAE&quot;) e no CSV; ficam
             vazios nas operações que o coletor 1.1.0 não acompanhou, e marcados como parciais quando ele subiu com a
             operação já aberta.
+          </p>
+        </Secao>
+
+        {/* 23/09/2026: a curva real do dia (coletor 1.1.2, migration 0024). A conta é a de lib/stats/saldo-dia
+            (liquidarSerie, dentesPorOperacao); como no MEP/MEN, a tela diz qual foi a fonte do dia mostrado */}
+        <Secao id="curva-do-dia" titulo="A curva do dia">
+          <Indicador chave="curvaDoDia" nome />
+          <p>
+            <strong>Medida no MT5.</strong> Desde a versão 1.1.2 do coletor, a cada 5 segundos o MetaTrader 5 fecha um
+            intervalo com o menor, o maior e o último valor do saldo do dia com a posição aberta, por 1 contrato: é o
+            mesmo saldo que alimenta o MEP e o MEN. O site desenha a linha pelo último valor de cada intervalo e a faixa
+            clara entre o menor e o maior. O valor mostrado é líquido: do bruto medido, desconta o custo por contrato de
+            cada operação fechada antes do fim daquele intervalo (a posição ainda aberta não pagou custo). Por isso o
+            pico e o vale dessa curva podem diferir do MEP e do MEN da seção anterior em um custo por contrato, quando a
+            saída cai no mesmo intervalo do extremo: a curva paga o custo no intervalo da saída, e o MEP e o MEN medidos
+            descontam só as saídas anteriores ao extremo. Robô com mais de uma medição no mesmo intervalo mostra a soma
+            delas, sem a faixa, com o aviso <strong>&quot;aproximado&quot;</strong>. Se o coletor subiu com o dia em
+            andamento, a curva começa quando a medição começou (sem rampa desde a abertura), com a nota{" "}
+            <strong>&quot;medido a partir de HH:MM&quot;</strong>, e as saídas anteriores já entram no realizado. No painel
+            &quot;Hoje ao vivo&quot;, na tela Ao vivo e no detalhe do dia do calendário, o título diz{" "}
+            <strong>&quot;medido no MT5&quot;</strong>.
+          </p>
+          <p>
+            <strong>Por fechamento.</strong> Nos dias sem a série (antes do coletor 1.1.2, histórico importado, conta com o
+            coletor antigo), o site soma o resultado operação por operação, na ordem em que fecharam, e rotula a curva{" "}
+            <strong>&quot;por fechamento&quot;</strong>, como o MEP e o MEN da seção anterior. Essa curva só passa pelos
+            fechamentos: o que a posição aberta chegou a ganhar ou perder no meio do caminho não aparece nela.
+          </p>
+          <Indicador chave="faixaSaldo" nome />
+          <Indicador chave="dentesExcursao" nome />
+          <p>
+            <strong>Como se calcula o dente:</strong> nas curvas por operação (a aba &quot;Por operação&quot; da curva de
+            capital, o detalhe do dia e a curva por fechamento), cada operação medida ganha um traço vertical que vai do
+            saldo antes da operação mais o MAE até o saldo antes da operação mais o MFE, convertidos em reais pelo valor
+            do ponto (ou deixados em pontos, quando a curva está em pontos) e multiplicados pelos contratos escolhidos. O
+            custo não entra no traço, porque só é pago no fechamento. Quando a curva agrupa operações vizinhas, o traço
+            cobre o pior MAE e o melhor MFE do grupo. A dica de cada ponto mostra &quot;MFE / MAE&quot; em pontos por
+            contrato.
           </p>
         </Secao>
 
@@ -438,6 +484,11 @@ export default function PaginaMetodologia() {
             <dd>
               Máxima excursão favorável e adversa de uma operação: o máximo que o preço andou a favor e contra enquanto ela
               esteve aberta, em pontos por contrato, medido no MetaTrader 5.
+            </dd>
+            <dt className="font-medium text-foreground">Série do saldo</dt>
+            <dd>
+              O saldo do dia com a posição aberta, guardado pelo coletor 1.1.2 a cada 5 segundos (menor, maior e último
+              valor de cada intervalo). É o que desenha a curva do dia nos dias medidos.
             </dd>
           </dl>
           {/* 19/09/2026: os selos ao lado do nome do robô, com as condições de statusAoVivo (lib/stats/status-robo) */}

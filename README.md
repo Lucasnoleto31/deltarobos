@@ -213,6 +213,45 @@ O que fica público (nunca conta, magic, volume nem número de conta; colunas no
 | evento `posicao`           | é a linha de `posicoes_abertas_publico`, então já traz o MFE/MAE do grupo                                                                                                                                                                                                     |
 | evento `operacao`          | é a linha de `operacoes_publico`, então já traz MFE/MAE; excursão que chegar depois da operação de hoje (reconciliação, reenvio) reemite o evento                                                                                                                              |
 
+### Série do saldo do dia (EA 1.1.2)
+
+O EA 1.1.2 grava a curva real do dia (migration 0024): a cada `InpSaldoBucketSeg` (5 s) fecha um balde por
+magic com o mínimo, o máximo e o último valor do saldo do dia (realizado + flutuante, o mesmo saldo do
+MEP/MEN, já com as regras públicas aplicadas), em R$ brutos por contrato, e manda os baldes fechados em
+`saldo_dia` no heartbeat. Tudo opcional, como as excursões: EA anterior continua aceito e nada muda.
+
+| onde                                         | o que                                                                                                                                                                                                                                                                                                                                                                                                             |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `saldo_intradiario` (privada)                | chave (conta, magic, `em` = início do balde, UTC); `min/max/ultimo_brl_por_contrato` brutos com 4 casas; `regras_aplicadas` (grudenta, só `true` é publicado); `atualizado_em` só muda com escrita real                                                                                                                                                                                                             |
+| `gravar_saldo_intradiario(conta, saldo_dia)` | upsert idempotente (`least`/`greatest`/último; balde com regras substitui linha sem regras, o contrário é ignorado), só dias entre ontem e amanhã, teto de 2.000 baldes por chamada (o EA manda no máximo 720 por magic), lixo descartado sem erro, retenção de ~400 dias em 1% das chamadas; roda numa subtransação própria dentro do heartbeat, então nunca derruba o resto dele                                    |
+| `saldo_dia_publico`                          | `robo_id, slug, dia, em, min/max/ultimo_brl_por_contrato, n_magics, atualizado_em`; só conta principal, só balde com regras, só dia sem importação manual; com `n_magics > 1` os três valores são a soma dos "último" dos magics (aproximação: a faixa não é desenhada). Sem conta, magic ou volume                                                                                                                 |
+| evento `saldo` (topic `robo:<slug>`)         | `{slug, dia, baldes: [{em, min, max, ultimo}]}` com os baldes públicos de hoje gravados nos últimos 30 s (e com início nos últimos 2 min), throttle de 5 s por robô, sem replay; disparado por comando (transition table) no insert e no update                                                                                                                                                                    |
+| `/api/robos/<slug>/saldo/<dia>`              | JSON compacto `{dia, baldes: [[t, min, max, ultimo]], aproximado, bucketSeg, fechamentos: [[t, custo]], geradoEm}` (`t` em epoch UTC, segundos; `n_magics` vira o booleano `aproximado`), paginado em `listarSaldoDoDia` (1.000 linhas por página, e mais uma página enquanto a última vier cheia: a contagem e as páginas não são uma foto consistente em hoje); hoje `Cache-Control: public, max-age=0, s-maxage=15, stale-while-revalidate=15`, dia passado `public, max-age=300, s-maxage=3600, stale-while-revalidate=86400`; 400 dia inválido ou futuro, 404 robô, 503 `no-store` + `Retry-After: 5` quando o banco falha |
+
+O site desenha a linha pelo último valor de cada balde e a faixa clara entre o mínimo e o máximo
+(`CurvaProfit`), no eixo do horário do robô (ou do pregão do ativo), esticado para conter todo balde e todo
+fechamento; a linha nasce no primeiro balde (coletor que subiu no meio do dia não vira uma rampa desde a
+abertura, e a legenda diz "medido a partir de HH:MM"). A série chega bruta; o líquido no instante `t` é
+bruto(t) − soma dos `custos_brl_por_contrato` das operações públicas do dia fechadas ANTES do fim do balde
+(`t < em + bucketSeg`: o balde é meio-aberto; `liquidarSerie` em `src/lib/stats/saldo-dia.ts`, a mesma ideia
+de `mepMenDoDia`); em pontos, ÷ `valor_ponto_brl`. O "Hoje ao vivo" carrega a série pela rota ao assinar o
+canal, ao voltar do segundo plano e por um vigia de 30 s (no máximo uma leitura por minuto; no fluxo normal só
+com pregão aberto e coletor em dia; fora dele, até 3 tentativas para a primeira carga que falhou e até 3 para
+um buraco: salto maior que 60 s entre o último balde da tela e o primeiro de um evento `saldo`, que só traz os
+últimos 2 min, ou coletor que voltou depois de mais de 2 min calado; a releitura espera os 30 s da janela do
+CDN e o buraco fecha quando a foto traz balde de dentro dele), e funde o evento `saldo` por `em` (upsert: o
+balde mais recente ainda muda depois de gravado). Robô sem coletor não pede nada à rota. O calendário carrega
+o dia selecionado sob demanda, com cache por dia no estado. MEP/MEN da série (pico e vale dos baldes
+líquidos) batem com `exposicao_dia` em bruto; em líquido podem diferir em um custo por contrato quando a saída
+cai no mesmo balde do extremo (a série paga o custo no balde da saída; o MEP/MEN do EA desconta só as saídas
+anteriores ao extremo).
+
+Dia sem linha na view (EA anterior à 1.1.2, robô sem coletor, dia importado): a curva por fechamento de
+sempre, rotulada "por fechamento", agora com os dentes de MFE/MAE por operação (traço vertical do acumulado
+antes + MAE até o acumulado antes + MFE; em série agrupada, o envelope da fatia). Os dentes também aparecem
+na aba Desempenho e na visão geral "Por operação" (`dentes` em `SerieCompacta`, só quando alguma operação
+da série tem MFE/MAE). Regra na spec §7 e na Metodologia (`/metodologia#curva-do-dia`).
+
 ### Simulador com o meu capital
 
 `/simulador` aplica o histórico público, por 1 contrato e já com custos, ao capital e aos contratos que o
@@ -254,6 +293,7 @@ Metodologia (`/metodologia#simulador`).
    - `InpSimbolos`: símbolos pra cotação na barra da home (ex.: `WINV26,WDOV26`)
    - `InpExcursao` (1.1.0): `true` mede MFE/MAE por operação e MEP/MEN do dia tick a tick
    - `InpAmostraMs` (1.1.0): 100 (50..1000), intervalo em que o EA lê os ticks novos em memória
+   - `InpSaldoBucketSeg` (1.1.2): 5 (1..60), tamanho do balde da série do saldo do dia
    - `InpEnviaCandles` (1.1.0): `true` em UM terminal só, envia as barras M1 fechadas do índice
    - `InpCandlesSimbolo` (1.1.0): símbolo dos candles (vazio = o do gráfico onde o EA está)
    - `InpCandlesBackfillMin` (1.1.0): 600, minutos de candles reenviados no init (o servidor ignora repetida)
@@ -272,9 +312,26 @@ com o MFE/MAE do ciclo e o heartbeat leva as posições abertas com a excursão 
 `DR_<posição>_<ciclo>_{mfe,mae,mfe_t,mae_t,t,p}` (`t` = até onde os ticks foram aplicados, `p` = já
 era parcial): no init o EA reaplica a lacuna pela base de ticks do terminal; sem GV a posição fica
 `parcial`, e as saídas de hoje anteriores ao init entram no realizado com o dia marcado `parcial`.
-Instalar a 1.1.0 no lugar da 1.0.0: substituir o `.mq5`, recompilar, e o EA sobe com os mesmos
-`InpUrlBase`/`InpToken` (o servidor aceita as duas versões; as migrations 0021 e 0022 precisam estar
-aplicadas para os campos novos serem guardados).
+
+Na 1.1.1 o EA pede ao servidor, no `GET /api/ingest/ping` (init, virada do dia e a cada 10 min), as regras
+públicas de cada magic da conta (hora mínima, duração mínima e desde quando, com a `versao` da regra) e as
+aplica na exposição do dia: cada item de `exposicao_dia` leva `regras_aplicadas` e `regras_versao`, e a
+view só publica a linha cuja versão bate com a regra atual do robô (migration 0023). Regra alterada no admin
+com o dia em andamento refaz o MEP/MEN pelo histórico com a regra nova e marca o dia como parcial. MFE/MAE
+continuam medindo todas as posições, com ou sem regra.
+
+Na 1.1.2 o EA fecha, a cada `InpSaldoBucketSeg` segundos, um balde por magic com o mínimo, o máximo e o
+último valor do mesmo saldo do MEP/MEN (realizado do dia + flutuante, por contrato, regras aplicadas),
+amostrado a cada tick no instante do tick. Os baldes fechados vão em `saldo_dia` no heartbeat e ficam numa
+fila circular de 720 (compartilhada pelos magics; cheia descarta o mais antigo) até o servidor responder
+2xx; o balde corrente nunca vai. Virada do dia e init zeram fila e balde corrente (a fila não vai a disco),
+e regra pública que muda no meio do dia também (o servidor apaga os baldes do dia medidos com a regra
+anterior). Só mede com `InpExcursao = true`.
+
+Instalar uma versão nova no lugar da anterior: substituir o `.mq5`, recompilar, e o EA sobe com os mesmos
+`InpUrlBase`/`InpToken` (o servidor aceita todas as versões desde a 1.0.0). É o mesmo `.mq5` nos dois
+terminais, com `InpEnviaCandles = true` em UM só; as migrations 0021 e 0022 precisam estar aplicadas antes
+da 1.1.0, e as 0023 e 0024 antes de subir a 1.1.2, para os campos novos serem guardados.
 
 ## Deploy (Vercel)
 
@@ -293,14 +350,14 @@ NEXT_PUBLIC_SITE_URL
 
 ```
 mt5/                      EA coletor
-supabase/migrations/      schema (22 migrations, ordem numérica)
+supabase/migrations/      schema (24 migrations, ordem numérica)
 supabase/seed.sql         dados iniciais
 src/app/(site)/           home, /robos/[slug], /comparativo, /simulador, /metodologia
 src/app/api/ingest/       ping, deal, heartbeat, history, candles, reconciliar
-src/app/api/robos/        curva por operação de cada período (JSON público, cache 60 s)
+src/app/api/robos/        curva por operação por período (cache 60 s) e série do saldo do dia (JSON público)
 src/components/           ui (shadcn), layout, home, robo, graficos, simulador, compartilhados
 src/hooks/                realtime (useRoboAoVivo, useCasaAoVivo), relógio
-src/lib/stats/            cálculo puro + testes (curva, drawdown, KPIs, períodos, pregão, status, simulador)
+src/lib/stats/            cálculo puro + testes (curva, drawdown, KPIs, períodos, pregão, status, simulador, saldo do dia)
 src/lib/ingest/           auth por token, rate limit, schemas zod, pareamento deals -> operações
 src/lib/consultas/        leitura das views públicas
 ```

@@ -93,6 +93,8 @@ export type ChaveIndicador =
   // gráficos e quadros
   | "curvaCapital"
   | "curvaDoDia"
+  | "faixaSaldo"
+  | "dentesExcursao"
   | "resultadoMensal"
   | "mapaMeses"
   | "porAtivo"
@@ -432,9 +434,24 @@ export const GLOSSARIO: Record<ChaveIndicador, EntradaGlossario> = {
     nome: "Curva de capital",
     texto: "O saldo somado dia após dia, ou operação após operação. Subindo, o robô está ganhando; as descidas são os drawdowns.",
   },
+  // 23/09/2026: 5 segundos é o InpSaldoBucketSeg padrão do EA 1.1.2. A curva do dia passou a ter duas fontes,
+  // como o MEP/MEN: a série do saldo medida no MetaTrader (lib/stats/saldo-dia, líquida pelos custos das
+  // operações já fechadas) nos dias que o coletor mediu, e a soma por fechamento nos outros. A faixa e os
+  // dentes são os dois desenhos novos em cima da linha (CurvaProfit); a conta completa fica na metodologia.
+  // O "5 segundos" daqui e de faixaSaldo é o input do EA, enquanto a legenda da curva mostra o tamanho real
+  // inferido da série (bucketSeg): se o input mudar, estes dois textos, a Metodologia e o teste do glossário
+  // (que cita "5 segundos") acompanham juntos.
   curvaDoDia: {
     nome: "Curva do dia",
-    texto: "O saldo do dia somado operação por operação, na ordem em que fecharam. Mostra o caminho do dia, e não só como ele terminou.",
+    texto: "O saldo do dia ao longo do pregão. Nos dias que o coletor mediu, é o saldo com a posição aberta, a cada 5 segundos, líquido dos custos das operações já fechadas; nos outros, a soma operação por operação, na ordem em que fecharam.",
+  },
+  faixaSaldo: {
+    nome: "Faixa do saldo",
+    texto: "A área clara em volta da linha: o menor e o maior valor que o saldo alcançou dentro de cada intervalo de 5 segundos. Mostra o quanto o saldo oscilou entre um ponto e o outro da curva.",
+  },
+  dentesExcursao: {
+    nome: "Dentes de MFE e MAE",
+    texto: "O traço vertical em cada operação: vai do ponto mais baixo ao mais alto que o saldo chegou enquanto ela esteve aberta, medidos no MetaTrader a cada movimento. Mostra o calor da operação antes de fechar.",
   },
   resultadoMensal: {
     nome: "Resultado mensal",

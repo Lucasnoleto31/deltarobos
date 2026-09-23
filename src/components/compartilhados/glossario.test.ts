@@ -61,6 +61,18 @@ describe("glossário de indicadores", () => {
     expect(GLOSSARIO.mae.texto).toMatch(/contra/);
   });
 
+  // 23/09/2026: a curva do dia com duas fontes (série do saldo do EA 1.1.2 a cada 5 s, ou por fechamento), a
+  // faixa mín./máx. de cada balde e os dentes de MFE/MAE nas curvas por operação
+  it("curva do dia cita as duas fontes; faixa e dentes descrevem o desenho", () => {
+    expect(GLOSSARIO.curvaDoDia.nome).toBe("Curva do dia");
+    expect(GLOSSARIO.curvaDoDia.texto).toMatch(/5 segundos/);
+    expect(GLOSSARIO.curvaDoDia.texto).toMatch(/operação por operação/);
+    expect(GLOSSARIO.faixaSaldo.texto).toMatch(/menor e o maior/);
+    expect(GLOSSARIO.dentesExcursao.nome).toMatch(/MFE e MAE/);
+    expect(GLOSSARIO.dentesExcursao.texto).toMatch(/MetaTrader/);
+    expect(GLOSSARIO.dentesExcursao.texto).toMatch(/aberta/);
+  });
+
   it("o lote sai da constante das faixas", () => {
     expect(GLOSSARIO.lote.texto).toContain("100% em Ligar");
     expect(GLOSSARIO.lote.texto).toContain("0% em Evitar");
