@@ -17,11 +17,20 @@
 //|  por magic (MEP/MEN, R$ brutos por contrato). WebRequest é       |
 //|  síncrono, então rede só no slot do heartbeat.                   |
 //|                                                                  |
+//|  v1.1.1 aplica na exposição do dia (e SÓ nela) as regras que o   |
+//|  site usa pra esconder operação (hora mínima e duração mínima    |
+//|  por robô), recebidas do servidor no ping (init, virada do dia e |
+//|  a cada 10 min): o MEP/MEN segue a mesma curva pública do dia.   |
+//|  Cada item de exposicao_dia leva a "versão" da regra aplicada, e |
+//|  o banco só publica a linha cuja versão bate com a regra atual   |
+//|  do robô; regra que muda no meio do pregão refaz o dia pelo      |
+//|  histórico (parcial). MFE/MAE medem todas as posições.           |
+//|                                                                  |
 //|  Configuração no MT5: Ferramentas > Opções > Expert Advisors >   |
 //|  "Permitir WebRequest para as URLs listadas" e adicionar a URL.  |
 //+------------------------------------------------------------------+
 #property copyright   "Delta Robôs"
-#property version     "1.10"
+#property version     "1.11"
 #property description "Envia deals, posições, heartbeat, MFE/MAE, MEP/MEN e candles da conta para o site da Delta Robôs. Não opera."
 #property strict
 
@@ -40,7 +49,7 @@ input bool   InpEnviaCandles  = false;                        // Envia candles M
 input string InpCandlesSimbolo = "";                          // Símbolo dos candles (vazio = o do gráfico)
 input int    InpCandlesBackfillMin = 600;                     // Minutos de candles reenviados no init
 
-#define EA_VERSAO         "1.1.0"
+#define EA_VERSAO         "1.1.1"
 #define FILA_MAX          500
 #define PAGINA_HIST       100
 #define TICKS_PAGINA      4096     // ticks por CopyTicks
@@ -48,6 +57,9 @@ input int    InpCandlesBackfillMin = 600;                     // Minutos de cand
 #define SUMIDA_MS         120000   // posição fora do PositionsTotal espera o DEAL_ADD por 120 s
 #define CANDLES_PAGINA    200
 #define GV_PREFIXO        "DR_"
+#define REGRAS_RETRY_MS   60000    // ping falhou por rede/5xx: tenta as regras de novo em 60 s (limite do ping é 30/min)
+#define REGRAS_REFRESH_MS 600000   // ping ok: confere as regras de novo a cada 10 min (admin pode alterá-las no meio do pregão)
+#define BRASILIA_OFFSET_SEG (-10800) // America/Sao_Paulo = UTC-3, sem horário de verão desde 2019
 
 //--- fila de reenvio (só deals; heartbeat velho não tem valor)
 string g_fila_caminho[];
@@ -88,6 +100,8 @@ struct Excursao
    ulong  sumiu_ms;        // GetTickCount64 de quando saiu do PositionsTotal (0 = viva)
    long   ultimo_msc;      // último tick aplicado: o DealAntes rebobina daqui (tick lido com a posição sumida/virada não se perde)
    ulong  gv_ms;           // GetTickCount64 da última gravação nas GlobalVariables
+   double real_pc;         // quanto deste ciclo já entrou no realizado do dia (a regra da duração devolve se o ciclo fecha curto)
+   double pend_pc;         // saída parcial feita antes de a posição completar a duração mínima: entra no realizado quando ela completa; some se o ciclo fecha curto
   };
 
 //--- MEP/MEN do dia por magic (saldo = realizado do dia + flutuante das posições do magic)
@@ -105,10 +119,37 @@ struct ExposicaoDia
    long   mep_msc;
    long   men_msc;
    bool   parcial;         // já havia deal (ou posição) antes do EA subir
+   bool   regras;          // o magic tinha regra do servidor quando o dia foi calculado (regras_aplicadas; o item leva a versão dela)
+  };
+
+//--- regra pública de um magic (robos.hora_minima_operacao / duracao_minima_seg / duracao_minima_desde),
+//--- como o servidor manda no ping. Vale SÓ pra exposição do dia; MFE/MAE medem todas as posições.
+struct RegraMagic
+  {
+   long magic;
+   int  hora_min_seg;      // segundo do dia (Brasília) da hora mínima; -1 = sem hora mínima
+   int  dur_min_seg;       // duração mínima do ciclo (s); 0 = sem duração mínima
+   int  desde_dia;         // yyyymmdd a partir do qual a duração mínima vale; 0 = sempre
+   string versao;          // "versão" da regra calculada pelo servidor (opaca; ecoada em exposicao_dia.regras_versao pra view conferir)
+  };
+
+//--- ciclo (operação do site) reconstruído das saídas de hoje na semeadura
+struct CicloSemente
+  {
+   ulong  pos;
+   int    ciclo;
+   long   magic;
+   double lucro_pc;        // soma de lucro / volume de entradas das saídas do ciclo
+   long   abertura_msc;    // 0 = desconhecida (sem histórico da posição)
+   long   fim_msc;         // última saída vista
+   bool   fechado;
   };
 
 Excursao     g_exc[];
 ExposicaoDia g_exp[];
+RegraMagic   g_regras[];
+bool         g_regras_ok      = false; // já recebeu "regras" do servidor (lista vazia também conta)
+ulong        g_regras_prox_ms = 0;     // GetTickCount64 do próximo ping pelas regras (0 = nenhum agendado)
 string       g_tick_sim[];      // símbolos com leitura de ticks
 long         g_tick_msc[];      // último tick lido por símbolo (0 = parado)
 double       g_tick_vp[];       // R$ por ponto por contrato do símbolo
@@ -215,6 +256,15 @@ void LembrarSimbolo(string simbolo)
    g_simbolos[n] = simbolo;
   }
 
+void LembrarMagic(long &lista[], long magic)
+  {
+   for(int i = 0; i < ArraySize(lista); i++)
+      if(lista[i] == magic) return;
+   int n = ArraySize(lista);
+   ArrayResize(lista, n + 1);
+   lista[n] = magic;
+  }
+
 // R$ por 1 ponto de preço por contrato. WIN: tick de 5 pontos vale R$ 1,00 -> 0,20/ponto.
 // WDO: tick de 0,5 vale R$ 5,00 -> 10,00/ponto. "Ponto" aqui é unidade de preço, igual ao site.
 double ValorPonto(string simbolo)
@@ -236,6 +286,383 @@ void LogValorPonto(string simbolo)
    else
       Log(StringFormat("%s: R$ %.4f por ponto por contrato (tick de %s = R$ %.4f)",
                        simbolo, vp, DoubleToString(ts, DigitosDe(simbolo)), tv));
+  }
+
+//+------------------------------------------------------------------+
+//| Regras públicas do servidor                                      |
+//+------------------------------------------------------------------+
+// O site esconde por regra algumas operações do robô: aberta (hora de Brasília) antes de
+// robos.hora_minima_operacao, ou do MT5 com duracao_seg menor que robos.duracao_minima_seg a partir
+// do pregão duracao_minima_desde. O MEP/MEN do dia tem que seguir a mesma curva pública, então o EA
+// pede as regras ao servidor (GET /api/ingest/ping, campo "regras", um item por magic desta conta) no
+// init, na virada do dia e a cada REGRAS_REFRESH_MS, e as aplica SÓ na exposição do dia: ciclo fora
+// da regra não entra no realizado, no n_saidas nem no flutuante. MFE/MAE por posição continuam
+// medindo TODAS as posições.
+//
+// Versão: cada item do ping traz "versao" (texto opaco que o banco calcula da regra do robô). O EA
+// ecoa a versão em cada item de exposicao_dia (regras_versao) e a view só publica a linha cuja
+// versão bate com a regra ATUAL do robô; se a lista de regras muda com o dia em andamento (admin
+// alterou hora/duração/desde, magic mapeado depois do init, retentativa do ping depois de falhar no
+// init), o dia é refeito pelo histórico com as regras novas e fica parcial. Um item com regras e
+// versão diferente da gravada SUBSTITUI a linha no banco (o MEP medido com a regra velha não pode
+// sobreviver num greatest).
+//
+// Hora: o site converte executado_em (que este EA manda como hora do servidor - offset, em UTC) para
+// America/Sao_Paulo. O EA faz a mesma conta: hora do servidor - offset - 3 h. PREMISSA: servidor de
+// negociação em Brasília (offset -10800 s), caso em que a hora de abertura é a própria hora do
+// servidor (TimeTradeServer); com outro offset a conversão ainda vale e o log do init avisa.
+// BRASILIA_OFFSET_SEG é fixo (UTC-3): se o horário de verão voltar, o site (tz database) e o EA
+// divergem 1 h e o define precisa ser revisto (ou o offset passar a vir no ping).
+// Duração: arredondada ao segundo, como o duracao_seg do pareamento (round(ms / 1000)): ciclo de
+// 1,6 s vira 2 s e é público; a MESMA conta serve de idade da posição viva pro flutuante e pra
+// saída parcial pendente (não "corrigir" pra 2,0 s cravados: desalinharia da regra do ciclo
+// fechado). Um ciclo que dura 9 ms nunca entra.
+// Abertura desconhecida (histórico da posição indisponível) com regra pro magic: o ciclo NÃO conta
+// (o site também esconde operação do MT5 sem duração conhecida quando há duração mínima) e o dia do
+// magic fica parcial, com log.
+// Saída parcial antes de a posição completar a duração mínima: fica pendente (Excursao.pend_pc) e só
+// entra no realizado quando a posição completa a duração (junto com o flutuante); se o ciclo fecha
+// curto, some junto, e o MEP/MEN nunca vê a parcial de um ciclo que o site esconde.
+
+// "09:10" ou "09:10:00" -> segundo do dia; vazio ou null -> -1
+int HoraParaSeg(string s)
+  {
+   if(s == "" || s == "null") return -1;
+   string p[];
+   int n = StringSplit(s, ':', p);
+   if(n < 2) return -1;
+   int h  = (int)StringToInteger(p[0]);
+   int m  = (int)StringToInteger(p[1]);
+   int sg = (n > 2 ? (int)StringToInteger(p[2]) : 0);
+   if(h < 0 || h > 23 || m < 0 || m > 59 || sg < 0 || sg > 59) return -1;
+   return h * 3600 + m * 60 + sg;
+  }
+
+string HoraTexto(int seg)
+  {
+   if(seg % 60 == 0) return StringFormat("%02d:%02d", seg / 3600, (seg / 60) % 60);
+   return StringFormat("%02d:%02d:%02d", seg / 3600, (seg / 60) % 60, seg % 60);
+  }
+
+// "2026-09-21" -> 20260921; vazio ou null -> 0
+int DiaParaYmd(string s)
+  {
+   if(s == "" || s == "null") return 0;
+   string p[];
+   if(StringSplit(s, '-', p) < 3) return 0;
+   int y = (int)StringToInteger(p[0]);
+   int m = (int)StringToInteger(p[1]);
+   int d = (int)StringToInteger(p[2]);
+   if(y < 2000 || m < 1 || m > 12 || d < 1 || d > 31) return 0;
+   return y * 10000 + m * 100 + d;
+  }
+
+string YmdTexto(int ymd)
+  {
+   return StringFormat("%04d-%02d-%02d", ymd / 10000, (ymd / 100) % 100, ymd % 100);
+  }
+
+// yyyymmdd do dia corrente do servidor (g_dia), com cache
+int DiaYmdCorrente()
+  {
+   static int dia = 0;
+   static int ymd = 0;
+   if(dia != g_dia)
+     {
+      MqlDateTime d;
+      TimeToStruct((datetime)((long)g_dia * 86400), d);
+      dia = g_dia;
+      ymd = d.year * 10000 + d.mon * 100 + d.day;
+     }
+   return ymd;
+  }
+
+// Segundo do dia em Brasília de um instante do servidor (ms), pela mesma conta que o site faz
+int SegDoDiaBrasilia(long msc)
+  {
+   long seg = msc / 1000 - OffsetServidorSeg() + BRASILIA_OFFSET_SEG;
+   seg %= 86400;
+   if(seg < 0) seg += 86400;
+   return (int)seg;
+  }
+
+// Posição do ':' que segue a chave num texto JSON. Anda pelo texto pulando cada string inteira, então
+// um VALOR igual ao nome da chave (ex.: conta_apelido = "regras") não engana; e a chave só vale
+// precedida de '{' ou ',' (fora de espaços) e seguida de ':'. -1 = não existe.
+int JsonChave(const string json, const string chave)
+  {
+   int n   = StringLen(json);
+   int len = StringLen(chave);
+   int i   = 0;
+   while(i < n)
+     {
+      if(StringGetCharacter(json, i) != '"') { i++; continue; }
+      int j = i + 1;   // fim da string que começa em i
+      while(j < n)
+        {
+         ushort c = StringGetCharacter(json, j);
+         if(c == '\\') { j += 2; continue; }
+         if(c == '"') break;
+         j++;
+        }
+      if(j >= n) return -1;
+      if(j - i - 1 == len && StringSubstr(json, i + 1, len) == chave)
+        {
+         int a = i - 1;
+         while(a >= 0 && StringGetCharacter(json, a) <= ' ') a--;
+         int b = j + 1;
+         while(b < n && StringGetCharacter(json, b) <= ' ') b++;
+         if(a >= 0 && b < n && StringGetCharacter(json, b) == ':'
+            && (StringGetCharacter(json, a) == '{' || StringGetCharacter(json, a) == ','))
+            return b;
+        }
+      i = j + 1;
+     }
+   return -1;
+  }
+
+// Valor bruto de uma chave num objeto JSON plano: string sem aspas; número, true/false e null como
+// texto; "" se a chave não existe. Só o que o ping manda (sem objeto dentro de objeto).
+string JsonValor(const string obj, const string chave)
+  {
+   int p = JsonChave(obj, chave);
+   if(p < 0) return "";
+   int n = StringLen(obj);
+   p++;
+   while(p < n && StringGetCharacter(obj, p) <= ' ') p++;
+   if(p >= n) return "";
+   if(StringGetCharacter(obj, p) == '"')
+     {
+      int q = p + 1;
+      while(q < n)
+        {
+         ushort c = StringGetCharacter(obj, q);
+         if(c == '\\') { q += 2; continue; }
+         if(c == '"') break;
+         q++;
+        }
+      return StringSubstr(obj, p + 1, q - p - 1);
+     }
+   int q = p;
+   while(q < n)
+     {
+      ushort c = StringGetCharacter(obj, q);
+      if(c == ',' || c == '}' || c == ']' || c <= ' ') break;
+      q++;
+     }
+   return StringSubstr(obj, p, q - p);
+  }
+
+// Objetos de primeiro nível do array em "chave":[...]. false = a chave (ou o array) não existe.
+bool JsonArrayObjetos(const string json, const string chave, string &itens[])
+  {
+   ArrayResize(itens, 0);
+   int p = JsonChave(json, chave);
+   if(p < 0) return false;
+   int n = StringLen(json);
+   p++;
+   while(p < n && StringGetCharacter(json, p) <= ' ') p++;
+   if(p >= n || StringGetCharacter(json, p) != '[') return false;
+   int  prof   = 0;
+   int  ini    = -1;
+   bool em_str = false;
+   for(int i = p + 1; i < n; i++)
+     {
+      ushort c = StringGetCharacter(json, i);
+      if(em_str)
+        {
+         if(c == '\\') { i++; continue; }
+         if(c == '"') em_str = false;
+         continue;
+        }
+      if(c == '"') { em_str = true; continue; }
+      if(c == '{')
+        {
+         if(prof == 0) ini = i;
+         prof++;
+         continue;
+        }
+      if(c == '}')
+        {
+         prof--;
+         if(prof == 0 && ini >= 0)
+           {
+            int m = ArraySize(itens);
+            ArrayResize(itens, m + 1);
+            itens[m] = StringSubstr(json, ini, i - ini + 1);
+            ini = -1;
+           }
+         continue;
+        }
+      if(c == ']' && prof == 0) break;
+     }
+   return true;
+  }
+
+// Mesmas regras, magic a magic (ordem não importa)
+bool RegrasIguais(const RegraMagic &a[], const RegraMagic &b[])
+  {
+   if(ArraySize(a) != ArraySize(b)) return false;
+   for(int i = 0; i < ArraySize(a); i++)
+     {
+      bool achou = false;
+      for(int j = 0; j < ArraySize(b) && !achou; j++)
+         if(b[j].magic == a[i].magic)
+            achou = (b[j].hora_min_seg == a[i].hora_min_seg && b[j].dur_min_seg == a[i].dur_min_seg
+                     && b[j].desde_dia == a[i].desde_dia && b[j].versao == a[i].versao);
+      if(!achou) return false;
+     }
+   return true;
+  }
+
+// Extrai "regras" da resposta do ping pra g_regras. false = a resposta não tem a chave (servidor
+// antigo) ou a lista veio ilegível (itens sem magic): g_regras fica como estava. mudaram = a lista
+// nova difere da que valia até aqui.
+bool LerRegras(const string json, bool &mudaram)
+  {
+   mudaram = false;
+   string itens[];
+   if(!JsonArrayObjetos(json, "regras", itens)) return false;
+   RegraMagic novas[];
+   ArrayResize(novas, 0);
+   for(int i = 0; i < ArraySize(itens); i++)
+     {
+      string magic = JsonValor(itens[i], "magic");
+      if(magic == "" || magic == "null") continue;
+      RegraMagic r;
+      r.magic        = StringToInteger(magic);
+      r.hora_min_seg = HoraParaSeg(JsonValor(itens[i], "hora_minima"));
+      string dur     = JsonValor(itens[i], "duracao_minima_seg");
+      r.dur_min_seg  = ((dur == "" || dur == "null") ? 0 : (int)StringToInteger(dur));
+      if(r.dur_min_seg < 0) r.dur_min_seg = 0;
+      r.desde_dia    = DiaParaYmd(JsonValor(itens[i], "duracao_minima_desde"));
+      string versao  = JsonValor(itens[i], "versao");
+      r.versao       = (versao == "null" ? "" : versao);
+      int n = ArraySize(novas);
+      ArrayResize(novas, n + 1);
+      novas[n] = r;
+     }
+   if(ArraySize(itens) > 0 && ArraySize(novas) == 0)
+     {
+      Log("ping com \"regras\" ilegíveis (nenhum item com magic): ficam as regras anteriores");
+      return false;
+     }
+   mudaram = !RegrasIguais(g_regras, novas);
+   ArrayResize(g_regras, ArraySize(novas));
+   for(int i = 0; i < ArraySize(novas); i++) g_regras[i] = novas[i];
+   return true;
+  }
+
+void LogRegras()
+  {
+   int n = ArraySize(g_regras);
+   if(n == 0)
+     {
+      Log("regras do servidor: nenhuma (nenhum robô tem esta conta como principal); exposição do dia sem corte");
+      return;
+     }
+   bool com_hora = false;
+   for(int i = 0; i < n; i++)
+     {
+      string s = "regras do servidor: magic " + IntegerToString(g_regras[i].magic) + ": ";
+      if(g_regras[i].hora_min_seg >= 0)
+        {
+         s += "hora mínima " + HoraTexto(g_regras[i].hora_min_seg);
+         com_hora = true;
+        }
+      else
+         s += "sem hora mínima";
+      if(g_regras[i].dur_min_seg > 0)
+        {
+         s += StringFormat(", duração mínima %d s", g_regras[i].dur_min_seg);
+         if(g_regras[i].desde_dia > 0) s += " desde " + YmdTexto(g_regras[i].desde_dia);
+        }
+      else
+         s += ", sem duração mínima";
+      s += (g_regras[i].versao != "" ? " [versão " + g_regras[i].versao + "]"
+                                     : " [SEM versão: o banco não publica a exposição deste magic]");
+      Log(s);
+     }
+   if(com_hora)
+     {
+      int off = (int)OffsetServidorSeg();
+      Log(StringFormat("hora mínima comparada com a abertura em Brasília = hora do servidor de negociação - offset UTC (%d s) - 3 h%s",
+                       off, (off == BRASILIA_OFFSET_SEG
+                             ? ", ou seja, a própria hora do servidor"
+                             : "; ATENÇÃO: servidor de negociação fora de Brasília, confira se a hora mínima bate com o site")));
+     }
+  }
+
+int ProcurarRegra(long magic)
+  {
+   for(int i = 0; i < ArraySize(g_regras); i++)
+      if(g_regras[i].magic == magic) return i;
+   return -1;
+  }
+
+// Duração "do site": arredondada ao segundo (duracao_seg = round(ms / 1000))
+int DuracaoSeg(long de_msc, long ate_msc)
+  {
+   if(ate_msc <= de_msc) return 0;
+   return (int)MathRound((ate_msc - de_msc) / 1000.0);
+  }
+
+// A duração mínima da regra r vale hoje?
+bool RegraDuracaoVigente(int r)
+  {
+   return (g_regras[r].dur_min_seg > 0
+           && (g_regras[r].desde_dia == 0 || DiaYmdCorrente() >= g_regras[r].desde_dia));
+  }
+
+// O ciclo/posição aberto em abertura_msc já tem a duração mínima da regra r até ate_msc? (<= 0 = não
+// avalia a duração)
+bool RegraDuracaoOk(int r, long abertura_msc, long ate_msc)
+  {
+   if(ate_msc <= 0 || !RegraDuracaoVigente(r)) return true;
+   return (DuracaoSeg(abertura_msc, ate_msc) >= g_regras[r].dur_min_seg);
+  }
+
+// O ciclo do magic aberto em abertura_msc entra na exposição do dia? ate_msc > 0 avalia também a
+// duração até ali (saída que fecha o ciclo, ou idade da posição viva pro flutuante); <= 0 só a hora.
+// Sem regra pro magic conta como na 1.1.0. Com regra e abertura desconhecida (sem histórico da
+// posição) NÃO conta: o site também esconde operação sem duração conhecida quando há duração mínima;
+// quem chama marca o dia do magic como parcial.
+bool RegraConta(long magic, long abertura_msc, long ate_msc)
+  {
+   int r = ProcurarRegra(magic);
+   if(r < 0) return true;
+   if(abertura_msc <= 0) return false;
+   if(g_regras[r].hora_min_seg >= 0 && SegDoDiaBrasilia(abertura_msc) < g_regras[r].hora_min_seg) return false;
+   return RegraDuracaoOk(r, abertura_msc, ate_msc);
+  }
+
+// As regras mudaram com o dia em andamento (ping do init falhou e a retentativa passou; admin alterou
+// hora/duração/desde no meio do pregão; magic mapeado depois do init): refaz o dia pelo histórico com
+// as regras novas. O caminho tick a tick medido até aqui é descartado, então todo magic que já tinha
+// linha ou posição acompanhada fica parcial, mesmo sem saída hoje (só flutuante): o extremo público
+// pode ter passado sem ser visto. Os itens seguintes levam a versão nova e substituem a linha no banco.
+void AplicarRegrasNovas()
+  {
+   if(!InpExcursao || g_dia == 0) return;
+   long magics[];
+   ArrayResize(magics, 0);
+   for(int x = 0; x < ArraySize(g_exp); x++) LembrarMagic(magics, g_exp[x].magic);
+   for(int i = 0; i < ArraySize(g_exc); i++) LembrarMagic(magics, g_exc[i].magic);
+   Log(StringFormat("regras do servidor mudaram com o dia em andamento: MEP/MEN de %d magics refeitos pelo histórico com as regras novas (parcial)",
+                    ArraySize(magics)));
+   ArrayResize(g_exp, 0);
+   for(int i = 0; i < ArraySize(g_exc); i++)
+     {
+      g_exc[i].real_pc = 0;   // a semeadura recalcula o que cada ciclo aberto já realizou
+      g_exc[i].pend_pc = 0;
+     }
+   SemearDia();
+   for(int m = 0; m < ArraySize(magics); m++)
+     {
+      int x = ProcurarExp(magics[m], true);
+      g_exp[x].parcial = true;
+     }
+   for(int x = 0; x < ArraySize(g_exp); x++) g_exp[x].parcial = true;
   }
 
 //+------------------------------------------------------------------+
@@ -372,6 +799,8 @@ void ZerarExcursao(Excursao &e)
    e.sumiu_ms = 0;
    e.ultimo_msc = 0;
    e.gv_ms = 0;
+   e.real_pc = 0;
+   e.pend_pc = 0;
   }
 
 int ProcurarExc(ulong posicao_id)
@@ -627,8 +1056,11 @@ int ProcurarExp(long magic, bool criar)
    ArrayResize(g_exp, n + 1);
    ExposicaoDia z;
    ZeroMemory(z);
-   z.magic = magic;
-   z.dia   = g_dia;
+   z.magic  = magic;
+   z.dia    = g_dia;
+   // o magic tem regra do servidor (item no ping, mesmo que só com nulos): o dia inteiro sai filtrado e
+   // o item leva a versão da regra. Magic fora da lista (não mapeado, ou servidor antigo) sai como na 1.1.0
+   z.regras = (ProcurarRegra(magic) >= 0);
    g_exp[n] = z;
    return n;
   }
@@ -644,6 +1076,16 @@ void AtualizarExposicao(long magic, long msc)
       // ainda em replay de ticks anteriores ao init (restaurada sem GV): o "atual" é de um preço
       // antigo e misturaria passado com presente no saldo do magic
       if(g_exc[i].ultimo_msc > 0 && g_exc[i].ultimo_msc < g_inicio_msc) continue;
+      // regras públicas: aberta antes da hora mínima nunca entra; o flutuante (e a saída parcial que
+      // ficou pendente) só entra depois que a posição completou a duração mínima (a "fantasma" que
+      // fecha em milissegundos nunca entra)
+      if(!RegraConta(g_exc[i].magic, g_exc[i].abertura_msc, g_exc[i].ultimo_msc)) continue;
+      if(g_exc[i].pend_pc != 0)
+        {
+         g_exp[x].realizado_pc += g_exc[i].pend_pc;
+         g_exc[i].real_pc      += g_exc[i].pend_pc;
+         g_exc[i].pend_pc       = 0;
+        }
       // saída parcial: o que já realizou saiu do flutuante na mesma proporção
       flut += g_exc[i].atual * g_tick_vp[g_exc[i].sim_idx] * (g_exc[i].vol_viva / g_exc[i].vol_entradas);
      }
@@ -811,9 +1253,18 @@ void Medir()
       // MEP/MEN são do dia; posição que virou a noite continua em g_exc
       bool primeiro = (g_dia == 0);
       ArrayResize(g_exp, 0);
+      for(int i = 0; i < ArraySize(g_exc); i++)
+        {
+         g_exc[i].real_pc = 0;   // o realizado (e a parcial pendente) são do dia
+         g_exc[i].pend_pc = 0;
+        }
       g_dia = dia;
       if(primeiro) SemearDia();   // EA subiu sem conexão e só agora sabe o dia
-      else Log("novo dia no servidor: MEP/MEN zerados");
+      else
+        {
+         Log("novo dia no servidor: MEP/MEN zerados; regras do servidor de novo no próximo slot de rede");
+         g_regras_prox_ms = GetTickCount64();   // rede só no slot do heartbeat (WebRequest é síncrono)
+        }
      }
    SincronizarPosicoes();
    for(int s = 0; s < ArraySize(g_tick_sim); s++)
@@ -873,16 +1324,23 @@ void SemearDia()
       saidas[m] = t;
      }
 
+   // agrupa por ciclo (operação do site): as regras públicas valem por ciclo, e a duração só se
+   // conhece na saída que o fecha
+   CicloSemente cs[];
+   ArrayResize(cs, 0);
    int contadas = 0;
    for(int k = 0; k < ArraySize(saidas); k++)
      {
       ulong t = saidas[k];
       if(!HistoryDealSelect(t)) continue;
-      ulong  pos   = (ulong)HistoryDealGetInteger(t, DEAL_POSITION_ID);
-      double lucro = HistoryDealGetDouble(t, DEAL_PROFIT);
-      double vol   = HistoryDealGetDouble(t, DEAL_VOLUME);
-      long   magic = HistoryDealGetInteger(t, DEAL_MAGIC);
-      bool   fecha = (HistoryDealGetInteger(t, DEAL_ENTRY) == DEAL_ENTRY_INOUT);
+      ulong  pos      = (ulong)HistoryDealGetInteger(t, DEAL_POSITION_ID);
+      double lucro    = HistoryDealGetDouble(t, DEAL_PROFIT);
+      double vol      = HistoryDealGetDouble(t, DEAL_VOLUME);
+      long   magic    = HistoryDealGetInteger(t, DEAL_MAGIC);
+      long   msc      = HistoryDealGetInteger(t, DEAL_TIME_MSC);
+      bool   fecha    = (HistoryDealGetInteger(t, DEAL_ENTRY) == DEAL_ENTRY_INOUT);
+      int    ciclo    = 1;
+      long   abertura = 0;
       Excursao e;
       ZerarExcursao(e);
       double vivo = 0;
@@ -890,18 +1348,78 @@ void SemearDia()
         {
          // vivo = volume aberto ANTES deste deal: a saída fecha o ciclo se zera o que havia
          if(!fecha) fecha = (vivo - vol <= 0.0000001);
-         vol   = e.vol_entradas;   // por 1 contrato da posição, como o site
-         magic = e.magic;
+         vol      = e.vol_entradas;   // por 1 contrato da posição, como o site
+         magic    = e.magic;
+         ciclo    = e.ciclo;
+         abertura = e.abertura_msc;   // primeiro deal in do ciclo (ou a reversão que o abriu)
         }
       else
          fecha = true;             // sem o histórico da posição não dá pra saber: conta
       if(vol <= 0) continue;
-      int x = ProcurarExp(magic, true);
-      g_exp[x].realizado_pc += lucro / vol;
-      if(fecha) g_exp[x].n_saidas++;   // ciclos fechados (operações do site), não deals
-      g_exp[x].parcial = true;
+      int c = -1;
+      for(int j = 0; j < ArraySize(cs); j++)
+         if(cs[j].pos == pos && cs[j].ciclo == ciclo) { c = j; break; }
+      if(c < 0)
+        {
+         c = ArraySize(cs);
+         ArrayResize(cs, c + 1);
+         cs[c].pos          = pos;
+         cs[c].ciclo        = ciclo;
+         cs[c].magic        = magic;
+         cs[c].lucro_pc     = 0;
+         cs[c].abertura_msc = abertura;
+         cs[c].fim_msc      = 0;
+         cs[c].fechado      = false;
+        }
+      cs[c].lucro_pc += lucro / vol;
+      if(msc > cs[c].fim_msc) cs[c].fim_msc = msc;
+      if(fecha) cs[c].fechado = true;
       if(t > g_ultimo_deal_contab) g_ultimo_deal_contab = t;
       contadas++;
+     }
+
+   // realizado e n_saidas por ciclo (ciclos fechados = operações do site, não deals), com as regras
+   // públicas: ciclo ainda aberto só passa pela hora; a duração é a do site (entrada -> última saída)
+   int fora = 0;
+   int sem_abertura = 0;
+   for(int c = 0; c < ArraySize(cs); c++)
+     {
+      int x = ProcurarExp(cs[c].magic, true);   // magic com saída hoje tem linha, mesmo que tudo fique fora
+      int r = ProcurarRegra(cs[c].magic);
+      // ciclo ainda aberto (saída parcial): a posição viva lembra quanto dele entrou no realizado,
+      // pra devolver se fechar curto demais
+      int kv = -1;
+      if(!cs[c].fechado)
+        {
+         kv = ProcurarExc(cs[c].pos);
+         if(kv >= 0 && g_exc[kv].ciclo != cs[c].ciclo) kv = -1;
+        }
+      if(kv >= 0)
+        {
+         g_exc[kv].real_pc = 0;
+         g_exc[kv].pend_pc = 0;
+        }
+      if(!RegraConta(cs[c].magic, cs[c].abertura_msc, (cs[c].fechado ? cs[c].fim_msc : 0)))
+        {
+         fora++;
+         if(r >= 0 && cs[c].abertura_msc <= 0)
+           {
+            // regra sem abertura conhecida: fica de fora e o dia do magic vira parcial (não dá pra
+            // saber se o site mostra esse ciclo)
+            sem_abertura++;
+            g_exp[x].parcial = true;
+           }
+         continue;
+        }
+      if(!cs[c].fechado && kv >= 0 && r >= 0 && !RegraDuracaoOk(r, cs[c].abertura_msc, MscServidor()))
+         g_exc[kv].pend_pc = cs[c].lucro_pc;   // saída parcial de posição ainda nova: entra quando ela completar a duração mínima
+      else
+        {
+         g_exp[x].realizado_pc += cs[c].lucro_pc;
+         if(kv >= 0) g_exc[kv].real_pc = cs[c].lucro_pc;
+        }
+      if(cs[c].fechado) g_exp[x].n_saidas++;
+      g_exp[x].parcial = true;   // o caminho tick a tick desse ciclo não foi visto
      }
 
    // o caminho até aqui é desconhecido: os extremos partem do que se sabe (0 e o realizado)
@@ -921,8 +1439,9 @@ void SemearDia()
         }
 
    if(contadas > 0 || ArraySize(g_exp) > 0)
-      Log(StringFormat("dia %s semeado: %d saídas de hoje em %d magics (parcial)",
-                       DiaIso(g_dia), contadas, ArraySize(g_exp)));
+      Log(StringFormat("dia %s semeado: %d saídas de hoje em %d ciclos e %d magics, %d ciclos fora pelas regras públicas (%d sem abertura conhecida)%s",
+                       DiaIso(g_dia), contadas, ArraySize(cs), ArraySize(g_exp), fora, sem_abertura,
+                       (g_regras_ok ? "" : " (sem regras do servidor: como na 1.1.0)")));
   }
 
 //+------------------------------------------------------------------+
@@ -1006,12 +1525,47 @@ void DealAntes(ulong ticket)
      }
 
    // realizado do dia por contrato; o extremo é recalculado na hora. n_saidas conta CICLOS fechados
-   // (operações do site), não deals: saída parcial em dois deals é uma operação e um custo só
+   // (operações do site), não deals: saída parcial em dois deals é uma operação e um custo só.
+   // Regras públicas: ciclo aberto antes da hora mínima não entra; ciclo que fecha com duração menor
+   // que a mínima não entra nem em n_saidas, e devolve o que saídas parciais dele já tinham somado;
+   // saída parcial antes de a posição completar a duração mínima fica pendente (o AtualizarExposicao
+   // promove quando ela completa); com regra e sem excursão (abertura desconhecida) não conta e o dia
+   // do magic vira parcial
    if(ticket > g_ultimo_deal_contab && vol_norm > 0)
      {
-      int x = ProcurarExp(magic, true);
-      g_exp[x].realizado_pc += lucro / vol_norm;
-      if(fecha_ciclo) g_exp[x].n_saidas++;
+      int    x        = ProcurarExp(magic, true);
+      int    r        = ProcurarRegra(magic);
+      long   abertura = (k >= 0 ? g_exc[k].abertura_msc : 0);
+      double lucro_pc = lucro / vol_norm;
+      bool   conta    = RegraConta(magic, abertura, (fecha_ciclo ? msc : 0));
+      if(conta && !fecha_ciclo && k >= 0 && r >= 0 && !RegraDuracaoOk(r, abertura, msc))
+         g_exc[k].pend_pc += lucro_pc;
+      else if(conta)
+        {
+         double pend = (k >= 0 ? g_exc[k].pend_pc : 0);   // ciclo que fechou com a duração mínima leva o pendente junto
+         g_exp[x].realizado_pc += lucro_pc + pend;
+         if(k >= 0)
+           {
+            g_exc[k].real_pc += lucro_pc + pend;
+            g_exc[k].pend_pc  = 0;
+           }
+         if(fecha_ciclo) g_exp[x].n_saidas++;
+        }
+      else
+        {
+         if(k >= 0)
+           {
+            if(g_exc[k].real_pc != 0) g_exp[x].realizado_pc -= g_exc[k].real_pc;
+            g_exc[k].real_pc = 0;
+            g_exc[k].pend_pc = 0;
+           }
+         if(r >= 0 && abertura <= 0)
+           {
+            g_exp[x].parcial = true;
+            Log(StringFormat("deal %I64u: abertura da posição %I64u desconhecida; com regra pro magic %s o ciclo fica fora do MEP/MEN e o dia vira parcial",
+                             ticket, pos, IntegerToString(magic)));
+           }
+        }
       AtualizarExposicao(magic, msc);
      }
    HistoryDealSelect(ticket);
@@ -1180,7 +1734,11 @@ string ExposicaoJson()
       if(g_exp[x].men_msc > 0) item += ",\"men_em\":" + IsoUtcMsc(g_exp[x].men_msc);
       item += ",\"men_n_saidas\":" + IntegerToString(g_exp[x].men_n) +
               ",\"parcial\":"      + Bool(g_exp[x].parcial) +
-              "}";
+              ",\"regras_aplicadas\":" + Bool(g_exp[x].regras);
+      // versão da regra aplicada: o banco só publica a linha cuja versão bate com a regra atual do robô
+      int r = (g_exp[x].regras ? ProcurarRegra(g_exp[x].magic) : -1);
+      if(r >= 0 && g_regras[r].versao != "") item += ",\"regras_versao\":" + JsonStr(g_regras[r].versao);
+      item += "}";
       if(itens != "") itens += ",";
       itens += item;
      }
@@ -1285,15 +1843,46 @@ void Reconciliar()
       Log("reconciliação falhou; roda de novo no próximo init");
   }
 
+// Valida URL/token e traz as regras públicas por magic ("regras"). Resposta sem a chave (servidor
+// antigo) ou ilegível mantém as últimas regras conhecidas. Ping ok agenda a próxima conferência em
+// REGRAS_REFRESH_MS; falha de rede, 429 ou 5xx agenda retentativa em REGRAS_RETRY_MS; outro 4xx (token,
+// URL) não muda sozinho e ficaria gerando uma linha em coleta_rejeicoes por tentativa: loga e espera o
+// próximo init ou virada do dia. Regras diferentes das vigentes refazem o dia (AplicarRegrasNovas).
 bool Ping()
   {
    string resp;
-   if(!Http("GET", "/api/ingest/ping", "", resp))
+   Http("GET", "/api/ingest/ping", "", resp);
+   ulong agora = GetTickCount64();
+   if(g_http_codigo < 200 || g_http_codigo >= 300)
      {
-      Log("ping falhou: confira URL, token e a liberação de WebRequest");
+      bool transitorio = (g_http_codigo == -1 || (g_http_codigo >= 1001 && g_http_codigo <= 1004)
+                          || g_http_codigo == 429 || g_http_codigo >= 500);
+      if(transitorio)
+        {
+         Log(StringFormat("ping falhou (%d): confira a liberação de WebRequest; regras do servidor de novo em %d s",
+                          g_http_codigo, REGRAS_RETRY_MS / 1000));
+         g_regras_prox_ms = agora + REGRAS_RETRY_MS;
+        }
+      else
+        {
+         Log(StringFormat("ping HTTP %d: confira URL e token; regras do servidor só no próximo init ou virada do dia", g_http_codigo));
+         g_regras_prox_ms = 0;
+        }
       return false;
      }
-   Log("ping ok: " + resp);
+   g_regras_prox_ms = agora + REGRAS_REFRESH_MS;
+   Log("ping ok: " + StringSubstr(resp, 0, 400));
+   bool mudaram = false;
+   if(LerRegras(resp, mudaram))
+     {
+      bool primeira = !g_regras_ok;
+      g_regras_ok = true;
+      if(primeira || mudaram) LogRegras();
+      if(mudaram) AplicarRegrasNovas();
+     }
+   else
+      Log(g_regras_ok ? "ping sem \"regras\" legíveis: ficam as últimas conhecidas"
+                      : "ping sem \"regras\" (servidor antigo): exposição do dia sem as regras públicas, como na 1.1.0");
    return true;
   }
 
@@ -1417,12 +2006,15 @@ int OnInit()
                     (InpEnviaCandles ? CandlesSimbolo() : "desligados")));
    for(int i = 0; i < ArraySize(g_simbolos); i++) LogValorPonto(g_simbolos[i]);
 
-   Ping();
+   ArrayResize(g_regras, 0);
+   g_regras_ok      = false;
+   g_regras_prox_ms = 0;
+   ArrayResize(g_exp, 0);   // antes do ping: regras novas só refazem um dia já calculado
+   Ping();                  // valida URL/token e traz as regras públicas por magic
 
    g_dia        = DiaServidor();
    g_inicio_msc = MscServidor();
    ArrayResize(g_exc, 0);
-   ArrayResize(g_exp, 0);
    ArrayResize(g_tick_sim, 0);
    ArrayResize(g_tick_msc, 0);
    ArrayResize(g_tick_vp, 0);
@@ -1474,6 +2066,7 @@ void OnTimer()
    g_ultimo_hb_ms = agora;
 
    // único slot com rede (WebRequest é síncrono)
+   if(g_regras_prox_ms > 0 && agora >= g_regras_prox_ms) Ping();   // regras: virada do dia ou retentativa
    EnviarHeartbeat();   // ao vivo primeiro
    ReenviarUm();        // depois, no máximo 1 item da fila (deal ou página de histórico)
    EnviarCandles();     // por último, e só quando fechou barra

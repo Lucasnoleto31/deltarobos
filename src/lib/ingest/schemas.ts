@@ -157,6 +157,15 @@ export const exposicaoDiaSchema = z.object({
   men_em: dataIso.nullish(),
   men_n_saidas: z.number().int().nonnegative().nullish(),
   parcial: z.boolean().default(false),
+  // EA 1.1.1: true quando o EA tinha a regra pública do magic (GET /api/ingest/ping) ao calcular o dia, isto
+  // é, mediu MEP/MEN só sobre o que o site publica. Ausente (1.1.0) ou malformado vira undefined e o banco
+  // grava false (migration 0023); nunca derruba a exposição nem o heartbeat.
+  regras_aplicadas: tolerante("regras_aplicadas", z.boolean()),
+  // EA 1.1.1: versão da regra aplicada, ecoada do ping (texto opaco, calculado por regras_publicas_versao no
+  // banco). A view só publica a linha cuja versão bate com a regra atual do robô, e o banco substitui a linha
+  // quando a versão muda. Ausente ou malformada vira undefined (o banco grava nula: a linha fica fora da
+  // view até chegar um item com versão).
+  regras_versao: tolerante("regras_versao", z.string().min(1).max(120)),
 });
 
 export const cotacaoSchema = z.object({

@@ -243,6 +243,87 @@ describe("heartbeat: posições com excursão e exposicao_dia", () => {
     expect(exposicaoDiaSchema.safeParse({ ...exposicao, men: 1 }).success).toBe(false);
     expect(exposicaoDiaSchema.safeParse({ ...exposicao, mep: 0, men: 0, mep_em: null, men_em: null }).success).toBe(true);
   });
+
+  describe("regras_aplicadas (EA 1.1.1)", () => {
+    it("ausente (EA 1.1.0) fica undefined, sem aviso: o banco grava false", () => {
+      const r = exposicaoDiaSchema.parse(exposicao);
+      expect(r.regras_aplicadas).toBeUndefined();
+      expect("regras_aplicadas" in JSON.parse(JSON.stringify(r))).toBe(false);
+      expect(avisos).not.toHaveBeenCalled();
+    });
+
+    it("true e false passam como vieram", () => {
+      expect(exposicaoDiaSchema.parse({ ...exposicao, regras_aplicadas: true }).regras_aplicadas).toBe(true);
+      expect(exposicaoDiaSchema.parse({ ...exposicao, regras_aplicadas: false }).regras_aplicadas).toBe(false);
+    });
+
+    it("malformado NÃO derruba a exposição: vira undefined com aviso e o resto fica", () => {
+      const r = exposicaoDiaSchema.safeParse({ ...exposicao, regras_aplicadas: "sim" });
+      expect(r.success).toBe(true);
+      if (!r.success) return;
+      expect(r.data.regras_aplicadas).toBeUndefined();
+      expect(r.data.mep).toBe(410);
+      expect(r.data.n_saidas).toBe(3);
+      expect(avisos).toHaveBeenCalledTimes(1);
+      expect(String(avisos.mock.calls[0][0])).toContain("[ingest] campo regras_aplicadas ignorado");
+      // 1 e null também não são boolean
+      expect(exposicaoDiaSchema.parse({ ...exposicao, regras_aplicadas: 1 }).regras_aplicadas).toBeUndefined();
+      expect(exposicaoDiaSchema.parse({ ...exposicao, regras_aplicadas: null }).regras_aplicadas).toBeUndefined();
+    });
+
+    it("no heartbeat, a lista inteira passa com o campo e sem aviso", () => {
+      const r = corpoHeartbeatSchema.parse({
+        ea_versao: "1.1.1",
+        posicoes: [],
+        exposicao_dia: [{ ...exposicao, regras_aplicadas: true }, { ...exposicao, magic: 1002 }],
+      });
+      expect(r.exposicao_dia).toHaveLength(2);
+      expect(r.exposicao_dia[0].regras_aplicadas).toBe(true);
+      expect(r.exposicao_dia[1].regras_aplicadas).toBeUndefined();
+      expect(avisos).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("regras_versao (EA 1.1.1)", () => {
+    it("ausente fica undefined, sem aviso: o banco grava nula", () => {
+      const r = exposicaoDiaSchema.parse({ ...exposicao, regras_aplicadas: true });
+      expect(r.regras_versao).toBeUndefined();
+      expect(avisos).not.toHaveBeenCalled();
+    });
+
+    it("texto passa como veio (opaco: o banco compara com regras_publicas_versao)", () => {
+      const r = exposicaoDiaSchema.parse({ ...exposicao, regras_aplicadas: true, regras_versao: "09:10:00|2|2026-09-21" });
+      expect(r.regras_versao).toBe("09:10:00|2|2026-09-21");
+      expect(exposicaoDiaSchema.parse({ ...exposicao, regras_versao: "||" }).regras_versao).toBe("||");
+    });
+
+    it("malformada NÃO derruba a exposição: vira undefined com aviso e o resto fica", () => {
+      const r = exposicaoDiaSchema.safeParse({ ...exposicao, regras_aplicadas: true, regras_versao: 12 });
+      expect(r.success).toBe(true);
+      if (!r.success) return;
+      expect(r.data.regras_versao).toBeUndefined();
+      expect(r.data.regras_aplicadas).toBe(true);
+      expect(r.data.mep).toBe(410);
+      expect(avisos).toHaveBeenCalledTimes(1);
+      expect(String(avisos.mock.calls[0][0])).toContain("[ingest] campo regras_versao ignorado");
+      // vazia, nula ou comprida demais também não valem
+      expect(exposicaoDiaSchema.parse({ ...exposicao, regras_versao: "" }).regras_versao).toBeUndefined();
+      expect(exposicaoDiaSchema.parse({ ...exposicao, regras_versao: null }).regras_versao).toBeUndefined();
+      expect(exposicaoDiaSchema.parse({ ...exposicao, regras_versao: "x".repeat(121) }).regras_versao).toBeUndefined();
+    });
+
+    it("no heartbeat, o item leva a versão junto de regras_aplicadas e o 1.1.0 continua sem os dois", () => {
+      const r = corpoHeartbeatSchema.parse({
+        ea_versao: "1.1.1",
+        posicoes: [],
+        exposicao_dia: [{ ...exposicao, regras_aplicadas: true, regras_versao: "||" }, { ...exposicao, magic: 1002 }],
+      });
+      expect(r.exposicao_dia[0]).toMatchObject({ regras_aplicadas: true, regras_versao: "||" });
+      expect(r.exposicao_dia[1].regras_aplicadas).toBeUndefined();
+      expect(r.exposicao_dia[1].regras_versao).toBeUndefined();
+      expect(avisos).not.toHaveBeenCalled();
+    });
+  });
 });
 
 describe("candles", () => {
