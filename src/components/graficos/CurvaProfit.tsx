@@ -197,6 +197,11 @@ interface Props {
   alturaDoDrawdown?: number;
   rotulosX: Array<{ x: number; rotulo: string }>;
   formatarEixo: (v: number) => string;
+  /**
+   * Formata o eixo do drawdown embaixo; sem ele, o mesmo formatarEixo da curva. O simulador
+   * (23/09/2026) rotula a curva como patrimônio (capital + acumulado) e o drawdown em R$.
+   */
+  formatarEixoDrawdown?: (v: number) => string;
   rotuloVertical: string;
   rotuloAria: string;
   /** arrastar com o mouse seleciona um trecho (frações de 0 a 1 do eixo) e chama isto */
@@ -225,6 +230,7 @@ export function DesenhoDaCurva({
   alturaDoDrawdown = 0,
   rotulosX,
   formatarEixo,
+  formatarEixoDrawdown = formatarEixo,
   rotuloVertical,
   rotuloAria,
   aoSelecionar,
@@ -481,7 +487,7 @@ export function DesenhoDaCurva({
             ) : null}
           </div>
           <div className="mt-4">
-            <EixoProfit marcas={escalaDD.marcas} y={escalaDD.y} altura={alturaDoDrawdown} formatar={formatarEixo} />
+            <EixoProfit marcas={escalaDD.marcas} y={escalaDD.y} altura={alturaDoDrawdown} formatar={formatarEixoDrawdown} />
           </div>
           <div className="mt-4">
             <RotuloVertical altura={alturaDoDrawdown}>Drawdown</RotuloVertical>

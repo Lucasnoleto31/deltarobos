@@ -52,8 +52,8 @@ const MODOS: Array<[Modo, string]> = [
   ["dia", "Por dia"],
 ];
 
-/** "5,77 mil" a partir de mil, no padrão brasileiro, como a escala do gráfico do Profit no Hub. */
-function escalaEmReais(v: number): string {
+/** "5,77 mil" a partir de mil, no padrão brasileiro, como a escala do gráfico do Profit no Hub. O simulador usa a mesma. */
+export function escalaEmReais(v: number): string {
   return Math.abs(v) >= 1000
     ? `${formatarNumero(v / 1000, Math.abs(v) % 1000 === 0 ? 0 : 1)} mil`
     : formatarNumero(v || 0, 0);

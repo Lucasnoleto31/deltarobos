@@ -213,6 +213,24 @@ O que fica público (nunca conta, magic, volume nem número de conta; colunas no
 | evento `posicao`           | é a linha de `posicoes_abertas_publico`, então já traz o MFE/MAE do grupo                                                                                                                                                                                                     |
 | evento `operacao`          | é a linha de `operacoes_publico`, então já traz MFE/MAE; excursão que chegar depois da operação de hoje (reconciliação, reenvio) reemite o evento                                                                                                                              |
 
+### Simulador com o meu capital
+
+`/simulador` aplica o histórico público, por 1 contrato e já com custos, ao capital e aos contratos que o
+visitante informa. Tudo fica na URL (`?capital=30000&r=apollo:2,orion:1&periodo=12m`; `r` ausente = todos os
+robôs com 1, `r=` = nenhum, padrões omitidos), e os links "Simular com meu capital" da aba Risco e do card do
+robô chegam com o robô preenchido. Para cada dia de pregão soma contratos × resultado líquido por contrato de
+cada robô (dia sem operação = 0), desenha patrimônio = capital + acumulado com o drawdown embaixo e mostra
+resultado do período, drawdown máximo (em R$ e em % do **capital inicial informado**, nunca do patrimônio do
+momento), pior mês (com quantos pregões entraram: os meses das pontas podem estar incompletos), pior dia,
+maior sequência de dias negativos e o capital mínimo da carteira (soma de contratos × capital mínimo por
+contrato da aba Risco, o real inteiro publicado, com o drawdown de todo o histórico; robô sem margem
+configurada deixa a soma dos outros como piso). O semáforo é só uma leitura disso: não cabe (capital abaixo do
+mínimo ou do piso conhecido, ou drawdown simulado que consumiria o capital inteiro), apertado (drawdown máximo
+simulado acima de 25% do capital) ou cabe. `capital` e `n` na URL aceitam só dígitos. É aritmética sobre o
+histórico, não recomendação nem projeção de resultado, e a página diz isso em texto fixo. Cálculo puro em
+`src/lib/stats/simulador.ts`, URL em `src/components/simulador/simulador-url.ts`, regra na spec §8.6 e na
+Metodologia (`/metodologia#simulador`).
+
 ### Regras de segurança do schema
 
 - RLS em toda tabela. `anon` só lê as views `*_publico` e chama `resumo_casa_hoje()`.
@@ -277,12 +295,12 @@ NEXT_PUBLIC_SITE_URL
 mt5/                      EA coletor
 supabase/migrations/      schema (22 migrations, ordem numérica)
 supabase/seed.sql         dados iniciais
-src/app/(site)/           home e /robos/[slug]
+src/app/(site)/           home, /robos/[slug], /comparativo, /simulador, /metodologia
 src/app/api/ingest/       ping, deal, heartbeat, history, candles, reconciliar
 src/app/api/robos/        curva por operação de cada período (JSON público, cache 60 s)
-src/components/           ui (shadcn), layout, home, robo, graficos, compartilhados
+src/components/           ui (shadcn), layout, home, robo, graficos, simulador, compartilhados
 src/hooks/                realtime (useRoboAoVivo, useCasaAoVivo), relógio
-src/lib/stats/            cálculo puro + testes (curva, drawdown, KPIs, períodos, pregão, status)
+src/lib/stats/            cálculo puro + testes (curva, drawdown, KPIs, períodos, pregão, status, simulador)
 src/lib/ingest/           auth por token, rate limit, schemas zod, pareamento deals -> operações
 src/lib/consultas/        leitura das views públicas
 ```

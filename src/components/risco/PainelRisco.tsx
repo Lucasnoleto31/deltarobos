@@ -8,11 +8,12 @@ import { Segmentado } from "@/components/compartilhados/Segmentado";
 import { Valor } from "@/components/compartilhados/Valor";
 import { ListaKpi, type ItemKpi } from "@/components/desempenho/CardsKpi";
 import { mistura } from "@/components/graficos/base";
+import { linkSimulador } from "@/components/simulador/simulador-url";
 import { formatarBRL, formatarData, formatarMultiplo, formatarNumero, formatarPct } from "@/lib/formato";
 import { calcularKpis } from "@/lib/stats/kpis";
 import type { PeriodoPainel } from "@/components/robo/ops-por-periodo";
 import { inicioDoPeriodo } from "@/components/robo/periodos-resumo";
-import { filtrarIntervalo, type Intervalo } from "@/lib/stats/periodos";
+import { filtrarIntervalo, filtrarPeriodo, type Intervalo } from "@/lib/stats/periodos";
 import {
   calmar,
   capitalMinimoRecomendado,
@@ -24,11 +25,13 @@ import {
   tempoEmDrawdown,
   ulcerIndex,
 } from "@/lib/stats/risco";
-import { curvaAcumulada, valorDia } from "@/lib/stats/serie";
+import { curvaAcumulada, drawdownMaximo, valorDia } from "@/lib/stats/serie";
 import type { LinhaDiaria, OpcoesSerie } from "@/lib/stats/tipos";
 import { AbaixoDoPico } from "./AbaixoDoPico";
 
 interface Props {
+  /** o robô, para o link "Simular com meu capital" chegar ao simulador já com ele marcado (23/09/2026) */
+  slug: string;
   linhas: LinhaDiaria[];
   /** perda média por operação (resumoOperacoes().mediaLoss) de cada período, calculada na página */
   perdaMedia: Record<PeriodoPainel, number>;
@@ -52,11 +55,14 @@ function CelulaCapital({
   info,
   children,
   detalhe,
+  acao,
 }: {
   rotulo: string;
   info: ChaveIndicador;
   children: React.ReactNode;
   detalhe: React.ReactNode;
+  /** um link de ação embaixo do apoio ("Simular com meu capital" no capital mínimo, 23/09/2026) */
+  acao?: React.ReactNode;
 }) {
   return (
     <div className="border-(--painel-fio) p-4 not-first:border-t sm:p-5 sm:not-first:border-t-0 sm:not-first:border-l">
@@ -65,12 +71,13 @@ function CelulaCapital({
       </p>
       <p className="mt-2 text-xl leading-none font-semibold tracking-tight tabular-nums sm:text-2xl">{children}</p>
       <p className="mt-1.5 text-xs text-muted-foreground tabular-nums">{detalhe}</p>
+      {acao ? <p className="mt-2 text-xs text-muted-foreground">{acao}</p> : null}
     </div>
   );
 }
 
 /** Aba Risco: capital e drawdown, índices de risco, gráfico abaixo do pico, maiores drawdowns e, embaixo, profundidade, piores dias e resumo diário. */
-export function PainelRisco({ linhas, perdaMedia, hoje, valorPonto, capitalReferencia, margem, fatorSeguranca }: Props) {
+export function PainelRisco({ slug, linhas, perdaMedia, hoje, valorPonto, capitalReferencia, margem, fatorSeguranca }: Props) {
   const [periodo, setPeriodo] = useState<PeriodoPainel>("tudo");
   const opcoes = useMemo<OpcoesSerie>(() => ({ base: "liquido", unidade: "brl", valorPonto }), [valorPonto]);
   const intervalo = useMemo<Intervalo>(() => ({ de: inicioDoPeriodo(periodo, hoje), ate: hoje }), [periodo, hoje]);
@@ -78,6 +85,10 @@ export function PainelRisco({ linhas, perdaMedia, hoje, valorPonto, capitalRefer
 
   const kpis = useMemo(() => calcularKpis(linhasF, opcoes, { hoje, capitalReferencia }), [linhasF, opcoes, hoje, capitalReferencia]);
   const curva = useMemo(() => curvaAcumulada(linhasF, opcoes), [linhasF, opcoes]);
+  // 23/09/2026: o capital mínimo é a regra da spec §7, sem período (margem + drawdown máximo de TODO o
+  // histórico × fator), o mesmo número por contrato que o simulador usa. Antes seguia o período escolhido,
+  // e em "Ano" a célula mostrava um mínimo menor que o "mín. por contrato" do link "Simular com meu capital".
+  const ddTudo = useMemo(() => drawdownMaximo(curvaAcumulada(filtrarPeriodo(linhas, "tudo", hoje), opcoes)).valor, [linhas, hoje, opcoes]);
   const episodios = useMemo(() => episodiosDrawdown(curva, Infinity), [curva]);
   const mediaLoss = perdaMedia[periodo];
   const diario = useMemo(() => resumoDiario(curva, episodios), [curva, episodios]);
@@ -94,13 +105,13 @@ export function PainelRisco({ linhas, perdaMedia, hoje, valorPonto, capitalRefer
   const vUlcer = ulcerIndex(curva, capitalReferencia);
   const vTempo = tempoEmDrawdown(curva);
   const vRuina = riscoDeRuina({ taxaAcerto: kpis.taxaAcerto, payoff: kpis.payoff, capital: capitalReferencia, perdaMedia: mediaLoss });
-  const capitalMinimo = margem !== null ? capitalMinimoRecomendado(margem, dd, fatorSeguranca) : null;
+  const capitalMinimo = margem !== null ? capitalMinimoRecomendado(margem, ddTudo, fatorSeguranca) : null;
 
   if (linhas.length === 0) {
     return <p className="painel p-8 text-center text-sm text-muted-foreground">Sem operações fechadas ainda.</p>;
   }
 
-  const ddBrl = formatarBRL(dd, { inteiro: dd >= 1000 });
+  const ddTudoBrl = formatarBRL(ddTudo, { inteiro: ddTudo >= 1000 });
   const fator = formatarMultiplo(fatorSeguranca, 1);
   // 19/09/2026 ("o risco de ruína está zero, pq?"): o apoio diz quantas perdas médias cabem no capital, as
   // "unidades" da conta na metodologia (capital ÷ perda média). A fórmula eleva a razão de perda a esse
@@ -180,7 +191,16 @@ export function PainelRisco({ linhas, perdaMedia, hoje, valorPonto, capitalRefer
           <CelulaCapital
             rotulo="Capital mínimo · 1 contrato"
             info="capitalMinimo"
-            detalhe={capitalMinimo !== null ? `margem ${formatarBRL(margem ?? 0, { inteiro: true })} + drawdown ${ddBrl} × ${fator}` : "margem de referência não configurada"}
+            detalhe={
+              capitalMinimo !== null
+                ? `margem ${formatarBRL(margem ?? 0, { inteiro: true })} + drawdown ${ddTudoBrl} de todo o histórico × ${fator}`
+                : "margem de referência não configurada"
+            }
+            acao={
+              <Link href={linkSimulador(slug)} className="underline underline-offset-4 hover:text-foreground">
+                Simular com meu capital
+              </Link>
+            }
           >
             {capitalMinimo !== null ? formatarBRL(capitalMinimo, { inteiro: true }) : "–"}
           </CelulaCapital>

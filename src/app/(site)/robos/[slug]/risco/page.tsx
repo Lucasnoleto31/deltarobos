@@ -56,6 +56,7 @@ export default async function PaginaRisco({ params }: Props) {
 
   return (
     <PainelRisco
+      slug={slug}
       linhas={linhasDiarias}
       perdaMedia={perdaMedia}
       hoje={hoje}

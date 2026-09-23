@@ -27,6 +27,11 @@ const CLASSES: Record<TomStatus, string> = {
   info: "border-info/30 bg-info/15 text-[color-mix(in_srgb,var(--info)_80%,var(--foreground))] dark:text-info",
 };
 
+/** As classes da pílula por tom, para outra pílula de estado (o semáforo do simulador, 23/09/2026) herdar o contraste medido acima. */
+export function classesDoTom(tom: TomStatus): string {
+  return CLASSES[tom];
+}
+
 // O que cada selo quer dizer, tirado da ordem de statusAoVivo (cadastro > sem coletor > pregão fechado >
 // coletor parado > posicionado > horário do robô). Vai no title e, para leitor de tela, no próprio selo.
 // 19/09/2026: com explicar={false} fica só o title; o cartão da home, que é um link inteiro, levava a

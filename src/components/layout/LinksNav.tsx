@@ -8,6 +8,7 @@ import { useEffect } from "react";
 // Metodologia é leitura rara: sem prefetch, busca no clique em vez de em toda página (18/09/2026)
 const LINKS: { href: string; rotulo: string; prefetch?: false }[] = [
   { href: "/comparativo", rotulo: "Comparativo" },
+  { href: "/simulador", rotulo: "Simulador" },
   { href: "/metodologia", rotulo: "Metodologia", prefetch: false },
   { href: "/#comunidade", rotulo: "Comunidade" },
 ];

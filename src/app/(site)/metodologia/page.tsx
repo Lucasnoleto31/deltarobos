@@ -28,6 +28,7 @@ const SECOES = [
   { id: "payoff", titulo: "Payoff" },
   { id: "sequencias", titulo: "Sequências e dias" },
   { id: "capital-minimo", titulo: "Capital mínimo recomendado" },
+  { id: "simulador", titulo: "Simulador com o meu capital" },
   { id: "indices-risco", titulo: "Calmar, recovery factor, Ulcer e tempo em drawdown" },
   { id: "risco-de-ruina", titulo: "Risco de ruína" },
   { id: "faixas", titulo: "Validação de faixas" },
@@ -280,9 +281,48 @@ export default function PaginaMetodologia() {
         <Secao id="capital-minimo" titulo="Capital mínimo recomendado">
           <Indicador chave="capitalMinimo">
             por contrato, <strong>margem de referência + drawdown máximo × fator de segurança</strong>. O fator padrão é
-            1,5. A margem é a exigida pela corretora para manter um contrato em day trade e é configurada por ativo. É uma
-            referência de conforto, não uma garantia.
+            1,5, e o drawdown é o de todo o histórico do robô, seja qual for o período escolhido na aba Risco. A margem é
+            a exigida pela corretora para manter um contrato em day trade e é configurada por ativo. É uma referência de
+            conforto, não uma garantia.
           </Indicador>
+        </Secao>
+
+        {/* 23/09/2026: a página /simulador (spec §8.6). A conta é a de lib/stats/simulador: soma ponderada das séries
+            diárias públicas, drawdown em % sobre o capital inicial informado e capital mínimo pela regra logo acima */}
+        <Secao id="simulador" titulo="Simulador com o meu capital">
+          <Indicador chave="simulador">
+            para cada dia de pregão,{" "}
+            <strong>
+              resultado = soma, sobre os robôs escolhidos, de contratos × resultado líquido por contrato do robô no dia
+            </strong>{" "}
+            (dia em que o robô não operou conta zero), sobre as mesmas séries diárias públicas do site. O patrimônio
+            simulado é o capital informado mais esse resultado acumulado, dia a dia. O drawdown é medido nessa curva como
+            na curva de capital; em porcentagem, é dividido pelo <strong>capital inicial informado</strong>, não pelo
+            patrimônio do momento. O capital mínimo da carteira é a soma, por robô, de contratos × capital mínimo por
+            contrato (a regra acima, com o drawdown máximo de todo o histórico do robô, e não só do período escolhido).
+            Os períodos são 3 meses, 12 meses, ano e tudo, todos terminando hoje. Dia de pregão é o dia em que algum robô
+            escolhido operou: dia sem operação de nenhum não entra na contagem nem interrompe a sequência negativa; dia em
+            que a soma dá zero interrompe. O pior mês é a menor soma mensal dentro do período, e os meses das pontas podem
+            estar incompletos (3 e 12 meses começam no dia do mês de hoje; o mês corrente está em andamento): a tela diz
+            quantos pregões entraram.
+          </Indicador>
+          <Indicador chave="semaforoCapital" nome>
+            <strong>não cabe</strong> se o capital é menor que o capital mínimo ou se o drawdown máximo simulado é maior
+            ou igual ao capital (o patrimônio simulado teria zerado); <strong>apertado</strong> se cabe, mas o drawdown
+            máximo simulado passa de 25% do capital inicial; <strong>cabe</strong> no resto (25% exatos cabem). O capital
+            mínimo por contrato é o número inteiro publicado na aba Risco. Robô sem margem de referência configurada fica
+            sem capital mínimo; a soma dos mínimos dos outros robôs escolhidos vale como piso, e acima dele só a regra do
+            drawdown decide.
+          </Indicador>
+          <p>
+            <strong>O que o simulador não é.</strong> Não é recomendação de investimento nem projeção de resultado: é
+            aritmética sobre o que já aconteceu, e resultado passado não garante resultado futuro; quedas futuras podem
+            ser maiores que as do histórico. O custo é o custo fixo por contrato de cada robô, e os custos e a diferença
+            de preço na execução de uma conta real podem ser outros. Operar mais contratos que o padrão do robô tem
+            liquidez e margem próprias: cada contrato a mais precisa ser preenchido no mercado e exige margem da
+            corretora, e o simulador só multiplica o resultado por contrato. O capital mínimo é a referência de conforto
+            publicada na aba Risco, não uma garantia.
+          </p>
         </Secao>
 
         <Secao id="indices-risco" titulo="Calmar, recovery factor, Ulcer e tempo em drawdown">

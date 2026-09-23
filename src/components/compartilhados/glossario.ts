@@ -55,6 +55,8 @@ export type ChaveIndicador =
   | "riscoRuina"
   | "capitalReferencia"
   | "capitalMinimo"
+  | "simulador"
+  | "semaforoCapital"
   // o dia por dentro
   | "mep"
   | "men"
@@ -281,6 +283,17 @@ export const GLOSSARIO: Record<ChaveIndicador, EntradaGlossario> = {
   capitalMinimo: {
     nome: "Capital mínimo",
     texto: "Quanto ter na conta para operar 1 contrato: a margem exigida pela corretora mais o maior drawdown já visto, com uma folga de segurança. Quedas futuras podem ser maiores.",
+  },
+  // 23/09/2026: a página /simulador (lib/stats/simulador). Compliance: aritmética sobre o histórico, nunca
+  // recomendação nem projeção; o drawdown em % é sobre o capital inicial informado; o capital mínimo é só a
+  // regra já publicada na aba Risco, somada por robô × contratos
+  simulador: {
+    nome: "Simulador",
+    texto: "Aritmética sobre o histórico: soma o resultado diário de cada robô vezes os contratos escolhidos e mede o drawdown sobre o capital informado. Não é recomendação nem projeção de resultado.",
+  },
+  semaforoCapital: {
+    nome: "Semáforo do capital",
+    texto: "Não cabe quando o capital fica abaixo do mínimo publicado ou o drawdown simulado consumiria o capital inteiro; apertado quando cabe, mas o drawdown máximo simulado passa de 25% do capital; cabe no resto. É uma leitura do histórico, não uma garantia.",
   },
 
   // ── o dia por dentro ─────────────────────────────────────────────────────────────────────────────

@@ -82,6 +82,7 @@ export function Rodape({ links, textos, robos }: Props) {
 
         <Coluna titulo="Site">
           <LinkInterno href="/comparativo">Comparativo</LinkInterno>
+          <LinkInterno href="/simulador">Simulador</LinkInterno>
           {/* leitura rara, como no cabeçalho: sem prefetch */}
           <LinkInterno href="/metodologia" prefetch={false}>
             Metodologia

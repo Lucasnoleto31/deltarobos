@@ -153,7 +153,7 @@ No celular, os itens 1, 2, 3 e 8 ficam acima da dobra. Na v1 entram 1, 2, 3, 8, 
 - Mensal: heatmap ano x mês
 - Diário: calendário do mês; o detalhe do dia mostra MEP e MEN (regra na seção 7)
 - Distribuição: dia da semana, hora do dia, histograma por operação
-- Risco: drawdown em R$ e %, tempo de recuperação, capital mínimo recomendado por contrato
+- Risco: drawdown em R$ e %, tempo de recuperação, capital mínimo recomendado por contrato (sempre com o drawdown máximo de todo o histórico, fixo ao trocar o período; link "Simular com meu capital")
 - Últimas 50 operações com link pra lista completa
 - Transparência: como o dado é coletado, custos considerados, link pro relatório mensal do MT5
 - Disclaimer e CTA "quero esse robô"
@@ -167,8 +167,15 @@ Tela cheia só com o dia: resultado grande, posição aberta, operações em abe
 ### 8.5 Carteira `/carteira`
 Seleciona robôs e contratos de cada um, vê curva combinada, drawdown conjunto, correlação e KPIs da carteira.
 
-### 8.6 Simulador `/simulador`
-Capital, contratos por robô, retorno e drawdown em % do capital, alerta se o capital for menor que o mínimo recomendado.
+### 8.6 Simulador `/simulador` (aprovado em 23/09/2026)
+Aritmética sobre o histórico público, por contrato, aplicada ao capital e aos contratos que o visitante informa. **Não é recomendação nem projeção de resultado**, e a página diz isso em texto fixo, sob o título e junto do semáforo.
+
+- **Entradas:** capital em R$ (inteiro, maior que zero), contratos por robô (padrão 1; 0 tira o robô da simulação; máximo 1.000) e período (3 meses, 12 meses, ano, tudo; padrão tudo). Só entram robôs com status diferente de `arquivado` e com série diária não vazia; a lista vem de `robos`, nunca do código. Tudo fica na URL, para compartilhar e para os links pré-preenchidos: `/simulador?capital=30000&r=apollo:2,orion:1&periodo=12m` (`r` ausente = todos os robôs com 1; `r=` vazio = nenhum; slug desconhecido é ignorado; `capital` ausente = a página pede o capital e não simula nada; valores padrão são omitidos da URL; `capital` e `n` aceitam só dígitos: `30.000`, `2.5`, `1e5` e `0x10` não valem).
+- **Cálculo:** para cada dia de pregão, resultado da carteira = soma, sobre os robôs escolhidos, de contratos × resultado líquido por 1 contrato do robô no dia (dia em que o robô não operou conta zero), sobre as séries diárias públicas. Patrimônio simulado = capital informado + resultado acumulado, dia a dia. O drawdown é medido nessa curva como na curva de capital; **em % é sempre sobre o capital inicial informado**, nunca sobre o patrimônio do momento, e a tela diz "sobre o capital inicial informado". Dia de pregão da carteira é o dia em que algum robô escolhido operou: dia sem operação de nenhum não entra na contagem nem interrompe a sequência negativa; dia em que a soma dá zero interrompe.
+- **Saídas:** resultado do período em R$ e em % do capital inicial; drawdown máximo em R$ e em % do capital inicial (com início, fundo e recuperação); pior mês (menor soma mensal dentro do período; os meses das pontas podem estar incompletos, e a tela diz quantos pregões entraram); pior dia; maior sequência de dias negativos (dia zerado interrompe) e dias negativos sobre os pregões do período; patrimônio final; capital mínimo da carteira = soma, por robô, de contratos × capital mínimo por contrato pela regra da seção 7 (margem de referência + drawdown máximo de **todo** o histórico do robô com 1 contrato × fator de segurança, o mesmo número da aba Risco, arredondado ao real inteiro publicado); quando algum robô escolhido não tem margem de referência configurada, a soma dos mínimos conhecidos aparece como piso ("≥ R$ X") e a tela diz quais robôs ficaram sem mínimo; curva de patrimônio simulado (zero = capital inicial) com o drawdown embaixo, no mesmo desenho da curva de capital.
+- **Semáforo:** **não cabe** quando capital < capital mínimo (sem o total, quando capital < soma dos mínimos conhecidos) ou quando drawdown máximo simulado ≥ capital (o patrimônio simulado teria zerado); **apertado** quando cabe e drawdown máximo simulado > 25% do capital inicial; **cabe** no resto (25% exato = cabe; as comparações são a centavos). Sem nenhum mínimo conhecido, só a regra do drawdown decide. A tela avisa quais robôs ficaram sem mínimo.
+- **Compliance (inegociável):** texto fixo "Aritmética sobre o histórico; não é recomendação nem projeção de resultado."; capital mínimo só como a regra já publicada na aba Risco; nada de "robô ideal", de projeção futura nem de retorno anualizado; aviso legal (`parametros.textos.disclaimer`) pelo rodapé, como nas outras páginas (não se repete no painel: decisão de 17/09/2026), e selo "Conta demo" por robô; sem emoji.
+- **Links:** "Simular com meu capital" na aba Risco (célula do capital mínimo) e no card do robô na home, já com o robô preenchido (`/simulador?r=<slug>:1`); "Simulador" no cabeçalho e no rodapé. A Metodologia ganha a seção "Simulador com o meu capital" (`#simulador`).
 
 ### 8.7 Metodologia `/metodologia`
 Definição de cada métrica, como a coleta funciona, o que é custo, o que é normalização por contrato. Glossário.

@@ -8,6 +8,7 @@ import { BadgeStatusRobo } from "@/components/compartilhados/BadgeStatusRobo";
 import { RotuloComInfo } from "@/components/compartilhados/InfoIndicador";
 import { Valor } from "@/components/compartilhados/Valor";
 import { MiniCurva } from "@/components/graficos/MiniCurva";
+import { linkSimulador } from "@/components/simulador/simulador-url";
 import { Badge } from "@/components/ui/badge";
 import { formatarNumero, formatarPct } from "@/lib/formato";
 import type { StatusAoVivo } from "@/lib/stats/status-robo";
@@ -69,7 +70,8 @@ export const CardRobo = memo(function CardRobo({
   return (
     <article
       className={cn(
-        "group relative flex h-full flex-col painel vidro painel-interativo painel-eleva p-5 has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-ring/50",
+        // o anel de foco do cartão é só do link do título (o esticado); o "Simular com meu capital" tem o contorno próprio
+        "group relative flex h-full flex-col painel vidro painel-interativo painel-eleva p-5 has-[h3_a:focus-visible]:ring-2 has-[h3_a:focus-visible]:ring-ring/50",
         // os i ficam acima do ::after do link (o InfoIndicador já é relative)
         "[&_button]:z-10",
         emBreve && "opacity-80",
@@ -141,6 +143,13 @@ export const CardRobo = memo(function CardRobo({
               <RotuloComInfo chave="drawdown">DD máx.</RotuloComInfo>{" "}
               <Valor valor={-card.drawdownMaximo} inteiro colorir={false} className="text-foreground" />
             </span>
+            {/* "Simular com meu capital" (23/09/2026): o cartão é link esticado, então este link fica por
+                cima dele (relative z-10), como os i. Sem nowrap: no cartão estreito o texto quebra em duas
+                linhas em vez de estourar a largura. Sublinhado por padrão, como na aba Risco: no toque não
+                há hover para dizer que é link. Só o slug entra na URL (linkSimulador), nada de prop nova. */}
+            <Link href={linkSimulador(card.slug)} className="relative z-10 min-w-0 text-center underline underline-offset-4 hover:text-foreground">
+              Simular com meu capital
+            </Link>
             {/* o empurrãozinho da seta (2 px para cima e para a direita) é o que o cartão inteiro faz
                 em miniatura; mesma curva e mesmos 180 ms do .painel-interativo. A propriedade da
                 transição é "translate", não "transform": o translate-* do Tailwind 4 escreve na
