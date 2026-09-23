@@ -175,6 +175,16 @@ export interface ExposicaoDiaPublica {
   excursao_ea_parcial: boolean | null;
   /** quantos magics do robô contribuíram */
   n_magics: number;
+  /**
+   * true = todos os magics do robô mediram o dia já aplicando as regras públicas recebidas do servidor
+   * (EA 1.1.1, migration 0023), na versão atual da regra: hora mínima e duração mínima. false = medição do
+   * EA 1.1.0 (saldo real do magic), que só aparece em dia sem operação escondida.
+   * AINDA NÃO SELECIONADA por listarExposicaoDia (src/lib/consultas/publico.ts) nem pelo evento coleta:
+   * hoje chega sempre undefined. Incluir no select só DEPOIS de a 0023 estar aplicada em produção; antes
+   * disso o PostgREST responderia "coluna inexistente", listarExposicaoDia cairia no catch e devolveria [],
+   * e o MEP/MEN do EA sumiria do site.
+   */
+  regras_aplicadas?: boolean;
 }
 
 /** Payload do evento "coleta" (topic casa e robo:<slug>) */
