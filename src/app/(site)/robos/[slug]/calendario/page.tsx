@@ -47,6 +47,8 @@ export default async function PaginaCalendario({ params }: Props) {
       custoPorContrato={robo.custo_por_contrato}
       capitalReferencia={robo.capital_referencia}
       slug={robo.slug}
+      nomeRobo={robo.nome}
+      contaDemo={robo.conta_tipo === "demo"}
       temColetor={robo.tem_coletor}
       horario={horario}
     />

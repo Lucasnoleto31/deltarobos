@@ -7,6 +7,8 @@ import type { ChaveIndicador } from "@/components/compartilhados/glossario";
 import { RotuloComInfo } from "@/components/compartilhados/InfoIndicador";
 import { desempacotar, type OpsEmpacotadas } from "@/components/compartilhados/ops-codec";
 import { Valor } from "@/components/compartilhados/Valor";
+import { CompartilharDia } from "@/components/compartilhar/CompartilharDia";
+import { versaoDoCard } from "@/components/compartilhar/url-do-card";
 import { Heatmap } from "@/components/desempenho/Heatmap";
 import { escalaDeForca, mistura } from "@/components/graficos/base";
 import { AmostraDaLinha, CURVA_POR_OPERACAO, DesenhoDaCurva, MolduraProfit, PROFIT, type MarcadorDaCurva } from "@/components/graficos/CurvaProfit";
@@ -46,6 +48,10 @@ interface Props {
   capitalReferencia: number | null;
   /** o robô, para pedir a série do saldo do dia escolhido à rota /api/robos/[slug]/saldo/[dia] (23/09/2026) */
   slug: string;
+  /** o nome do robô, para o botão Compartilhar do detalhe do dia; 24/09/2026 */
+  nomeRobo: string;
+  /** robô em conta demo: a legenda do compartilhamento diz "Conta demo."; 24/09/2026 */
+  contaDemo: boolean;
   /** false = só histórico importado: não há série do EA a pedir */
   temColetor: boolean;
   /** o horário que dimensiona o eixo do tempo da série: o do robô, ou o do pregão do ativo */
@@ -139,7 +145,7 @@ function Fileira({
  * faixa de largura toda embaixo, e a curva do dia ocupa a diferença para as duas colunas terminarem juntas.
  * Cada número ganhou o i do "o que é"; o aviso de como o MEP e o MEN são medidos foi para dentro dele.
  */
-export function PainelCalendario({ linhas, pacote, exposicao, feriados, hoje, valorPonto, custoPorContrato, capitalReferencia, slug, temColetor, horario }: Props) {
+export function PainelCalendario({ linhas, pacote, exposicao, feriados, hoje, valorPonto, custoPorContrato, capitalReferencia, slug, nomeRobo, contaDemo, temColetor, horario }: Props) {
   const ops = useMemo(() => desempacotar(pacote), [pacote]);
   const exposicaoPorDia = useMemo(() => new Map(exposicao.map((e) => [e.dia, e])), [exposicao]);
   const idCurva = `cal-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
@@ -527,11 +533,27 @@ export function PainelCalendario({ linhas, pacote, exposicao, feriados, hoje, va
 
         {/* detalhe do dia */}
         <section ref={detalheRef} className="painel">
-          <div className="border-b px-4 py-3">
-            <h3 className="font-semibold">Detalhe do dia</h3>
-            <p className="text-xs text-muted-foreground first-letter:uppercase">
-              {diaSel ? formatarDataLonga(diaSel) : "Nenhum pregão com operação neste mês."}
-            </p>
+          <div className="flex items-start justify-between gap-3 border-b px-4 py-3">
+            <div className="min-w-0">
+              <h3 className="font-semibold">Detalhe do dia</h3>
+              <p className="text-xs text-muted-foreground first-letter:uppercase">
+                {diaSel ? formatarDataLonga(diaSel) : "Nenhum pregão com operação neste mês."}
+              </p>
+            </div>
+            {/* a imagem do dia selecionado para compartilhar (24/09/2026), só com operação: sem ela a rota
+                responde 404. A versão é o nº de operações: dia passado não muda, e o de hoje a CDN guarda 60 s */}
+            {diaSel && opsDia.length > 0 ? (
+              <CompartilharDia
+                slug={slug}
+                nomeRobo={nomeRobo}
+                dia={diaSel}
+                versao={versaoDoCard(opsDia.length)}
+                temOperacao
+                rotulo="Compartilhar"
+                className="shrink-0"
+                contaDemo={contaDemo}
+              />
+            ) : null}
           </div>
           {diaSel === null ? null : (
             <>
