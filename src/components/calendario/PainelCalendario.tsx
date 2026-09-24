@@ -10,7 +10,7 @@ import { Valor } from "@/components/compartilhados/Valor";
 import { Heatmap } from "@/components/desempenho/Heatmap";
 import { escalaDeForca, mistura } from "@/components/graficos/base";
 import { AmostraDaLinha, CURVA_POR_OPERACAO, DesenhoDaCurva, MolduraProfit, PROFIT, type MarcadorDaCurva } from "@/components/graficos/CurvaProfit";
-import { baldesDoPregao, espacarFechamentos, legendaCurtaDoSaldo, marcadoresDoSaldo, serieDoSaldoParaDesenho, seriePorOperacao } from "@/components/graficos/series-da-curva";
+import { PONTOS_LEVE, baldesDoPregao, espacarFechamentos, janelaDosDados, legendaCurtaDoSaldo, marcadoresDoSaldo, rotulosDeTempo, serieDoSaldoParaDesenho, seriePorOperacao } from "@/components/graficos/series-da-curva";
 import { Button } from "@/components/ui/button";
 import { formatarData, formatarDataLonga, formatarHora, formatarMesAno, formatarNumero, formatarPct } from "@/lib/formato";
 import { gradeMes, heatmapAnoMes, mesesComDados } from "@/lib/stats/calendario";
@@ -19,14 +19,11 @@ import { dia as diaOp, excursaoDoDia, porDiaSemana, porHora, valorOperacao } fro
 import { mesDe, somarMeses } from "@/lib/stats/periodos";
 import type { HorarioPregao } from "@/lib/stats/pregao";
 import {
-  PONTOS_SALDO,
   ehCorpoSaldoDoDia,
   fechamentosNaCurva,
   inicioDaMedicao,
-  janelaDoDia,
   liquidarSerie,
   reduzirBaldes,
-  rotulosDeHora,
 } from "@/lib/stats/saldo-dia";
 import { valorDia } from "@/lib/stats/serie";
 import type { LinhaDiaria, OpcoesSerie } from "@/lib/stats/tipos";
@@ -270,7 +267,7 @@ export function PainelCalendario({ linhas, pacote, exposicao, feriados, hoje, va
   const carregando = temColetor && diaSel !== null && saldoSel === undefined;
   const temSerie = typeof saldoSel === "object" && saldoSel.baldes.length > 0;
   // A série pronta para o desenho: bruta na rota, líquida aqui (o custo de cada operação fechada até o fim
-  // do balde), reduzida a PONTOS_SALDO grupos, com o MEP/MEN da própria série, os fechamentos marcados na
+  // do balde), reduzida a PONTOS_LEVE grupos, com o MEP/MEN da própria série, os fechamentos marcados na
   // linha e o eixo do tempo no horário do robô, esticado pelos dados do dia
   const serieDoDia = useMemo(() => {
     if (!diaSel || typeof saldoSel !== "object" || saldoSel.baldes.length === 0) return null;
@@ -279,12 +276,13 @@ export function PainelCalendario({ linhas, pacote, exposicao, feriados, hoje, va
     // (24/09/2026, ver baldesDoPregao em series-da-curva)
     const baldes = baldesDoPregao(saldoSel.baldes, diaSel, horario, fechamentos);
     const liquida = liquidarSerie(baldes, fechamentos, bucketSeg, { base: opcoes.base, unidade: opcoes.unidade, valorPonto });
-    const janela = janelaDoDia(diaSel, horario, baldes, bucketSeg, fechamentos);
+    // eixo pelos dados e linha limpa, como no Hoje ao vivo (24/09/2026, "estilo do profit"; ver CurvaDoDia)
+    const janela = janelaDosDados(baldes, fechamentos, bucketSeg);
     return {
-      pontos: serieDoSaldoParaDesenho(reduzirBaldes(liquida, PONTOS_SALDO), { janela, unidade: opcoes.unidade, bucketSeg, comFaixa: !aproximado }),
+      pontos: serieDoSaldoParaDesenho(reduzirBaldes(liquida, PONTOS_LEVE), { janela, unidade: opcoes.unidade, bucketSeg, comFaixa: false }),
       marcadores: marcadoresDoSaldo(liquida, janela),
       fechamentos: espacarFechamentos(fechamentosNaCurva(fechamentos, liquida, janela)),
-      rotulosX: rotulosDeHora(janela),
+      rotulosX: rotulosDeTempo(janela),
       // "desde HH:MM" também quando o primeiro balde vem bem depois do início do eixo, sem saída antes
       legenda: `${legendaCurtaDoSaldo({ bucketSeg, aproximado, medidoDesdeT: inicioDaMedicao(liquida, fechamentos, janela.inicio) })} · 1 contrato, líquido`,
     };

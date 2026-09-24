@@ -20,6 +20,7 @@ import { curvaPorOperacao, hora as horaDaOperacao, mae, mfe, temExcursao, valorO
 import type { HorarioPregao } from "@/lib/stats/pregao";
 import {
   dentesPorOperacao,
+  OFFSET_BRASILIA_SEG,
   envelopeDeDentes,
   epochBrasilia,
   mepMenDaSerie,
@@ -444,8 +445,10 @@ export function serieDoSaldoParaDesenho(baldes: readonly BaldeReduzido[], opcoes
 // 24/09/2026 (Artur, com print do dia 23: "esse gráfico está estranho"): o coletor continua mandando o saldo
 // depois do fechamento, até a meia-noite, e janelaDoDia estica o eixo até o último balde — o pregão ficava
 // espremido em 40% da largura, o resto era linha reta e o cursor nascia em 23:59:25. Os 68 pontos brancos de
-// fechamento viravam uma mancha em cima da linha, e a legenda dava duas linhas. As três funções abaixo valem
-// para o Hoje ao vivo, a tela cheia e o calendário, que montam a mesma curva.
+// fechamento viravam uma mancha em cima da linha, e a legenda dava duas linhas. Mais tarde no mesmo dia ("o gráfico
+// ainda está horrível" → "estilo do profit"): o eixo passou a ir do primeiro dado ao último (janelaDosDados), com
+// rótulos no passo que cabe (rotulosDeTempo). As funções abaixo valem para o Hoje ao vivo, a tela cheia e o
+// calendário, que montam a mesma curva.
 
 /** folga do eixo antes do horário do robô e depois da última saída: dez minutos */
 export const FOLGA_DO_EIXO_SEG = 10 * 60;
@@ -493,6 +496,43 @@ export function legendaCurtaDoSaldo(o: { bucketSeg: number; aproximado: boolean;
     ...(o.aproximado ? ["aproximado"] : []),
     ...(o.medidoDesdeT !== null ? [`desde ${formatarHora(new Date(o.medidoDesdeT * 1000))}`] : []),
   ].join(" · ");
+}
+
+/**
+ * A janela do eixo pelo que há de dado: do primeiro balde ou fechamento ao último, com a folga de cada lado.
+ * No dia em curso o eixo termina dez minutos depois do último balde e cresce com o dia; no dia fechado vai
+ * até o fim do horário do robô (baldesDoPregao já cortou o que veio depois).
+ */
+export function janelaDosDados(
+  baldes: ReadonlyArray<readonly [number, ...unknown[]]>,
+  fechamentos: ReadonlyArray<readonly [number, ...unknown[]]>,
+  bucketSeg: number,
+): { inicio: number; fim: number } {
+  let inicio = Number.POSITIVE_INFINITY;
+  let fim = Number.NEGATIVE_INFINITY;
+  for (const b of baldes) {
+    if (b[0] < inicio) inicio = b[0];
+    if (b[0] + bucketSeg > fim) fim = b[0] + bucketSeg;
+  }
+  for (const f of fechamentos) {
+    if (f[0] < inicio) inicio = f[0];
+    if (f[0] > fim) fim = f[0];
+  }
+  if (!Number.isFinite(inicio) || !(fim > inicio)) return { inicio: 0, fim: Math.max(1, bucketSeg) };
+  return { inicio: inicio - FOLGA_DO_EIXO_SEG, fim: fim + FOLGA_DO_EIXO_SEG };
+}
+
+/** Rótulos do eixo de baixo com o passo que cabe na janela: 15 min até 2 h, 30 min até 4 h, hora cheia acima disso. */
+export function rotulosDeTempo(janela: { inicio: number; fim: number }): Array<{ x: number; rotulo: string }> {
+  const largura = janela.fim - janela.inicio;
+  if (!(largura > 0)) return [];
+  const passo = largura <= 2 * 3600 ? 900 : largura <= 4 * 3600 ? 1800 : 3600;
+  const primeiro = Math.ceil((janela.inicio + OFFSET_BRASILIA_SEG) / passo) * passo - OFFSET_BRASILIA_SEG;
+  const saida: Array<{ x: number; rotulo: string }> = [];
+  for (let t = primeiro; t <= janela.fim && saida.length < 100; t += passo) {
+    saida.push({ x: ((t - janela.inicio) / largura) * 100, rotulo: formatarHora(new Date(t * 1000)) });
+  }
+  return saida;
 }
 
 /** MEP/MEN da própria série (mepMenDaSerie) como marcadores: { posicao: posicaoNaJanela(t), valor, rotulo: "MEP"|"MEN", tom }; só os que passam de zero. */

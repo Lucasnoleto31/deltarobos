@@ -10,20 +10,17 @@ import {
   type MarcadorDaCurva,
   type PontoDoDesenho,
 } from "@/components/graficos/CurvaProfit";
-import { PONTOS_LEVE, baldesDoPregao, espacarFechamentos, fatiar, legendaCurtaDoSaldo, marcadoresDoSaldo, serieDoSaldoParaDesenho } from "@/components/graficos/series-da-curva";
+import { PONTOS_LEVE, baldesDoPregao, espacarFechamentos, fatiar, janelaDosDados, legendaCurtaDoSaldo, marcadoresDoSaldo, rotulosDeTempo, serieDoSaldoParaDesenho } from "@/components/graficos/series-da-curva";
 import { formatarBRL, formatarDuracao, formatarHora, formatarMfeMae, formatarNumero, formatarPontos, formatarPreco, rotuloLado } from "@/lib/formato";
 import type { HorarioPregao } from "@/lib/stats/pregao";
 import {
-  PONTOS_SALDO,
   dentesPorOperacao,
   envelopeDeDentes,
   fechamentosDasOperacoes,
   fechamentosNaCurva,
   inicioDaMedicao,
-  janelaDoDia,
   liquidarSerie,
   reduzirBaldes,
-  rotulosDeHora,
   type SaldoHoje,
 } from "@/lib/stats/saldo-dia";
 import type { OperacaoPublica } from "@/lib/tipos";
@@ -104,16 +101,21 @@ export const CurvaDoDia = memo(function CurvaDoDia({
     const fechamentos = fechamentosDasOperacoes(operacoes);
     // só os baldes do pregão: o eixo não estica até a meia-noite (24/09/2026, ver baldesDoPregao)
     const baldes = baldesDoPregao(saldo.baldes, dia, horario, fechamentos);
-    const janela = janelaDoDia(dia, horario, baldes, bucketSeg, fechamentos);
+    // Estilo do Profit (24/09/2026, Artur com o print de hoje: "o gráfico ainda está horrível" → "estilo do
+    // profit", escolhido entre quatro saídas na tela real): o eixo vai do primeiro dado até o último balde e cresce
+    // com o dia, em vez de reservar o horário inteiro do robô (a manhã ficava espremida em 1/6 da largura); a
+    // linha é a de PONTOS_LEVE grupos, um a cada ~2 px, sem a faixa mín./máx. de cada balde, que a 5 s virava
+    // serrilhado. O MEP/MEN da série e os fechamentos continuam vindo da série inteira (liquida).
+    const janela = janelaDosDados(baldes, fechamentos, bucketSeg);
     const liquida = liquidarSerie(baldes, fechamentos, bucketSeg, { base: "liquido", unidade: "brl", valorPonto: valorPonto ?? 1 });
-    const pontos = serieDoSaldoParaDesenho(reduzirBaldes(liquida, PONTOS_SALDO), { janela, unidade: "brl", bucketSeg, comFaixa: !aproximado });
+    const pontos = serieDoSaldoParaDesenho(reduzirBaldes(liquida, PONTOS_LEVE), { janela, unidade: "brl", bucketSeg, comFaixa: false });
     const medidoDesdeT = inicioDaMedicao(liquida, fechamentos, janela.inicio);
     return {
       pontos,
       // o MEP/MEN da própria série: o pico e o vale dos baldes, que batem com exposicao_dia
       marcadores: marcadoresDoSaldo(liquida, janela),
       fechamentos: espacarFechamentos(fechamentosNaCurva(fechamentos, liquida, janela)),
-      rotulosX: rotulosDeHora(janela),
+      rotulosX: rotulosDeTempo(janela),
       legenda: legendaCurtaDoSaldo({ bucketSeg, aproximado, medidoDesdeT }),
     };
   }, [saldo, operacoes, dia, horario, valorPonto]);
