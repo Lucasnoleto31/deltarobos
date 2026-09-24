@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   agoraSP,
   diffDias,
+  ehDia,
   filtrarPeriodo,
   hojeSP,
   inicioPeriodo,
@@ -23,6 +24,19 @@ describe("hojeSP / agoraSP", () => {
     expect(a.dia).toBe("2026-09-12");
     expect(a.hhmm).toBe("00:00");
     expect(a.diaSemana).toBe(6); // sábado
+  });
+});
+
+describe("ehDia", () => {
+  it("aceita só YYYY-MM-DD de um dia que existe", () => {
+    expect(ehDia("2026-09-24")).toBe(true);
+    expect(ehDia("2028-02-29")).toBe(true); // bissexto
+    expect(ehDia("2026-02-30")).toBe(false);
+    expect(ehDia("2026-04-31")).toBe(false);
+    expect(ehDia("2026-02-29")).toBe(false);
+    expect(ehDia("2026-13-01")).toBe(false);
+    expect(ehDia("2026-9-1")).toBe(false);
+    expect(ehDia(null)).toBe(false);
   });
 });
 

@@ -22,8 +22,15 @@ export interface Intervalo {
 
 const RE_DIA = /^\d{4}-\d{2}-\d{2}$/;
 
+/**
+ * YYYY-MM-DD de um dia que existe no calendário. A volta pelo toISOString (24/09/2026) recusa "2026-02-30" e
+ * "2026-04-31": o Date do V8 aceita e rola para março/maio, e o Postgres recusa o valor (22008), o que nas rotas
+ * com lancarErro virava 503 "tente de novo" em vez de 400.
+ */
 export function ehDia(v: unknown): v is string {
-  return typeof v === "string" && RE_DIA.test(v) && !Number.isNaN(new Date(`${v}T00:00:00Z`).getTime());
+  if (typeof v !== "string" || !RE_DIA.test(v)) return false;
+  const t = new Date(`${v}T00:00:00Z`);
+  return !Number.isNaN(t.getTime()) && t.toISOString().slice(0, 10) === v;
 }
 
 /** Intervalo efetivo de um período (ou do personalizado), limitado a hoje. */

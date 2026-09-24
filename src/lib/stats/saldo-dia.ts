@@ -11,7 +11,7 @@
 // curvas por operação, o estado inicial do "Hoje ao vivo" e a legenda. Sem React, sem banco e sem relógio: o
 // instante sempre chega por parâmetro (os testes fixam as datas).
 
-import { formatarHora } from "@/lib/formato";
+import { formatarHora, formatarNumero } from "@/lib/formato";
 import type { BaldeCompacto, EventoSaldo, FechamentoCompacto, SaldoDiaPublico, SaldoDoDia } from "@/lib/tipos";
 import { brlParaPontos } from "./normalizacao";
 import type { HorarioPregao } from "./pregao";
@@ -492,4 +492,48 @@ export function legendaDoSaldo(o: { bucketSeg: number; aproximado: boolean; comF
   if (o.comFechamentos) texto += " · fechamentos marcados";
   if (o.medidoDesdeT !== null) texto += ` · medido a partir de ${formatarHora(new Date(o.medidoDesdeT * 1000))}`;
   return texto;
+}
+
+// ── a série do saldo do dia no desenho ─────────────────────────────────────────
+// 24/09/2026 (Artur, com print do dia 23: "esse gráfico está estranho"): o coletor continua mandando o saldo
+// depois do fechamento, até a meia-noite, e janelaDoDia estica o eixo até o último balde — o pregão ficava
+// espremido em 40% da largura, o resto era linha reta e o cursor nascia em 23:59:25. Os 68 pontos brancos de
+// fechamento viravam uma mancha em cima da linha, e a legenda dava duas linhas. As funções abaixo valem para o
+// Hoje ao vivo, a tela cheia e o calendário, que montam a mesma curva.
+// Movidas de series-da-curva em 24/09/2026: a imagem do dia (card-do-dia) monta a mesma curva sem importar
+// componente (nenhum arquivo de src/lib importa de src/components). series-da-curva reexporta os três nomes.
+
+/** folga do eixo antes do horário do robô e depois da última saída: dez minutos */
+export const FOLGA_DO_EIXO_SEG = 10 * 60;
+
+/**
+ * Os baldes que entram no desenho: do início do horário do robô (menos a folga) até o maior entre o fim do
+ * horário e o último fechamento do dia (mais a folga). O que o coletor manda depois disso, com o saldo parado,
+ * fica de fora; nada de saldo se perde, porque depois da última saída ele não muda. Se o filtro não deixar
+ * nenhum balde (horário cadastrado errado), vai tudo.
+ */
+export function baldesDoPregao<B extends readonly [number, ...unknown[]]>(
+  baldes: readonly B[],
+  dia: string,
+  horario: HorarioPregao,
+  fechamentos: ReadonlyArray<readonly [number, ...unknown[]]>,
+): readonly B[] {
+  const hIni = epochBrasilia(dia, horario.inicio);
+  const hFim = epochBrasilia(dia, horario.fim);
+  if (!Number.isFinite(hIni) || !Number.isFinite(hFim)) return baldes;
+  let ultimaSaida = Number.NEGATIVE_INFINITY;
+  for (const f of fechamentos) if (f[0] > ultimaSaida) ultimaSaida = f[0];
+  const de = hIni - FOLGA_DO_EIXO_SEG;
+  const ate = Math.max(hFim, ultimaSaida) + FOLGA_DO_EIXO_SEG;
+  const uteis = baldes.filter((b) => b[0] >= de && b[0] <= ate);
+  return uteis.length > 0 ? uteis : baldes;
+}
+
+/** A legenda curta da série ("a cada 5 s · desde 11:42"): o título já diz "medido no MT5", e a longa dava duas linhas. */
+export function legendaCurtaDoSaldo(o: { bucketSeg: number; aproximado: boolean; medidoDesdeT: number | null }): string {
+  return [
+    `a cada ${formatarNumero(o.bucketSeg)} s`,
+    ...(o.aproximado ? ["aproximado"] : []),
+    ...(o.medidoDesdeT !== null ? [`desde ${formatarHora(new Date(o.medidoDesdeT * 1000))}`] : []),
+  ].join(" · ");
 }

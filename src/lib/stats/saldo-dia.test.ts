@@ -3,12 +3,14 @@ import { formatarHora } from "@/lib/formato";
 import type { BaldeCompacto, EventoSaldo, FechamentoCompacto, SaldoDoDia } from "@/lib/tipos";
 import {
   BUCKET_SEG_PADRAO,
+  FOLGA_DO_EIXO_SEG,
   OFFSET_BRASILIA_SEG,
   PONTOS_SALDO,
   SALDO_HOJE_VAZIO,
   TOLERANCIA_INICIO_SEG,
   baldeDaLinha,
   baldesDoEvento,
+  baldesDoPregao,
   dentesPorOperacao,
   ehCorpoSaldoDoDia,
   envelopeDeDentes,
@@ -20,6 +22,7 @@ import {
   inferirBucketSeg,
   inicioDaMedicao,
   janelaDoDia,
+  legendaCurtaDoSaldo,
   legendaDoSaldo,
   liquidarSerie,
   mepMenDaSerie,
@@ -479,5 +482,50 @@ describe("estado inicial, forma do corpo da rota e legenda", () => {
     ]) {
       expect(variante).not.toMatch(/balde/i);
     }
+  });
+});
+
+// baldesDoPregao e legendaCurtaDoSaldo vieram de series-da-curva em 24/09/2026 (a imagem do dia usa as duas) e
+// ganharam teste aqui: até então não tinham nenhum
+describe("recorte ao pregão e legenda curta", () => {
+  const horario = { inicio: "09:05", fim: "17:30" };
+  /** um balde a cada minuto de `de` a `ate` (Brasília) */
+  const porMinuto = (de: string, ate: string) => {
+    const lista: BaldeCompacto[] = [];
+    for (let t = epochBrasilia(DIA, de); t <= epochBrasilia(DIA, ate); t += 60) lista.push(b(t, 0, 0, 0));
+    return lista;
+  };
+
+  it("baldesDoPregao corta antes do início − 10 min e depois do maior entre o fim e a última saída + 10 min", () => {
+    expect(FOLGA_DO_EIXO_SEG).toBe(600);
+    const baldes = congelar(porMinuto("08:00", "23:59"));
+    // última saída antes do fim do horário: vale o fim (17:30) + 10 min
+    const cedo = baldesDoPregao(baldes, DIA, horario, [[epochBrasilia(DIA, "16:00"), 0.25]]);
+    expect(cedo[0][0]).toBe(epochBrasilia(DIA, "08:55"));
+    expect(cedo[cedo.length - 1][0]).toBe(epochBrasilia(DIA, "17:40"));
+    // última saída depois do fim do horário (o Apollo fechou às 18:00 em 23/09/2026): vale a saída + 10 min
+    const tarde = baldesDoPregao(baldes, DIA, horario, [
+      [epochBrasilia(DIA, "10:00"), 0.25],
+      [epochBrasilia(DIA, "18:00"), 0.25],
+    ]);
+    expect(tarde[tarde.length - 1][0]).toBe(epochBrasilia(DIA, "18:10"));
+    // sem saída nenhuma, só o horário
+    const semSaida = baldesDoPregao(baldes, DIA, horario, []);
+    expect(semSaida[semSaida.length - 1][0]).toBe(epochBrasilia(DIA, "17:40"));
+  });
+
+  it("baldesDoPregao devolve tudo quando o corte não deixa nada, ou quando o horário é ilegível", () => {
+    const soDeNoite = congelar(porMinuto("20:00", "21:00"));
+    expect(baldesDoPregao(soDeNoite, DIA, horario, [])).toBe(soDeNoite);
+    const baldes = congelar(porMinuto("08:00", "23:59"));
+    expect(baldesDoPregao(baldes, DIA, { inicio: "9h", fim: "17:30" }, [])).toBe(baldes);
+    expect(baldesDoPregao(baldes, "23/09/2026", horario, [])).toBe(baldes);
+  });
+
+  it("legendaCurtaDoSaldo: o intervalo, o aviso de aproximação e o 'desde'", () => {
+    expect(legendaCurtaDoSaldo({ bucketSeg: 5, aproximado: false, medidoDesdeT: null })).toBe("a cada 5 s");
+    expect(legendaCurtaDoSaldo({ bucketSeg: 5, aproximado: true, medidoDesdeT: null })).toBe("a cada 5 s · aproximado");
+    expect(legendaCurtaDoSaldo({ bucketSeg: 5, aproximado: false, medidoDesdeT: epochBrasilia(DIA, "11:42") })).toBe("a cada 5 s · desde 11:42");
+    expect(legendaCurtaDoSaldo({ bucketSeg: 5, aproximado: true, medidoDesdeT: epochBrasilia(DIA, "11:42") })).toBe("a cada 5 s · aproximado · desde 11:42");
   });
 });
