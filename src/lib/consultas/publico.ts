@@ -105,6 +105,8 @@ export async function listarEstatisticas(slug?: string, { de = null, lancarErro 
 export interface OpcoesExposicao {
   /** só o dia pedido (YYYY-MM-DD): o layout do robô quer o de hoje para o painel "Hoje ao vivo" */
   dia?: string | null;
+  /** deixa o erro do banco subir (a imagem do dia, em cache, precisa distinguir; 24/09/2026) */
+  lancarErro?: boolean;
 }
 
 /** As colunas de exposicao_dia_publico que o site lê: sem robo_id nem n_magics, que nenhum painel mostra. */
@@ -119,7 +121,7 @@ export type ExposicaoDia = Pick<
  * inteira ao navegador. Pagina de 1.000 em 1.000 como listarEstatisticas; view ausente (migration 0021
  * ainda não aplicada) ou qualquer erro vira lista vazia, e aí o site fica no cálculo por fechamento.
  */
-export async function listarExposicaoDia(slug: string, { dia = null }: OpcoesExposicao = {}): Promise<ExposicaoDia[]> {
+export async function listarExposicaoDia(slug: string, { dia = null, lancarErro = false }: OpcoesExposicao = {}): Promise<ExposicaoDia[]> {
   try {
     const sb = supabasePublico();
     const passo = 1000;
@@ -136,6 +138,7 @@ export async function listarExposicaoDia(slug: string, { dia = null }: OpcoesExp
     }
     return linhas;
   } catch (e) {
+    if (lancarErro) throw e;
     avisar("listarExposicaoDia", e);
     return [];
   }
@@ -153,7 +156,11 @@ export async function listarOperacoesDoDia(slug: string, dia: string, { lancarEr
       .select("*")
       .eq("slug", slug)
       .eq("dia_pregao", dia)
-      .order("fechamento_em", { ascending: true });
+      .order("fechamento_em", { ascending: true })
+      // desempate pelo id, a ordem do calendário (listarOperacoesCompactas): com operações no mesmo instante
+      // (importação manual, tudo às 00:00) a ordem ficava indefinida, e a curva e o MEP/MEN por fechamento da
+      // imagem do dia podiam mudar de um render para outro (24/09/2026)
+      .order("id", { ascending: true });
     if (error) throw error;
     return (data ?? []) as OperacaoPublica[];
   } catch (e) {
@@ -283,7 +290,11 @@ export async function listarPosicoes(slug?: string): Promise<PosicaoPublica[]> {
   }
 }
 
-export async function listarMercado(): Promise<MercadoPublico[]> {
+/**
+ * Os ativos com cotação e horário de pregão. Com `lancarErro` a falha do banco sobe (a imagem do dia, em cache,
+ * responde 503 em vez de guardar uma imagem com o pregão padrão; 24/09/2026).
+ */
+export async function listarMercado({ lancarErro = false }: { lancarErro?: boolean } = {}): Promise<MercadoPublico[]> {
   try {
     const { data, error } = await supabasePublico()
       .from("mercado_publico")
@@ -292,6 +303,7 @@ export async function listarMercado(): Promise<MercadoPublico[]> {
     if (error) throw error;
     return (data ?? []) as MercadoPublico[];
   } catch (e) {
+    if (lancarErro) throw e;
     avisar("listarMercado", e);
     return [];
   }

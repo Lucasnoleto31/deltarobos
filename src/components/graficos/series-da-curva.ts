@@ -17,12 +17,11 @@
 
 import { formatarBRL, formatarData, formatarDataCurta, formatarHora, formatarHoraSeg, formatarMfeMae, formatarNumero, formatarPct, formatarPontos } from "@/lib/formato";
 import { curvaPorOperacao, hora as horaDaOperacao, mae, mfe, temExcursao, valorOperacao, type OperacaoCompacta } from "@/lib/stats/operacoes";
-import type { HorarioPregao } from "@/lib/stats/pregao";
 import {
   dentesPorOperacao,
+  FOLGA_DO_EIXO_SEG,
   OFFSET_BRASILIA_SEG,
   envelopeDeDentes,
-  epochBrasilia,
   mepMenDaSerie,
   posicaoNaJanela,
   type BaldeQualquer,
@@ -442,47 +441,28 @@ export function serieDoSaldoParaDesenho(baldes: readonly BaldeReduzido[], opcoes
 }
 
 // ── a série do saldo do dia no desenho ─────────────────────────────────────────
-// 24/09/2026 (Artur, com print do dia 23: "esse gráfico está estranho"): o coletor continua mandando o saldo
-// depois do fechamento, até a meia-noite, e janelaDoDia estica o eixo até o último balde — o pregão ficava
-// espremido em 40% da largura, o resto era linha reta e o cursor nascia em 23:59:25, e a legenda dava duas linhas. Mais tarde no mesmo dia ("o gráfico
-// ainda está horrível" → "estilo do profit"): o eixo passou a ir do primeiro dado ao último (janelaDosDados), com
-// rótulos no passo que cabe (rotulosDeTempo). As funções abaixo valem para o Hoje ao vivo, a tela cheia e o
-// calendário, que montam a mesma curva.
+// 24/09/2026 (Artur, com print do dia 23: "esse gráfico está estranho"): o recorte da série ao pregão
+// (baldesDoPregao, FOLGA_DO_EIXO_SEG) e a legenda curta (legendaCurtaDoSaldo) moram em src/lib/stats/saldo-dia
+// desde 24/09/2026, porque a imagem do dia (card-do-dia) monta a mesma curva e a lib não importa componente.
+// A reexportação mantém quem já importa daqui (CurvaDoDia, PainelCalendario) como está.
+export { FOLGA_DO_EIXO_SEG, baldesDoPregao, legendaCurtaDoSaldo } from "@/lib/stats/saldo-dia";
 
-/** folga do eixo antes do horário do robô e depois da última saída: dez minutos */
-export const FOLGA_DO_EIXO_SEG = 10 * 60;
-
-/**
- * Os baldes que entram no desenho: do início do horário do robô (menos a folga) até o maior entre o fim do
- * horário e o último fechamento do dia (mais a folga). O que o coletor manda depois disso, com o saldo parado,
- * fica de fora; nada de saldo se perde, porque depois da última saída ele não muda. Se o filtro não deixar
- * nenhum balde (horário cadastrado errado), vai tudo.
- */
-export function baldesDoPregao<B extends readonly [number, ...unknown[]]>(
-  baldes: readonly B[],
-  dia: string,
-  horario: HorarioPregao,
-  fechamentos: ReadonlyArray<readonly [number, ...unknown[]]>,
-): readonly B[] {
-  const hIni = epochBrasilia(dia, horario.inicio);
-  const hFim = epochBrasilia(dia, horario.fim);
-  if (!Number.isFinite(hIni) || !Number.isFinite(hFim)) return baldes;
-  let ultimaSaida = Number.NEGATIVE_INFINITY;
-  for (const f of fechamentos) if (f[0] > ultimaSaida) ultimaSaida = f[0];
-  const de = hIni - FOLGA_DO_EIXO_SEG;
-  const ate = Math.max(hFim, ultimaSaida) + FOLGA_DO_EIXO_SEG;
-  const uteis = baldes.filter((b) => b[0] >= de && b[0] <= ate);
-  return uteis.length > 0 ? uteis : baldes;
+/** Um marcador de fechamento a cada `minimo` da largura (0..1, padrão 0,6% ≈ 6 px): o primeiro fica, o próximo só se já andou o bastante. Os outros seguem na lista e na mira. */
+export function espacarFechamentos<F extends { posicao: number }>(lista: readonly F[], minimo = 0.006): F[] {
+  const ordenados = [...lista].sort((a, b) => a.posicao - b.posicao);
+  const saida: F[] = [];
+  let ultimo = Number.NEGATIVE_INFINITY;
+  for (const f of ordenados) {
+    if (f.posicao - ultimo < minimo) continue;
+    saida.push(f);
+    ultimo = f.posicao;
+  }
+  return saida;
 }
 
-/** A legenda curta da série ("a cada 5 s · desde 11:42"): o título já diz "medido no MT5", e a longa dava duas linhas. */
-export function legendaCurtaDoSaldo(o: { bucketSeg: number; aproximado: boolean; medidoDesdeT: number | null }): string {
-  return [
-    `a cada ${formatarNumero(o.bucketSeg)} s`,
-    ...(o.aproximado ? ["aproximado"] : []),
-    ...(o.medidoDesdeT !== null ? [`desde ${formatarHora(new Date(o.medidoDesdeT * 1000))}`] : []),
-  ].join(" · ");
-}
+// Mais tarde em 24/09/2026 (Artur: "o gráfico ainda está horrível" → "estilo do profit"): o eixo da curva do dia
+// passou a ir do primeiro dado ao último (janelaDosDados), com rótulos no passo que cabe (rotulosDeTempo). Valem
+// para o Hoje ao vivo, a tela cheia e o calendário, que montam a mesma curva.
 
 /**
  * A janela do eixo pelo que há de dado: do primeiro balde ou fechamento ao último, com a folga de cada lado.

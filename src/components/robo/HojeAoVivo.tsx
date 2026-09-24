@@ -4,7 +4,10 @@ import { useMemo, useState } from "react";
 import { HaQuanto } from "@/components/compartilhados/HaQuanto";
 import { RotuloComInfo } from "@/components/compartilhados/InfoIndicador";
 import { Valor } from "@/components/compartilhados/Valor";
+import { CompartilharDia } from "@/components/compartilhar/CompartilharDia";
+import { versaoDoDiaAoVivo } from "@/components/compartilhar/regras-do-compartilhar";
 import { formatarHora, formatarNumero, formatarPreco, rotuloLado } from "@/lib/formato";
+import { fimDoDia } from "@/lib/stats/card-do-dia";
 import { mepMenDoDia } from "@/lib/stats/exposicao";
 import { brlParaPontos } from "@/lib/stats/normalizacao";
 import { horarioDaJanela } from "@/lib/stats/saldo-dia";
@@ -57,6 +60,10 @@ export function HojeAoVivo() {
   // ou o do pregão do ativo; memoizado porque a CurvaDoDia é memo e compara por referência
   const horario = useMemo(() => horarioDaJanela(robo, pregao), [robo, pregao]);
   const temSerie = estado.saldoHoje.carregado && estado.saldoHoje.baldes.length > 0;
+  // a versão da imagem do dia (24/09/2026): nº de operações e o minuto do último dado (última saída ou último
+  // balde da série). Muda com o dia, para a prévia de hoje não vir velha da CDN; o diálogo a congela ao abrir.
+  // O balde conta só até o fim do dia do robô mais a folga: depois disso a imagem não muda (revisão de 24/09/2026)
+  const versao = versaoDoDiaAoVivo(ops, estado.saldoHoje.baldes, { dia: hoje, fim: fimDoDia(horario, pregao) });
 
   // a mais recente em cima; as novas entram no topo mesmo com a lista recolhida
   const recentes = [...ops].reverse();
@@ -87,6 +94,20 @@ export function HojeAoVivo() {
             <p className="mt-1 text-xs text-muted-foreground">
               Por contrato, líquido de custos (bruto <Valor valor={bruto} colorir={false} className="text-muted-foreground" />).
             </p>
+            {/* a imagem do dia para a live, o WhatsApp e o Instagram (24/09/2026): só com operação, porque sem ela
+                não há imagem (a rota responde 404) */}
+            {ops.length > 0 ? (
+              <div className="mt-3">
+                <CompartilharDia
+                  slug={robo.slug}
+                  nomeRobo={robo.nome}
+                  dia={hoje}
+                  versao={versao}
+                  temOperacao
+                  contaDemo={robo.conta_tipo === "demo"}
+                />
+              </div>
+            ) : null}
           </div>
 
           {mepMen ? (
@@ -195,6 +216,7 @@ export function HojeAoVivo() {
               horario={horario}
               valorPonto={robo.valor_ponto_brl}
               altura={200}
+              coletorAtrasado={estado.exposicaoHoje?.excursao_ea_parcial === true}
             />
           )}
         </div>

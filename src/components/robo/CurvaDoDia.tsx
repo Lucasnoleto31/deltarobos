@@ -48,6 +48,11 @@ interface Props {
    * "por contrato, líquido de custos" já está escrito debaixo do número grande nas duas telas).
    */
   legenda?: string;
+  /**
+   * O EA marcou o dia como parcial (excursao_ea_parcial: subiu com o dia em andamento). Só aí a legenda diz "desde HH:MM"
+   * quando a série começa depois do início do horário (24/09/2026: sem isso, todo dia dizia "desde" a 1ª entrada).
+   */
+  coletorAtrasado?: boolean;
 }
 
 const reais = (v: number) => formatarBRL(v, { sinal: true });
@@ -83,6 +88,7 @@ export const CurvaDoDia = memo(function CurvaDoDia({
   titulo = "Resultado do dia, operação a operação",
   tituloSerie = "Resultado do dia, medido no MT5",
   legenda = "1 contrato, líquido de custos",
+  coletorAtrasado = false,
 }: Props) {
   const id = `dia-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
 
@@ -106,13 +112,13 @@ export const CurvaDoDia = memo(function CurvaDoDia({
     const janela = janelaDosDados(baldes, fechamentos, bucketSeg);
     const liquida = liquidarSerie(baldes, fechamentos, bucketSeg, { base: "liquido", unidade: "brl", valorPonto: valorPonto ?? 1 });
     const pontos = serieDoSaldoParaDesenho(reduzirBaldes(liquida, PONTOS_LEVE), { janela, unidade: "brl", bucketSeg, comFaixa: false });
-    const medidoDesdeT = inicioDaMedicao(liquida, fechamentos, janela.inicio);
+    const medidoDesdeT = inicioDaMedicao(liquida, fechamentos, janela.inicio, coletorAtrasado);
     return {
       pontos,
       rotulosX: rotulosDeTempo(janela),
       legenda: legendaCurtaDoSaldo({ bucketSeg, aproximado, medidoDesdeT }),
     };
-  }, [saldo, operacoes, dia, horario, valorPonto]);
+  }, [saldo, operacoes, dia, horario, valorPonto, coletorAtrasado]);
 
   const porFechamento = useMemo(() => {
     // com a série na tela a curva por fechamento não é montada: seria trabalho jogado fora a cada balde

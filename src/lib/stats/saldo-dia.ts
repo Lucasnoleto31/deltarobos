@@ -11,7 +11,7 @@
 // curvas por operação, o estado inicial do "Hoje ao vivo" e a legenda. Sem React, sem banco e sem relógio: o
 // instante sempre chega por parâmetro (os testes fixam as datas).
 
-import { formatarHora } from "@/lib/formato";
+import { formatarHora, formatarNumero } from "@/lib/formato";
 import type { BaldeCompacto, EventoSaldo, FechamentoCompacto, SaldoDiaPublico, SaldoDoDia } from "@/lib/tipos";
 import { brlParaPontos } from "./normalizacao";
 import type { HorarioPregao } from "./pregao";
@@ -348,19 +348,27 @@ export function fechamentosNaCurva(
 export const TOLERANCIA_INICIO_SEG = 60;
 
 /**
- * t do primeiro balde quando ele vem DEPOIS do primeiro fechamento do dia, ou mais de TOLERANCIA_INICIO_SEG depois
- * do início da janela (`janelaInicio`, o horário do robô ou do pregão): nos dois casos o coletor subiu com o dia em
- * andamento e a curva começa no meio do eixo. Senão null. O segundo caso é da revisão de 23/09/2026: sem fechamento
- * anterior a nota não aparecia, e um traçado que começa às 11:30 ficava sem explicação (hoje, o primeiro dia da 1.1.2,
- * e em todo reinício do coletor).
+ * t do primeiro balde quando ele vem DEPOIS do primeiro fechamento do dia, ou, com `coletorAtrasado`, mais de
+ * TOLERANCIA_INICIO_SEG depois do início da janela (`janelaInicio`, o horário do robô ou do pregão): nos dois casos o
+ * coletor subiu com o dia em andamento e a curva começa no meio do eixo. Senão null.
+ *
+ * `coletorAtrasado` é a marca `excursao_ea_parcial` que o próprio EA grava quando sobe com o dia já em andamento
+ * (24/09/2026). Antes a regra da janela valia sozinha e disparava TODO dia: o EA só começa a série quando a primeira
+ * posição do magic abre (antes disso o saldo do dia é zero por definição), então o primeiro balde sempre vinha depois
+ * do início do horário, e a curva e a imagem do dia diziam "desde 12:12" como se o coletor tivesse ligado tarde.
  */
-export function inicioDaMedicao(baldes: ReadonlyArray<BaldeQualquer>, fechamentos: readonly FechamentoCompacto[], janelaInicio?: number): number | null {
+export function inicioDaMedicao(
+  baldes: ReadonlyArray<BaldeQualquer>,
+  fechamentos: readonly FechamentoCompacto[],
+  janelaInicio?: number,
+  coletorAtrasado = false,
+): number | null {
   if (baldes.length === 0) return null;
   const t0 = baldes[0][0];
   let primeiroFechamento = Number.POSITIVE_INFINITY;
   for (const f of fechamentos) if (f[0] < primeiroFechamento) primeiroFechamento = f[0];
   if (t0 > primeiroFechamento) return t0;
-  if (janelaInicio !== undefined && Number.isFinite(janelaInicio) && t0 > janelaInicio + TOLERANCIA_INICIO_SEG) return t0;
+  if (coletorAtrasado && janelaInicio !== undefined && Number.isFinite(janelaInicio) && t0 > janelaInicio + TOLERANCIA_INICIO_SEG) return t0;
   return null;
 }
 
@@ -492,4 +500,48 @@ export function legendaDoSaldo(o: { bucketSeg: number; aproximado: boolean; comF
   if (o.comFechamentos) texto += " · fechamentos marcados";
   if (o.medidoDesdeT !== null) texto += ` · medido a partir de ${formatarHora(new Date(o.medidoDesdeT * 1000))}`;
   return texto;
+}
+
+// ── a série do saldo do dia no desenho ─────────────────────────────────────────
+// 24/09/2026 (Artur, com print do dia 23: "esse gráfico está estranho"): o coletor continua mandando o saldo
+// depois do fechamento, até a meia-noite, e janelaDoDia estica o eixo até o último balde — o pregão ficava
+// espremido em 40% da largura, o resto era linha reta e o cursor nascia em 23:59:25. Os 68 pontos brancos de
+// fechamento viravam uma mancha em cima da linha, e a legenda dava duas linhas. As funções abaixo valem para o
+// Hoje ao vivo, a tela cheia e o calendário, que montam a mesma curva.
+// Movidas de series-da-curva em 24/09/2026: a imagem do dia (card-do-dia) monta a mesma curva sem importar
+// componente (nenhum arquivo de src/lib importa de src/components). series-da-curva reexporta os três nomes.
+
+/** folga do eixo antes do horário do robô e depois da última saída: dez minutos */
+export const FOLGA_DO_EIXO_SEG = 10 * 60;
+
+/**
+ * Os baldes que entram no desenho: do início do horário do robô (menos a folga) até o maior entre o fim do
+ * horário e o último fechamento do dia (mais a folga). O que o coletor manda depois disso, com o saldo parado,
+ * fica de fora; nada de saldo se perde, porque depois da última saída ele não muda. Se o filtro não deixar
+ * nenhum balde (horário cadastrado errado), vai tudo.
+ */
+export function baldesDoPregao<B extends readonly [number, ...unknown[]]>(
+  baldes: readonly B[],
+  dia: string,
+  horario: HorarioPregao,
+  fechamentos: ReadonlyArray<readonly [number, ...unknown[]]>,
+): readonly B[] {
+  const hIni = epochBrasilia(dia, horario.inicio);
+  const hFim = epochBrasilia(dia, horario.fim);
+  if (!Number.isFinite(hIni) || !Number.isFinite(hFim)) return baldes;
+  let ultimaSaida = Number.NEGATIVE_INFINITY;
+  for (const f of fechamentos) if (f[0] > ultimaSaida) ultimaSaida = f[0];
+  const de = hIni - FOLGA_DO_EIXO_SEG;
+  const ate = Math.max(hFim, ultimaSaida) + FOLGA_DO_EIXO_SEG;
+  const uteis = baldes.filter((b) => b[0] >= de && b[0] <= ate);
+  return uteis.length > 0 ? uteis : baldes;
+}
+
+/** A legenda curta da série ("a cada 5 s · desde 11:42"): o título já diz "medido no MT5", e a longa dava duas linhas. */
+export function legendaCurtaDoSaldo(o: { bucketSeg: number; aproximado: boolean; medidoDesdeT: number | null }): string {
+  return [
+    `a cada ${formatarNumero(o.bucketSeg)} s`,
+    ...(o.aproximado ? ["aproximado"] : []),
+    ...(o.medidoDesdeT !== null ? [`desde ${formatarHora(new Date(o.medidoDesdeT * 1000))}`] : []),
+  ].join(" · ");
 }

@@ -6,6 +6,8 @@ import { useMemo } from "react";
 import { AtualizadoHa } from "@/components/compartilhados/AtualizadoHa";
 import { BadgeStatusRobo } from "@/components/compartilhados/BadgeStatusRobo";
 import { Valor } from "@/components/compartilhados/Valor";
+import { CompartilharDia } from "@/components/compartilhar/CompartilharDia";
+import { versaoDoDiaAoVivo } from "@/components/compartilhar/regras-do-compartilhar";
 import { Simbolo } from "@/components/marca/Simbolo";
 import { CurvaDoDia } from "@/components/robo/CurvaDoDia";
 import { LinhaOperacao } from "@/components/robo/LinhaOperacao";
@@ -16,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { useAgora } from "@/hooks/useAgora";
 import { useMontado } from "@/hooks/useMontado";
 import { formatarBRL, formatarDataLonga, formatarNumero, formatarPct, formatarPontos, formatarPreco, rotuloLado } from "@/lib/formato";
+import { fimDoDia } from "@/lib/stats/card-do-dia";
 import { pregaoAberto } from "@/lib/stats/pregao";
 import { horarioDaJanela } from "@/lib/stats/saldo-dia";
 import { statusAoVivo } from "@/lib/stats/status-robo";
@@ -60,6 +63,9 @@ export function TelaAoVivo() {
   // respondeu com balde, senão por fechamento. O horário do robô (ou do pregão) dimensiona o eixo
   const horario = useMemo(() => horarioDaJanela(robo, pregao), [robo, pregao]);
   const temSerie = estado.saldoHoje.carregado && estado.saldoHoje.baldes.length > 0;
+  // a versão da imagem do dia, como no Hoje ao vivo (24/09/2026): nº de operações e o minuto do último dado,
+  // o balde só até o fim do dia do robô mais a folga
+  const versao = versaoDoDiaAoVivo(ops, estado.saldoHoje.baldes, { dia: hoje, fim: fimDoDia(horario, pregao) });
 
   const aberto = agora ? pregaoAberto(agora, pregao, feriados) : false;
   const status = statusAoVivo({
@@ -183,6 +189,7 @@ export function TelaAoVivo() {
           titulo="O dia, operação a operação"
           tituloSerie="O dia, medido no MT5"
           legenda="por contrato, líquido de custos"
+          coletorAtrasado={estado.exposicaoHoje?.excursao_ea_parcial === true}
         />
       ) : (
         <p className="painel px-4 py-8 text-center text-sm text-muted-foreground">
@@ -234,9 +241,27 @@ export function TelaAoVivo() {
             </>
           ) : null}
         </span>
-        <Button variant="ghost" size="sm" onClick={compartilhar}>
-          <Share2 data-icon="inline-start" /> Compartilhar
-        </Button>
+        {/* 24/09/2026: com operação no dia, o "Compartilhar" abre a imagem do dia (Quadrado ou Story, com
+            Compartilhar, Baixar imagem e Copiar link, este apontando para a própria tela cheia). Sem operação
+            não há imagem (a rota responde 404) e fica o botão de antes, que compartilha o link da tela. Um ou
+            outro, nunca os dois: não há dois "Compartilhar" na tela */}
+        {ops.length > 0 ? (
+          <CompartilharDia
+            slug={robo.slug}
+            nomeRobo={robo.nome}
+            dia={hoje}
+            versao={versao}
+            temOperacao
+            rotulo="Compartilhar"
+            variante="ghost"
+            caminhoDoLink={`/robos/${robo.slug}/ao-vivo`}
+            contaDemo={robo.conta_tipo === "demo"}
+          />
+        ) : (
+          <Button variant="ghost" size="sm" onClick={compartilhar}>
+            <Share2 data-icon="inline-start" /> Compartilhar
+          </Button>
+        )}
       </footer>
     </main>
   );

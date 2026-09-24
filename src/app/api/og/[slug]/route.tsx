@@ -1,5 +1,6 @@
 import { ImageResponse } from "next/og";
 import { formatarDiaCurto } from "@/components/home/datas";
+import { ACENTO, FUNDO, MUDO, TEXTO, corDoResultado as cor } from "@/components/card/cores";
 import { SIMBOLO_CAMINHOS, SIMBOLO_VIEWBOX } from "@/components/marca/Simbolo";
 import { buscarRobo, listarEstatisticas } from "@/lib/consultas/publico";
 import { formatarBRL, formatarHora, formatarNumero, formatarPct } from "@/lib/formato";
@@ -13,16 +14,8 @@ import type { EstatisticaPublica } from "@/lib/tipos";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// as mesmas cores dos tokens do tema escuro (globals.css): a imagem não lê CSS. O acento é o verde da
-// Quants (19/09/2026, no lugar do dourado); o verde do resultado continua o de cor()
-const FUNDO = "#0a0a0b";
-const TEXTO = "#f8f5ef";
-const MUDO = "#aca496";
-const ACENTO = "#00ff88";
-
-function cor(v: number): string {
-  return v > 0 ? "#53b86f" : v < 0 ? "#e8594b" : MUDO;
-}
+// as cores (tokens do tema escuro, a imagem não lê CSS) moram em components/card/cores desde 24/09/2026,
+// junto com as da imagem do dia; o comportamento é o mesmo de antes
 
 function brl(v: number): string {
   return formatarBRL(v, { sinal: true, inteiro: Math.abs(v) >= 1000 });
