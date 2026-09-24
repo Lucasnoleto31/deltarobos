@@ -55,6 +55,11 @@ interface Props {
   legenda?: string;
   /** MEP/MEN do dia medidos pelo EA (22/09/2026), na régua da curva por fechamento; quem passa memoiza, por causa do memo daqui */
   marcadores?: ReadonlyArray<MarcadorDaCurva>;
+  /**
+   * O EA marcou o dia como parcial (excursao_ea_parcial: subiu com o dia em andamento). Só aí a legenda diz "desde HH:MM"
+   * quando a série começa depois do início do horário (24/09/2026: sem isso, todo dia dizia "desde" a 1ª entrada).
+   */
+  coletorAtrasado?: boolean;
 }
 
 const reais = (v: number) => formatarBRL(v, { sinal: true });
@@ -89,6 +94,7 @@ export const CurvaDoDia = memo(function CurvaDoDia({
   tituloSerie = "Resultado do dia, medido no MT5",
   legenda = "1 contrato, líquido de custos",
   marcadores,
+  coletorAtrasado = false,
 }: Props) {
   const id = `dia-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
 
@@ -107,7 +113,7 @@ export const CurvaDoDia = memo(function CurvaDoDia({
     const janela = janelaDoDia(dia, horario, baldes, bucketSeg, fechamentos);
     const liquida = liquidarSerie(baldes, fechamentos, bucketSeg, { base: "liquido", unidade: "brl", valorPonto: valorPonto ?? 1 });
     const pontos = serieDoSaldoParaDesenho(reduzirBaldes(liquida, PONTOS_SALDO), { janela, unidade: "brl", bucketSeg, comFaixa: !aproximado });
-    const medidoDesdeT = inicioDaMedicao(liquida, fechamentos, janela.inicio);
+    const medidoDesdeT = inicioDaMedicao(liquida, fechamentos, janela.inicio, coletorAtrasado);
     return {
       pontos,
       // o MEP/MEN da própria série: o pico e o vale dos baldes, que batem com exposicao_dia
@@ -116,7 +122,7 @@ export const CurvaDoDia = memo(function CurvaDoDia({
       rotulosX: rotulosDeHora(janela),
       legenda: legendaCurtaDoSaldo({ bucketSeg, aproximado, medidoDesdeT }),
     };
-  }, [saldo, operacoes, dia, horario, valorPonto]);
+  }, [saldo, operacoes, dia, horario, valorPonto, coletorAtrasado]);
 
   const porFechamento = useMemo(() => {
     // com a série na tela a curva por fechamento não é montada: seria trabalho jogado fora a cada balde

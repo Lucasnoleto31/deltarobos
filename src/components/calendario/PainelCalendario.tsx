@@ -291,10 +291,11 @@ export function PainelCalendario({ linhas, pacote, exposicao, feriados, hoje, va
       marcadores: marcadoresDoSaldo(liquida, janela),
       fechamentos: espacarFechamentos(fechamentosNaCurva(fechamentos, liquida, janela)),
       rotulosX: rotulosDeHora(janela),
-      // "desde HH:MM" também quando o primeiro balde vem bem depois do início do eixo, sem saída antes
-      legenda: `${legendaCurtaDoSaldo({ bucketSeg, aproximado, medidoDesdeT: inicioDaMedicao(liquida, fechamentos, janela.inicio) })} · 1 contrato, líquido`,
+      // "desde HH:MM" quando o primeiro balde vem depois de uma saída, ou bem depois do início do eixo com o EA
+      // marcando o dia como parcial (24/09/2026)
+      legenda: `${legendaCurtaDoSaldo({ bucketSeg, aproximado, medidoDesdeT: inicioDaMedicao(liquida, fechamentos, janela.inicio, exposicaoPorDia.get(diaSel)?.excursao_ea_parcial === true) })} · 1 contrato, líquido`,
     };
-  }, [diaSel, saldoSel, opcoes, valorPonto, horario]);
+  }, [diaSel, saldoSel, opcoes, valorPonto, horario, exposicaoPorDia]);
   // tirar o dia do cache faz o efeito pedir de novo (o botão "Tentar de novo" do erro)
   const tentarDeNovo = (dia: string) => setSaldos((s) => Object.fromEntries(Object.entries(s).filter(([d]) => d !== dia)));
   // MEP e MEN do dia, duas fontes (22/09/2026). Primeiro a medição do EA 1.1.0: tick a tick, com a posição

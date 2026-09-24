@@ -385,7 +385,7 @@ function curvaDaSerie(
   const grupos = reduzirBaldes(liquida, PONTOS_CARD);
   let ultimoBaldeT = Number.NEGATIVE_INFINITY;
   for (const b of baldes) if (b[0] > ultimoBaldeT) ultimoBaldeT = b[0];
-  const legenda = legendaCurtaDoSaldo({ bucketSeg, aproximado: saldo.aproximado, medidoDesdeT: inicioDaMedicao(liquida, fechamentos, janela.inicio) });
+  const legenda = legendaCurtaDoSaldo({ bucketSeg, aproximado: saldo.aproximado, medidoDesdeT: inicioDaMedicao(liquida, fechamentos, janela.inicio, entrada.exposicao?.excursao_ea_parcial === true) });
   return {
     fonte: "serie",
     legenda: `O dia, medido no MT5 · ${legenda} · líquido`,

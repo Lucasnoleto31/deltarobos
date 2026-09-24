@@ -189,6 +189,7 @@ export function TelaAoVivo() {
           titulo="O dia, operação a operação"
           tituloSerie="O dia, medido no MT5"
           legenda="por contrato, líquido de custos"
+          coletorAtrasado={estado.exposicaoHoje?.excursao_ea_parcial === true}
         />
       ) : (
         <p className="painel px-4 py-8 text-center text-sm text-muted-foreground">

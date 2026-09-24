@@ -229,6 +229,7 @@ export function HojeAoVivo() {
               valorPonto={robo.valor_ponto_brl}
               altura={200}
               marcadores={marcadores}
+              coletorAtrasado={estado.exposicaoHoje?.excursao_ea_parcial === true}
             />
           )}
         </div>

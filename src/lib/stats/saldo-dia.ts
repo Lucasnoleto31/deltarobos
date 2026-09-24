@@ -348,19 +348,27 @@ export function fechamentosNaCurva(
 export const TOLERANCIA_INICIO_SEG = 60;
 
 /**
- * t do primeiro balde quando ele vem DEPOIS do primeiro fechamento do dia, ou mais de TOLERANCIA_INICIO_SEG depois
- * do início da janela (`janelaInicio`, o horário do robô ou do pregão): nos dois casos o coletor subiu com o dia em
- * andamento e a curva começa no meio do eixo. Senão null. O segundo caso é da revisão de 23/09/2026: sem fechamento
- * anterior a nota não aparecia, e um traçado que começa às 11:30 ficava sem explicação (hoje, o primeiro dia da 1.1.2,
- * e em todo reinício do coletor).
+ * t do primeiro balde quando ele vem DEPOIS do primeiro fechamento do dia, ou, com `coletorAtrasado`, mais de
+ * TOLERANCIA_INICIO_SEG depois do início da janela (`janelaInicio`, o horário do robô ou do pregão): nos dois casos o
+ * coletor subiu com o dia em andamento e a curva começa no meio do eixo. Senão null.
+ *
+ * `coletorAtrasado` é a marca `excursao_ea_parcial` que o próprio EA grava quando sobe com o dia já em andamento
+ * (24/09/2026). Antes a regra da janela valia sozinha e disparava TODO dia: o EA só começa a série quando a primeira
+ * posição do magic abre (antes disso o saldo do dia é zero por definição), então o primeiro balde sempre vinha depois
+ * do início do horário, e a curva e a imagem do dia diziam "desde 12:12" como se o coletor tivesse ligado tarde.
  */
-export function inicioDaMedicao(baldes: ReadonlyArray<BaldeQualquer>, fechamentos: readonly FechamentoCompacto[], janelaInicio?: number): number | null {
+export function inicioDaMedicao(
+  baldes: ReadonlyArray<BaldeQualquer>,
+  fechamentos: readonly FechamentoCompacto[],
+  janelaInicio?: number,
+  coletorAtrasado = false,
+): number | null {
   if (baldes.length === 0) return null;
   const t0 = baldes[0][0];
   let primeiroFechamento = Number.POSITIVE_INFINITY;
   for (const f of fechamentos) if (f[0] < primeiroFechamento) primeiroFechamento = f[0];
   if (t0 > primeiroFechamento) return t0;
-  if (janelaInicio !== undefined && Number.isFinite(janelaInicio) && t0 > janelaInicio + TOLERANCIA_INICIO_SEG) return t0;
+  if (coletorAtrasado && janelaInicio !== undefined && Number.isFinite(janelaInicio) && t0 > janelaInicio + TOLERANCIA_INICIO_SEG) return t0;
   return null;
 }
 

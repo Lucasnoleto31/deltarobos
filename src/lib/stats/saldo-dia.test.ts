@@ -356,19 +356,27 @@ describe("mepMenDaSerie, fechamentosNaCurva e inicioDaMedicao", () => {
     expect(inicioDaMedicao(baldes, [])).toBeNull();
   });
 
-  it("inicioDaMedicao: ou mais de um minuto depois do início da janela, mesmo sem fechamento anterior (revisão de 23/09/2026)", () => {
+  it("inicioDaMedicao: com o coletor atrasado, mais de um minuto depois do início da janela, mesmo sem fechamento anterior", () => {
     expect(TOLERANCIA_INICIO_SEG).toBe(60);
     // o coletor subiu às 10:00 num eixo que começa às 09:00, sem nenhuma saída antes: a nota aparece
-    expect(inicioDaMedicao(baldes, [], epochBrasilia(DIA, "09:00"))).toBe(T0);
-    expect(inicioDaMedicao(baldes, [[T0 + 30, 1]], epochBrasilia(DIA, "09:00"))).toBe(T0);
+    expect(inicioDaMedicao(baldes, [], epochBrasilia(DIA, "09:00"), true)).toBe(T0);
+    expect(inicioDaMedicao(baldes, [[T0 + 30, 1]], epochBrasilia(DIA, "09:00"), true)).toBe(T0);
     // dentro da tolerância (primeiro balde até 60 s depois do início) não é "no meio do dia"
-    expect(inicioDaMedicao(baldes, [], T0 - 60)).toBeNull();
-    expect(inicioDaMedicao(baldes, [], T0 - 61)).toBe(T0);
-    expect(inicioDaMedicao(baldes, [], T0)).toBeNull();
+    expect(inicioDaMedicao(baldes, [], T0 - 60, true)).toBeNull();
+    expect(inicioDaMedicao(baldes, [], T0 - 61, true)).toBe(T0);
+    expect(inicioDaMedicao(baldes, [], T0, true)).toBeNull();
     // janela ilegível não conta; o fechamento anterior continua valendo sozinho
-    expect(inicioDaMedicao(baldes, [], Number.NaN)).toBeNull();
-    expect(inicioDaMedicao(baldes, [[T0 - 60, 1]], T0)).toBe(T0);
-    expect(inicioDaMedicao([], [], epochBrasilia(DIA, "09:00"))).toBeNull();
+    expect(inicioDaMedicao(baldes, [], Number.NaN, true)).toBeNull();
+    expect(inicioDaMedicao(baldes, [[T0 - 60, 1]], T0, true)).toBe(T0);
+    expect(inicioDaMedicao([], [], epochBrasilia(DIA, "09:00"), true)).toBeNull();
+  });
+
+  it("inicioDaMedicao: sem a marca de coletor atrasado a janela não basta (o EA só mede a partir da 1ª posição; 24/09/2026)", () => {
+    // dia normal: a série nasce na primeira entrada, bem depois das 09:00, e antes dela o saldo era zero
+    expect(inicioDaMedicao(baldes, [], epochBrasilia(DIA, "09:00"))).toBeNull();
+    expect(inicioDaMedicao(baldes, [[T0 + 30, 1]], epochBrasilia(DIA, "09:00"), false)).toBeNull();
+    // fechamento antes do primeiro balde continua dizendo "desde", com ou sem a marca
+    expect(inicioDaMedicao(baldes, [[T0 - 60, 1]], epochBrasilia(DIA, "09:00"))).toBe(T0);
   });
 });
 
