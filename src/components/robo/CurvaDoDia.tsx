@@ -10,14 +10,13 @@ import {
   type MarcadorDaCurva,
   type PontoDoDesenho,
 } from "@/components/graficos/CurvaProfit";
-import { PONTOS_LEVE, baldesDoPregao, espacarFechamentos, fatiar, janelaDosDados, legendaCurtaDoSaldo, marcadoresDoSaldo, rotulosDeTempo, serieDoSaldoParaDesenho } from "@/components/graficos/series-da-curva";
+import { PONTOS_LEVE, baldesDoPregao, fatiar, janelaDosDados, legendaCurtaDoSaldo, marcadoresDoSaldo, rotulosDeTempo, serieDoSaldoParaDesenho } from "@/components/graficos/series-da-curva";
 import { formatarBRL, formatarDuracao, formatarHora, formatarMfeMae, formatarNumero, formatarPontos, formatarPreco, rotuloLado } from "@/lib/formato";
 import type { HorarioPregao } from "@/lib/stats/pregao";
 import {
   dentesPorOperacao,
   envelopeDeDentes,
   fechamentosDasOperacoes,
-  fechamentosNaCurva,
   inicioDaMedicao,
   liquidarSerie,
   reduzirBaldes,
@@ -69,9 +68,10 @@ const SEM_ROTULOS: Array<{ x: number; rotulo: string }> = [];
  *
  * 23/09/2026 (Lucas: "quero ver de fato o que o robô passou de 'calor' até pagar, quero que mostre a
  * real curva dele"): quando o EA 1.1.2 mediu o dia, a curva passa a ser a SÉRIE DO SALDO (realizado +
- * flutuante a cada 5 s, líquida dos custos das operações já fechadas), com a faixa mín./máx. de cada
- * balde, os fechamentos marcados na linha e o MEP/MEN da própria série; o eixo é o horário do robô, e a
- * curva cresce da esquerda para a direita como um gráfico intradiário. Sem série (EA anterior, robô sem
+ * flutuante a cada 5 s, líquida dos custos das operações já fechadas) com o MEP/MEN da própria série; a
+ * curva cresce da esquerda para a direita como um gráfico intradiário. A faixa mín./máx. de cada balde e as
+ * bolinhas de fechamento saíram do desenho em 24/09/2026 (Artur: "estilo do profit", "essas bolinhas não tem
+ * no profit"); a série continua chegando inteira. Sem série (EA anterior, robô sem
  * coletor, rota ainda não respondeu) fica a curva por fechamento, rotulada assim, agora com o dente de
  * MFE/MAE de cada operação medida.
  */
@@ -105,7 +105,7 @@ export const CurvaDoDia = memo(function CurvaDoDia({
     // profit", escolhido entre quatro saídas na tela real): o eixo vai do primeiro dado até o último balde e cresce
     // com o dia, em vez de reservar o horário inteiro do robô (a manhã ficava espremida em 1/6 da largura); a
     // linha é a de PONTOS_LEVE grupos, um a cada ~2 px, sem a faixa mín./máx. de cada balde, que a 5 s virava
-    // serrilhado. O MEP/MEN da série e os fechamentos continuam vindo da série inteira (liquida).
+    // serrilhado. O MEP/MEN da série continua vindo da série inteira (liquida).
     const janela = janelaDosDados(baldes, fechamentos, bucketSeg);
     const liquida = liquidarSerie(baldes, fechamentos, bucketSeg, { base: "liquido", unidade: "brl", valorPonto: valorPonto ?? 1 });
     const pontos = serieDoSaldoParaDesenho(reduzirBaldes(liquida, PONTOS_LEVE), { janela, unidade: "brl", bucketSeg, comFaixa: false });
@@ -114,7 +114,6 @@ export const CurvaDoDia = memo(function CurvaDoDia({
       pontos,
       // o MEP/MEN da própria série: o pico e o vale dos baldes, que batem com exposicao_dia
       marcadores: marcadoresDoSaldo(liquida, janela),
-      fechamentos: espacarFechamentos(fechamentosNaCurva(fechamentos, liquida, janela)),
       rotulosX: rotulosDeTempo(janela),
       legenda: legendaCurtaDoSaldo({ bucketSeg, aproximado, medidoDesdeT }),
     };
@@ -221,7 +220,6 @@ export const CurvaDoDia = memo(function CurvaDoDia({
         altura={altura}
         rotulosX={serie ? serie.rotulosX : porFechamento.rotulosX}
         marcadores={serie ? serie.marcadores : marcadores}
-        fechamentos={serie?.fechamentos}
         comecarNoPrimeiroPonto={serie !== null}
         formatarEixo={eixoEmReais}
         rotuloVertical="Saldo do dia (R$)"

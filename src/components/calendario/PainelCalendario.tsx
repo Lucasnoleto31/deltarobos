@@ -10,7 +10,7 @@ import { Valor } from "@/components/compartilhados/Valor";
 import { Heatmap } from "@/components/desempenho/Heatmap";
 import { escalaDeForca, mistura } from "@/components/graficos/base";
 import { AmostraDaLinha, CURVA_POR_OPERACAO, DesenhoDaCurva, MolduraProfit, PROFIT, type MarcadorDaCurva } from "@/components/graficos/CurvaProfit";
-import { PONTOS_LEVE, baldesDoPregao, espacarFechamentos, janelaDosDados, legendaCurtaDoSaldo, marcadoresDoSaldo, rotulosDeTempo, serieDoSaldoParaDesenho, seriePorOperacao } from "@/components/graficos/series-da-curva";
+import { PONTOS_LEVE, baldesDoPregao, janelaDosDados, legendaCurtaDoSaldo, marcadoresDoSaldo, rotulosDeTempo, serieDoSaldoParaDesenho, seriePorOperacao } from "@/components/graficos/series-da-curva";
 import { Button } from "@/components/ui/button";
 import { formatarData, formatarDataLonga, formatarHora, formatarMesAno, formatarNumero, formatarPct } from "@/lib/formato";
 import { gradeMes, heatmapAnoMes, mesesComDados } from "@/lib/stats/calendario";
@@ -20,7 +20,6 @@ import { mesDe, somarMeses } from "@/lib/stats/periodos";
 import type { HorarioPregao } from "@/lib/stats/pregao";
 import {
   ehCorpoSaldoDoDia,
-  fechamentosNaCurva,
   inicioDaMedicao,
   liquidarSerie,
   reduzirBaldes,
@@ -267,12 +266,12 @@ export function PainelCalendario({ linhas, pacote, exposicao, feriados, hoje, va
   const carregando = temColetor && diaSel !== null && saldoSel === undefined;
   const temSerie = typeof saldoSel === "object" && saldoSel.baldes.length > 0;
   // A série pronta para o desenho: bruta na rota, líquida aqui (o custo de cada operação fechada até o fim
-  // do balde), reduzida a PONTOS_LEVE grupos, com o MEP/MEN da própria série, os fechamentos marcados na
-  // linha e o eixo do tempo no horário do robô, esticado pelos dados do dia
+  // do balde), reduzida a PONTOS_LEVE grupos, com o MEP/MEN da própria série e o eixo do tempo pelos dados
+  // do dia (sem faixa nem bolinhas de fechamento desde 24/09/2026, ver CurvaDoDia)
   const serieDoDia = useMemo(() => {
     if (!diaSel || typeof saldoSel !== "object" || saldoSel.baldes.length === 0) return null;
     const { fechamentos, bucketSeg, aproximado } = saldoSel;
-    // só os baldes do pregão: o eixo não estica até a meia-noite; fechamentos espaçados e legenda curta
+    // só os baldes do pregão: o eixo não estica até a meia-noite; legenda curta
     // (24/09/2026, ver baldesDoPregao em series-da-curva)
     const baldes = baldesDoPregao(saldoSel.baldes, diaSel, horario, fechamentos);
     const liquida = liquidarSerie(baldes, fechamentos, bucketSeg, { base: opcoes.base, unidade: opcoes.unidade, valorPonto });
@@ -281,7 +280,6 @@ export function PainelCalendario({ linhas, pacote, exposicao, feriados, hoje, va
     return {
       pontos: serieDoSaldoParaDesenho(reduzirBaldes(liquida, PONTOS_LEVE), { janela, unidade: opcoes.unidade, bucketSeg, comFaixa: false }),
       marcadores: marcadoresDoSaldo(liquida, janela),
-      fechamentos: espacarFechamentos(fechamentosNaCurva(fechamentos, liquida, janela)),
       rotulosX: rotulosDeTempo(janela),
       // "desde HH:MM" também quando o primeiro balde vem bem depois do início do eixo, sem saída antes
       legenda: `${legendaCurtaDoSaldo({ bucketSeg, aproximado, medidoDesdeT: inicioDaMedicao(liquida, fechamentos, janela.inicio) })} · 1 contrato, líquido`,
@@ -613,8 +611,8 @@ export function PainelCalendario({ linhas, pacote, exposicao, feriados, hoje, va
                 <span role="status" className="sr-only">
                   {carregando && curvaDoDia.length > 0 ? "Carregando o saldo medido do dia." : saldoSel === "erro" ? "O saldo medido do dia não carregou." : ""}
                 </span>
-                {/* A curva do dia (23/09/2026): a série do saldo medida pelo EA quando o dia a tem (a faixa mín./máx.
-                    de cada balde, os fechamentos marcados e o MEP/MEN da série); senão, e enquanto ela carrega, a
+                {/* A curva do dia (23/09/2026): a série do saldo medida pelo EA quando o dia a tem (com o MEP/MEN da
+                    série; a faixa e as bolinhas de fechamento saíram em 24/09/2026); senão, e enquanto ela carrega, a
                     curva por fechamento de sempre, rotulada assim, com os dentes de MFE/MAE das operações medidas */}
                 {serieDoDia !== null && diaSel ? (
                   <MolduraProfit
@@ -636,7 +634,6 @@ export function PainelCalendario({ linhas, pacote, exposicao, feriados, hoje, va
                       cores={CURVA_POR_OPERACAO}
                       altura={alturaCurva}
                       marcadores={serieDoDia.marcadores}
-                      fechamentos={serieDoDia.fechamentos}
                       comecarNoPrimeiroPonto
                       rotulosX={serieDoDia.rotulosX}
                       formatarEixo={(v) => formatarNumero(v, 0)}

@@ -444,8 +444,7 @@ export function serieDoSaldoParaDesenho(baldes: readonly BaldeReduzido[], opcoes
 // ── a série do saldo do dia no desenho ─────────────────────────────────────────
 // 24/09/2026 (Artur, com print do dia 23: "esse gráfico está estranho"): o coletor continua mandando o saldo
 // depois do fechamento, até a meia-noite, e janelaDoDia estica o eixo até o último balde — o pregão ficava
-// espremido em 40% da largura, o resto era linha reta e o cursor nascia em 23:59:25. Os 68 pontos brancos de
-// fechamento viravam uma mancha em cima da linha, e a legenda dava duas linhas. Mais tarde no mesmo dia ("o gráfico
+// espremido em 40% da largura, o resto era linha reta e o cursor nascia em 23:59:25, e a legenda dava duas linhas. Mais tarde no mesmo dia ("o gráfico
 // ainda está horrível" → "estilo do profit"): o eixo passou a ir do primeiro dado ao último (janelaDosDados), com
 // rótulos no passo que cabe (rotulosDeTempo). As funções abaixo valem para o Hoje ao vivo, a tela cheia e o
 // calendário, que montam a mesma curva.
@@ -474,19 +473,6 @@ export function baldesDoPregao<B extends readonly [number, ...unknown[]]>(
   const ate = Math.max(hFim, ultimaSaida) + FOLGA_DO_EIXO_SEG;
   const uteis = baldes.filter((b) => b[0] >= de && b[0] <= ate);
   return uteis.length > 0 ? uteis : baldes;
-}
-
-/** Um marcador de fechamento a cada `minimo` da largura (0..1, padrão 0,6% ≈ 6 px): o primeiro fica, o próximo só se já andou o bastante. Os outros seguem na lista e na mira. */
-export function espacarFechamentos<F extends { posicao: number }>(lista: readonly F[], minimo = 0.006): F[] {
-  const ordenados = [...lista].sort((a, b) => a.posicao - b.posicao);
-  const saida: F[] = [];
-  let ultimo = Number.NEGATIVE_INFINITY;
-  for (const f of ordenados) {
-    if (f.posicao - ultimo < minimo) continue;
-    saida.push(f);
-    ultimo = f.posicao;
-  }
-  return saida;
 }
 
 /** A legenda curta da série ("a cada 5 s · desde 11:42"): o título já diz "medido no MT5", e a longa dava duas linhas. */
