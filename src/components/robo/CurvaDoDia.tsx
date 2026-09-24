@@ -56,7 +56,8 @@ interface Props {
 }
 
 const reais = (v: number) => formatarBRL(v, { sinal: true });
-const eixoEmReais = (v: number) => formatarNumero(v, 0);
+// a régua em R$ com centavos, como a do Profit (24/09/2026, Artur: "só senti falta das casas decimais")
+const eixoEmReais = (v: number) => formatarNumero(v, 2);
 const SEM_ROTULOS: Array<{ x: number; rotulo: string }> = [];
 
 /**

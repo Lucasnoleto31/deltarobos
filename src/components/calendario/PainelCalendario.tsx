@@ -644,7 +644,7 @@ export function PainelCalendario({ linhas, pacote, exposicao, feriados, hoje, va
                       altura={alturaCurva}
                       comecarNoPrimeiroPonto
                       rotulosX={serieDoDia.rotulosX}
-                      formatarEixo={(v) => formatarNumero(v, 0)}
+                      formatarEixo={(v) => formatarNumero(v, opcoes.unidade === "brl" ? 2 : 0)}
                       rotuloVertical="Saldo do dia (R$)"
                       rotuloAria={`Saldo de ${formatarData(diaSel)} medido no MetaTrader 5 ao longo do pregão`}
                     />
@@ -684,7 +684,7 @@ export function PainelCalendario({ linhas, pacote, exposicao, feriados, hoje, va
                       cores={CURVA_POR_OPERACAO}
                       altura={alturaCurva}
                       rotulosX={ordemNoEixo}
-                      formatarEixo={(v) => formatarNumero(v, 0)}
+                      formatarEixo={(v) => formatarNumero(v, opcoes.unidade === "brl" ? 2 : 0)}
                       rotuloVertical="Saldo do dia (R$)"
                       rotuloAria={`Resultado acumulado de ${formatarData(diaSel)}, operação a operação`}
                     />
