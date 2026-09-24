@@ -253,13 +253,14 @@ export default function PaginaMetodologia() {
           <p>
             <strong>Medida no MT5.</strong> Desde a versão 1.1.2 do coletor, a cada 5 segundos o MetaTrader 5 fecha um
             intervalo com o menor, o maior e o último valor do saldo do dia com a posição aberta, por 1 contrato: é o
-            mesmo saldo que alimenta o MEP e o MEN. O site desenha a linha pelo último valor de cada intervalo e a faixa
-            clara entre o menor e o maior. O valor mostrado é líquido: do bruto medido, desconta o custo por contrato de
+            mesmo saldo que alimenta o MEP e o MEN. No site, a linha segue o último valor de cada intervalo, limpa, no
+            estilo do Profit, e o eixo vai do primeiro ao último dado do dia, crescendo junto com o pregão; a imagem do
+            dia para compartilhar desenha também a faixa clara entre o menor e o maior. O valor mostrado é líquido: do bruto medido, desconta o custo por contrato de
             cada operação fechada antes do fim daquele intervalo (a posição ainda aberta não pagou custo). Por isso o
             pico e o vale dessa curva podem diferir do MEP e do MEN da seção anterior em um custo por contrato, quando a
             saída cai no mesmo intervalo do extremo: a curva paga o custo no intervalo da saída, e o MEP e o MEN medidos
             descontam só as saídas anteriores ao extremo. Robô com mais de uma medição no mesmo intervalo mostra a soma
-            delas, sem a faixa, com o aviso <strong>&quot;aproximado&quot;</strong>. Se o coletor subiu com o dia em
+            delas, com o aviso <strong>&quot;aproximado&quot;</strong>. Se o coletor subiu com o dia em
             andamento, a curva começa quando a medição começou (sem rampa desde a abertura), com a nota{" "}
             <strong>&quot;medido a partir de HH:MM&quot;</strong>, e as saídas anteriores já entram no realizado. No painel
             &quot;Hoje ao vivo&quot;, na tela Ao vivo e no detalhe do dia do calendário, o título diz{" "}

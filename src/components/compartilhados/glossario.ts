@@ -447,7 +447,7 @@ export const GLOSSARIO: Record<ChaveIndicador, EntradaGlossario> = {
   },
   faixaSaldo: {
     nome: "Faixa do saldo",
-    texto: "A área clara em volta da linha: o menor e o maior valor que o saldo alcançou dentro de cada intervalo de 5 segundos. Mostra o quanto o saldo oscilou entre um ponto e o outro da curva.",
+    texto: "Na imagem do dia, a área clara em volta da linha: o menor e o maior valor que o saldo alcançou dentro de cada intervalo de 5 segundos. Mostra o quanto o saldo oscilou entre um ponto e o outro da curva.",
   },
   dentesExcursao: {
     nome: "Dentes de MFE e MAE",

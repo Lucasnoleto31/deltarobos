@@ -228,9 +228,10 @@ MEP/MEN, já com as regras públicas aplicadas), em R$ brutos por contrato, e ma
 | evento `saldo` (topic `robo:<slug>`)         | `{slug, dia, baldes: [{em, min, max, ultimo}]}` com os baldes públicos de hoje gravados nos últimos 30 s (e com início nos últimos 2 min), throttle de 5 s por robô, sem replay; disparado por comando (transition table) no insert e no update                                                                                                                                                                    |
 | `/api/robos/<slug>/saldo/<dia>`              | JSON compacto `{dia, baldes: [[t, min, max, ultimo]], aproximado, bucketSeg, fechamentos: [[t, custo]], geradoEm}` (`t` em epoch UTC, segundos; `n_magics` vira o booleano `aproximado`), paginado em `listarSaldoDoDia` (1.000 linhas por página, e mais uma página enquanto a última vier cheia: a contagem e as páginas não são uma foto consistente em hoje); hoje `Cache-Control: public, max-age=0, s-maxage=15, stale-while-revalidate=15`, dia passado `public, max-age=300, s-maxage=3600, stale-while-revalidate=86400`; 400 dia inválido ou futuro, 404 robô, 503 `no-store` + `Retry-After: 5` quando o banco falha |
 
-O site desenha a linha pelo último valor de cada balde e a faixa clara entre o mínimo e o máximo
-(`CurvaProfit`), no eixo do horário do robô (ou do pregão do ativo), esticado para conter todo balde e todo
-fechamento; a linha nasce no primeiro balde (coletor que subiu no meio do dia não vira uma rampa desde a
+O site desenha a linha limpa, no estilo do Profit, pelo último valor de grupos de baldes (`CurvaProfit`, sem
+a faixa mín./máx., sem bolinhas de fechamento e sem marcadores de MEP/MEN; 24/09/2026), no eixo que vai do
+primeiro ao último dado com dez minutos de folga (`janelaDosDados`, rótulos em `rotulosDeTempo`); a imagem do dia
+mantém a faixa e o eixo no horário do robô. A linha nasce no primeiro balde (coletor que subiu no meio do dia não vira uma rampa desde a
 abertura, e a legenda diz "medido a partir de HH:MM"). A série chega bruta; o líquido no instante `t` é
 bruto(t) − soma dos `custos_brl_por_contrato` das operações públicas do dia fechadas ANTES do fim do balde
 (`t < em + bucketSeg`: o balde é meio-aberto; `liquidarSerie` em `src/lib/stats/saldo-dia.ts`, a mesma ideia
