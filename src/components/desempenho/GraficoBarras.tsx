@@ -168,15 +168,21 @@ export function GraficoBarras({ dados, unidade, altura = 220, contagem = false, 
         </div>
       </div>
       <div />
+      {/* 24/09/2026 (Artur, print do histograma): o rótulo da barra apontada transborda a coluna dela e, quando
+          um rótulo fixo cai a menos de `aCada` colunas, os dois se escrevem um por cima do outro ("-R$ 127,38"
+          debaixo de "R$ 60,13"). Com o ponteiro em cima, os fixos a essa distância do apontado somem. */}
       <div aria-hidden className="mt-1.5 flex text-[11px] text-muted-foreground tabular-nums">
-        {dados.map((d, i) => (
-          <span
-            key={i}
-            className={`min-w-0 flex-1 overflow-visible text-center whitespace-nowrap ${ativo === i ? "text-foreground" : ""}`}
-          >
-            {i % aCada === 0 || ativo === i ? d.rotulo : ""}
-          </span>
-        ))}
+        {dados.map((d, i) => {
+          const fixo = i % aCada === 0 && (ativo === null || Math.abs(i - ativo) >= aCada);
+          return (
+            <span
+              key={i}
+              className={`min-w-0 flex-1 overflow-visible text-center whitespace-nowrap ${ativo === i ? "text-foreground" : ""}`}
+            >
+              {fixo || ativo === i ? d.rotulo : ""}
+            </span>
+          );
+        })}
       </div>
     </div>
   );

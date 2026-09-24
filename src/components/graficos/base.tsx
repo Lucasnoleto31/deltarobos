@@ -126,15 +126,22 @@ export function Leitura({ conteudo, paleta, className }: { conteudo: ConteudoDaD
       role="status"
       className={cn("flex flex-wrap content-start items-baseline gap-x-4 gap-y-0.5 text-[11px] leading-4 tabular-nums", className)}
     >
-      <span className="whitespace-nowrap">
-        <span className={cn("font-semibold", !paleta && "text-foreground")} style={cor(paleta?.titulo)}>
+      {/* título e subtítulo não quebram por dentro, mas o subtítulo pode descer inteiro para a linha de baixo:
+          "28/08/2026 a 11/09/2026 · pico de R$ 17.960 ainda não recuperado" num só bloco tinha 365 px e
+          esticava a página do Risco a 398 px num celular de 390 (varredura de 24/09/2026) */}
+      <span>
+        <span className={cn("font-semibold whitespace-nowrap", !paleta && "text-foreground")} style={cor(paleta?.titulo)}>
           {conteudo.titulo}
         </span>
         {conteudo.subtitulo ? (
-          <span className={cn(!paleta && "text-muted-foreground")} style={cor(paleta?.texto)}>
-            {" · "}
-            {conteudo.subtitulo}
-          </span>
+          <>
+            {/* o espaço fica FORA do nowrap: é ele que dá o ponto de quebra */}
+            {" "}
+            <span className={cn("whitespace-nowrap", !paleta && "text-muted-foreground")} style={cor(paleta?.texto)}>
+              {"· "}
+              {conteudo.subtitulo}
+            </span>
+          </>
         ) : null}
       </span>
       {conteudo.linhas.map((l) => (
