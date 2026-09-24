@@ -10,7 +10,7 @@ import {
   type MarcadorDaCurva,
   type PontoDoDesenho,
 } from "@/components/graficos/CurvaProfit";
-import { PONTOS_LEVE, fatiar, marcadoresDoSaldo, serieDoSaldoParaDesenho } from "@/components/graficos/series-da-curva";
+import { PONTOS_LEVE, baldesDoPregao, espacarFechamentos, fatiar, legendaCurtaDoSaldo, marcadoresDoSaldo, serieDoSaldoParaDesenho } from "@/components/graficos/series-da-curva";
 import { formatarBRL, formatarDuracao, formatarHora, formatarMfeMae, formatarNumero, formatarPontos, formatarPreco, rotuloLado } from "@/lib/formato";
 import type { HorarioPregao } from "@/lib/stats/pregao";
 import {
@@ -21,7 +21,6 @@ import {
   fechamentosNaCurva,
   inicioDaMedicao,
   janelaDoDia,
-  legendaDoSaldo,
   liquidarSerie,
   reduzirBaldes,
   rotulosDeHora,
@@ -49,7 +48,7 @@ interface Props {
   tituloSerie?: string;
   /**
    * Texto ao lado da amostra da linha (a tela ao vivo usa um mais curto, que fica bem em print). Só no modo
-   * por fechamento, como `${legenda} · por fechamento`; no modo série a legenda é a da medição (legendaDoSaldo)
+   * por fechamento, como `${legenda} · por fechamento`; no modo série a legenda é a curta da medição (legendaCurtaDoSaldo)
    * mais " · líquido" (revisão de 23/09/2026: anexar o texto inteiro dava três linhas a 375 px na tela cheia, e
    * "por contrato, líquido de custos" já está escrito debaixo do número grande nas duas telas).
    */
@@ -99,26 +98,23 @@ export const CurvaDoDia = memo(function CurvaDoDia({
 
   const serie = useMemo(() => {
     if (!saldo || !saldo.carregado || saldo.baldes.length === 0 || !dia || !horario) return null;
-    const { bucketSeg, aproximado, baldes } = saldo;
+    const { bucketSeg, aproximado } = saldo;
     // o líquido no instante t desconta o custo das operações fechadas até ali: as operações do dia que a
     // tela já tem ao vivo (o mesmo que mepMenDoDia faz com n_saidas × custo, aqui com o custo de cada uma)
     const fechamentos = fechamentosDasOperacoes(operacoes);
+    // só os baldes do pregão: o eixo não estica até a meia-noite (24/09/2026, ver baldesDoPregao)
+    const baldes = baldesDoPregao(saldo.baldes, dia, horario, fechamentos);
     const janela = janelaDoDia(dia, horario, baldes, bucketSeg, fechamentos);
     const liquida = liquidarSerie(baldes, fechamentos, bucketSeg, { base: "liquido", unidade: "brl", valorPonto: valorPonto ?? 1 });
     const pontos = serieDoSaldoParaDesenho(reduzirBaldes(liquida, PONTOS_SALDO), { janela, unidade: "brl", bucketSeg, comFaixa: !aproximado });
+    const medidoDesdeT = inicioDaMedicao(liquida, fechamentos, janela.inicio);
     return {
       pontos,
       // o MEP/MEN da própria série: o pico e o vale dos baldes, que batem com exposicao_dia
       marcadores: marcadoresDoSaldo(liquida, janela),
-      fechamentos: fechamentosNaCurva(fechamentos, liquida, janela),
+      fechamentos: espacarFechamentos(fechamentosNaCurva(fechamentos, liquida, janela)),
       rotulosX: rotulosDeHora(janela),
-      legenda: legendaDoSaldo({
-        bucketSeg,
-        aproximado,
-        comFechamentos: operacoes.length > 0,
-        // "medido a partir de HH:MM" também quando o primeiro balde vem bem depois do início do eixo, sem saída antes
-        medidoDesdeT: inicioDaMedicao(liquida, fechamentos, janela.inicio),
-      }),
+      legenda: legendaCurtaDoSaldo({ bucketSeg, aproximado, medidoDesdeT }),
     };
   }, [saldo, operacoes, dia, horario, valorPonto]);
 

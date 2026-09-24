@@ -10,7 +10,7 @@ import { Valor } from "@/components/compartilhados/Valor";
 import { Heatmap } from "@/components/desempenho/Heatmap";
 import { escalaDeForca, mistura } from "@/components/graficos/base";
 import { AmostraDaLinha, CURVA_POR_OPERACAO, DesenhoDaCurva, MolduraProfit, PROFIT, type MarcadorDaCurva } from "@/components/graficos/CurvaProfit";
-import { marcadoresDoSaldo, serieDoSaldoParaDesenho, seriePorOperacao } from "@/components/graficos/series-da-curva";
+import { baldesDoPregao, espacarFechamentos, legendaCurtaDoSaldo, marcadoresDoSaldo, serieDoSaldoParaDesenho, seriePorOperacao } from "@/components/graficos/series-da-curva";
 import { Button } from "@/components/ui/button";
 import { formatarData, formatarDataLonga, formatarHora, formatarMesAno, formatarNumero, formatarPct } from "@/lib/formato";
 import { gradeMes, heatmapAnoMes, mesesComDados } from "@/lib/stats/calendario";
@@ -24,7 +24,6 @@ import {
   fechamentosNaCurva,
   inicioDaMedicao,
   janelaDoDia,
-  legendaDoSaldo,
   liquidarSerie,
   reduzirBaldes,
   rotulosDeHora,
@@ -270,24 +269,26 @@ export function PainelCalendario({ linhas, pacote, exposicao, feriados, hoje, va
   const saldoSel = diaSel ? saldos[diaSel] : undefined;
   const carregando = temColetor && diaSel !== null && saldoSel === undefined;
   const temSerie = typeof saldoSel === "object" && saldoSel.baldes.length > 0;
-  const nOpsDoDia = opsDia.length;
   // A série pronta para o desenho: bruta na rota, líquida aqui (o custo de cada operação fechada até o fim
   // do balde), reduzida a PONTOS_SALDO grupos, com o MEP/MEN da própria série, os fechamentos marcados na
   // linha e o eixo do tempo no horário do robô, esticado pelos dados do dia
   const serieDoDia = useMemo(() => {
     if (!diaSel || typeof saldoSel !== "object" || saldoSel.baldes.length === 0) return null;
-    const { baldes, fechamentos, bucketSeg, aproximado } = saldoSel;
+    const { fechamentos, bucketSeg, aproximado } = saldoSel;
+    // só os baldes do pregão: o eixo não estica até a meia-noite; fechamentos espaçados e legenda curta
+    // (24/09/2026, ver baldesDoPregao em series-da-curva)
+    const baldes = baldesDoPregao(saldoSel.baldes, diaSel, horario, fechamentos);
     const liquida = liquidarSerie(baldes, fechamentos, bucketSeg, { base: opcoes.base, unidade: opcoes.unidade, valorPonto });
     const janela = janelaDoDia(diaSel, horario, baldes, bucketSeg, fechamentos);
     return {
       pontos: serieDoSaldoParaDesenho(reduzirBaldes(liquida, PONTOS_SALDO), { janela, unidade: opcoes.unidade, bucketSeg, comFaixa: !aproximado }),
       marcadores: marcadoresDoSaldo(liquida, janela),
-      fechamentos: fechamentosNaCurva(fechamentos, liquida, janela),
+      fechamentos: espacarFechamentos(fechamentosNaCurva(fechamentos, liquida, janela)),
       rotulosX: rotulosDeHora(janela),
-      // "medido a partir de HH:MM" também quando o primeiro balde vem bem depois do início do eixo, sem saída antes
-      legenda: `${legendaDoSaldo({ bucketSeg, aproximado, comFechamentos: nOpsDoDia > 0, medidoDesdeT: inicioDaMedicao(liquida, fechamentos, janela.inicio) })} · 1 contrato, líquido`,
+      // "desde HH:MM" também quando o primeiro balde vem bem depois do início do eixo, sem saída antes
+      legenda: `${legendaCurtaDoSaldo({ bucketSeg, aproximado, medidoDesdeT: inicioDaMedicao(liquida, fechamentos, janela.inicio) })} · 1 contrato, líquido`,
     };
-  }, [diaSel, saldoSel, opcoes, valorPonto, horario, nOpsDoDia]);
+  }, [diaSel, saldoSel, opcoes, valorPonto, horario]);
   // tirar o dia do cache faz o efeito pedir de novo (o botão "Tentar de novo" do erro)
   const tentarDeNovo = (dia: string) => setSaldos((s) => Object.fromEntries(Object.entries(s).filter(([d]) => d !== dia)));
   // MEP e MEN do dia, duas fontes (22/09/2026). Primeiro a medição do EA 1.1.0: tick a tick, com a posição

@@ -221,7 +221,27 @@ export function caminhoDaLinha(
 const SEM_MARCADORES: readonly MarcadorDaCurva[] = [];
 const SEM_FECHAMENTOS: readonly FechamentoNaCurva[] = [];
 
-function EixoProfit({ marcas, y, altura, formatar }: { marcas: number[]; y: (v: number) => number; altura: number; formatar: (v: number) => string }) {
+/**
+ * A régua da direita. `evitar` são as alturas (em %) das etiquetas de valor que ficam por cima dela: a marca
+ * que cairia debaixo de uma etiqueta não é escrita (24/09/2026: "1.131" da etiqueta encostava no "1.000" da
+ * régua e virava um número só). A largura da coluna continua vindo de todas as marcas, para não pular.
+ */
+function EixoProfit({
+  marcas,
+  y,
+  altura,
+  formatar,
+  evitar = [],
+}: {
+  marcas: number[];
+  y: (v: number) => number;
+  altura: number;
+  formatar: (v: number) => string;
+  evitar?: number[];
+}) {
+  // a etiqueta tem uns 18 px de altura; em % da altura do gráfico
+  const limiar = (20 / altura) * 100;
+  const visiveis = marcas.filter((m) => !evitar.some((e) => Math.abs(y(m) - e) < limiar));
   return (
     <div aria-hidden className="relative text-[11px] tabular-nums" style={{ height: altura, color: PROFIT.texto }}>
       {marcas.map((m) => (
@@ -229,7 +249,7 @@ function EixoProfit({ marcas, y, altura, formatar }: { marcas: number[]; y: (v: 
           {formatar(m)}
         </span>
       ))}
-      {marcas.map((m) => (
+      {visiveis.map((m) => (
         <span key={m} className="absolute left-0 -translate-y-1/2 leading-none whitespace-nowrap" style={{ top: `${y(m)}%` }}>
           {formatar(m)}
         </span>
@@ -563,7 +583,13 @@ export function DesenhoDaCurva({
       </div>
       {/* no eixo, a etiqueta colorida do último valor fica sempre; a da mira, cinza, vem por cima quando se aponta */}
       <div className="relative">
-        <EixoProfit marcas={marcas} y={y} altura={altura} formatar={formatarEixo} />
+        <EixoProfit
+          marcas={marcas}
+          y={y}
+          altura={altura}
+          formatar={formatarEixo}
+          evitar={atual ? [y(ultimo.acumulado), y(atual.acumulado)] : [y(ultimo.acumulado)]}
+        />
         <span aria-hidden className="invisible block h-0 overflow-hidden px-1.5 text-[11px] font-medium whitespace-nowrap tabular-nums">
           {etiquetaMaisLarga}
         </span>

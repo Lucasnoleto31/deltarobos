@@ -237,6 +237,11 @@
      (AbasRobo, AbasRobos, LinksNav, Segmentado): a rolagem do próprio Tab deixava o item focado cortado
      debaixo do esmaecido. */
   .borda-esmaece {
+    /* 24/09/2026: a faixa é o bloco de contenção do que é absoluto dentro dela. Sem isto, o span sr-only
+       do AtualizadoHa (position: absolute) ficava na posição estática do fim da barra do pregão — a 838 px
+       numa tela de 390 — e, escapando da rolagem interna, esticava o <html> inteiro: a página deslizava de
+       lado no celular. body medía 375 e html 838. */
+    position: relative;
     -webkit-mask-image: linear-gradient(to right, transparent, #000 var(--esmaece-ini), #000 calc(100% - var(--esmaece-fim)), transparent);
     mask-image: linear-gradient(to right, transparent, #000 var(--esmaece-ini), #000 calc(100% - var(--esmaece-fim)), transparent);
     scroll-padding-inline: 1.5rem;
