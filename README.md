@@ -252,6 +252,53 @@ antes + MAE até o acumulado antes + MFE; em série agrupada, o envelope da fati
 na aba Desempenho e na visão geral "Por operação" (`dentes` em `SerieCompacta`, só quando alguma operação
 da série tem MFE/MAE). Regra na spec §7 e na Metodologia (`/metodologia#curva-do-dia`).
 
+### Imagem do dia para compartilhar
+
+Pedido do Lucas (24/09/2026): uma imagem pronta ao fim de cada pregão, para a live, o WhatsApp e o Instagram,
+sem montar nada na mão. `GET /api/og/<slug>/<dia>` devolve um PNG com o dia do robô por 1 contrato, líquido de
+custos: `?formato=quadrado` (o padrão, 1080×1080: feed e WhatsApp) ou `?formato=story` (1080×1920: stories e
+status, com 200 px livres em cima e 260 px embaixo para a interface do Instagram não cobrir nada). Qualquer outro
+parâmetro, como o `v=` que o site acrescenta para a prévia de hoje não vir velha, é ignorado. Hoje
+`Cache-Control: public, max-age=0, s-maxage=60, stale-while-revalidate=60`, dia passado
+`public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800`; 400 dia inválido ou futuro, 404 robô
+desconhecido ou dia sem operação pública, 503 `no-store` + `Retry-After: 5` quando o banco falha (todo dado é
+lido antes de desenhar, para a falha não sair como imagem com status 200). Só views `*_publico`: nada de conta,
+magic, volume ou contratos.
+
+| parte                                                                                   | onde                                                    |
+| --------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| cálculo puro (textos, números, curva em coordenadas 0..1 e caminhos SVG), com testes    | `src/lib/stats/card-do-dia.ts`                          |
+| desenho da imagem (componente para o `ImageResponse`)                                   | `src/components/card/CardDoDia.tsx`                     |
+| cores, compartilhadas com as prévias OG (`/api/og/[slug]` e `/api/og/casa`)             | `src/components/card/cores.ts`                          |
+| formatos, URL da imagem, nome do arquivo e cache-buster                                 | `src/components/compartilhar/url-do-card.ts`            |
+| botão "Compartilhar o dia" e diálogo                                                    | `src/components/compartilhar/CompartilharDia.tsx`       |
+| regras puras do botão (versão da imagem de hoje, textos, suporte a arquivo), com testes | `src/components/compartilhar/regras-do-compartilhar.ts` |
+| rota                                                                                    | `src/app/api/og/[slug]/[dia]/route.tsx`                 |
+
+A curva é a mesma do Hoje ao vivo, da tela cheia e do calendário: a série do EA 1.1.2 recortada ao horário do
+robô (dez minutos de folga antes do início e depois do mais tarde entre o fim e a última saída), reduzida a 300
+pontos, com a faixa mín./máx. quando não é aproximada; sem série, a curva por fechamento; dia de importação
+manual, o eixo pela ordem das operações. MEP e MEN são os medidos pelo EA, líquidos como no Hoje ao vivo
+(`mepMenDoDia`), ou por fechamento (`excursao`), e uma nota diz a fonte. A imagem de hoje leva o selo
+"Parcial · até HH:MM" (hora do último balde ou da última saída) até passar o mais tarde entre o fim do horário
+do robô e o fim do pregão do ativo, e enquanto o robô estiver posicionado (a zeragem das 18:00 vira operação
+décimos de segundo depois); nesse tempo a série vai até o fim do dia, para a linha acompanhar a posição aberta.
+Depois é definitiva, com o mesmo corte do site. O selo "Conta demo" aparece quando `conta_tipo = 'demo'`. A frase
+legal é a de "passado não garante futuro" do aviso legal do banco, quando cabe em 100 caracteres; senão,
+"Rentabilidade passada não garante rentabilidade futura.", no tamanho do rodapé. Regras completas na spec §8.8.
+
+O botão "Compartilhar o dia" aparece no Hoje ao vivo, na tela cheia (no lugar do "Compartilhar" do rodapé, que
+sem operação continua compartilhando o link) e no detalhe do dia do calendário, só com operação no dia. O
+diálogo baixa a PNG uma vez, ao abrir ou ao trocar de formato, e usa o mesmo arquivo na prévia, em "Baixar
+imagem" (`quants-<slug>-<dia>-<formato>.png`) e em "Compartilhar" (Web Share com arquivo, chamado no próprio
+clique, como o Safari exige; some quando o navegador não aceita arquivo; a legenda diz "Conta demo." quando é o
+caso). "Copiar link" copia a página do robô (na tela cheia, a própria tela cheia). A versão `v=` do Hoje ao vivo e
+da tela cheia (`versaoDoDiaAoVivo`, em `regras-do-compartilhar.ts`) só conta o balde até o fim do dia do robô mais
+dez minutos: o coletor manda baldes até a meia-noite, e a imagem já não muda.
+
+A imagem usa a fonte padrão do `ImageResponse` (Geist, um peso só): a hierarquia vem do tamanho e da cor, e
+nenhuma fonte externa é carregada.
+
 ### Simulador com o meu capital
 
 `/simulador` aplica o histórico público, por 1 contrato e já com custos, ao capital e aos contratos que o
@@ -355,9 +402,10 @@ supabase/seed.sql         dados iniciais
 src/app/(site)/           home, /robos/[slug], /comparativo, /simulador, /metodologia
 src/app/api/ingest/       ping, deal, heartbeat, history, candles, reconciliar
 src/app/api/robos/        curva por operação por período (cache 60 s) e série do saldo do dia (JSON público)
-src/components/           ui (shadcn), layout, home, robo, graficos, simulador, compartilhados
+src/app/api/og/           imagens: prévia OG do robô e da casa, e a imagem do dia para compartilhar
+src/components/           ui (shadcn), layout, home, robo, graficos, simulador, compartilhados, card (imagem do dia), compartilhar
 src/hooks/                realtime (useRoboAoVivo, useCasaAoVivo), relógio
-src/lib/stats/            cálculo puro + testes (curva, drawdown, KPIs, períodos, pregão, status, simulador, saldo do dia)
+src/lib/stats/            cálculo puro + testes (curva, drawdown, KPIs, períodos, pregão, status, simulador, saldo do dia, imagem do dia)
 src/lib/ingest/           auth por token, rate limit, schemas zod, pareamento deals -> operações
 src/lib/consultas/        leitura das views públicas
 ```

@@ -41,6 +41,7 @@
 - `/metodologia` como cada métrica é calculada
 - `/embed/[slug]` widget pra colar em outros sites
 - `/api/og/[slug]` imagem OG dinâmica com resultado do dia (pra link no WhatsApp)
+- `/api/og/[slug]/[dia]` imagem do dia para compartilhar (PNG, `?formato=quadrado` 1080×1080, que é o padrão, ou `?formato=story` 1080×1920; hoje em cache de 60 s, dia passado 1 dia; 400 dia inválido ou futuro, 404 robô ou dia sem operação pública, 503 sem cache quando o banco falha)
 - `/api/robos/[slug]/curva/[periodo]` curva por operação completa do período (JSON, só dados públicos, cache de 60 s), carregada sob demanda pela página do robô quando o visitante abre "Por operação"
 - `/api/robos/[slug]/saldo/[dia]` série do saldo do dia medida pelo EA (JSON compacto `{dia, baldes: [[t, min, max, ultimo]], aproximado, bucketSeg, fechamentos: [[t, custo]], geradoEm}`, só dados públicos; hoje em cache de 15 s, dia passado 1 h; 400 dia inválido ou futuro, 404 robô, 503 sem cache quando o banco falha)
 
@@ -154,11 +155,11 @@ No celular, os itens 1, 2, 3 e 8 ficam acima da dobra. Na v1 entram 1, 2, 3, 8, 
 
 ### 8.2 Página do robô `/robos/[slug]`
 - Cabeçalho: nome, ativo, descrição pública, horário, contratos padrão, "conta real desde", status ao vivo, "última operação há X min"
-- Hoje ao vivo: resultado do dia em pontos e R$, posição aberta (lado, preço, flutuante), operações em aberto (número de entradas ainda abertas na conta principal, nunca contratos), operações do dia entrando na hora; MEP e MEN do dia medidos pelo EA tick a tick (linha "Exposição do dia", que some quando não há medição; regra na seção 7); curva real do dia pela série do EA (faixa mín./máx., fechamentos marcados, MEP/MEN da série), por fechamento com dentes de MFE/MAE quando não há série; com posição aberta e nenhuma saída a série já aparece
+- Hoje ao vivo: resultado do dia em pontos e R$, posição aberta (lado, preço, flutuante), operações em aberto (número de entradas ainda abertas na conta principal, nunca contratos), operações do dia entrando na hora; MEP e MEN do dia medidos pelo EA tick a tick (linha "Exposição do dia", que some quando não há medição; regra na seção 7); curva real do dia pela série do EA (faixa mín./máx., fechamentos marcados, MEP/MEN da série), por fechamento com dentes de MFE/MAE quando não há série; com posição aberta e nenhuma saída a série já aparece; botão "Compartilhar o dia" (a imagem do dia, §8.8) quando há operação
 - KPIs (cards): acumulado, mês, média mensal, drawdown máximo, taxa de acerto, fator de lucro, payoff, nº de operações, melhor e pior dia, dias positivos x negativos, maior sequência de perdas
 - Curva de capital com drawdown, filtros de período, toggle pontos/R$, toggle bruto/líquido, seletor de contratos ("com 5 contratos seria..."), abas "Por dia" e "Por operação". "Por operação" liga um ponto a cada operação fechada, uma operação por ponto até 20 mil operações no período; acima disso agrupa operações vizinhas. Na Visão geral a página chega com a série leve de 240 pontos, que pinta na hora, e a série completa é carregada sob demanda pela rota `/api/robos/[slug]/curva/[periodo]` (cache de 60 s) quando o visitante abre "Por operação"; a aba Desempenho e o calendário, que já têm as operações no navegador, desenham na resolução fiel direto. O drawdown por operação pode ser maior que o por dia, porque passa pelo saldo no meio do pregão.
 - Mensal: heatmap ano x mês
-- Diário: calendário do mês; o detalhe do dia mostra MEP e MEN (regra na seção 7) e desenha a série do EA do dia, carregada sob demanda pela rota de saldo, senão por fechamento
+- Diário: calendário do mês; o detalhe do dia mostra MEP e MEN (regra na seção 7) e desenha a série do EA do dia, carregada sob demanda pela rota de saldo, senão por fechamento; com operação, o botão Compartilhar do detalhe gera a imagem do dia selecionado (§8.8)
 - Distribuição: dia da semana, hora do dia, histograma por operação
 - Risco: drawdown em R$ e %, tempo de recuperação, capital mínimo recomendado por contrato (sempre com o drawdown máximo de todo o histórico, fixo ao trocar o período; link "Simular com meu capital")
 - Últimas 50 operações com link pra lista completa
@@ -169,7 +170,7 @@ No celular, os itens 1, 2, 3 e 8 ficam acima da dobra. Na v1 entram 1, 2, 3, 8, 
 Tabela completa paginada, filtros por período, lado e resultado, export CSV, realtime nas do dia. Coluna "MFE / MAE" (pontos por contrato, "–" na operação não medida) só a partir de xl; no CSV, as duas colunas no fim.
 
 ### 8.4 Ao vivo `/robos/[slug]/ao-vivo`
-Tela cheia só com o dia: resultado grande, posição aberta, operações em aberto (mesmo número da home e da página do robô: entradas ainda abertas, nunca contratos), a mesma curva do Hoje ao vivo (série do EA quando há, senão por fechamento), últimas operações. Feita pra compartilhar e deixar aberta no celular.
+Tela cheia só com o dia: resultado grande, posição aberta, operações em aberto (mesmo número da home e da página do robô: entradas ainda abertas, nunca contratos), a mesma curva do Hoje ao vivo (série do EA quando há, senão por fechamento), últimas operações. Feita pra compartilhar e deixar aberta no celular. Com operação no dia, o botão Compartilhar do rodapé abre a imagem do dia (§8.8), em Quadrado ou Story, com Compartilhar, Baixar imagem e Copiar link (o link da própria tela cheia); sem operação, ele compartilha o link da tela, como antes (24/09/2026).
 
 ### 8.5 Carteira `/carteira`
 Seleciona robôs e contratos de cada um, vê curva combinada, drawdown conjunto, correlação e KPIs da carteira.
@@ -187,8 +188,38 @@ Aritmética sobre o histórico público, por contrato, aplicada ao capital e aos
 ### 8.7 Metodologia `/metodologia`
 Definição de cada métrica, como a coleta funciona, o que é custo, o que é normalização por contrato. Glossário.
 
-### 8.8 Embed `/embed/[slug]` e OG `/api/og/[slug]`
+### 8.8 Embed `/embed/[slug]`, OG `/api/og/[slug]` e imagem do dia `/api/og/[slug]/[dia]`
 Widget leve (card do robô) pra iframe. Imagem OG com resultado do dia, gerada na hora.
+
+**Imagem do dia para compartilhar (24/09/2026).** Pedido do Lucas: uma imagem pronta ao fim de cada pregão, gerada pelo site, com a curva real do dia, o resultado, o MEP, o MEN e o número de operações.
+
+- **Para que serve.** PNG pronto para a live, o WhatsApp e o Instagram, sem montagem manual.
+- **Formatos.** `quadrado`, o padrão (1080×1080: feed e WhatsApp), e `story` (1080×1920: stories e status, com 200 px livres em cima e 260 px embaixo para a interface do Instagram não cobrir nada, e os selos abaixo da data). Qualquer outro parâmetro, como o `v=` que o site acrescenta para a prévia de hoje não vir velha, é ignorado.
+- **Conteúdo, nesta ordem:**
+  1. marca (símbolo e "Quants Robôs");
+  2. nome do robô e ativo ("Mini Índice · WIN") e a data por extenso ("quarta-feira, 23 de setembro de 2026");
+  3. selos "Parcial · até HH:MM" e "Conta demo" (este quando `conta_tipo = 'demo'`);
+  4. resultado líquido do dia por 1 contrato em R$, grande e colorido, com os pontos;
+  5. operações, acerto (com o número de gains), MEP e MEN, com a nota da fonte;
+  6. a curva do dia;
+  7. rodapé "Por 1 contrato, líquido de custos · `<domínio>/robos/<slug>`" (o domínio de `NEXT_PUBLIC_SITE_URL`, sem protocolo nem "www.") e uma frase legal curta.
+- **Curva.** A mesma do Hoje ao vivo, da tela cheia e do calendário.
+  - Com a série do EA 1.1.2: linha do saldo líquido, faixa mín./máx. (sem faixa quando aproximado) e linha do zero, só com os baldes que vão de dez minutos antes do início do horário do robô até dez minutos depois do mais tarde entre o fim do horário e a última saída, reduzida a 300 pontos. Na imagem parcial o corte vai até dez minutos depois do mais tarde entre o fim do dia (o fim do horário do robô ou o do pregão do ativo, o que vier depois) e a última saída: entre o fim do horário do robô e a zeragem a linha acompanha a posição aberta, em vez de parar no último corte (24/09/2026). Coletor que ligou com o dia em andamento: a linha nasce no primeiro balde, e a legenda diz "desde HH:MM".
+  - O traço é verde acima do zero, vermelho abaixo e neutro em cima do zero (saldo parado antes da primeira entrada, a origem da curva por fechamento); a área e a faixa trocam de cor no zero.
+  - Sem série: a curva por fechamento (acumulado líquido operação a operação), rotulada "por fechamento".
+  - Dia só de importação manual: o eixo é a ordem das operações ("1ª", "31ª"…), rotulado "histórico importado, sem horário".
+  - No máximo 5 marcas no eixo de baixo. Na curva por fechamento cada marca fica em cima do ponto da operação que ela nomeia (a j-ésima em j/n, a última na borda direita); o site ainda usa a regra antiga, uma operação à esquerda (24/09/2026, a alinhar).
+- **MEP e MEN.** Os medidos pelo EA, líquidos como no Hoje ao vivo (`mepMenDoDia`), com a nota "medidos no MT5". Sem medição, por fechamento (`excursao`), com a nota "por fechamento de operação".
+- **Parcial.** O dia é hoje e ainda não passou o mais tarde entre o fim do horário do robô e o do pregão do ativo (em 23/09/2026 o Apollo, com horário até 17:30, fechou uma operação às 18:00), ou o robô ainda está posicionado (`robos_publico.posicionado`): às 18:00:00 a zeragem ainda não virou operação, e sem isso a imagem saía definitiva com o resultado de antes dela (24/09/2026). A hora do selo é a do último dado (último balde ou última saída). Depois disso, a imagem é definitiva e sai sem selo.
+- **Frase legal.** A frase "passado não garante futuro" do aviso legal (`parametros.textos.disclaimer`, com a troca de marca), quando cabe em até 100 caracteres; senão "Rentabilidade passada não garante rentabilidade futura.". Vai no mesmo tamanho do rodapé: é o único aviso de risco da peça. O aviso inteiro (mais de 1.100 caracteres) não cabe numa imagem e continua no rodapé do site.
+- **Dados.** Só dados públicos, das views `*_publico`: nada de conta, magic, volume ou contratos. Sem emoji, sem projeção, sem recomendação.
+- **Respostas.** 400, 404 e 503 como na §4. Cache: dia passado `public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800`; hoje `public, max-age=0, s-maxage=60, stale-while-revalidate=60`. Todo dado é lido antes de desenhar, para uma falha do banco não sair como imagem com status 200.
+- **Botão.** "Compartilhar o dia" no Hoje ao vivo, na tela cheia e no detalhe do dia do calendário, só quando o dia tem operação. Abre a prévia com a escolha Quadrado · Story e as ações:
+  - Compartilhar: envia o arquivo pelo compartilhamento do celular, com a legenda "O dia do <robô> em <data>, por 1 contrato, líquido de custos." e o link ("Conta demo." antes do link quando `conta_tipo = 'demo'`: a legenda pode ser encaminhada sem a imagem); some quando o navegador não aceita arquivos. Cancelar não é erro.
+  - Baixar imagem: `quants-<slug>-<dia>-<formato>.png`.
+  - Copiar link: a página do robô; na tela cheia, a própria tela cheia.
+
+  O diálogo baixa a imagem uma vez, ao abrir ou ao trocar de formato, e usa o mesmo arquivo na prévia, no download e no compartilhamento: assim o compartilhamento é chamado no próprio clique, como o Safari exige. No Hoje ao vivo e na tela cheia o `v=` é o nº de operações e o minuto do último dado; o balde só conta até dez minutos depois do mais tarde entre o fim do dia do robô e a última saída, porque o coletor manda baldes até a meia-noite e a imagem não muda mais (24/09/2026).
 
 ## 9. Design
 
@@ -196,7 +227,7 @@ Widget leve (card do robô) pra iframe. Imagem OG com resultado do dia, gerada n
 - Verde pra positivo, vermelho pra negativo, cinza pra neutro. Fonte com números tabulares.
 - Skeletons em tudo que carrega, indicador "atualizado há Xs" em tudo que é ao vivo.
 - Identidade visual Delta: cores e logo a definir (pendência).
-- Fazer com que a página do robô e o fechamento do dia fiquem bons em print de celular, pois vão parar em story e WhatsApp.
+- Fazer com que a página do robô e o fechamento do dia fiquem bons em print de celular, pois vão parar em story e WhatsApp. O fechamento pronto é a imagem do dia (§8.8).
 
 ## 10. Segurança
 
