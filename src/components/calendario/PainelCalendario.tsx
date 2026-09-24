@@ -9,12 +9,12 @@ import { desempacotar, type OpsEmpacotadas } from "@/components/compartilhados/o
 import { Valor } from "@/components/compartilhados/Valor";
 import { Heatmap } from "@/components/desempenho/Heatmap";
 import { escalaDeForca, mistura } from "@/components/graficos/base";
-import { AmostraDaLinha, CURVA_POR_OPERACAO, DesenhoDaCurva, MolduraProfit, PROFIT, type MarcadorDaCurva } from "@/components/graficos/CurvaProfit";
-import { PONTOS_LEVE, baldesDoPregao, janelaDosDados, legendaCurtaDoSaldo, marcadoresDoSaldo, rotulosDeTempo, serieDoSaldoParaDesenho, seriePorOperacao } from "@/components/graficos/series-da-curva";
+import { AmostraDaLinha, CURVA_POR_OPERACAO, DesenhoDaCurva, MolduraProfit, PROFIT } from "@/components/graficos/CurvaProfit";
+import { PONTOS_LEVE, baldesDoPregao, janelaDosDados, legendaCurtaDoSaldo, rotulosDeTempo, serieDoSaldoParaDesenho, seriePorOperacao } from "@/components/graficos/series-da-curva";
 import { Button } from "@/components/ui/button";
 import { formatarData, formatarDataLonga, formatarHora, formatarMesAno, formatarNumero, formatarPct } from "@/lib/formato";
 import { gradeMes, heatmapAnoMes, mesesComDados } from "@/lib/stats/calendario";
-import { mepMenDoDia, posicaoDoExtremo, type ExposicaoDoDia } from "@/lib/stats/exposicao";
+import { mepMenDoDia, type ExposicaoDoDia } from "@/lib/stats/exposicao";
 import { dia as diaOp, excursaoDoDia, porDiaSemana, porHora, valorOperacao } from "@/lib/stats/operacoes";
 import { mesDe, somarMeses } from "@/lib/stats/periodos";
 import type { HorarioPregao } from "@/lib/stats/pregao";
@@ -266,8 +266,8 @@ export function PainelCalendario({ linhas, pacote, exposicao, feriados, hoje, va
   const carregando = temColetor && diaSel !== null && saldoSel === undefined;
   const temSerie = typeof saldoSel === "object" && saldoSel.baldes.length > 0;
   // A série pronta para o desenho: bruta na rota, líquida aqui (o custo de cada operação fechada até o fim
-  // do balde), reduzida a PONTOS_LEVE grupos, com o MEP/MEN da própria série e o eixo do tempo pelos dados
-  // do dia (sem faixa nem bolinhas de fechamento desde 24/09/2026, ver CurvaDoDia)
+  // do balde), reduzida a PONTOS_LEVE grupos, com o eixo do tempo pelos dados do dia (sem faixa, bolinhas de
+  // fechamento nem marcadores MEP/MEN desde 24/09/2026, ver CurvaDoDia)
   const serieDoDia = useMemo(() => {
     if (!diaSel || typeof saldoSel !== "object" || saldoSel.baldes.length === 0) return null;
     const { fechamentos, bucketSeg, aproximado } = saldoSel;
@@ -279,7 +279,6 @@ export function PainelCalendario({ linhas, pacote, exposicao, feriados, hoje, va
     const janela = janelaDosDados(baldes, fechamentos, bucketSeg);
     return {
       pontos: serieDoSaldoParaDesenho(reduzirBaldes(liquida, PONTOS_LEVE), { janela, unidade: opcoes.unidade, bucketSeg, comFaixa: false }),
-      marcadores: marcadoresDoSaldo(liquida, janela),
       rotulosX: rotulosDeTempo(janela),
       // "desde HH:MM" também quando o primeiro balde vem bem depois do início do eixo, sem saída antes
       legenda: `${legendaCurtaDoSaldo({ bucketSeg, aproximado, medidoDesdeT: inicioDaMedicao(liquida, fechamentos, janela.inicio) })} · 1 contrato, líquido`,
@@ -298,19 +297,6 @@ export function PainelCalendario({ linhas, pacote, exposicao, feriados, hoje, va
     [diaSel, exposicaoPorDia, custoPorContrato, valorPonto, opcoes],
   );
   const excursao = useMemo(() => excursaoDoDia(opsDia, opcoes), [opsDia, opcoes]);
-  const nOpsDia = opsDia.length;
-  const marcadoresDoDia = useMemo(() => {
-    const lista: MarcadorDaCurva[] = [];
-    if (mepMenEA) {
-      if (mepMenEA.mep > 0) lista.push({ posicao: posicaoDoExtremo(mepMenEA.mepNSaidas, nOpsDia), valor: mepMenEA.mep, rotulo: "MEP", tom: "positivo" });
-      if (mepMenEA.men < 0) lista.push({ posicao: posicaoDoExtremo(mepMenEA.menNSaidas, nOpsDia), valor: mepMenEA.men, rotulo: "MEN", tom: "negativo" });
-      return lista;
-    }
-    const n = excursao.nOperacoes || 1;
-    if (excursao.operacaoMep !== null) lista.push({ posicao: excursao.operacaoMep / n, valor: excursao.mep, rotulo: "MEP", tom: "positivo" });
-    if (excursao.operacaoMen !== null) lista.push({ posicao: excursao.operacaoMen / n, valor: excursao.men, rotulo: "MEN", tom: "negativo" });
-    return lista;
-  }, [mepMenEA, excursao, nOpsDia]);
   // os dois números do bloco MEP/MEN, já na fonte do dia
   const mepDoDia = mepMenEA ? mepMenEA.mep : excursao.mep;
   const menDoDia = mepMenEA ? mepMenEA.men : excursao.men;
@@ -611,8 +597,8 @@ export function PainelCalendario({ linhas, pacote, exposicao, feriados, hoje, va
                 <span role="status" className="sr-only">
                   {carregando && curvaDoDia.length > 0 ? "Carregando o saldo medido do dia." : saldoSel === "erro" ? "O saldo medido do dia não carregou." : ""}
                 </span>
-                {/* A curva do dia (23/09/2026): a série do saldo medida pelo EA quando o dia a tem (com o MEP/MEN da
-                    série; a faixa e as bolinhas de fechamento saíram em 24/09/2026); senão, e enquanto ela carrega, a
+                {/* A curva do dia (23/09/2026): a série do saldo medida pelo EA quando o dia a tem (a faixa, as bolinhas
+                    de fechamento e o MEP/MEN saíram do desenho em 24/09/2026); senão, e enquanto ela carrega, a
                     curva por fechamento de sempre, rotulada assim, com os dentes de MFE/MAE das operações medidas */}
                 {serieDoDia !== null && diaSel ? (
                   <MolduraProfit
@@ -633,7 +619,6 @@ export function PainelCalendario({ linhas, pacote, exposicao, feriados, hoje, va
                       pontos={serieDoDia.pontos}
                       cores={CURVA_POR_OPERACAO}
                       altura={alturaCurva}
-                      marcadores={serieDoDia.marcadores}
                       comecarNoPrimeiroPonto
                       rotulosX={serieDoDia.rotulosX}
                       formatarEixo={(v) => formatarNumero(v, 0)}
@@ -675,7 +660,6 @@ export function PainelCalendario({ linhas, pacote, exposicao, feriados, hoje, va
                       pontos={curvaDoDia}
                       cores={CURVA_POR_OPERACAO}
                       altura={alturaCurva}
-                      marcadores={marcadoresDoDia}
                       rotulosX={ordemNoEixo}
                       formatarEixo={(v) => formatarNumero(v, 0)}
                       rotuloVertical="Saldo do dia (R$)"

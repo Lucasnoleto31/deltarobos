@@ -4,9 +4,8 @@ import { useMemo, useState } from "react";
 import { HaQuanto } from "@/components/compartilhados/HaQuanto";
 import { RotuloComInfo } from "@/components/compartilhados/InfoIndicador";
 import { Valor } from "@/components/compartilhados/Valor";
-import type { MarcadorDaCurva } from "@/components/graficos/CurvaProfit";
 import { formatarHora, formatarNumero, formatarPreco, rotuloLado } from "@/lib/formato";
-import { mepMenDoDia, posicaoDoExtremo } from "@/lib/stats/exposicao";
+import { mepMenDoDia } from "@/lib/stats/exposicao";
 import { brlParaPontos } from "@/lib/stats/normalizacao";
 import { horarioDaJanela } from "@/lib/stats/saldo-dia";
 import { CurvaDoDia } from "./CurvaDoDia";
@@ -53,17 +52,6 @@ export function HojeAoVivo() {
     () => mepMenDoDia(estado.exposicaoHoje, robo.custo_por_contrato, robo.valor_ponto_brl, "liquido", "brl"),
     [estado.exposicaoHoje, robo.custo_por_contrato, robo.valor_ponto_brl],
   );
-  // os mesmos marcadores do detalhe do dia no calendário: o extremo na régua da curva (saídas feitas até
-  // ele / operações do dia). Memoizado, senão o memo da CurvaDoDia refaria a curva a cada render
-  const nOps = ops.length;
-  const marcadores = useMemo(() => {
-    const lista: MarcadorDaCurva[] = [];
-    if (!mepMen) return lista;
-    if (mepMen.mep > 0) lista.push({ posicao: posicaoDoExtremo(mepMen.mepNSaidas, nOps), valor: mepMen.mep, rotulo: "MEP", tom: "positivo" });
-    if (mepMen.men < 0) lista.push({ posicao: posicaoDoExtremo(mepMen.menNSaidas, nOps), valor: mepMen.men, rotulo: "MEN", tom: "negativo" });
-    return lista;
-  }, [mepMen, nOps]);
-
   // A série do saldo de hoje medida pelo EA 1.1.2 (23/09/2026): só depois de a rota responder (carregado) e
   // com balde; até lá, e nos dias sem série, a curva por fechamento. O eixo do tempo é o horário do robô,
   // ou o do pregão do ativo; memoizado porque a CurvaDoDia é memo e compara por referência
@@ -207,7 +195,6 @@ export function HojeAoVivo() {
               horario={horario}
               valorPonto={robo.valor_ponto_brl}
               altura={200}
-              marcadores={marcadores}
             />
           )}
         </div>
