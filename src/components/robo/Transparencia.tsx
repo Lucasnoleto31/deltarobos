@@ -2,6 +2,7 @@ import { ArrowUpRight, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { formatarBRL } from "@/lib/formato";
 import type { RoboPublico } from "@/lib/tipos";
+import { CabecaSecao } from "./CabecaSecao";
 
 interface Props {
   robo: RoboPublico;
@@ -52,15 +53,12 @@ function Linha({
  * Transparência do robô (spec §8.2). Eram quatro cartões de parágrafo repetindo, em cada robô, o que
  * a metodologia já explica (coleta, custos, normalização). Desde 17/09/2026 é uma lista de fatos do
  * robô, e cada linha leva à explicação: o número fica aqui, o texto fica lá.
+ * Desde 13/10/2026 o título é o das outras seções da visão geral (CabecaSecao); era o rótulo miúdo em caixa alta.
  */
 export function Transparencia({ robo }: Props) {
   return (
-    <section aria-labelledby="transparencia" className="painel-grupo">
-      <div className="painel-cabeca">
-        <h2 id="transparencia" className="painel-titulo">
-          Transparência
-        </h2>
-      </div>
+    <section aria-labelledby="transparencia" className="space-y-3">
+      <CabecaSecao id="transparencia" titulo="Transparência" />
       <ul className="painel overflow-hidden">
         <Linha
           href="/metodologia#coleta"

@@ -3,13 +3,15 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "cn"
 
 const buttonVariants = cva(
-  "group/button inline-flex shrink-0 items-center justify-center rounded-full border bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "group/button inline-flex shrink-0 items-center justify-center rounded-full border bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
-        // o botão principal é a pílula no verde da Quants (19/09/2026): preto sobre o neon no escuro
-        // (14,8:1), branco sobre o verde escuro no claro (5,4:1; 4,6:1 no hover)
-        default: "border-transparent bg-primary font-semibold text-primary-foreground hover:opacity-90",
+        // o botão principal é a pílula no azul da Zeve (13/10/2026; de 19/09 a 12/10/2026, o verde da Quants):
+        // branco sobre o #0059FF nos dois temas, 5,4:1. O hover escurece o azul em vez de apagar o botão: com
+        // opacidade o claro caía para 4,7:1; escurecido sobe para 6,8:1. O foco é um anel de 2 px no acento,
+        // afastado 2 px pelo fundo da página: colado, o anel azul sumia no botão azul.
+        default: "border-transparent bg-primary font-semibold text-primary-foreground hover:bg-[color-mix(in_srgb,var(--primary)_86%,black)]",
         outline:
           "border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
         secondary:
@@ -18,7 +20,8 @@ const buttonVariants = cva(
           "border-transparent hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50",
         destructive:
           "border-transparent bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
-        link: "border-transparent text-primary underline-offset-4 hover:underline",
+        // link no "info": o #0059FF puro dá 3,6:1 sobre o marinho, o info do escuro 6,2:1
+        link: "border-transparent text-info underline-offset-4 hover:underline",
       },
       size: {
         default:

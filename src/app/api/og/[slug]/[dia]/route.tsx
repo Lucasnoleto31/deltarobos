@@ -10,6 +10,7 @@ import {
   listarOperacoesDoDia,
   listarSaldoDoDia,
 } from "@/lib/consultas/publico";
+import { corDoRoboHex } from "@/lib/cores-robo";
 import { montarCardDoDia, type DadosCardDoDia } from "@/lib/stats/card-do-dia";
 import { ehDia, hojeSP } from "@/lib/stats/periodos";
 import type { HorarioPregao } from "@/lib/stats/pregao";
@@ -37,6 +38,9 @@ const PREGAO_PADRAO: HorarioPregao = { inicio: "09:00", fim: "18:00" };
  * chega dado novo); dia passado não muda mais, então 1 dia no CDN, 1 h no navegador e uma semana de SWR.
  *
  * Só dados públicos, das views *_publico: nada de número de conta, magic, volume ou contratos.
+ *
+ * A cor do robô (13/10/2026, mídia kit da Zeve) sai da ordem do banco (corDoRoboHex), nunca do slug, e vai só no
+ * ponto ao lado do nome; a curva e o resultado continuam pelo sinal.
  */
 export async function GET(req: Request, { params }: { params: Promise<{ slug: string; dia: string }> }): Promise<Response> {
   const { slug, dia } = await params;
@@ -49,10 +53,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
   const formato = formatoDoParametro(url.searchParams.get("formato"));
 
   let dados: DadosCardDoDia | null;
+  let corRobo: string | undefined;
   try {
     // buscarRobo dentro do try e com lancarErro, como na rota do saldo: o 404 é só para consulta que respondeu e não achou
     const robo = await buscarRobo(slug, { lancarErro: true });
     if (!robo) return new Response("robô não encontrado", { status: 404 });
+    corRobo = corDoRoboHex(robo.ordem);
     const [ops, saldo, exposicao, mercado, parametros] = await Promise.all([
       listarOperacoesDoDia(slug, dia, { lancarErro: true }),
       listarSaldoDoDia(slug, dia, { lancarErro: true }),
@@ -86,7 +92,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
 
   const { largura, altura } = DIMENSOES_CARD[formato];
   // o ImageResponse faz headers.set com o que vem aqui: o valor substitui o cache padrão dele
-  return new ImageResponse(<CardDoDia dados={dados} formato={formato} />, {
+  return new ImageResponse(<CardDoDia dados={dados} formato={formato} corRobo={corRobo} />, {
     width: largura,
     height: altura,
     headers: {

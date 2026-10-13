@@ -25,6 +25,7 @@ function celula(v: string | number | null): string {
 /**
  * Exporta a lista filtrada (até 50.000 linhas) em CSV com ; e vírgula decimal, pra abrir no Excel pt-BR.
  * 19/09/2026: a falha sai numa linha embaixo do botão, lida pelo leitor de tela, em vez do alerta do navegador.
+ * 13/10/2026: essa linha no laranja do alerta (o vermelho é só do resultado).
  */
 export function BotaoCsv({ slug, filtros, total }: Props) {
   const [ocupado, setOcupado] = useState(false);
@@ -103,7 +104,7 @@ export function BotaoCsv({ slug, filtros, total }: Props) {
         <Download data-icon="inline-start" />
         {ocupado ? "Gerando…" : total > LIMITE ? `Exportar CSV (${formatarNumero(LIMITE)} mais recentes)` : "Exportar CSV"}
       </Button>
-      <p role="status" className={falhou ? "mt-1.5 text-xs text-foreground" : "sr-only"}>
+      <p role="status" className={falhou ? "mt-1.5 text-xs text-alerta" : "sr-only"}>
         {falhou ? "O CSV não foi gerado. Tente de novo." : ""}
       </p>
     </div>

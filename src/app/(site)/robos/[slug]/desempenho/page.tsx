@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { empacotar, soLinhaDiaria } from "@/components/compartilhados/ops-codec";
 import { SkeletonCurva, SkeletonKpis } from "@/components/compartilhados/Skeletons";
 import { PainelDesempenho } from "@/components/desempenho/PainelDesempenho";
+import { Skeleton } from "@/components/ui/skeleton";
 import { listarOperacoesCompactas } from "@/lib/consultas/operacoes";
 import { buscarRobo, listarEstatisticas } from "@/lib/consultas/publico";
 import { hojeSP } from "@/lib/stats/periodos";
@@ -30,7 +31,14 @@ export default async function PaginaDesempenho({ params }: Props) {
   return (
     <Suspense
       fallback={
-        <div className="space-y-6">
+        // a mesma ordem e o mesmo espaço do painel (13/10/2026): o número grande com a linha de contexto, os
+        // filtros, os quatro cartões e a curva; antes eram só os cartões e a curva
+        <div className="space-y-8" aria-busy="true">
+          <div className="space-y-3">
+            <Skeleton className="h-12 w-64 max-w-full sm:h-[60px] sm:w-80" />
+            <Skeleton className="h-4 w-96 max-w-full" />
+          </div>
+          <Skeleton className="h-40 w-full rounded-2xl" />
           <SkeletonKpis quantidade={4} />
           <SkeletonCurva />
         </div>
@@ -43,6 +51,7 @@ export default async function PaginaDesempenho({ params }: Props) {
         hoje={hoje}
         valorPonto={robo.valor_ponto_brl}
         capitalReferencia={robo.capital_referencia}
+        ordemRobo={robo.ordem}
       />
     </Suspense>
   );

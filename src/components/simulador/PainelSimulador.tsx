@@ -4,10 +4,12 @@ import { cn } from "cn";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { PontoDoRobo } from "@/components/comparativo/PontoDoRobo";
 import { Segmentado } from "@/components/compartilhados/Segmentado";
 import { Valor } from "@/components/compartilhados/Valor";
 import { CardsKpi, ListaKpi, type ItemKpi } from "@/components/desempenho/CardsKpi";
 import { Badge } from "@/components/ui/badge";
+import { corDoRobo } from "@/lib/cores-robo";
 import { formatarBRL, formatarData, formatarMesAno, formatarMultiplo, formatarNumero, formatarPct } from "@/lib/formato";
 import {
   MAX_CONTRATOS,
@@ -21,9 +23,12 @@ import { CurvaSimulada } from "./CurvaSimulada";
 import { Semaforo } from "./Semaforo";
 import { inteiroDe, lerCapital, lerUrlSimulador, normalizarContratos, urlSimulador, type EstadoSimulador } from "./simulador-url";
 
+/** O robô do simulador com a `ordem` do banco, só para a cor dele (corDoRobo): a conta não a usa. */
+export type RoboNoPainel = RoboSimulador & { ordem: number };
+
 interface Props {
   /** os robôs simuláveis (sem arquivados, com série), na ordem da página */
-  robos: RoboSimulador[];
+  robos: RoboNoPainel[];
   hoje: string;
   /** o fator da regra publicada do capital mínimo: só para o texto de apoio */
   fatorSeguranca: number;
@@ -91,6 +96,10 @@ function fraseDoMinimo(minimo: ReturnType<typeof capitalMinimoDaCarteira>, nomeD
  * "Simular com meu capital" chegarem preenchidos. É tudo aritmética no navegador sobre as séries que a
  * página já trouxe: não há carga, não há estado de carregamento. O aviso legal não se repete aqui: o
  * rodapé, logo abaixo, traz o mesmo texto em toda página (decisão de 17/09/2026, robo/Disclaimer.tsx).
+ * 13/10/2026 (mídia kit da Zeve): cada robô com o ponto na cor dele (pela `ordem`) na lista de entradas, no
+ * capital mínimo por robô e na legenda da curva; com um robô só, a linha da curva é a cor dele, e com mais de
+ * um, o azul do acento, como a curva de capital. Resultado, pior mês e pior dia pintam pelo sinal, o drawdown
+ * no vermelho, e o patrimônio final pela diferença para o capital inicial.
  */
 export function PainelSimulador({ robos, hoje, fatorSeguranca }: Props) {
   const slugs = useMemo(() => robos.map((r) => r.slug), [robos]);
@@ -194,6 +203,7 @@ export function PainelSimulador({ robos, hoje, fatorSeguranca }: Props) {
                 <li key={r.slug} className={cn("flex flex-wrap items-center gap-x-4 gap-y-1.5 py-2.5", fora && "opacity-70")}>
                   <div className="min-w-0 flex-1">
                     <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-medium">
+                      <PontoDoRobo ordem={r.ordem} />
                       <Link href={`/robos/${r.slug}`} className="hover:underline">
                         {r.nome}
                       </Link>
@@ -206,7 +216,7 @@ export function PainelSimulador({ robos, hoje, fatorSeguranca }: Props) {
                         </Badge>
                       ) : null}
                     </p>
-                    <p className="text-xs text-muted-foreground tabular-nums">
+                    <p className="pl-4 text-xs text-muted-foreground tabular-nums">
                       {r.capitalMinimoPorContrato !== null
                         ? `${brl(r.capitalMinimoPorContrato)} mín. por contrato (todo o histórico)`
                         : "capital mínimo não configurado"}
@@ -256,11 +266,16 @@ function Resultados({
 }: {
   resultado: ResultadoSimulacao;
   capital: number;
-  robos: RoboSimulador[];
+  robos: RoboNoPainel[];
   fatorSeguranca: number;
 }) {
   const nomeDe = (slug: string) => robos.find((x) => x.slug === slug)?.nome ?? slug;
+  const ordemDe = (slug: string) => robos.find((x) => x.slug === slug)?.ordem ?? 1;
   const dd = r.drawdown;
+  // os robôs que entraram na simulação (contratos > 0), com os contratos: a legenda da curva
+  const escolhidos = r.capitalMinimoPorRobo;
+  // um robô só: a curva na cor dele; mais de um, o acento (a curva da carteira não é de robô nenhum)
+  const corDaCurva = escolhidos.length === 1 ? corDoRobo(ordemDe(escolhidos[0].slug)) : undefined;
 
   // os "o que é" do glossário falam de um robô; aqui os números são da carteira simulada (infoTexto)
   const cards: ItemKpi[] = [
@@ -268,8 +283,13 @@ function Resultados({
       rotulo: "Resultado do período",
       info: "resultadoPeriodo",
       infoTexto: "Soma do resultado diário dos robôs escolhidos, cada um vezes os seus contratos, no período simulado, já com custos.",
-      valor: <Valor valor={r.resultado} inteiro={Math.abs(r.resultado) >= 1000} />,
-      detalhe: `${formatarPct(r.resultadoPct, 1)} do capital inicial`,
+      valor: <Valor valor={r.resultado} inteiro={Math.abs(r.resultado) >= 1000} destaque />,
+      // o % pinta junto com o número (a mesma regra do Valor: verde, vermelho, cinza no zero)
+      detalhe: (
+        <>
+          <Valor valor={r.resultadoPct} unidade="pct" /> do capital inicial
+        </>
+      ),
     },
     {
       // as datas e a recuperação ficam aqui, no mesmo cartão do número (23/09/2026: a lista repetia o valor)
@@ -277,10 +297,12 @@ function Resultados({
       info: "drawdownPct",
       infoTexto:
         "A maior queda do patrimônio simulado, de um topo até o fundo seguinte, em reais e em porcentagem do capital inicial informado, com o início, o fundo e o tempo até recuperar.",
-      valor: <Valor valor={-r.ddMax} inteiro />,
+      valor: <Valor valor={-r.ddMax} inteiro destaque />,
       detalhe: (
         <>
-          <span className="block">{formatarPct(r.ddMaxPct, 1)} do capital inicial</span>
+          <span className="block">
+            <span className={r.ddMax > 0 ? "text-negativo" : undefined}>{formatarPct(r.ddMaxPct, 1)}</span> do capital inicial
+          </span>
           {r.ddMax > 0 && dd.inicio && dd.fundo ? (
             <span className="block">
               de {formatarData(dd.inicio)} a {formatarData(dd.fundo)}
@@ -295,7 +317,7 @@ function Resultados({
       info: "resultadoMensal",
       infoTexto:
         "O mês de menor resultado da carteira simulada no período, já com custos. Os meses das pontas do período podem estar incompletos: o apoio diz quantos pregões entraram.",
-      valor: r.piorMes ? <Valor valor={r.piorMes.valor} inteiro={Math.abs(r.piorMes.valor) >= 1000} /> : "–",
+      valor: r.piorMes ? <Valor valor={r.piorMes.valor} inteiro={Math.abs(r.piorMes.valor) >= 1000} destaque /> : "–",
       detalhe: r.piorMes ? `${formatarMesAno(`${r.piorMes.mes}-01`)} · ${pregoes(r.piorMes.nDias)}` : undefined,
     },
     {
@@ -318,7 +340,8 @@ function Resultados({
       detalhe: (
         <>
           {r.capitalMinimoPorRobo.map((c) => (
-            <span key={c.slug} className="block">
+            <span key={c.slug} className="flex items-center gap-1.5">
+              <PontoDoRobo ordem={ordemDe(c.slug)} className="size-1.5" />
               {nomeDe(c.slug)} · {formatarNumero(c.contratos)} × {c.porContrato !== null ? brl(c.porContrato) : "não configurado"}
             </span>
           ))}
@@ -328,6 +351,8 @@ function Resultados({
     {
       rotulo: "Patrimônio final",
       valor: brl(capital + r.resultado),
+      // acima do capital inicial no verde, abaixo no vermelho: é o resultado do período visto pelo patrimônio
+      tom: r.resultado > 0 ? "positivo" : r.resultado < 0 ? "negativo" : undefined,
       detalhe: `capital inicial ${brl(capital)}`,
     },
     {
@@ -353,9 +378,17 @@ function Resultados({
       <ListaKpi itens={lista} />
 
       <section className="painel p-4 sm:p-5">
-        <CurvaSimulada serie={r.serie} capital={capital} />
-        <p className="mt-2 text-xs text-muted-foreground">
-          Patrimônio simulado, dia a dia · linha do zero = capital inicial · drawdown em R$ sobre o capital inicial
+        <CurvaSimulada serie={r.serie} capital={capital} cor={corDaCurva} />
+        <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+          {escolhidos.map((c) => (
+            <span key={c.slug} className="inline-flex items-center gap-1.5 whitespace-nowrap text-foreground tabular-nums">
+              <PontoDoRobo ordem={ordemDe(c.slug)} />
+              {nomeDe(c.slug)} × {formatarNumero(c.contratos)}
+            </span>
+          ))}
+          <span>
+            Patrimônio simulado, dia a dia · linha do zero = capital inicial · drawdown em R$ sobre o capital inicial
+          </span>
         </p>
       </section>
 

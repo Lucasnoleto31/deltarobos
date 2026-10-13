@@ -1,5 +1,6 @@
 "use client";
 
+import { cn } from "cn";
 import { ArrowLeft, ArrowUpRight, Share2 } from "lucide-react";
 import Link from "next/link";
 import { useMemo } from "react";
@@ -17,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAgora } from "@/hooks/useAgora";
 import { useMontado } from "@/hooks/useMontado";
+import { corDoRobo } from "@/lib/cores-robo";
 import { formatarBRL, formatarDataLonga, formatarNumero, formatarPct, formatarPontos, formatarPreco, rotuloLado } from "@/lib/formato";
 import { fimDoDia } from "@/lib/stats/card-do-dia";
 import { pregaoAberto } from "@/lib/stats/pregao";
@@ -26,12 +28,17 @@ import { statusAoVivo } from "@/lib/stats/status-robo";
 // A tela é um cartão de story: o que importa cabe na primeira tela do celular, e o resto rola.
 const ULTIMAS = 3;
 
+// verde, vermelho ou cinza pelo sinal, como o Valor, para o número que vai sem a unidade (os pontos)
+function classeDoSinal(v: number): string {
+  return v > 0 ? "text-positivo" : v < 0 ? "text-negativo" : "text-muted-foreground";
+}
+
 // Sem o i do "o que é" (19/09/2026): testado nos três números, ele tirava os rótulos do centro e, num print
 // de story, é um botão que não abre. A explicação fica na página do robô.
-function Numero({ rotulo, children }: { rotulo: string; children: React.ReactNode }) {
+function Numero({ rotulo, className, children }: { rotulo: string; className?: string; children: React.ReactNode }) {
   return (
     <div className="min-w-0 px-3 py-3 text-center">
-      <dd className="truncate text-lg leading-none font-semibold tabular-nums">{children}</dd>
+      <dd className={cn("truncate text-lg leading-none font-semibold tabular-nums", className)}>{children}</dd>
       <dt className="mt-1.5 text-[11px] text-muted-foreground">{rotulo}</dt>
     </div>
   );
@@ -44,6 +51,10 @@ function Numero({ rotulo, children }: { rotulo: string; children: React.ReactNod
  * o número se ajusta à largura pelo tamanho do próprio texto, o dia aparece em curva no estilo Profit e
  * só as três últimas operações ficam em lista. No computador (18/09/2026) vira duas colunas: número,
  * apoio e posição à esquerda; o dia em curva e as últimas operações à direita.
+ *
+ * Mídia kit da Zeve (13/10/2026): o robô tem a cor dele (corDoRobo, pela ordem do banco) num ponto ao lado do
+ * nome; o número grande é o Valor em destaque (o "R$" menor que os algarismos); os pontos pintam pelo sinal,
+ * como o resultado; a posição aberta leva o fio no acento, o azul do "posicionado". A curva do dia segue o sinal.
  */
 export function TelaAoVivo() {
   const { estado, robo, pregao, feriados, hoje } = useRobo();
@@ -96,7 +107,10 @@ export function TelaAoVivo() {
   };
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col gap-5 px-5 py-4 lg:grid lg:max-w-5xl lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:content-start lg:gap-x-10 lg:px-8 lg:py-6">
+    <main
+      className="mx-auto flex min-h-dvh w-full max-w-md flex-col gap-5 px-5 py-4 lg:grid lg:max-w-5xl lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:content-start lg:gap-x-10 lg:px-8 lg:py-6"
+      style={{ "--cor-robo": corDoRobo(robo.ordem) } as React.CSSProperties}
+    >
       {/* a marca abre a tela: é ela que diz, num print, de quem é o número */}
       <header className="flex items-center justify-between gap-2 lg:col-span-2">
         <div className="flex items-center gap-1">
@@ -107,7 +121,8 @@ export function TelaAoVivo() {
           >
             <ArrowLeft className="size-4" />
           </Link>
-          <Simbolo aria-hidden className="h-6 w-auto" />
+          {/* o "Z" é mais largo que alto (320 x 234): na altura de 20 px ele ocupa o lugar que o brasão ocupava */}
+          <Simbolo aria-hidden className="h-5 w-auto" />
           <span className="ml-1 text-sm font-semibold tracking-tight">
             Quants <span className="text-muted-foreground">Robôs</span>
           </span>
@@ -120,15 +135,18 @@ export function TelaAoVivo() {
       <div className="contents lg:flex lg:flex-col lg:gap-5">
       <section className="text-center">
         <h1 className="flex flex-wrap items-center justify-center gap-2 text-2xl font-semibold tracking-tight">
-          {robo.nome}
+          <span className="inline-flex items-center gap-2">
+            <span aria-hidden className="size-2.5 shrink-0 rounded-full bg-(--cor-robo)" />
+            {robo.nome}
+          </span>
           <Badge variant="outline" className="font-normal">
             {robo.ativo_nome} · {robo.ativo}
           </Badge>
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">{formatarDataLonga(hoje)}</p>
 
-        <p className="mt-4 leading-none font-semibold tracking-tight whitespace-nowrap" style={{ fontSize: tamanhoDoNumero }}>
-          <Valor valor={liquido} />
+        <p className="mt-4 leading-none whitespace-nowrap" style={{ fontSize: tamanhoDoNumero }}>
+          <Valor valor={liquido} destaque />
         </p>
         <p className="mt-2 text-xs text-muted-foreground">por contrato, líquido de custos</p>
         {/* sem coletor não há sinal: "atualizado sem dados" não diz nada (19/09/2026) */}
@@ -141,7 +159,9 @@ export function TelaAoVivo() {
 
       <dl className="painel grid grid-cols-3 divide-x divide-(--painel-fio)">
         {/* sem o "pts": o rótulo embaixo já diz, e com ele o número não cabia em um terço da tela */}
-        <Numero rotulo="pontos">{formatarPontos(pontos, true)}</Numero>
+        <Numero rotulo="pontos" className={classeDoSinal(pontos)}>
+          {formatarPontos(pontos, true)}
+        </Numero>
         <Numero rotulo={ops.length === 1 ? "operação" : "operações"}>{formatarNumero(ops.length)}</Numero>
         <Numero rotulo={ops.length > 0 ? `acerto · ${formatarNumero(gains)} ${gains === 1 ? "gain" : "gains"}` : "acerto"}>
           {ops.length > 0 ? formatarPct(gains / ops.length) : "–"}
@@ -160,7 +180,7 @@ export function TelaAoVivo() {
             {estado.posicoes.map((p) => (
               <li
                 key={`${p.simbolo}-${p.lado}`}
-                className="flex items-center justify-between gap-3 rounded-xl border px-4 py-3"
+                className="flex items-center justify-between gap-3 rounded-xl border border-info/40 px-4 py-3"
               >
                 <div className="flex min-w-0 items-center gap-2">
                   {/* o lado fica neutro (19/09/2026): verde e vermelho só no resultado */}

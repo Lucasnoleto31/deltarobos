@@ -6,6 +6,7 @@ import type { ChaveIndicador } from "@/components/compartilhados/glossario";
 import { RotuloComInfo } from "@/components/compartilhados/InfoIndicador";
 import { Segmentado } from "@/components/compartilhados/Segmentado";
 import { Valor } from "@/components/compartilhados/Valor";
+import { TEXTO_TINTA } from "@/components/desempenho/tinta";
 import type { PeriodoPainel } from "@/components/robo/ops-por-periodo";
 import { formatarBRL, formatarMultiplo, formatarNumero, formatarPct } from "@/lib/formato";
 import {
@@ -35,13 +36,15 @@ const COR: Record<ClasseFaixa, string> = {
   neutro: "var(--muted-foreground)",
   evitar: "var(--negativo)",
 };
-// 19/09/2026: o vermelho puro sobre o fundo de Evitar media 4,4:1 no escuro; lá o texto leva 20% da cor
-// do texto da página, como no selo de status, e a célula fica igual. No claro o vermelho puro passa.
+// 19/09/2026: o vermelho puro sobre o fundo de Evitar media 4,4:1 no escuro, e o texto passou a levar 20% da
+// cor do texto da página. 13/10/2026 (mídia kit da Zeve): com o verde e o vermelho novos, a cor pura sobre o
+// próprio fundo a 12% caiu para 4,3:1 (verde) e 4,0:1 (vermelho) no claro; agora as três classes com cor usam a
+// tinta (tinta.ts: 60% da cor e 40% do texto, 6,8:1 ou mais nos dois temas a 12%).
 const FUNDO: Record<ClasseFaixa, string> = {
-  ligar: "bg-positivo/12 ring-positivo/40 text-positivo",
-  cautela: "bg-alerta/12 ring-alerta/40 text-alerta",
+  ligar: `bg-positivo/12 ring-positivo/40 ${TEXTO_TINTA.positivo}`,
+  cautela: `bg-alerta/12 ring-alerta/40 ${TEXTO_TINTA.alerta}`,
   neutro: "bg-muted ring-foreground/15 text-muted-foreground",
-  evitar: "bg-negativo/12 ring-negativo/40 text-negativo dark:text-[color-mix(in_srgb,var(--negativo)_80%,var(--foreground))]",
+  evitar: `bg-negativo/12 ring-negativo/40 ${TEXTO_TINTA.negativo}`,
 };
 // o texto da regra de cada classe e o "o que é" dela (19/09/2026: o Neutro entrou nas Regras, era a única
 // classe do mapa sem regra na tela)
@@ -130,7 +133,7 @@ export function PainelFaixas({ resultados }: Props) {
   const insights = r.insights.filter((i) => i.chave !== "ligar" && i.chave !== "evitar");
 
   if (resultados.tudo.nOperacoes === 0) {
-    return <p className="painel px-4 py-8 text-center text-sm text-muted-foreground">Sem operações fechadas ainda.</p>;
+    return <p className="painel px-4 py-10 text-center text-sm text-muted-foreground">Sem operações fechadas ainda.</p>;
   }
 
   return (
@@ -144,7 +147,8 @@ export function PainelFaixas({ resultados }: Props) {
             <strong className="text-foreground">{formatarNumero(totalComDados)}</strong>{" "}
             <RotuloComInfo chave="faixa">faixas de dia × hora</RotuloComInfo> ·{" "}
             <RotuloComInfo chave="medianaDrawdown">mediana de drawdown</RotuloComInfo>{" "}
-            <strong className="text-foreground">{formatarBRL(r.medianaDd, { inteiro: r.medianaDd >= 1000 })}</strong>
+            {/* drawdown é sempre perda: no vermelho, como na aba Risco (13/10/2026) */}
+            <strong className={r.medianaDd > 0 ? "text-negativo" : "text-foreground"}>{formatarBRL(r.medianaDd, { inteiro: r.medianaDd >= 1000 })}</strong>
           </p>
         </div>
         <Segmentado ariaLabel="Período" opcoes={OPCOES_PERIODO} valor={periodo} onChange={setPeriodo} />
@@ -248,27 +252,29 @@ export function PainelFaixas({ resultados }: Props) {
               : "nenhuma faixa classificada como Ligar"}
           </p>
           {r.melhores.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">Nenhuma faixa com amostra suficiente.</p>
+            <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma faixa com amostra suficiente.</p>
           ) : (
             <ol className="-mx-2">
               {r.melhores.map((f) => (
                 <li key={f.rotulo}>
                   {/* 19/09/2026: sem o número da posição (a ordem já diz), a barra do score fora do verde
                       (não é dinheiro) e o "lote 100%" sem quebrar entre a palavra e o número. A faixa aberta
-                      no detalhe fica marcada aqui também, e tocar de novo fecha. */}
+                      no detalhe fica marcada aqui também, e tocar de novo fecha. 13/10/2026 (mídia kit da Zeve):
+                      a barra na escala de gráfico (--chart-2, era a cor do texto a 60%) e a faixa aberta com o
+                      fio no acento, como a casa escolhida no mapa e no calendário */}
                   <button
                     type="button"
                     onClick={() => alternar(f)}
                     aria-pressed={selecionada === chaveFaixa(f)}
                     className={cn(
-                      "flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-left text-sm transition-colors outline-none hover:bg-(--linha-hover) focus-visible:ring-2 focus-visible:ring-ring/50",
-                      selecionada === chaveFaixa(f) && "bg-(--linha-hover) ring-1 ring-foreground/25",
+                      "flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-left text-sm transition-colors outline-none hover:bg-(--linha-hover) focus-visible:ring-2 focus-visible:ring-ring",
+                      selecionada === chaveFaixa(f) && "bg-(--linha-hover) ring-1 ring-info",
                     )}
                   >
                     <div className="min-w-0 flex-1">
                       <span className="font-medium">{f.rotulo}</span>
                       <div className="mt-1 h-1 rounded-full bg-muted">
-                        <div className="h-1 rounded-full bg-foreground/60" style={{ width: `${Math.round((f.score / maiorScore) * 100)}%` }} />
+                        <div className="h-1 rounded-full bg-chart-2" style={{ width: `${Math.round((f.score / maiorScore) * 100)}%` }} />
                       </div>
                       <p className="mt-0.5 text-[11px] text-muted-foreground tabular-nums">
                         {formatarNumero(f.n)} op · {formatarPct(f.acerto, 0)} acerto · recuperação {rec(f.recuperacao)} · lote&nbsp;{formatarPct(f.lote, 0)}
@@ -332,7 +338,7 @@ export function PainelFaixas({ resultados }: Props) {
                             "flex h-14 w-full flex-col justify-center rounded-lg px-2.5 text-left ring-1 transition-opacity",
                             f.classe ? FUNDO[f.classe] : "bg-transparent text-muted-foreground ring-foreground/10",
                             apagada && "opacity-25",
-                            sel && "ring-2 ring-foreground",
+                            sel && "ring-2 ring-info",
                           )}
                         >
                           <span className="font-semibold">{f.classe ? ROTULO_CLASSE[f.classe] : "sem amostra"}</span>
@@ -371,7 +377,11 @@ export function PainelFaixas({ resultados }: Props) {
               />
               <Item rotulo="Acerto" info="taxaAcerto" valor={formatarPct(faixaSel.acerto, 0)} />
               <Item rotulo="Recuperação" info="recuperacaoFaixa" valor={rec(faixaSel.recuperacao)} />
-              <Item rotulo="Drawdown" info="drawdownFaixa" valor={formatarBRL(faixaSel.dd, { inteiro: faixaSel.dd >= 1000 })} />
+              <Item
+                rotulo="Drawdown"
+                info="drawdownFaixa"
+                valor={<span className={faixaSel.dd > 0 ? "text-negativo" : undefined}>{formatarBRL(faixaSel.dd, { inteiro: faixaSel.dd >= 1000 })}</span>}
+              />
               <Item rotulo="DD relativo" info="ddRelativo" valor={faixaSel.ddRelativo === null ? "–" : `${formatarMultiplo(faixaSel.ddRelativo, 1)}×`} />
               <Item rotulo="Expectativa / op" info="expectativaOperacao" valor={<Valor valor={faixaSel.expectativa} />} />
               <Item rotulo="Total" info="totalFaixa" valor={<Valor valor={faixaSel.total} inteiro={Math.abs(faixaSel.total) >= 1000} />} />

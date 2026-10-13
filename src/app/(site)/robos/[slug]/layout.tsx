@@ -4,6 +4,7 @@ import { AbasRobo } from "@/components/robo/AbasRobo";
 import { CabecalhoRobo } from "@/components/robo/CabecalhoRobo";
 import { Voltar } from "@/components/layout/Voltar";
 import { RoboAoVivoProvider } from "@/components/robo/RoboAoVivoProvider";
+import { corDoRobo } from "@/lib/cores-robo";
 import {
   buscarRobo,
   listarExposicaoDia,
@@ -75,8 +76,12 @@ export default async function LayoutRobo({ children, params }: Props) {
     ? { inicio: mercadoDoAtivo.pregao_inicio, fim: mercadoDoAtivo.pregao_fim }
     : { inicio: "09:00", fim: "18:00" };
 
+  // A cor do robô (13/10/2026, mídia kit da Zeve) vale para todas as abas: --cor-robo no <article>, pela `ordem`
+  // do banco (corDoRobo), nunca pelo slug. Quem está dentro usa bg-(--cor-robo), border-[color-mix(...)] e afins.
+  const estiloDoRobo = { "--cor-robo": corDoRobo(robo.ordem) } as React.CSSProperties;
+
   return (
-    <article className="conteudo space-y-6 py-8">
+    <article className="conteudo space-y-6 py-8" style={estiloDoRobo}>
       <Voltar href="/#robos">Todos os robôs</Voltar>
       <RoboAoVivoProvider
         robo={robo}

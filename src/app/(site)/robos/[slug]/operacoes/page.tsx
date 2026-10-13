@@ -43,12 +43,14 @@ export default async function PaginaOperacoes({ params, searchParams }: Props) {
 
   return (
     <div className="space-y-4">
-      {/* 19/09/2026: o título "Operações" repetia a aba logo acima; fica só para leitor de tela */}
+      {/* 19/09/2026: o título "Operações" repetia a aba logo acima; fica só para leitor de tela.
+          13/10/2026: a contagem na cor do texto, o resto da linha apagado (o número é o que se procura) */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="sr-only">Operações</h2>
-          <p className="text-sm text-muted-foreground tabular-nums">
-            {formatarNumero(dados.total)} {dados.total === 1 ? "operação" : "operações"}
+          <p className="text-sm text-muted-foreground">
+            <span className="font-medium text-foreground tabular-nums">{formatarNumero(dados.total)}</span>{" "}
+            {dados.total === 1 ? "operação" : "operações"}
             {semFiltro ? " no total" : " com o filtro atual"} · valores por 1 contrato
           </p>
         </div>

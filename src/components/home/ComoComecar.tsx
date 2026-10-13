@@ -1,6 +1,7 @@
 import { RevelarNaRolagem } from "@/components/compartilhados/RevelarNaRolagem";
 import { buttonVariants } from "@/components/ui/button";
 import type { Links } from "@/lib/tipos";
+import { CabecaSecao } from "./CabecaSecao";
 
 interface Props {
   links: Links;
@@ -39,16 +40,17 @@ const PASSOS: { titulo: string; texto: string }[] = [
  */
 const ABERTURA_DE_CONTA_PADRAO = "https://app.genialinvestimentos.com.br/abrir-conta?idAssessor=14253";
 
-/** Item 13 da home: como começar em 3 passos. */
+/**
+ * Item 13 da home: como começar em 3 passos. 13/10/2026: o número do passo no azul do acento (era cinza): é a
+ * sequência que a pessoa segue até o botão, que é do mesmo azul.
+ */
 export function ComoComecar({ links }: Props) {
   const aberturaDeConta = links.btg_abertura_conta || ABERTURA_DE_CONTA_PADRAO;
 
   return (
     // o scroll-mt-20 saiu em 19/09/2026: quem desconta o cabeçalho é o scroll-padding-top do html
     <section id="como-comecar" className="conteudo py-8">
-      <RevelarNaRolagem className="mb-4">
-        <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">Como começar</h2>
-      </RevelarNaRolagem>
+      <CabecaSecao titulo="Como começar" />
 
       <ol className="painel grid sm:grid-cols-3">
         {PASSOS.map((p, i) => (
@@ -60,7 +62,7 @@ export function ComoComecar({ links }: Props) {
             className="border-(--painel-fio) not-first:border-t sm:not-first:border-t-0 sm:not-first:border-l"
           >
             <RevelarNaRolagem className="flex gap-4 p-5" indice={i} desloca={8}>
-              <span className="shrink-0 text-2xl font-semibold leading-none text-muted-foreground tabular-nums">
+              <span className="shrink-0 text-2xl leading-none font-semibold text-info tabular-nums">
                 {i + 1}
               </span>
               <div>

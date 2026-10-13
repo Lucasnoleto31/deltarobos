@@ -1,5 +1,6 @@
 "use client";
 
+import { cn } from "cn";
 import { startTransition, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Valor } from "@/components/compartilhados/Valor";
 import { formatarNumero, formatarPontos } from "@/lib/formato";
@@ -8,11 +9,13 @@ import { drawdownMaximo } from "@/lib/stats/serie";
 import type { LinhaDiaria, OpcoesSerie } from "@/lib/stats/tipos";
 import {
   AmostraDaLinha,
+  BOTAO_DA_MOLDURA,
   CURVA_POR_DIA,
   CURVA_POR_OPERACAO,
   DesenhoDaCurva,
   MolduraProfit,
   PROFIT,
+  type CoresDaCurva,
   type PontoDoDesenho,
 } from "./CurvaProfit";
 import { extremosPorOperacao, rotulosDeData, seriePorDia, seriePorOperacao } from "./series-da-curva";
@@ -43,6 +46,13 @@ interface Props {
   escalaExtra?: readonly number[];
   /** com que agrupamento abre (padrão: por dia) */
   modoInicial?: Modo;
+  /**
+   * A cor da linha (13/10/2026), como valor de CSS. Sem ela, o acento azul (PROFIT.acento, "var(--info)").
+   * Onde a curva é de um robô e a página quer a identidade dele, passe corDoRobo(robo.ordem) de
+   * src/lib/cores-robo.ts ("var(--robo-N)"), nunca uma cor escolhida pelo slug. Só a linha muda: a área
+   * continua verde acima do zero e vermelha abaixo, o drawdown vermelho e a etiqueta do último valor pelo sinal.
+   */
+  cor?: string;
 }
 
 type Modo = "operacao" | "dia";
@@ -61,8 +71,10 @@ export function escalaEmReais(v: number): string {
 
 /**
  * Curva de capital acumulada por contrato, com o drawdown em barras embaixo. Desde 17/09/2026 no
- * estilo do Gráfico de Patrimônio do Profit, como no Zeve Hub: moldura grafite, cores medidas no
- * Profit e o agrupamento nas abas do rodapé ("Por operação" e "Por dia"). Os dois agrupamentos
+ * estilo do Gráfico de Patrimônio do Profit, como no Zeve Hub: título no alto, mira em cruz e o
+ * agrupamento nas abas do rodapé ("Por operação" e "Por dia"). Desde 13/10/2026 nas cores do tema (mídia
+ * kit da Zeve): a linha no acento azul ou na cor pedida em `cor`, a área verde acima do zero e vermelha
+ * abaixo, o drawdown vermelho, a aba ativa no acento. Os dois agrupamentos
  * dividem a mesma escala e o mesmo eixo de tempo, então a troca só acrescenta ou tira o sobe e desce
  * de dentro do dia. Quem controla período, unidade e base é o pai; o resumo em cima continua vindo
  * de curvaAcumulada e drawdownMaximo, por dia.
@@ -77,6 +89,7 @@ export function CurvaCapital({
   carregarPorOperacao,
   escalaExtra,
   modoInicial = "dia",
+  cor,
 }: Props) {
   const id = `curva-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   // abre por dia, como no Hub: a linha limpa é a do fechamento de cada pregão
@@ -176,7 +189,11 @@ export function CurvaCapital({
   const carregando = modoAtivo === "operacao" && carregarPorOperacao !== undefined && cargaAtual === null;
 
   const pontos = modoAtivo === "dia" ? pontosDia : (pontosOperacao ?? []);
-  const cores = modoAtivo === "dia" ? CURVA_POR_DIA : CURVA_POR_OPERACAO;
+  // a linha numa cor só (o acento, ou a do robô); a área e o drawdown continuam pelo sinal
+  const cores = useMemo<CoresDaCurva>(
+    () => ({ ...(modoAtivo === "dia" ? CURVA_POR_DIA : CURVA_POR_OPERACAO), linhaCor: cor ?? PROFIT.acento }),
+    [modoAtivo, cor],
+  );
   // a série por operação traz os dentes de MFE/MAE quando as operações foram medidas pelo EA (23/09/2026):
   // a legenda só os explica quando existem, senão o histórico antigo, sem medição, ganharia um item à toa.
   // Os dentes viajam dentro de cada ponto, então o recorte do zoom os leva junto sem código a mais
@@ -239,7 +256,7 @@ export function CurvaCapital({
       {pontos.length === 0 && zoom ? (
         <div className="grid place-items-center gap-2 text-sm text-muted-foreground" style={{ height: altura }}>
           Nenhum ponto nesse trecho.
-          <button type="button" onClick={() => setZoom(null)} className="rounded-full border px-3 py-1 text-xs font-medium text-foreground">
+          <button type="button" onClick={() => setZoom(null)} className={cn(BOTAO_DA_MOLDURA, "px-3 py-1 text-xs")}>
             Ver tudo
           </button>
         </div>
@@ -265,12 +282,7 @@ export function CurvaCapital({
               </span>
               {temDentes ? <span>MFE/MAE em traço vertical</span> : null}
               {zoom ? (
-                <button
-                  type="button"
-                  onClick={() => setZoom(null)}
-                  className="rounded-full border px-2 py-0.5 text-[11px] font-medium outline-none focus-visible:ring-2 focus-visible:ring-white/70"
-                  style={{ borderColor: PROFIT.abasBorda, color: PROFIT.titulo }}
-                >
+                <button type="button" onClick={() => setZoom(null)} className={BOTAO_DA_MOLDURA}>
                   Ver tudo
                 </button>
               ) : null}
@@ -281,12 +293,12 @@ export function CurvaCapital({
               <div
                 role="group"
                 aria-label="Agrupar o gráfico"
-                className="flex items-center gap-1 rounded-b-lg px-1 py-0.5 text-xs"
-                style={{ background: PROFIT.abas, borderTop: `1px solid ${PROFIT.abasBorda}` }}
+                className="flex items-center gap-1 rounded-b-[calc(var(--radius)-1px)] px-1 py-1 text-xs"
+                style={{ background: PROFIT.abas, borderTop: `1px solid ${PROFIT.borda}` }}
               >
                 {/* 19/09/2026: o "|" medido no Profit (#505050) dava 1,57:1 sobre a barra e sumia; no
-                    texto fraco dá 3,96:1. O foco era outline-2 depois de outline-none, que fica sem
-                    traço: agora é o anel dos outros controles, claro porque a moldura é escura nos dois temas. */}
+                    texto fraco passa de 5:1. 13/10/2026: a aba ativa no acento (branco sobre o azul, 5,4:1) e o
+                    foco o do site inteiro, o contorno do :focus-visible (o anel branco era para o grafite). */}
                 {MODOS.map(([chave, rotulo], i) => (
                   <span key={chave} className="contents">
                     {i > 0 ? (
@@ -298,8 +310,8 @@ export function CurvaCapital({
                       type="button"
                       aria-pressed={modo === chave}
                       onClick={() => escolherModo(chave)}
-                      className="h-7 rounded-[3px] px-4 outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-inset"
-                      style={modo === chave ? { background: PROFIT.abaAtiva, color: PROFIT.titulo } : { color: PROFIT.abaTexto }}
+                      // as cores de PROFIT.abaAtiva/abaAtivaTexto/abaTexto, em classe para o hover valer
+                      className={`h-7 rounded-md px-4 font-medium transition-colors ${modo === chave ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
                     >
                       {rotulo}
                     </button>

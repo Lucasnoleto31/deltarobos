@@ -1,5 +1,6 @@
 "use client";
 
+import { cn } from "cn";
 import { useCallback, useMemo, useState } from "react";
 import { AtualizadoHa } from "@/components/compartilhados/AtualizadoHa";
 import type { ChaveIndicador } from "@/components/compartilhados/glossario";
@@ -8,6 +9,7 @@ import { Segmentado } from "@/components/compartilhados/Segmentado";
 import { Valor } from "@/components/compartilhados/Valor";
 import { CurvaCapital } from "@/components/graficos/CurvaCapital";
 import { expandirSerie, type SerieCompacta } from "@/components/graficos/series-da-curva";
+import { corDoRobo } from "@/lib/cores-robo";
 import { formatarBRL, formatarData, formatarDataLonga, formatarNumero, formatarPct } from "@/lib/formato";
 import { calcularKpis } from "@/lib/stats/kpis";
 import type { LinhaDiaria, OpcoesSerie } from "@/lib/stats/tipos";
@@ -51,6 +53,9 @@ interface Props {
  * período com operação (periodoInicial). Enquanto a pessoa não toca no filtro, a escolha acompanha o
  * pregão: abriu ou chegou operação, volta para "Hoje". Robô sem coletor (só histórico importado) não
  * tem dia ao vivo: para ele o pregão aberto não conta, nem no período inicial nem no "ao vivo" do título.
+ * 13/10/2026 (mídia kit da Zeve): o "ao vivo" do título no acento, o número grande e todo valor com sinal pintados
+ * pelo sinal, o drawdown sempre em vermelho, e a linha da curva na cor do robô (corDoRobo, pela ordem do banco),
+ * a mesma da barra ao lado do nome no cabeçalho.
  */
 export function PainelResultado({ linhas, pontosPorOperacao, valorPonto, capitalReferencia }: Props) {
   const { estado, robo, hoje } = useRobo();
@@ -72,8 +77,19 @@ export function PainelResultado({ linhas, pontosPorOperacao, valorPonto, capital
           {/* o i fica fora do h2 (19/09/2026): o h2 dá nome à seção, e o "O que é …" do botão entraria nele */}
           <div className="flex items-center gap-1.5">
             <h2 id="resultado" className="font-semibold">
-              {/* "ao vivo" só com o pregão aberto e coletor: no sábado o painel é o dia parado */}
-              {periodo === "hoje" ? (aoVivo ? "Hoje ao vivo" : "Hoje") : TITULO_DO_PERIODO[periodo]}
+              {/* "ao vivo" só com o pregão aberto e coletor: no sábado o painel é o dia parado. No acento, a cor do
+                  que está ao vivo; o nome lido continua "Hoje ao vivo" */}
+              {periodo === "hoje" ? (
+                aoVivo ? (
+                  <>
+                    Hoje <span className="text-info">ao vivo</span>
+                  </>
+                ) : (
+                  "Hoje"
+                )
+              ) : (
+                TITULO_DO_PERIODO[periodo]
+              )}
             </h2>
             <InfoIndicador chave={INFO_DO_PERIODO[periodo]} />
           </div>
@@ -107,6 +123,7 @@ export function PainelResultado({ linhas, pontosPorOperacao, valorPonto, capital
           valorPonto={valorPonto}
           capitalReferencia={capitalReferencia}
           hoje={hoje}
+          corDaLinha={corDoRobo(robo.ordem)}
         />
       )}
     </section>
@@ -126,26 +143,31 @@ function Subtitulo({ linhas }: { linhas: LinhaDiaria[] }) {
   );
 }
 
-/** Um azulejo por número, como nos painéis de trading: rótulo pequeno (com o "o que é"), valor, apoio embaixo. */
+/**
+ * Um azulejo por número, como nos painéis de trading: rótulo pequeno (com o "o que é"), valor, apoio embaixo.
+ * `cor` pinta o número que chega como texto pronto (o drawdown em %); o Valor se pinta sozinho.
+ */
 function Azulejo({
   rotulo,
   info,
   detalhe,
   children,
   className,
+  cor,
 }: {
   rotulo: string;
   info: ChaveIndicador;
-  detalhe?: string;
+  detalhe?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
+  cor?: string;
 }) {
   return (
-    <div className={`rounded-xl border border-(--painel-fio) px-3 py-2.5 ${className ?? ""}`}>
+    <div className={cn("rounded-xl border border-(--painel-fio) px-3 py-2.5", className)}>
       <dt className="text-xs text-muted-foreground">
         <RotuloComInfo chave={info}>{rotulo}</RotuloComInfo>
       </dt>
-      <dd className="mt-1 text-base font-semibold tabular-nums">{children}</dd>
+      <dd className={cn("mt-1 text-base font-semibold tabular-nums", cor)}>{children}</dd>
       {detalhe ? <dd className="text-[11px] text-muted-foreground tabular-nums">{detalhe}</dd> : null}
     </div>
   );
@@ -159,6 +181,7 @@ function ResultadoDoPeriodo({
   valorPonto,
   capitalReferencia,
   hoje,
+  corDaLinha,
 }: {
   periodo: PeriodoFechado;
   slug: string;
@@ -168,6 +191,8 @@ function ResultadoDoPeriodo({
   valorPonto: number;
   capitalReferencia: number | null;
   hoje: string;
+  /** a cor da linha da curva: a do robô */
+  corDaLinha: string;
 }) {
   const opcoes = useMemo<OpcoesSerie>(() => ({ base: "liquido", unidade: "brl", valorPonto }), [valorPonto]);
   const recorte = useMemo(() => noPeriodo(linhas, periodo, hoje), [linhas, periodo, hoje]);
@@ -206,11 +231,11 @@ function ResultadoDoPeriodo({
         {/* sem rótulo em cima do número (19/09/2026): ele repetia o título ("Resultado da semana, por
             contrato"); o "por contrato" foi para a linha de custos */}
         <div>
-          <p className="text-4xl font-semibold tracking-tight sm:text-5xl">
-            <Valor valor={k.acumulado} inteiro={Math.abs(k.acumulado) >= 10_000} />
+          <p className="text-4xl sm:text-5xl">
+            <Valor valor={k.acumulado} inteiro={Math.abs(k.acumulado) >= 10_000} destaque />
           </p>
-          <p className="mt-1.5 flex flex-wrap gap-x-3 text-sm text-muted-foreground">
-            <Valor valor={pontosDoPeriodo} unidade="pontos" colorir={false} className="text-foreground" />
+          <p className="mt-2.5 flex flex-wrap gap-x-3 text-sm text-muted-foreground">
+            <Valor valor={pontosDoPeriodo} unidade="pontos" className="font-medium" />
             <span className="tabular-nums">
               {formatarNumero(k.nOperacoes)} {k.nOperacoes === 1 ? "operação" : "operações"}
             </span>
@@ -222,7 +247,7 @@ function ResultadoDoPeriodo({
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
             Por contrato, líquido de custos (bruto{" "}
-            <Valor valor={bruto} inteiro={Math.abs(bruto) >= 10_000} colorir={false} className="text-muted-foreground" />
+            <Valor valor={bruto} inteiro={Math.abs(bruto) >= 10_000} />
             ).
           </p>
         </div>
@@ -234,6 +259,8 @@ function ResultadoDoPeriodo({
           <Azulejo
             rotulo="Drawdown máx."
             info={k.drawdownMaximoPct !== null ? "drawdownPct" : "drawdown"}
+            // drawdown é sempre perda: o % chega como texto e pinta aqui; o R$ se pinta sozinho
+            cor={k.drawdown.valor !== 0 && k.drawdownMaximoPct !== null ? "text-negativo" : undefined}
             detalhe={
               k.drawdown.valor === 0
                 ? undefined
@@ -252,7 +279,16 @@ function ResultadoDoPeriodo({
               <Valor valor={-k.drawdown.valor} inteiro={k.drawdown.valor >= 1000} />
             )}
           </Azulejo>
-          <Azulejo rotulo="Taxa de acerto" info="taxaAcerto" detalhe={`${formatarNumero(k.nGain)} gains · ${formatarNumero(k.nLoss)} losses`}>
+          <Azulejo
+            rotulo="Taxa de acerto"
+            info="taxaAcerto"
+            detalhe={
+              <>
+                <span className="text-positivo">{formatarNumero(k.nGain)}&nbsp;gains</span> ·{" "}
+                <span className="text-negativo">{formatarNumero(k.nLoss)}&nbsp;losses</span>
+              </>
+            }
+          >
             {formatarPct(k.taxaAcerto)}
           </Azulejo>
           <Azulejo rotulo="Melhor dia" info="melhorDia" detalhe={k.melhorDia ? formatarData(k.melhorDia.dia) : undefined}>
@@ -261,12 +297,12 @@ function ResultadoDoPeriodo({
           <Azulejo rotulo="Pior dia" info="piorDia" detalhe={k.piorDia ? formatarData(k.piorDia.dia) : undefined}>
             {k.piorDia ? <Valor valor={k.piorDia.valor} /> : "–"}
           </Azulejo>
-          {/* 19/09/2026: contagem de dias, não dinheiro, então uma cor só; sem "5 pregões" embaixo, que o
-              subtítulo do painel já diz */}
+          {/* sem "5 pregões" embaixo, que o subtítulo do painel já diz. Era uma cor só (19/09/2026: contagem de
+              dias, não dinheiro); desde 13/10/2026 cada lado na cor dele, como no resumo */}
           <Azulejo rotulo="Dias positivos × negativos" info="diasPositivosNegativos" className="col-span-2">
-            {formatarNumero(k.diasPositivos)}
+            <span className="text-positivo">{formatarNumero(k.diasPositivos)}</span>
             <span className="text-muted-foreground"> × </span>
-            {formatarNumero(k.diasNegativos)}
+            <span className="text-negativo">{formatarNumero(k.diasNegativos)}</span>
           </Azulejo>
         </dl>
       </div>
@@ -283,6 +319,7 @@ function ResultadoDoPeriodo({
           escalaExtra={serie.extremos}
           // semana e mês têm poucos pregões: a curva por operação é a que mostra alguma coisa
           modoInicial={periodo === "semana" || periodo === "mes" ? "operacao" : "dia"}
+          cor={corDaLinha}
         />
       </div>
     </div>

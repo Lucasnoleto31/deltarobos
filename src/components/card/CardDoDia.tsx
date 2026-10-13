@@ -2,7 +2,7 @@ import type { CSSProperties } from "react";
 import { ACENTO, COR_DO_TOM, FUNDO, MUDO, NEGATIVO, POSITIVO, TEXTO, ZERO } from "@/components/card/cores";
 import type { FormatoCard } from "@/components/compartilhar/url-do-card";
 import { SIMBOLO_CAMINHOS, SIMBOLO_VIEWBOX } from "@/components/marca/Simbolo";
-import { caminhosDaCurva, tamanhoParaCaber, type DadosCardDoDia, type NumeroDoCard } from "@/lib/stats/card-do-dia";
+import { caminhosDaCurva, tamanhoParaCaber, tomDoValor, type DadosCardDoDia, type NumeroDoCard } from "@/lib/stats/card-do-dia";
 
 /*
  * A imagem do dia para compartilhar (24/09/2026, pedido do Lucas: "uma imagem pronta ao fim de cada pregão, com a
@@ -35,6 +35,16 @@ import { caminhosDaCurva, tamanhoParaCaber, type DadosCardDoDia, type NumeroDoCa
  *   dia positivo. Zero é neutro, como a bolinha do fim (tomDoValor). A área e a faixa continuam cortadas no zero.
  * - Rótulo do eixo preso a uma borda encosta o texto nela: na curva por fechamento o último rótulo nomeia a última
  *   operação, em x = 1, e centralizado na caixa ele ficava 28 px à esquerda do ponto.
+ *
+ * Mídia kit da Zeve (13/10/2026, pedido do Lucas: "não deixa somente preto e branco ... principalmente valores
+ * positivos e negativos"):
+ * - O símbolo é o "Z", de 320 x 234: a caixa segue essa proporção (52 x 38 e 62 x 45), senão o desenho encolhe no
+ *   meio de uma caixa quadrada, como o brasão antigo pedia.
+ * - O robô tem a cor dele (corDoRoboHex, pela ordem do banco, que a rota passa em `corRobo`) num ponto ao lado do
+ *   nome. Só o ponto: a curva continua verde e vermelha pelo sinal (§8.8) e o acento continua azul.
+ * - Os pontos do dia são valor com sinal: verde, vermelho ou cinza como o resultado (antes, cinza sempre).
+ * - O selo "Parcial" é o dia ainda ao vivo, então vai no acento, cheio: o texto no azul #0059FF sobre o marinho dava
+ *   3,7:1; o texto claro sobre o azul cheio dá 5,0:1.
  */
 
 /** a largura útil nos dois formatos: 1080 menos 72 px de cada lado */
@@ -47,13 +57,17 @@ const MEDIDAS = {
     padding: "64px 72px",
     entreBlocos: 28,
     cabecalho: 48,
-    simbolo: [40, 39],
+    /** a proporção do "Z" (320 x 234) */
+    simbolo: [52, 38],
     marca: 28,
     selo: 22,
     seloPadding: "6px 16px",
     ativo: 28,
     rotuloResultado: 24,
     pontos: 36,
+    /** o ponto da cor do robô ao lado do nome, e o espaço até o nome */
+    pontoRobo: 18,
+    pontoRoboGap: 16,
     numero: 40,
     numeroMinimo: 30,
     rotuloNumero: 22,
@@ -77,13 +91,15 @@ const MEDIDAS = {
     padding: "200px 72px 260px",
     entreBlocos: 40,
     cabecalho: 56,
-    simbolo: [48, 47],
+    simbolo: [62, 45],
     marca: 34,
     selo: 26,
     seloPadding: "8px 20px",
     ativo: 34,
     rotuloResultado: 30,
     pontos: 44,
+    pontoRobo: 24,
+    pontoRoboGap: 20,
     numero: 56,
     numeroMinimo: 40,
     rotuloNumero: 26,
@@ -112,9 +128,20 @@ function Texto({ tamanho, cor = TEXTO, estilo, children }: { tamanho: number; co
   return <div style={{ display: "flex", fontSize: tamanho, color: cor, lineHeight: 1.15, ...estilo }}>{children}</div>;
 }
 
-function Selo({ texto, cor, borda, m }: { texto: string; cor: string; borda: string; m: Medidas }) {
+function Selo({ texto, cor, borda, fundo, m }: { texto: string; cor: string; borda: string; fundo?: string; m: Medidas }) {
   return (
-    <div style={{ display: "flex", fontSize: m.selo, color: cor, border: `2px solid ${borda}`, borderRadius: 999, padding: m.seloPadding, lineHeight: 1.15 }}>
+    <div
+      style={{
+        display: "flex",
+        fontSize: m.selo,
+        color: cor,
+        background: fundo,
+        border: `2px solid ${borda}`,
+        borderRadius: 999,
+        padding: m.seloPadding,
+        lineHeight: 1.15,
+      }}
+    >
       {texto}
     </div>
   );
@@ -123,7 +150,8 @@ function Selo({ texto, cor, borda, m }: { texto: string; cor: string; borda: str
 function Selos({ dados, m, estilo }: { dados: DadosCardDoDia; m: Medidas; estilo?: CSSProperties }) {
   return (
     <div style={{ display: "flex", gap: 12, ...estilo }}>
-      {dados.parcial ? <Selo texto={dados.parcial} cor={ACENTO} borda={ACENTO} m={m} /> : null}
+      {/* o dia ainda ao vivo: o acento cheio, com o texto claro (5,0:1) */}
+      {dados.parcial ? <Selo texto={dados.parcial} cor={TEXTO} borda={ACENTO} fundo={ACENTO} m={m} /> : null}
       {dados.contaDemo ? <Selo texto="Conta demo" cor={TEXTO} borda={MUDO} m={m} /> : null}
     </div>
   );
@@ -214,13 +242,26 @@ function Curva({ dados, formato, m }: { dados: DadosCardDoDia; formato: FormatoC
   );
 }
 
+/** o ponto na cor do robô, centrado na altura do nome */
+function PontoDoRobo({ cor, m }: { cor: string; m: Medidas }) {
+  return <div style={{ display: "flex", flexShrink: 0, width: m.pontoRobo, height: m.pontoRobo, borderRadius: 999, background: cor }} />;
+}
+
 export interface PropsCardDoDia {
   dados: DadosCardDoDia;
   formato: FormatoCard;
+  /**
+   * A cor do robô em hex (corDoRoboHex(robo.ordem), de src/lib/cores-robo.ts; 13/10/2026), no ponto ao lado do
+   * nome. Sem ela, o nome sai sem ponto.
+   */
+  corRobo?: string;
 }
 
-export function CardDoDia({ dados, formato }: PropsCardDoDia) {
+export function CardDoDia({ dados, formato, corRobo }: PropsCardDoDia) {
   const m = MEDIDAS[formato];
+  // o ponto toma a largura dele e o espaço até o nome: o nome cabe no que sobra
+  const larguraDoPonto = corRobo ? m.pontoRobo + m.pontoRoboGap : 0;
+  const corDosPontos = COR_DO_TOM[tomDoValor(dados.valores.pontos)];
   const quadrado = formato === "quadrado";
   const temSelo = dados.parcial !== null || dados.contaDemo;
   const [nNumero, nAcerto, nMep, nMen] = dados.numeros;
@@ -272,9 +313,12 @@ export function CardDoDia({ dados, formato }: PropsCardDoDia) {
       {quadrado ? (
         <div style={{ display: "flex", flexDirection: "column", marginTop: m.entreBlocos }}>
           <div style={{ display: "flex", alignItems: "flex-end", flexWrap: "wrap", gap: 20 }}>
-            <Texto tamanho={tamanhoParaCaber(dados.nome, 620, 60, 40)} estilo={{ lineHeight: 1 }}>
-              {dados.nome}
-            </Texto>
+            <div style={{ display: "flex", alignItems: "center", gap: m.pontoRoboGap }}>
+              {corRobo ? <PontoDoRobo cor={corRobo} m={m} /> : null}
+              <Texto tamanho={tamanhoParaCaber(dados.nome, 620 - larguraDoPonto, 60, 40)} estilo={{ lineHeight: 1 }}>
+                {dados.nome}
+              </Texto>
+            </div>
             <Texto tamanho={m.ativo} cor={MUDO} estilo={{ paddingBottom: 4 }}>
               {dados.ativo}
             </Texto>
@@ -285,9 +329,12 @@ export function CardDoDia({ dados, formato }: PropsCardDoDia) {
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", marginTop: m.entreBlocos }}>
-          <Texto tamanho={tamanhoParaCaber(dados.nome, LARGURA, 84, 48)} estilo={{ lineHeight: 1 }}>
-            {dados.nome}
-          </Texto>
+          <div style={{ display: "flex", alignItems: "center", gap: m.pontoRoboGap }}>
+            {corRobo ? <PontoDoRobo cor={corRobo} m={m} /> : null}
+            <Texto tamanho={tamanhoParaCaber(dados.nome, LARGURA - larguraDoPonto, 84, 48)} estilo={{ lineHeight: 1 }}>
+              {dados.nome}
+            </Texto>
+          </div>
           <Texto tamanho={m.ativo} cor={MUDO} estilo={{ marginTop: 14 }}>
             {dados.ativo}
           </Texto>
@@ -298,7 +345,7 @@ export function CardDoDia({ dados, formato }: PropsCardDoDia) {
         </div>
       )}
 
-      {/* o resultado do dia, grande e colorido; os pontos ao lado (quadrado) ou embaixo (story) */}
+      {/* o resultado do dia, grande e colorido; os pontos ao lado (quadrado) ou embaixo (story), coloridos pelo próprio sinal */}
       <div style={{ display: "flex", flexDirection: "column", marginTop: m.entreBlocos }}>
         <Texto tamanho={m.rotuloResultado} cor={MUDO}>
           {dados.rotuloResultado}
@@ -312,7 +359,7 @@ export function CardDoDia({ dados, formato }: PropsCardDoDia) {
             >
               {dados.resultado}
             </Texto>
-            <Texto tamanho={m.pontos} cor={MUDO} estilo={{ paddingBottom: 6 }}>
+            <Texto tamanho={m.pontos} cor={corDosPontos} estilo={{ paddingBottom: 6 }}>
               {dados.pontos}
             </Texto>
           </div>
@@ -325,7 +372,7 @@ export function CardDoDia({ dados, formato }: PropsCardDoDia) {
             >
               {dados.resultado}
             </Texto>
-            <Texto tamanho={m.pontos} cor={MUDO} estilo={{ marginTop: 10 }}>
+            <Texto tamanho={m.pontos} cor={corDosPontos} estilo={{ marginTop: 10 }}>
               {dados.pontos}
             </Texto>
           </div>

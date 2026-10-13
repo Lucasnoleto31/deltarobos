@@ -5,6 +5,8 @@ import { Skeleton } from "@/components/ui/skeleton";
  * então desenha só a página: o painel de resultado (filtro de período, número, azulejos e curva) e o
  * resumo (quatro cartões e oito linhas). 19/09/2026: eram um cabeçalho repetido e doze cartões iguais,
  * a forma que a página tinha antes do layout e da lista agrupada.
+ * 13/10/2026: acompanha a página do mídia kit da Zeve: o título de seção com a ação à direita (CabecaSecao) e o
+ * número do cartão maior a partir do lg.
  */
 export default function CarregandoRobo() {
   return (
@@ -36,13 +38,16 @@ export default function CarregandoRobo() {
       </div>
 
       <div className="space-y-3">
-        <Skeleton className="h-7 w-40" />
+        <div className="flex min-h-8 items-center justify-between gap-4">
+          <Skeleton className="h-6 w-40" />
+          <Skeleton className="h-4 w-36" />
+        </div>
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="painel space-y-2 p-4">
+            <div key={i} className="painel p-4">
               <Skeleton className="h-3 w-20" />
-              <Skeleton className="h-7 w-28 max-w-full" />
-              <Skeleton className="h-3 w-24 max-w-full" />
+              <Skeleton className="mt-2.5 h-6 w-28 max-w-full lg:h-7" />
+              <Skeleton className="mt-2 h-3 w-24 max-w-full" />
             </div>
           ))}
         </div>

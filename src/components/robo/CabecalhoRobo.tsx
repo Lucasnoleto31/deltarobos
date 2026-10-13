@@ -35,18 +35,39 @@ export function CabecalhoRobo() {
   return (
     <header className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">{robo.nome}</h1>
-            <Badge variant="outline">
-              {robo.ativo_nome} · {robo.ativo}
-            </Badge>
-            {robo.versao_atual ? <Badge variant="outline">v{robo.versao_atual}</Badge> : null}
-            {robo.conta_tipo === "demo" ? (
-              <Badge variant="outline" className="border-alerta/50 text-alerta" title="As estatísticas vêm de uma conta demo">
-                Conta demo
+        <div className="min-w-0 space-y-2">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            {/* A cor do robô (13/10/2026, mídia kit da Zeve): a barra ao lado do nome e o tom do selo do ativo, pela
+                --cor-robo que o layout põe no <article> (corDoRobo, pela ordem do banco). O nome fica na cor do
+                texto: alguns tons da paleta no claro ficam em 3:1, bom para marca e pouco para letra */}
+            <h1 className="flex items-center gap-3 text-3xl font-semibold tracking-tight sm:text-4xl">
+              <span aria-hidden className="h-[0.8em] w-1.5 shrink-0 rounded-full bg-(--cor-robo)" />
+              {robo.nome}
+            </h1>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge
+                variant="outline"
+                className="border-[color-mix(in_srgb,var(--cor-robo)_45%,transparent)] bg-[color-mix(in_srgb,var(--cor-robo)_12%,transparent)]"
+              >
+                {robo.ativo_nome} · {robo.ativo}
               </Badge>
-            ) : null}
+              {robo.versao_atual ? (
+                <Badge variant="outline" className="text-muted-foreground">
+                  v{robo.versao_atual}
+                </Badge>
+              ) : null}
+              {/* o laranja do alerta com 20% da cor do texto no claro, como o selo de status: puro sobre o tingido
+                  dava 4,1:1 */}
+              {robo.conta_tipo === "demo" ? (
+                <Badge
+                  variant="outline"
+                  className="border-alerta/40 bg-alerta/10 text-[color-mix(in_srgb,var(--alerta)_80%,var(--foreground))] dark:text-alerta"
+                  title="As estatísticas vêm de uma conta demo"
+                >
+                  Conta demo
+                </Badge>
+              ) : null}
+            </div>
           </div>
           {robo.descricao_publica ? (
             <p className="max-w-prose text-pretty text-muted-foreground">{robo.descricao_publica}</p>
@@ -93,7 +114,7 @@ export function CabecalhoRobo() {
         />
       ) : null}
       {robo.status === "pausado" ? (
-        <p className="rounded-lg border border-alerta/50 px-3 py-2 text-sm text-alerta">
+        <p className="rounded-lg border border-alerta/40 bg-alerta/10 px-3 py-2 text-sm text-[color-mix(in_srgb,var(--alerta)_80%,var(--foreground))] dark:text-alerta">
           Este robô está pausado. O histórico continua disponível.
         </p>
       ) : null}

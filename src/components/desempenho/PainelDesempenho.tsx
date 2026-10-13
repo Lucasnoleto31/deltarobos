@@ -6,6 +6,7 @@ import { RotuloComInfo } from "@/components/compartilhados/InfoIndicador";
 import { desempacotar, type OpsEmpacotadas } from "@/components/compartilhados/ops-codec";
 import { Valor } from "@/components/compartilhados/Valor";
 import { CurvaCapital } from "@/components/graficos/CurvaCapital";
+import { corDoRobo } from "@/lib/cores-robo";
 import { formatarBRL, formatarData, formatarDuracao, formatarMesAno, formatarMultiplo, formatarNumero, formatarPct, formatarPontos } from "@/lib/formato";
 import { heatmapAnoMes } from "@/lib/stats/calendario";
 import { calcularKpis } from "@/lib/stats/kpis";
@@ -33,6 +34,8 @@ interface Props {
   hoje: string;
   valorPonto: number;
   capitalReferencia: number | null;
+  /** a posição do robô na tabela robos (robos_publico.ordem): dá a cor dele à linha da curva (13/10/2026) */
+  ordemRobo: number;
 }
 
 function lerEstado(sp: URLSearchParams, hoje: string): EstadoFiltros {
@@ -74,6 +77,7 @@ export function PainelDesempenho({
   hoje,
   valorPonto,
   capitalReferencia,
+  ordemRobo,
 }: Props) {
   const ops = useMemo(() => desempacotar(pacote), [pacote]);
   const sp = useSearchParams();
@@ -135,9 +139,7 @@ export function PainelDesempenho({
   })();
 
   if (linhas.length === 0) {
-    return (
-      <p className="painel p-8 text-center text-sm text-muted-foreground">Sem operações fechadas ainda.</p>
-    );
+    return <p className="painel px-4 py-10 text-center text-sm text-muted-foreground">Sem operações fechadas ainda.</p>;
   }
 
   // a base dos percentuais: o capital de referência vezes os contratos do filtro (19/09/2026: o % do
@@ -164,6 +166,9 @@ export function PainelDesempenho({
       rotulo: "Drawdown máx.",
       // o número é o % do capital quando há capital; sem ele, o R$
       info: kpis.drawdownMaximoPct !== null ? "drawdownPct" : "drawdown",
+      // drawdown é sempre perda: o % chega como texto e pinta pelo tom; o R$ é um Valor, que já se pinta.
+      // Sem drawdown no período o número fica sem cor (13/10/2026)
+      tom: kpis.drawdown.valor > 0 ? "negativo" : "neutro",
       valor: kpis.drawdownMaximoPct !== null ? formatarPct(kpis.drawdownMaximoPct) : <Valor valor={-kpis.drawdown.valor} unidade={estado.unidade} inteiro={kpis.drawdown.valor >= 1000} />,
       detalhe:
         kpis.drawdownMaximoPct !== null && capitalDoFiltro !== null
@@ -186,15 +191,29 @@ export function PainelDesempenho({
     { rotulo: "Operações por dia", info: "operacoesDia", valor: formatarNumero(resumo.mediaPorDia, 1), detalhe: `duração média ${formatarDuracao(resumo.duracaoMediaSeg)}` },
     { rotulo: "Melhor dia", info: "melhorDia", valor: kpis.melhorDia ? <Valor valor={kpis.melhorDia.valor} unidade={estado.unidade} inteiro={Math.abs(kpis.melhorDia.valor) >= 1000} /> : "–", detalhe: kpis.melhorDia ? formatarData(kpis.melhorDia.dia) : undefined },
     { rotulo: "Pior dia", info: "piorDia", valor: kpis.piorDia ? <Valor valor={kpis.piorDia.valor} unidade={estado.unidade} inteiro={Math.abs(kpis.piorDia.valor) >= 1000} /> : "–", detalhe: kpis.piorDia ? formatarData(kpis.piorDia.dia) : undefined },
-    // contagem de dias, não resultado em dinheiro: numa cor só (19/09/2026, era verde × vermelho)
-    { rotulo: "Dias positivos × negativos", info: "diasPositivosNegativos", valor: <>{formatarNumero(kpis.diasPositivos)}<span className="text-muted-foreground"> × </span>{formatarNumero(kpis.diasNegativos)}</>, detalhe: `${formatarNumero(kpis.nDias)} dias de pregão` },
-    // contagem de operações, não resultado: numa cor só e numa linha só (antes quebrava em três cores)
+    // 19/09/2026 estas duas contagens ficaram numa cor só; 13/10/2026 (mídia kit da Zeve, "mais cor,
+    // principalmente valores positivos e negativos") voltam a pintar, pela regra do resto do site: o lado
+    // positivo no verde, o negativo no vermelho e a ligação no cinza. Numa linha só, como antes
+    {
+      rotulo: "Dias positivos × negativos",
+      info: "diasPositivosNegativos",
+      valor: (
+        <>
+          <span className="text-positivo">{formatarNumero(kpis.diasPositivos)}</span>
+          <span className="font-normal text-muted-foreground"> × </span>
+          <span className="text-negativo">{formatarNumero(kpis.diasNegativos)}</span>
+        </>
+      ),
+      detalhe: `${formatarNumero(kpis.nDias)} dias de pregão`,
+    },
     {
       rotulo: "Maior sequência",
       info: "maiorSequencia",
       valor: (
         <>
-          {formatarNumero(seq.maiorGains)}&nbsp;gains · {formatarNumero(seq.maiorLosses)}&nbsp;losses
+          <span className="text-positivo">{formatarNumero(seq.maiorGains)}&nbsp;gains</span>
+          <span className="font-normal text-muted-foreground"> · </span>
+          <span className="text-negativo">{formatarNumero(seq.maiorLosses)}&nbsp;losses</span>
         </>
       ),
       detalhe: "operação a operação",
@@ -204,10 +223,12 @@ export function PainelDesempenho({
   return (
     <div className="space-y-8">
       {/* Número grande. O rótulo em caixa alta que ficava em cima saiu (19/09/2026): o contexto vem
-          numa linha embaixo, sem repetir acerto e fator de lucro, que estão nos cartões. */}
-      <header className="space-y-2">
-        <p className="text-5xl font-semibold tracking-tight sm:text-6xl">
-          <Valor valor={kpis.acumulado} unidade={estado.unidade} />
+          numa linha embaixo, sem repetir acerto e fator de lucro, que estão nos cartões. 13/10/2026: o
+          número é o protagonista da aba (Valor em destaque: o "R$" menor que os algarismos), no verde ou no
+          vermelho pelo sinal. */}
+      <header className="space-y-3">
+        <p className="text-5xl sm:text-6xl">
+          <Valor valor={kpis.acumulado} unidade={estado.unidade} destaque />
         </p>
         <p className="text-sm text-muted-foreground tabular-nums">
           <strong className="font-medium text-foreground">{formatarNumero(resumo.n)}</strong> operações · {formatarNumero(estado.contratos)}{" "}
@@ -215,7 +236,7 @@ export function PainelDesempenho({
           {retornoPct !== null ? (
             <>
               {" "}
-              · retorno <strong className={retornoPct >= 0 ? "font-medium text-positivo" : "font-medium text-negativo"}>{formatarPct(retornoPct, 2)}</strong> sobre {capitalDoFiltro}
+              · retorno <strong className={retornoPct > 0 ? "font-semibold text-positivo" : retornoPct < 0 ? "font-semibold text-negativo" : "font-semibold text-muted-foreground"}>{formatarPct(retornoPct, 2)}</strong> sobre {capitalDoFiltro}
             </>
           ) : null}
         </p>
@@ -234,8 +255,9 @@ export function PainelDesempenho({
           <RotuloComInfo chave="curvaCapital">Curva de capital</RotuloComInfo>
         </h2>
         {/* sem o resumo em cima (19/09/2026): resultado, drawdown e dias já estão no número grande e
-            nos cartões, como na visão geral */}
-        <CurvaCapital linhas={linhasF} opcoes={opcoes} operacoes={opsF} mostrarResumo={false} />
+            nos cartões, como na visão geral. 13/10/2026: a linha na cor do robô, pela ordem do banco (nunca
+            pelo slug); a área e o drawdown seguem o sinal */}
+        <CurvaCapital linhas={linhasF} opcoes={opcoes} operacoes={opsF} mostrarResumo={false} cor={corDoRobo(ordemRobo)} />
       </section>
 
       {/* 19/09/2026: saíram o mapa "Ano × mês" (o mesmo da aba Calendário, e as barras daqui já
@@ -264,19 +286,19 @@ export function PainelDesempenho({
         <h2 className="text-lg font-semibold tracking-tight">Distribuição</h2>
         <div className="grid gap-4 lg:grid-cols-3">
           <div className="painel p-4">
-            <h3 className="mb-2 text-sm font-medium">
+            <h3 className="mb-2 text-sm font-semibold">
               <RotuloComInfo chave="porDiaSemana">Por dia da semana</RotuloComInfo>
             </h3>
             <GraficoBarras dados={porDia.map((f) => ({ rotulo: f.rotulo, valor: f.total, n: f.n }))} unidade={estado.unidade} altura={200} />
           </div>
           <div className="painel p-4">
-            <h3 className="mb-2 text-sm font-medium">
+            <h3 className="mb-2 text-sm font-semibold">
               <RotuloComInfo chave="porHora">Por hora de entrada</RotuloComInfo>
             </h3>
             <GraficoBarras dados={porHoraF.map((f) => ({ rotulo: f.rotulo, valor: f.total, n: f.n }))} unidade={estado.unidade} altura={200} />
           </div>
           <div className="painel p-4">
-            <h3 className="mb-2 text-sm font-medium">
+            <h3 className="mb-2 text-sm font-semibold">
               <RotuloComInfo chave="histograma">Resultado por operação</RotuloComInfo>
             </h3>
             <GraficoBarras

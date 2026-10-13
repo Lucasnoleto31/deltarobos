@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Fragment } from "react";
 import { BarrasPorRobo } from "@/components/comparativo/BarrasPorRobo";
+import { PontoDoRobo } from "@/components/comparativo/PontoDoRobo";
 import { resumirPorPeriodo } from "@/components/comparativo/resumo-por-periodo";
 import type { ChaveIndicador } from "@/components/compartilhados/glossario";
 import { RotuloComInfo } from "@/components/compartilhados/InfoIndicador";
@@ -142,6 +144,9 @@ function melhorDe(m: Metrica, colunas: Coluna[]): number | null {
  * por fim, todos juntos mês a mês. A curva do conjunto saiu: era mais um gráfico de linha.
  * 19/09/2026: no celular a tabela mostrava 1 robô de 3 e rolava de lado; abaixo de 768 px cada métrica
  * vira um rótulo com os robôs lado a lado embaixo, e os nomes ficam uma vez só, no topo.
+ * 13/10/2026 (mídia kit da Zeve): cada robô ganha o ponto na cor dele (pela `ordem`, PontoDoRobo) no nome da
+ * coluna, nas barras e na linha do "Todos juntos"; os números de resultado pintam pelo sinal (Valor) e os
+ * cartões do "Todos juntos" levam o número em destaque. O cabeçalho da tabela fica num fundo apagado.
  */
 export default async function PaginaComparativo() {
   const hoje = hojeSP();
@@ -181,20 +186,20 @@ export default async function PaginaComparativo() {
       rotulo: "Desde o início",
       info: "acumulado",
       infoTexto: "Soma do que todos os robôs juntos ganharam e perderam desde a primeira operação registrada no site, com 1 contrato de cada, já descontados os custos.",
-      valor: <Valor valor={kCasa.acumulado} inteiro />,
+      valor: <Valor valor={kCasa.acumulado} inteiro destaque />,
       detalhe: `${formatarNumero(kCasa.nDias)} dias de pregão`,
     },
     {
       rotulo: "Mês atual",
       info: "mesAtual",
       infoTexto: "Resultado de todos os robôs juntos, com 1 contrato de cada, nas operações fechadas do dia 1º deste mês até hoje, já descontados os custos.",
-      valor: <Valor valor={kCasa.mes} inteiro={Math.abs(kCasa.mes) >= 1000} />,
+      valor: <Valor valor={kCasa.mes} inteiro={Math.abs(kCasa.mes) >= 1000} destaque />,
     },
     {
       rotulo: "Drawdown máximo",
       info: "drawdown",
       infoTexto: "A maior queda do saldo dos robôs somados, com 1 contrato de cada, desde um topo até o fundo seguinte. Mostra o pior momento de quem operasse todos ao mesmo tempo.",
-      valor: <Valor valor={-kCasa.drawdown.valor} inteiro />,
+      valor: <Valor valor={-kCasa.drawdown.valor} inteiro destaque />,
       detalhe: kCasa.drawdownMaximoPct !== null ? undefined : kCasa.drawdown.fundo ? `fundo em ${formatarData(kCasa.drawdown.fundo)}` : undefined,
     },
     {
@@ -210,7 +215,7 @@ export default async function PaginaComparativo() {
     <div className="conteudo space-y-8 py-8">
       <Voltar href="/">Início</Voltar>
       <header className="space-y-1">
-        <h1 className="text-3xl font-semibold tracking-tight">Comparativo</h1>
+        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Comparativo</h1>
         <p className="text-muted-foreground">Por 1 contrato, líquido de custos.</p>
       </header>
 
@@ -233,6 +238,7 @@ export default async function PaginaComparativo() {
                 {colunas.map((c) => (
                   <div key={c.robo.slug} className="flex min-w-0 flex-col justify-end px-1.5">
                     <Link href={`/robos/${c.robo.slug}`} className="block leading-snug font-medium break-words hover:underline">
+                      <PontoDoRobo ordem={c.robo.ordem} className="mr-1.5 align-middle" />
                       {c.robo.nome}
                     </Link>
                     <span className="text-xs text-muted-foreground">{c.robo.ativo}</span>
@@ -267,10 +273,11 @@ export default async function PaginaComparativo() {
             <div className="hidden overflow-x-auto md:block">
               <table className="w-full min-w-[40rem] text-sm">
                 <thead>
-                  <tr className="[&>th]:px-4 [&>th]:py-3 [&>th]:font-medium">
+                  <tr className="border-b border-(--painel-fio) bg-muted/50 [&>th]:px-4 [&>th]:py-3 [&>th]:font-medium">
                     <th className="text-left text-xs text-muted-foreground">Métrica</th>
                     {colunas.map((c) => (
-                      <th key={c.robo.slug} className="text-right">
+                      <th key={c.robo.slug} className="text-right whitespace-nowrap">
+                        <PontoDoRobo ordem={c.robo.ordem} className="mr-1.5 align-middle" />
                         <Link href={`/robos/${c.robo.slug}`} className="hover:underline">
                           {c.robo.nome}
                         </Link>
@@ -279,7 +286,7 @@ export default async function PaginaComparativo() {
                     ))}
                   </tr>
                 </thead>
-                <tbody className="[&>tr]:border-t">
+                <tbody className="[&>tr:not(:first-child)]:border-t">
                   {METRICAS.map((m) => {
                     const melhor = melhorDe(m, colunas);
                     return (
@@ -312,6 +319,7 @@ export default async function PaginaComparativo() {
                   slug: c.robo.slug,
                   nome: c.robo.nome,
                   ativo: c.robo.ativo,
+                  ordem: c.robo.ordem,
                   porPeriodo: resumirPorPeriodo(c.linhas, c.robo.valor_ponto_brl, hoje),
                 }))}
               />
@@ -326,7 +334,18 @@ export default async function PaginaComparativo() {
             <RevelarNaRolagem className="space-y-3">
               <div>
                 <h2 className="text-lg font-semibold tracking-tight">Todos juntos</h2>
-                <p className="text-sm text-muted-foreground">{colunas.map((c) => c.robo.nome).join(" + ")}, 1 contrato de cada</p>
+                <p className="text-sm text-muted-foreground">
+                  {colunas.map((c, i) => (
+                    <Fragment key={c.robo.slug}>
+                      {i > 0 ? " + " : null}
+                      <span className="whitespace-nowrap">
+                        <PontoDoRobo ordem={c.robo.ordem} className="mr-1.5 align-middle" />
+                        {c.robo.nome}
+                      </span>
+                    </Fragment>
+                  ))}
+                  , 1 contrato de cada
+                </p>
               </div>
               <CardsKpi itens={tiles} className="lg:grid-cols-4" />
               <div id="mes-a-mes" className="painel p-4 sm:p-5">

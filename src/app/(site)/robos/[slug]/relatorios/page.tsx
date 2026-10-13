@@ -31,12 +31,16 @@ export default async function PaginaRelatorios({ params }: Props) {
   // 19/09/2026: o título "Relatórios mensais" repetia a aba logo acima e o parágrafo descrevia o que os
   // botões baixam; ficou a linha de fatos. O aviso do mês corrente, que ficava solto no rodapé, foi para
   // a linha do próprio mês.
+  // 13/10/2026 (mídia kit da Zeve): a tabela no desenho da lista de operações, com o cabeçalho num fundo
+  // apagado e as linhas listradas; bruto e líquido pintam pelo sinal (o líquido é o número forte da linha) e o
+  // "em andamento" do mês corrente vai no azul do que está ao vivo.
   return (
     <div className="space-y-4">
       <header>
         <h2 className="sr-only">Relatórios mensais</h2>
-        <p className="text-sm text-muted-foreground tabular-nums">
-          {formatarNumero(meses.length)} {meses.length === 1 ? "mês" : "meses"} com operação · valores por 1 contrato
+        <p className="text-sm text-muted-foreground">
+          <span className="font-medium text-foreground tabular-nums">{formatarNumero(meses.length)}</span>{" "}
+          {meses.length === 1 ? "mês" : "meses"} com operação · valores por 1 contrato
         </p>
       </header>
 
@@ -46,7 +50,7 @@ export default async function PaginaRelatorios({ params }: Props) {
         <div className="overflow-x-auto painel">
           <table className="w-full text-sm">
             <thead className="text-left text-xs text-muted-foreground">
-              <tr className="[&>th]:px-4 [&>th]:py-2.5 [&>th]:font-medium">
+              <tr className="border-b border-(--painel-fio) bg-muted/50 [&>th]:px-4 [&>th]:py-2.5 [&>th]:font-medium">
                 <th>Mês</th>
                 <th className="text-right">Pregões</th>
                 <th className="text-right">Operações</th>
@@ -55,17 +59,17 @@ export default async function PaginaRelatorios({ params }: Props) {
                 <th className="text-right">Baixar</th>
               </tr>
             </thead>
-            <tbody className="[&>tr]:border-t">
+            <tbody className="[&>tr:nth-child(even)]:bg-muted/40">
               {meses.map((m) => (
                 <tr key={m.mes} className="tabular-nums [&>td]:px-4 [&>td]:py-2.5">
                   <td className="font-medium first-letter:uppercase">
                     {formatarMesAno(`${m.mes}-01`)}
-                    {m.mes === mesCorrente ? <span className="ml-2 text-xs font-normal text-muted-foreground">em andamento</span> : null}
+                    {m.mes === mesCorrente ? <span className="ml-2 text-xs font-normal text-info">em andamento</span> : null}
                   </td>
                   <td className="text-right">{formatarNumero(m.nDias)}</td>
                   <td className="text-right">{formatarNumero(m.nOperacoes)}</td>
                   <td className="text-right">
-                    <Valor valor={m.bruto} inteiro={Math.abs(m.bruto) >= 1000} colorir={false} />
+                    <Valor valor={m.bruto} inteiro={Math.abs(m.bruto) >= 1000} />
                   </td>
                   <td className="text-right">
                     <Valor valor={m.liquido} inteiro={Math.abs(m.liquido) >= 1000} className="font-semibold" />

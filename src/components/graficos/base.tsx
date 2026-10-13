@@ -2,8 +2,10 @@
 // vai bem"). Sem biblioteca: as barras são HTML, para o texto não encolher com a largura da tela, e a
 // curva é SVG esticado com traço de espessura fixa. Regras do kit estético (blocos 4 e 7): barra com
 // gradiente vertical e trilho atrás, linhas-guia horizontais pontilhadas e nenhuma vertical, e a
-// leitura do ponto numa linha fixa acima do desenho (19/09/2026; antes, cartão flutuante). Aqui só
-// se desenha: todo número chega pronto de quem chama.
+// leitura do ponto numa linha fixa acima do desenho (19/09/2026; antes, cartão flutuante). Cor só por
+// token do tema (13/10/2026, mídia kit da Zeve): verde e vermelho do resultado pelo sinal, o acento azul
+// no que é marca ou interação, os neutros nos eixos e nas guias. Aqui só se desenha: todo número chega
+// pronto de quem chama.
 
 import { cn } from "cn";
 import type { PointerEvent as ReactPointerEvent } from "react";
@@ -97,11 +99,16 @@ export function Guias({ marcas, y }: { marcas: number[]; y: (v: number) => numbe
 const COR_DO_TOM: Record<Tom, string> = {
   positivo: "text-positivo",
   negativo: "text-negativo",
-  acento: "text-primary",
+  // o acento como texto é o "info": o #0059FF puro dá 3,6:1 sobre o marinho; o info do escuro, 6,2:1
+  acento: "text-info",
   neutro: "text-foreground",
 };
 
-/** As cores da leitura sobre um fundo que não é o do site: a moldura grafite do Profit, escura nos dois temas. */
+/**
+ * As cores da leitura sobre um fundo que não é o do site. Era a moldura grafite do Profit, escura nos dois
+ * temas; desde 13/10/2026 a moldura segue o tema e a leitura usa as classes do site, sem paleta. Fica para
+ * quem desenhar sobre um fundo próprio.
+ */
 export interface PaletaDaLeitura {
   titulo: string;
   texto: string;

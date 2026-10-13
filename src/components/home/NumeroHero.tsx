@@ -1,11 +1,13 @@
 "use client";
 
+import { cn } from "cn";
 import { AtualizadoHa } from "@/components/compartilhados/AtualizadoHa";
 import { RotuloComInfo } from "@/components/compartilhados/InfoIndicador";
 import { Valor } from "@/components/compartilhados/Valor";
 import { formatarDataLonga, formatarNumero, formatarPct } from "@/lib/formato";
 import { rotuloOperacoesEmAberto } from "@/lib/stats/posicoes";
 import { useCasa, useOperacoesEmAberto, usePregaoAberto } from "./CasaAoVivoProvider";
+import { PontoRobo } from "./cores";
 import { formatarDiaLongo } from "./datas";
 import type { UltimoPregaoCasa } from "./tipos";
 
@@ -35,6 +37,11 @@ const TEXTO_OPERACOES =
  * hoje, e "3 em aberto" com o i mede uns 85 px, enquanto "3 operações em aberto" não caberia; e fora do
  * pregão, quando o contador não pode aparecer, o tile teria que virar outra coisa, e o de robôs
  * posicionados já existe. O apoio só aparece com o pregão aberto, o coletor em dia e pelo menos uma.
+ *
+ * 13/10/2026, mídia kit da Zeve: o número grande é o protagonista (Valor em destaque, verde ou vermelho pelo
+ * sinal, com o "R$" menor), e os três de apoio ficam abaixo de um fio. Posicionados com robô na rua vai no azul
+ * do acento, como na barra; o melhor robô do último pregão leva o ponto na cor dele. O acerto não tem sinal e
+ * fica neutro.
  */
 export function NumeroHero({ ultimoPregao }: Props) {
   const { estado, hoje } = useCasa();
@@ -54,7 +61,13 @@ export function NumeroHero({ ultimoPregao }: Props) {
         data: formatarDiaLongo(passado.dia),
         operacoes: passado.nOperacoes,
         gains: passado.nGain,
-        terceiro: { rotulo: "Melhor robô", valor: passado.melhor?.nome ?? "–", emAberto: 0 },
+        terceiro: {
+          rotulo: "Melhor robô",
+          valor: passado.melhor?.nome ?? "–",
+          emAberto: 0,
+          ordem: passado.melhor?.ordem ?? null,
+          aoVivo: false,
+        },
       }
     : resumo && temRobos
       ? {
@@ -63,7 +76,13 @@ export function NumeroHero({ ultimoPregao }: Props) {
           data: formatarDataLonga(resumo.dia ?? hoje),
           operacoes: resumo.n_operacoes,
           gains: resumo.n_gain,
-          terceiro: { rotulo: "Posicionados", valor: formatarNumero(resumo.n_robos_posicionados), emAberto },
+          terceiro: {
+            rotulo: "Posicionados",
+            valor: formatarNumero(resumo.n_robos_posicionados),
+            emAberto,
+            ordem: null,
+            aoVivo: resumo.n_robos_posicionados > 0,
+          },
         }
       : null;
   // ao vivo mostra o zero ("0 em aberto"); sem ao vivo o apoio some (21/09/2026)
@@ -79,10 +98,14 @@ export function NumeroHero({ ultimoPregao }: Props) {
           {dia?.rotulo ?? "Hoje, todos os robôs"}
         </RotuloComInfo>
       </p>
-      <p className="mt-2 text-5xl font-semibold tracking-tight sm:text-6xl">
-        {dia ? <Valor valor={dia.valor} inteiro={false} /> : <span className="text-muted-foreground">–</span>}
+      <p className="mt-3">
+        {dia ? (
+          <Valor valor={dia.valor} destaque className="text-5xl sm:text-6xl" />
+        ) : (
+          <span className="text-5xl leading-none font-semibold text-muted-foreground sm:text-6xl">–</span>
+        )}
       </p>
-      <p className="mt-2 text-sm text-muted-foreground">
+      <p className="mt-3 text-sm text-muted-foreground">
         {/* a data em linha própria (19/09/2026): com o " · " no meio, a quebra deixava o ponto sozinho no fim da
             linha; sem o tnum do body, o hífen de "sexta-feira" volta à largura normal */}
         por contrato, líquido de custos
@@ -90,7 +113,7 @@ export function NumeroHero({ ultimoPregao }: Props) {
       </p>
 
       {dia ? (
-        <dl className="mt-6 grid grid-cols-3 gap-3 text-sm">
+        <dl className="mt-6 grid grid-cols-3 gap-3 border-t border-(--painel-fio) pt-5 text-sm">
           <div>
             <dt className="text-muted-foreground">
               <RotuloComInfo chave="operacoes" texto={TEXTO_OPERACOES}>
@@ -110,7 +133,17 @@ export function NumeroHero({ ultimoPregao }: Props) {
           <div className="min-w-0">
             {/* sem o i: no celular a coluna tem 90 px e "Melhor robô" com o i quebrava em duas linhas */}
             <dt className="text-muted-foreground">{dia.terceiro.rotulo}</dt>
-            <dd className="truncate text-lg font-semibold tabular-nums">{dia.terceiro.valor}</dd>
+            <dd
+              className={cn(
+                "flex min-w-0 items-center gap-1.5 text-lg font-semibold",
+                // o nome do robô fica na Poppins; só o número vai na Inter tabular
+                dia.terceiro.ordem === null && "tabular-nums",
+                dia.terceiro.aoVivo && "text-info",
+              )}
+            >
+              {dia.terceiro.ordem !== null ? <PontoRobo ordem={dia.terceiro.ordem} /> : null}
+              <span className="truncate">{dia.terceiro.valor}</span>
+            </dd>
             {rotuloEmAberto ? (
               // o visível é curto para caber na coluna; o leitor de tela ouve "3 operações em aberto"
               <dd className="text-xs text-muted-foreground tabular-nums">

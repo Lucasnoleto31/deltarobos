@@ -2,52 +2,68 @@
 
 // O desenho da curva no estilo do Gráfico de Patrimônio do Relatório de Performance do Profit, trazido
 // do Zeve Hub (17/09/2026, pedido do Artur: "o gráfico de performance pode ser estilo profit (por
-// operação, por dia) e as cores; vc fez no hub então é aquele estilo"). As cores foram medidas pixel a
-// pixel em prints do Profit (central de ajuda da Nelogica, 13/09/2026, e o Profit do Artur agrupado por
-// dia, 14/09/2026) e valem nos dois temas do site, como no Hub. Aqui só se desenha: cada ponto chega
-// com a posição, o acumulado, o drawdown e a leitura já montados.
+// operação, por dia) e as cores; vc fez no hub então é aquele estilo"). Do Profit ficaram o desenho e o
+// gesto: título no alto, legenda embaixo, abas no rodapé, mira em cruz com as etiquetas nos eixos, área
+// em degradê até o zero. As cores, medidas pixel a pixel em prints do Profit (moldura grafite nos dois
+// temas), saíram em 13/10/2026 com o mídia kit da Zeve: agora são os tokens do tema (globals.css). Aqui
+// só se desenha: cada ponto chega com a posição, o acumulado, o drawdown e a leitura já montados.
 
 import { useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import type { ExtrasDoPonto, FechamentoNaCurva } from "@/lib/stats/saldo-dia";
-import { Leitura, indiceMaisPerto, passo, type ConteudoDaDica, type PaletaDaLeitura } from "./base";
+import { Leitura, indiceMaisPerto, mistura, passo, type ConteudoDaDica } from "./base";
 
+/**
+ * As cores da moldura e do desenho, em tokens do tema desde 13/10/2026 (até 12/10/2026: os hex medidos no
+ * Profit, grafite #222222 com verde #22e57d e vermelho #ff5858, iguais no claro e no escuro). A moldura agora
+ * acompanha o tema: o fundo é o chão do site, um degrau abaixo do cartão que a contém nos dois temas, com o
+ * fio do painel em volta; o resultado pinta no verde e no vermelho do site; o que é interação (aba ativa,
+ * seleção do zoom) e a linha da curva de capital ficam no acento azul. Os nomes são os de antes porque o
+ * calendário, a curva do dia e o simulador os usam na própria legenda.
+ *
+ * Contraste (medido com os tokens): o texto apagado sobre o fundo dá 5,5:1 no claro e 7,8:1 no escuro, e
+ * sobre a barra das abas 5,1:1 e 6,7:1; a aba ativa é branco sobre o azul, 5,4:1; a linha do acento passa de
+ * 5:1 sobre o fundo nos dois temas.
+ */
 export const PROFIT = {
-  fundo: "#222222",
-  grade: "#383838",
-  zero: "#4d4d4d",
-  alta: "#22e57d",
-  baixa: "#ff5858",
-  texto: "#aaaaaa",
-  textoFraco: "#909090",
-  titulo: "#ffffff",
-  abas: "#333333",
-  abasBorda: "#444444",
-  abaAtiva: "#4a4a4a",
-  abaTexto: "#b3b3b3",
-  // o separador medido (#505050) saiu em 19/09/2026: 1,57:1 sobre as abas; o "|" usa o textoFraco
+  /** o poço do gráfico: a cor do chão (#F5F7FC no claro, #050915 no escuro) */
+  fundo: "var(--background)",
+  /** o fio em volta da moldura */
+  borda: "var(--painel-fio)",
+  grade: mistura("--foreground", 10),
+  zero: mistura("--foreground", 26),
+  alta: "var(--positivo)",
+  baixa: "var(--negativo)",
+  /** a linha da curva de capital quando quem chama não pede outra cor */
+  acento: "var(--info)",
+  texto: "var(--muted-foreground)",
+  // o separador medido no Profit (#505050) saiu em 19/09/2026: 1,57:1 sobre as abas; o "|" usa o textoFraco
+  textoFraco: "var(--muted-foreground)",
+  titulo: "var(--foreground)",
+  abas: "var(--muted)",
+  abasBorda: "var(--painel-fio-forte)",
+  abaAtiva: "var(--primary)",
+  abaAtivaTexto: "var(--primary-foreground)",
+  abaTexto: "var(--muted-foreground)",
+  /** as etiquetas da mira nos eixos: invertidas, o texto do site como fundo */
+  mira: "var(--foreground)",
+  miraTexto: "var(--background)",
+  /**
+   * O texto sobre a etiqueta verde ou vermelha do último valor: o cartão, branco no claro e marinho no escuro.
+   * Com o verde e o vermelho de cada tema: 5,0:1 e 4,8:1 no claro, 8,3:1 e 5,0:1 no escuro (o branco sobre o
+   * verde do escuro dava 2,3:1).
+   */
+  sobreCor: "var(--card)",
 } as const;
 
-/** A leitura do ponto no alto da moldura, com as cores do Profit: a moldura é grafite nos dois temas. */
-const PALETA_DA_LEITURA: PaletaDaLeitura = {
-  titulo: PROFIT.titulo,
-  texto: PROFIT.texto,
-  rotulo: PROFIT.textoFraco,
-  positivo: PROFIT.alta,
-  negativo: PROFIT.baixa,
-};
+/**
+ * Classes do botão pequeno dentro da moldura ("Ver tudo", "Tentar de novo"): o fio forte em volta, o texto do
+ * site e o foco de todo o site (o contorno do :focus-visible do globals.css). Até 12/10/2026 o anel era branco,
+ * para aparecer no grafite; na moldura clara ele sumiria.
+ */
+export const BOTAO_DA_MOLDURA =
+  "rounded-full border border-(--painel-fio-forte) px-2 py-0.5 text-[11px] font-medium text-foreground transition-colors hover:bg-(--linha-hover)";
 
-/** Texto grafite ou branco sobre a etiqueta, o que der mais contraste com a cor dela (o vermelho do por dia pede branco). */
-function textoSobre(cor: string): string {
-  const [r, g, b] = [1, 3, 5].map((k) => {
-    const c = parseInt(cor.slice(k, k + 2), 16) / 255;
-    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-  });
-  const l = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-  // luminância do grafite #222222: 0,016
-  return (l + 0.05) / 0.066 >= 1.05 / (l + 0.05) ? PROFIT.fundo : PROFIT.titulo;
-}
-
-/** Linha e área da curva: cada agrupamento com as cores do gráfico do Profit no mesmo agrupamento. */
+/** Linha e área da curva: cada agrupamento com a espessura e a força da área que o Profit usa nele. */
 export interface CoresDaCurva {
   alta: string;
   baixa: string;
@@ -56,9 +72,15 @@ export interface CoresDaCurva {
   areaZero: number;
   zero: string;
   zeroLargura: number;
+  /**
+   * A linha numa cor só (13/10/2026): o acento na curva de capital, a cor do robô (corDoRobo) onde a série é
+   * de um robô. Sem ela, como sempre: a linha é verde acima do zero e vermelha abaixo. A área continua verde
+   * acima e vermelha abaixo nos dois casos: o sinal do resultado não muda de cor.
+   */
+  linhaCor?: string;
 }
 
-/** Por operação: as do print da central de ajuda da Nelogica. */
+/** Por operação: linha de 1,5 px e área leve, as proporções do print da central de ajuda da Nelogica. */
 export const CURVA_POR_OPERACAO: CoresDaCurva = {
   alta: PROFIT.alta,
   baixa: PROFIT.baixa,
@@ -69,14 +91,17 @@ export const CURVA_POR_OPERACAO: CoresDaCurva = {
   zeroLargura: 2,
 };
 
-/** Por dia: linha #00bb00 de 2 px e área mais forte, medidas no Profit do Artur agrupado por dia. */
+/**
+ * Por dia: linha de 2 px e área mais forte, como no Profit do Artur agrupado por dia. A área desceu de 0,39
+ * para 0,3 em 13/10/2026: com o verde do site, mais forte que o #00bb00 medido, ela brigava com a linha.
+ */
 export const CURVA_POR_DIA: CoresDaCurva = {
-  alta: "#00bb00",
-  baixa: "#bb0000",
+  alta: PROFIT.alta,
+  baixa: PROFIT.baixa,
   linha: 2,
-  areaTopo: 0.39,
+  areaTopo: 0.3,
   areaZero: 0.05,
-  zero: PROFIT.grade,
+  zero: PROFIT.zero,
   zeroLargura: 1,
 };
 
@@ -258,13 +283,16 @@ function EixoProfit({
   );
 }
 
-/** A etiqueta no eixo da direita, na altura do valor; encosta no desenho, como a do Profit. */
-function EtiquetaDoEixo({ topo, fundo, children }: { topo: number; fundo: string; children: React.ReactNode }) {
+/**
+ * A etiqueta no eixo da direita, na altura do valor; encosta no desenho, como a do Profit. Até 12/10/2026 a cor
+ * do texto saía da luminância do hex do fundo; com os tokens quem chama diz as duas.
+ */
+function EtiquetaDoEixo({ topo, fundo, texto, children }: { topo: number; fundo: string; texto: string; children: React.ReactNode }) {
   return (
     <span
       aria-hidden
-      className="absolute -left-1 -translate-y-1/2 rounded-[3px] px-1.5 py-0.5 text-[11px] font-medium whitespace-nowrap tabular-nums"
-      style={{ top: `${topo}%`, background: fundo, color: textoSobre(fundo) }}
+      className="absolute -left-1 -translate-y-1/2 rounded-[3px] px-1.5 py-0.5 text-[11px] font-semibold whitespace-nowrap tabular-nums"
+      style={{ top: `${topo}%`, background: fundo, color: texto }}
     >
       {children}
     </span>
@@ -323,9 +351,10 @@ interface Props {
 }
 
 /**
- * Linha com área em degradê até o zero, verde acima e vermelha abaixo, e o drawdown em barras no mesmo
- * eixo de tempo. Com `aoSelecionar`, arrastar com o mouse marca um trecho para dar zoom (18/09/2026,
- * "os gráficos são pouco interativos").
+ * Linha com área em degradê até o zero, verde acima e vermelha abaixo, e o drawdown em barras vermelhas no
+ * mesmo eixo de tempo. A linha é verde e vermelha como a área, ou de uma cor só quando `cores.linhaCor` vem
+ * (13/10/2026: o acento na curva de capital, a cor do robô onde a série é de um robô). Com `aoSelecionar`,
+ * arrastar com o mouse marca um trecho para dar zoom (18/09/2026, "os gráficos são pouco interativos").
  *
  * Apontar, desde 19/09/2026, é como no Profit ("esses gráficos consegue deixar estilo do profit?"):
  * mira em cruz tracejada no ponto, a etiqueta do valor no eixo da direita e a da data (ou da hora, ou
@@ -470,9 +499,9 @@ export function DesenhoDaCurva({
           Com dentes na série a dica tem uma linha a mais ("MFE / MAE"), só nas operações medidas: a reserva sobe
           uma linha em cada largura (revisão de 23/09/2026), senão o desenho pulava ~18 px quando o dedo passava de
           uma operação não medida para uma medida */}
+      {/* nas cores do tema desde 13/10/2026 (antes, a paleta da moldura grafite) */}
       <Leitura
         conteudo={(atual ?? ultimo).dica}
-        paleta={PALETA_DA_LEITURA}
         className={`col-span-3 mb-2 ${dentes ? "min-h-[70px] @md:min-h-[52px] @3xl:min-h-[34px]" : "min-h-[52px] @md:min-h-[34px] @3xl:min-h-4"}`}
       />
       <div
@@ -483,11 +512,13 @@ export function DesenhoDaCurva({
         onPointerUp={soltar}
         onPointerCancel={() => setAlvo(null)}
       >
+        {/* as guias pontilhadas, como nas barras (base.tsx): desde 13/10/2026 os dois desenhos falam a mesma língua */}
         {marcas
           .filter((m) => m !== 0)
           .map((m) => (
-            <div key={m} aria-hidden className="absolute inset-x-0 border-t" style={{ top: `${y(m)}%`, borderColor: PROFIT.grade }} />
+            <div key={m} aria-hidden className="absolute inset-x-0 border-t border-dotted" style={{ top: `${y(m)}%`, borderColor: PROFIT.grade }} />
           ))}
+        {/* As cores vão no style, e não nos atributos de apresentação do SVG: são tokens (var() e color-mix()) */}
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 h-full w-full overflow-visible" aria-hidden>
           <defs>
             <clipPath id={`${id}-acima`}>
@@ -497,21 +528,21 @@ export function DesenhoDaCurva({
               <rect x="0" y={Math.max(0, zero)} width="100" height={Math.max(0, 100 - zero)} />
             </clipPath>
             <linearGradient id={`${id}-alta`} gradientUnits="userSpaceOnUse" x1="0" x2="0" y1={topoDaCurva} y2={zero}>
-              <stop offset="0" stopColor={cores.alta} stopOpacity={cores.areaTopo} />
-              <stop offset="1" stopColor={cores.alta} stopOpacity={cores.areaZero} />
+              <stop offset="0" style={{ stopColor: cores.alta, stopOpacity: cores.areaTopo }} />
+              <stop offset="1" style={{ stopColor: cores.alta, stopOpacity: cores.areaZero }} />
             </linearGradient>
             <linearGradient id={`${id}-baixa`} gradientUnits="userSpaceOnUse" x1="0" x2="0" y1={zero} y2={fundoDaCurva}>
-              <stop offset="0" stopColor={cores.baixa} stopOpacity={cores.areaZero} />
-              <stop offset="1" stopColor={cores.baixa} stopOpacity={cores.areaTopo} />
+              <stop offset="0" style={{ stopColor: cores.baixa, stopOpacity: cores.areaZero }} />
+              <stop offset="1" style={{ stopColor: cores.baixa, stopOpacity: cores.areaTopo }} />
             </linearGradient>
           </defs>
-          <line x1="0" x2="100" y1={zero} y2={zero} stroke={cores.zero} strokeWidth={cores.zeroLargura} vectorEffect="non-scaling-stroke" />
+          <line x1="0" x2="100" y1={zero} y2={zero} style={{ stroke: cores.zero }} strokeWidth={cores.zeroLargura} vectorEffect="non-scaling-stroke" />
           {/* a faixa mín./máx. do saldo dentro de cada balde (23/09/2026), antes da área para ficar por baixo dela:
               verde acima do zero, vermelha abaixo, no mesmo corte das áreas */}
           {faixa ? (
             <>
-              <path d={faixa} fill={cores.alta} fillOpacity={0.18} clipPath={`url(#${id}-acima)`} />
-              <path d={faixa} fill={cores.baixa} fillOpacity={0.18} clipPath={`url(#${id}-abaixo)`} />
+              <path d={faixa} style={{ fill: cores.alta }} fillOpacity={0.18} clipPath={`url(#${id}-acima)`} />
+              <path d={faixa} style={{ fill: cores.baixa }} fillOpacity={0.18} clipPath={`url(#${id}-abaixo)`} />
             </>
           ) : null}
           <path d={area} fill={`url(#${id}-alta)`} clipPath={`url(#${id}-acima)`} />
@@ -519,16 +550,23 @@ export function DesenhoDaCurva({
           {/* os dentes de MFE/MAE (23/09/2026): traço fino por cima da área e por baixo da linha, para o
               acumulado continuar sendo o que se lê primeiro */}
           {dentes ? (
-            <path d={dentes} fill="none" stroke={PROFIT.texto} strokeOpacity={0.55} strokeWidth={1} vectorEffect="non-scaling-stroke" />
+            <path d={dentes} fill="none" style={{ stroke: PROFIT.texto }} strokeOpacity={0.55} strokeWidth={1} vectorEffect="non-scaling-stroke" />
           ) : null}
-          <path d={tracado} fill="none" stroke={cores.alta} strokeWidth={cores.linha} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" clipPath={`url(#${id}-acima)`} />
-          <path d={tracado} fill="none" stroke={cores.baixa} strokeWidth={cores.linha} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" clipPath={`url(#${id}-abaixo)`} />
+          {cores.linhaCor ? (
+            <path d={tracado} fill="none" style={{ stroke: cores.linhaCor }} strokeWidth={cores.linha} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+          ) : (
+            <>
+              <path d={tracado} fill="none" style={{ stroke: cores.alta }} strokeWidth={cores.linha} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" clipPath={`url(#${id}-acima)`} />
+              <path d={tracado} fill="none" style={{ stroke: cores.baixa }} strokeWidth={cores.linha} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" clipPath={`url(#${id}-abaixo)`} />
+            </>
+          )}
         </svg>
+        {/* o trecho do zoom no acento: é interação, não resultado */}
         {selecao ? (
           <div
             aria-hidden
             className="pointer-events-none absolute inset-y-0 border-x"
-            style={{ left: `${selecao.de * 100}%`, width: `${(selecao.ate - selecao.de) * 100}%`, background: "rgba(255,255,255,0.08)", borderColor: PROFIT.textoFraco }}
+            style={{ left: `${selecao.de * 100}%`, width: `${(selecao.ate - selecao.de) * 100}%`, background: mistura("--info", 12), borderColor: PROFIT.acento }}
           />
         ) : null}
         {/* Marcadores em HTML, como o ponto ativo: dentro do SVG esticado o círculo viraria uma elipse. Ficam antes
@@ -558,8 +596,8 @@ export function DesenhoDaCurva({
           );
         })}
         {/* Os fechamentos em cima da linha da série do saldo (23/09/2026): em HTML, como os marcadores, porque
-            no SVG esticado o círculo viraria uma elipse. Brancos e pequenos, com o fio do fundo em volta para
-            se destacarem da linha; antes do ponto ativo no DOM, para nunca cobri-lo */}
+            no SVG esticado o círculo viraria uma elipse. Pequenos, na cor do texto, com o fio do fundo em volta
+            para se destacarem da linha; antes do ponto ativo no DOM, para nunca cobri-lo */}
         {fechamentos.map((f, i) => (
           <div
             key={i}
@@ -573,15 +611,17 @@ export function DesenhoDaCurva({
           <>
             <div aria-hidden className="pointer-events-none absolute inset-y-0 border-l border-dashed" style={{ left: `${x(ativo)}%`, borderColor: PROFIT.textoFraco }} />
             <div aria-hidden className="pointer-events-none absolute inset-x-0 border-t border-dashed" style={{ top: `${y(atual.acumulado)}%`, borderColor: PROFIT.textoFraco }} />
+            {/* o ponto pelo sinal do valor, com o fio do fundo em volta para se soltar da linha */}
             <div
               aria-hidden
               className="pointer-events-none absolute size-2 -translate-x-1/2 -translate-y-1/2 rounded-full"
-              style={{ left: `${x(ativo)}%`, top: `${y(atual.acumulado)}%`, background: corDoValor(atual.acumulado) }}
+              style={{ left: `${x(ativo)}%`, top: `${y(atual.acumulado)}%`, background: corDoValor(atual.acumulado), boxShadow: `0 0 0 2px ${PROFIT.fundo}` }}
             />
           </>
         ) : null}
       </div>
-      {/* no eixo, a etiqueta colorida do último valor fica sempre; a da mira, cinza, vem por cima quando se aponta */}
+      {/* no eixo, a etiqueta do último valor, verde ou vermelha pelo sinal, fica sempre; a da mira, invertida
+          (a cor do texto como fundo), vem por cima quando se aponta */}
       <div className="relative">
         <EixoProfit
           marcas={marcas}
@@ -593,11 +633,11 @@ export function DesenhoDaCurva({
         <span aria-hidden className="invisible block h-0 overflow-hidden px-1.5 text-[11px] font-medium whitespace-nowrap tabular-nums">
           {etiquetaMaisLarga}
         </span>
-        <EtiquetaDoEixo topo={y(ultimo.acumulado)} fundo={corDoValor(ultimo.acumulado)}>
+        <EtiquetaDoEixo topo={y(ultimo.acumulado)} fundo={corDoValor(ultimo.acumulado)} texto={PROFIT.sobreCor}>
           {formatarEixo(ultimo.acumulado)}
         </EtiquetaDoEixo>
         {atual ? (
-          <EtiquetaDoEixo topo={y(atual.acumulado)} fundo={PROFIT.abaAtiva}>
+          <EtiquetaDoEixo topo={y(atual.acumulado)} fundo={PROFIT.mira} texto={PROFIT.miraTexto}>
             {formatarEixo(atual.acumulado)}
           </EtiquetaDoEixo>
         ) : null}
@@ -616,13 +656,13 @@ export function DesenhoDaCurva({
             {escalaDD.marcas
               .filter((m) => m !== 0)
               .map((m) => (
-                <div key={m} aria-hidden className="absolute inset-x-0 border-t" style={{ top: `${escalaDD.y(m)}%`, borderColor: PROFIT.grade }} />
+                <div key={m} aria-hidden className="absolute inset-x-0 border-t border-dotted" style={{ top: `${escalaDD.y(m)}%`, borderColor: PROFIT.grade }} />
               ))}
             <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 h-full w-full" aria-hidden>
               {/* série longa: uma área só do zero até o drawdown de cada ponto (a mira tracejada marca o apontado);
                   série curta: uma barra por ponto, a apontada mais forte */}
               {areaDoDrawdown !== null ? (
-                <path d={areaDoDrawdown} fill={PROFIT.baixa} fillOpacity={0.62} />
+                <path d={areaDoDrawdown} style={{ fill: PROFIT.baixa }} fillOpacity={0.62} />
               ) : (
                 pontos.map((p, i) =>
                   p.drawdown < 0 ? (
@@ -632,7 +672,7 @@ export function DesenhoDaCurva({
                       y="0"
                       width={larguraDaBarra.toFixed(3)}
                       height={escalaDD.y(p.drawdown).toFixed(2)}
-                      fill={PROFIT.baixa}
+                      style={{ fill: PROFIT.baixa }}
                       fillOpacity={atual && ativo === i ? 0.95 : 0.62}
                     />
                   ) : null,
@@ -666,7 +706,7 @@ export function DesenhoDaCurva({
         {atual?.eixo && ativo !== null ? (
           <span
             className="absolute -top-0.5 rounded-[3px] px-1.5 py-0.5 font-medium whitespace-nowrap"
-            style={{ left: `${x(ativo)}%`, transform: `translateX(-${x(ativo)}%)`, background: PROFIT.abaAtiva, color: PROFIT.titulo }}
+            style={{ left: `${x(ativo)}%`, transform: `translateX(-${x(ativo)}%)`, background: PROFIT.mira, color: PROFIT.miraTexto }}
           >
             {atual.eixo}
           </span>
@@ -679,10 +719,10 @@ export function DesenhoDaCurva({
 }
 
 /**
- * A moldura grafite do Profit: título centralizado em cima, legenda embaixo do gráfico e, quando há, as abas no rodapé.
- * O título pode trazer o i do "o que é" (19/09/2026, RotuloComInfo). O i vem com as cores do tema, e o cinza
- * dele no tema claro some no grafite; aqui ele usa as da moldura: textoFraco (5:1 sobre o fundo) e branco ao
- * passar o mouse, no foco e aberto.
+ * A moldura do Profit: título centralizado em cima, legenda embaixo do gráfico e, quando há, as abas no rodapé.
+ * Até 12/10/2026 era grafite nos dois temas; desde 13/10/2026 é o poço do tema (PROFIT.fundo) com o fio do
+ * painel em volta, e o texto é o do site. O título pode trazer o i do "o que é" (19/09/2026, RotuloComInfo),
+ * que já vem nas cores do tema: as que o grafite pedia (cinza da moldura, branco no foco) saíram junto.
  */
 export function MolduraProfit({
   titulo,
@@ -696,11 +736,8 @@ export function MolduraProfit({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-lg" style={{ background: PROFIT.fundo }}>
-      <p
-        className="px-4 pt-3 pb-2 text-center text-xs font-semibold [&_button]:text-(--moldura-i)! [&_button:focus-visible]:text-(--moldura-titulo)! [&_button:hover]:text-(--moldura-titulo)! [&_button[data-popup-open]]:text-(--moldura-titulo)!"
-        style={{ color: PROFIT.titulo, "--moldura-i": PROFIT.textoFraco, "--moldura-titulo": PROFIT.titulo } as React.CSSProperties}
-      >
+    <div className="rounded-lg border" style={{ background: PROFIT.fundo, borderColor: PROFIT.borda }}>
+      <p className="px-4 pt-3 pb-2 text-center text-xs font-semibold" style={{ color: PROFIT.titulo }}>
         {titulo}
       </p>
       <div className="px-3">{children}</div>
@@ -716,12 +753,12 @@ export function MolduraProfit({
   );
 }
 
-/** O risquinho verde e vermelho da legenda, com as cores do agrupamento. */
+/** O risquinho da legenda, com as cores do agrupamento: vermelho e verde, ou a cor só da linha (`linhaCor`). */
 export function AmostraDaLinha({ cores }: { cores: CoresDaCurva }) {
   return (
     <svg width="16" height="10" viewBox="0 0 16 10" fill="none" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round">
-      <polyline points="1,4 4,8 7,5" stroke={cores.baixa} />
-      <polyline points="7,5 10,2 12,4 15,1" stroke={cores.alta} />
+      <polyline points="1,4 4,8 7,5" style={{ stroke: cores.linhaCor ?? cores.baixa }} />
+      <polyline points="7,5 10,2 12,4 15,1" style={{ stroke: cores.linhaCor ?? cores.alta }} />
     </svg>
   );
 }

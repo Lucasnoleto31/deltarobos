@@ -11,17 +11,18 @@ import {
 } from "@/lib/stats/status-robo";
 
 // Pílula colorida pelo estado (18/09/2026 à noite, Artur: "na pílula de aviso pode ser colorido"): fundo
-// tingido e texto na cor, sem bolinha e sem pulso. Operando no verde do resultado, posicionado no verde
-// da Quants (o acento, um dos poucos detalhes nele, desde 19/09/2026; antes dourado), pausado laranja,
-// sem atualização vermelho, o resto cinza.
-// 19/09/2026: onde a cor pura sobre o próprio tingido não chegava a 4,5:1 (ou ficava no limite), o texto
-// leva 20% da cor do texto da página. Medido: Posicionado no claro 4,1:1 → 5,3:1 (com o verde #007A41:
-// 5,3:1 sobre o papel, 5,6:1 no cartão), Sem atualização no vidro escuro 3,9:1 → 4,9:1, Pausado no claro
-// 4,4:1 → 5,7:1, cinza no claro 4,6:1 → 6,0:1. No escuro o acento (o neon a 9,7:1 no tingido sobre o
-// cartão), o verde, o laranja e o cinza ficam puros (passam); no claro o vermelho fica puro (4,8:1).
+// tingido e texto na cor, sem bolinha e sem pulso. Desde 13/10/2026, no mídia kit da Zeve: posicionado (o
+// robô ao vivo, com posição) no acento azul, operando no verde do resultado, pausado e sem atualização no
+// laranja do alerta (antes sem atualização era vermelho; vermelho é só resultado), o resto cinza.
+// Onde a cor pura sobre o próprio tingido não chega a 4,5:1 (ou fica no limite), o texto leva 20% da cor do
+// texto da página (19/09/2026). Remedido com os tokens de 13/10/2026, no tingido de 15% sobre o cartão:
+// posicionado 5,7:1 no claro e 4,8:1 no escuro (o info puro), operando 5,4:1 e 6,5:1, alerta 5,5:1 no claro
+// (o laranja puro no escuro passa de 8:1), cinza 6,6:1 e 6,7:1 sobre o bg-muted. O tom negativo, que o selo
+// não usa mais e o semáforo do simulador usa (classesDoTom), leva a mistura nos dois temas: o #DC2626 puro
+// dava 3,8:1 no tingido do claro; misturado, 5,3:1.
 const CLASSES: Record<TomStatus, string> = {
   positivo: "border-positivo/30 bg-positivo/15 text-[color-mix(in_srgb,var(--positivo)_80%,var(--foreground))] dark:text-positivo",
-  negativo: "border-negativo/30 bg-negativo/15 text-negativo dark:text-[color-mix(in_srgb,var(--negativo)_80%,var(--foreground))]",
+  negativo: "border-negativo/30 bg-negativo/15 text-[color-mix(in_srgb,var(--negativo)_80%,var(--foreground))]",
   neutro: "border-(--painel-fio) bg-muted text-[color-mix(in_srgb,var(--muted-foreground)_80%,var(--foreground))] dark:text-muted-foreground",
   alerta: "border-alerta/30 bg-alerta/15 text-[color-mix(in_srgb,var(--alerta)_80%,var(--foreground))] dark:text-alerta",
   info: "border-info/30 bg-info/15 text-[color-mix(in_srgb,var(--info)_80%,var(--foreground))] dark:text-info",
@@ -31,6 +32,10 @@ const CLASSES: Record<TomStatus, string> = {
 export function classesDoTom(tom: TomStatus): string {
   return CLASSES[tom];
 }
+
+// O tom do selo: o de TOM_STATUS (src/lib/stats/status-robo.ts), menos o "sem atualização", que aqui é
+// alerta (13/10/2026): coletor calado é aviso, não resultado, como no AtualizadoHa e no AvisoSemAtualizacao.
+const TOM_DO_SELO: Record<StatusAoVivo, TomStatus> = { ...TOM_STATUS, desconhecido: "alerta" };
 
 // O que cada selo quer dizer, tirado da ordem de statusAoVivo (cadastro > sem coletor > pregão fechado >
 // coletor parado > posicionado > horário do robô). Vai no title e, para leitor de tela, no próprio selo.
@@ -72,7 +77,7 @@ export function BadgeStatusRobo({
     <Badge
       variant="outline"
       title={rotuloAbertas ? `${definicao} ${rotuloAbertas}.` : definicao}
-      className={cn(CLASSES[TOM_STATUS[status]], className)}
+      className={cn(CLASSES[TOM_DO_SELO[status]], className)}
     >
       {ROTULO_STATUS[status]}
       {rotuloAbertas ? (

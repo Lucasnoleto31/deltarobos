@@ -68,6 +68,8 @@ function useSecaoAtiva(ids: string): string | null {
 /**
  * O índice de texto da Metodologia: uma linha por seção, a que está sendo lida com o fio da marca à
  * esquerda. Sai só a lista, porque o <nav aria-label="Seções"> já é da própria página.
+ * 13/10/2026: o fio no "info", o azul do acento na versão que se lê nos dois temas (no escuro o #0059FF
+ * puro mal se via sobre o marinho).
  *
  * 20/09/2026: o componente tinha duas variantes, e a prop que escolhia entre elas saiu junto com a
  * segunda — a barra de traços colada na lateral direita da home e do Comparativo, que o Artur viu nos
@@ -92,7 +94,7 @@ export function NavSecoes({ secoes, className }: Props) {
               className={cn(
                 "block border-l-2 py-0.5 pl-3 transition-colors motion-reduce:transition-none",
                 atual
-                  ? "border-primary text-foreground"
+                  ? "border-info text-foreground"
                   : "border-transparent text-muted-foreground hover:border-(--painel-fio-forte) hover:text-foreground",
               )}
             >

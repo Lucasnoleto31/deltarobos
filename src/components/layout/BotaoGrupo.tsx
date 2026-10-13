@@ -13,7 +13,8 @@ interface Props {
  * começar deve redirecionar para o nosso número"). Some na home, onde o hero já tem o mesmo botão logo
  * abaixo (o Artur cortou o "Ver os robôs" por isso em 17/09/2026), e no celular, onde não cabe.
  * Em 19/09/2026 passou a usar o buttonVariants: era branco/preto escrito à mão e ficou de fora quando o
- * botão principal virou o verde da Quants, então o mesmo botão saía de duas cores conforme a tela.
+ * botão principal mudou de cor, então o mesmo botão saía de duas cores conforme a tela. Por isso, em
+ * 13/10/2026, ele trocou o verde da Quants pelo azul da Zeve junto com o resto do site, sem mudança aqui.
  *
  * 20/09/2026: a home é reconhecida pelo segmento de rota, não por `usePathname() === "/"`. No HTML
  * estático da home o servidor não enxergava "/" e mandava o botão; o cliente escondia; o React refazia a

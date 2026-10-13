@@ -6,6 +6,8 @@ import type { EventoColeta, MercadoPublico, ResumoCasa } from "@/lib/tipos";
 export interface DadosCardRobo {
   slug: string;
   nome: string;
+  /** robos_publico.ordem: decide a cor do robô (corDoRobo), nunca o slug */
+  ordem: number;
   ativo: string;
   ativoNome: string;
   status: RoboStatus;
@@ -38,7 +40,7 @@ export interface UltimoPregao {
 
 /** O último pregão somando os robôs da home, com o de maior resultado no dia. */
 export interface UltimoPregaoCasa extends UltimoPregao {
-  melhor: { nome: string; valor: number } | null;
+  melhor: { nome: string; valor: number; ordem: number } | null;
 }
 
 export interface InicialCasa {

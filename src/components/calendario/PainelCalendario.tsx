@@ -10,8 +10,9 @@ import { Valor } from "@/components/compartilhados/Valor";
 import { CompartilharDia } from "@/components/compartilhar/CompartilharDia";
 import { versaoDoCard } from "@/components/compartilhar/url-do-card";
 import { Heatmap } from "@/components/desempenho/Heatmap";
-import { escalaDeForca, mistura } from "@/components/graficos/base";
-import { AmostraDaLinha, CURVA_POR_OPERACAO, DesenhoDaCurva, MolduraProfit, PROFIT } from "@/components/graficos/CurvaProfit";
+import { FIO_TINTA, TEXTO_TINTA, fundoTinta, tomDoResultado } from "@/components/desempenho/tinta";
+import { escalaDeForca } from "@/components/graficos/base";
+import { AmostraDaLinha, BOTAO_DA_MOLDURA, CURVA_POR_OPERACAO, DesenhoDaCurva, MolduraProfit, PROFIT } from "@/components/graficos/CurvaProfit";
 import { PONTOS_LEVE, baldesDoPregao, janelaDosDados, legendaCurtaDoSaldo, rotulosDeTempo, serieDoSaldoParaDesenho, seriePorOperacao } from "@/components/graficos/series-da-curva";
 import { Button } from "@/components/ui/button";
 import { formatarData, formatarDataLonga, formatarHora, formatarMesAno, formatarNumero, formatarPct } from "@/lib/formato";
@@ -92,6 +93,18 @@ function curto(v: number): string {
 }
 
 /**
+ * No máximo `max` marcas de hora no eixo da curva do dia (13/10/2026): com o pregão inteiro são dez horas
+ * cheias, e na coluna do detalhe, de 1024 a 1152 px, elas se encavalavam ("09:0010:00"). Fica uma a cada
+ * duas (ou três), sempre a partir da primeira; no celular o desenho ainda esconde uma sim, uma não.
+ */
+function rarear<T>(marcas: T[], max: number): T[] {
+  if (marcas.length <= max) return marcas;
+  const passo = Math.ceil(marcas.length / max);
+  return marcas.filter((_, i) => i % passo === 0);
+}
+const MAX_HORAS_NO_EIXO = 6;
+
+/**
  * Dois ou três números lado a lado num painel só, com o rótulo embaixo: cabe em 390 px sem um invadir o
  * outro. Três já é o limite nessa largura; o que não couber num trio vai numa fileira de dois embaixo.
  */
@@ -123,6 +136,24 @@ function Fileira({
         </div>
       ))}
     </dl>
+  );
+}
+
+/**
+ * Um número de apoio ao lado do protagonista do detalhe do dia (13/10/2026): rótulo primeiro no DOM, para o
+ * leitor de tela ler "operações, 12", e o número em cima na tela (flex-col-reverse). Encostado à direita ao lado
+ * do resultado; no celular, onde desce para baixo dele, à esquerda, alinhado com o resultado.
+ */
+function NumeroDoLado({ rotulo, valor, info, textoInfo }: { rotulo: string; valor: React.ReactNode; info: ChaveIndicador; textoInfo?: string }) {
+  return (
+    <div className="flex flex-col-reverse sm:items-end">
+      <dt className="mt-1.5 text-[11px] whitespace-nowrap text-muted-foreground">
+        <RotuloComInfo chave={info} texto={textoInfo}>
+          {rotulo}
+        </RotuloComInfo>
+      </dt>
+      <dd className="text-lg leading-none font-semibold tabular-nums sm:text-xl">{valor}</dd>
+    </div>
   );
 }
 
@@ -285,7 +316,7 @@ export function PainelCalendario({ linhas, pacote, exposicao, feriados, hoje, va
     const janela = janelaDosDados(baldes, fechamentos, bucketSeg);
     return {
       pontos: serieDoSaldoParaDesenho(reduzirBaldes(liquida, PONTOS_LEVE), { janela, unidade: opcoes.unidade, bucketSeg, comFaixa: false }),
-      rotulosX: rotulosDeTempo(janela),
+      rotulosX: rarear(rotulosDeTempo(janela), MAX_HORAS_NO_EIXO),
       // "desde HH:MM" quando o primeiro balde vem depois de uma saída, ou bem depois do início do eixo com o EA
       // marcando o dia como parcial (24/09/2026)
       legenda: `${legendaCurtaDoSaldo({ bucketSeg, aproximado, medidoDesdeT: inicioDaMedicao(liquida, fechamentos, janela.inicio, exposicaoPorDia.get(diaSel)?.excursao_ea_parcial === true) })} · 1 contrato, líquido`,
@@ -366,7 +397,7 @@ export function PainelCalendario({ linhas, pacote, exposicao, feriados, hoje, va
   };
 
   if (linhas.length === 0) {
-    return <p className="painel px-4 py-8 text-center text-sm text-muted-foreground">Sem operações fechadas ainda.</p>;
+    return <p className="painel px-4 py-10 text-center text-sm text-muted-foreground">Sem operações fechadas ainda.</p>;
   }
 
   return (
@@ -458,17 +489,15 @@ export function PainelCalendario({ linhas, pacote, exposicao, feriados, hoje, va
               {semanasUteis.flat().map((d) => {
                 const semDado = d.valor === null;
                 const selecionado = d.dia === diaSel;
-                const positivo = !semDado && d.valor! > 0;
-                const negativo = !semDado && d.valor! < 0;
+                // verde no dia positivo, vermelho no negativo; dia zerado sem tom, no cinza
+                const tom = semDado ? null : tomDoResultado(d.valor!);
                 const feriado = semDado && !d.pregao && !d.foraDoMes;
-                // a cor segue o tamanho do resultado: de 14% a 50% do verde ou do vermelho; o texto fica
-                // branco em cima (verde sobre verde não se lia, 18/09/2026). 19/09/2026: o dia do mês a 75%
-                // e o "N op" a 65% do branco mediam 3,6 a 4,4:1 no verde mais forte; a 90% e 85% passam de 4,5
-                // nos dois temas
-                const fundo =
-                  positivo || negativo
-                    ? mistura(positivo ? "--positivo" : "--negativo", 14 + Math.round(36 * forca(d.valor!)))
-                    : undefined;
+                const ehHoje = d.dia === hoje;
+                // 13/10/2026 (mídia kit da Zeve, "mais cor, principalmente valores positivos e negativos"): o
+                // fundo vai de 10% a 36% do verde ou do vermelho pelo tamanho do resultado, e o NÚMERO leva a cor,
+                // um tom mais fundo, legível em cima dela nos dois temas (tinta.ts, 4,8:1 ou mais no teto). Até
+                // 12/10/2026 o fundo ia de 14% a 50% e o número ficava na cor do texto. O dia do mês e o "N op"
+                // seguem na cor do texto a 85% (19/09/2026: abaixo disso não passavam de 4,5:1 no verde forte).
                 return (
                   <button
                     key={d.dia}
@@ -476,25 +505,41 @@ export function PainelCalendario({ linhas, pacote, exposicao, feriados, hoje, va
                     disabled={semDado}
                     onClick={() => escolherDia(d.dia)}
                     aria-pressed={selecionado}
-                    aria-label={semDado ? undefined : `${formatarData(d.dia)}: ${curto(d.valor!)} reais em ${formatarNumero(d.nOperacoes)} operações`}
-                    style={{ background: fundo }}
+                    aria-label={
+                      semDado
+                        ? undefined
+                        : `${formatarData(d.dia)}${ehHoje ? ", hoje" : ""}: ${curto(d.valor!)} reais em ${formatarNumero(d.nOperacoes)} operações`
+                    }
+                    style={{ background: tom ? fundoTinta(tom, forca(d.valor!)) : undefined }}
                     // 19/09/2026: altura fixa (56 px no celular, 72 px daí para cima) em vez de esticar até o
                     // detalhe, que deixava a casa com 135 px e o número perdido no canto. Do celular para cima o
-                    // "N op" sobe para a linha do dia e o valor ganha a largura toda embaixo
+                    // "N op" sobe para a linha do dia e o valor ganha a largura toda embaixo. 13/10/2026: a casa
+                    // escolhida ganha o anel no acento, colado nela (era na cor do texto); o foco do teclado é o
+                    // contorno do site (globals.css), afastado 2 px, e não briga mais com o anel da escolha
                     className={cn(
-                      "flex h-14 min-w-0 flex-col justify-between rounded-lg p-1.5 text-left tabular-nums outline-none transition-shadow disabled:cursor-default sm:h-[72px] sm:px-2.5 sm:py-2",
-                      "focus-visible:ring-2 focus-visible:ring-ring/60",
+                      "flex h-14 min-w-0 flex-col justify-between rounded-lg p-1.5 text-left tabular-nums transition-shadow disabled:cursor-default sm:h-[72px] sm:px-2.5 sm:py-2",
                       // sem operação, bem apagado: o pregão vazio (futuro, ou sem operação) com um fundo quase
                       // nenhum, o feriado sem fundo
                       semDado && (d.pregao ? "bg-foreground/[0.025] text-muted-foreground/70" : "text-muted-foreground/50"),
-                      (positivo || negativo) && "text-foreground",
-                      !semDado && !positivo && !negativo && "bg-muted text-foreground",
+                      !semDado && tom === null && "bg-muted text-muted-foreground",
+                      tom && TEXTO_TINTA[tom],
                       d.foraDoMes && "invisible",
-                      selecionado ? "ring-2 ring-foreground" : !semDado && "ring-1 ring-(--painel-fio) hover:ring-foreground/40",
+                      selecionado
+                        ? "ring-2 ring-info"
+                        : !semDado && cn("ring-1 hover:ring-foreground/40", tom ? FIO_TINTA[tom] : "ring-(--painel-fio)"),
                     )}
                   >
                     <span className="flex w-full items-baseline justify-between gap-1">
-                      <span className={cn("text-[11px] font-medium sm:text-xs", !semDado && "text-foreground/90")}>{d.diaDoMes}</span>
+                      {/* hoje: o dia do mês sublinhado, na cor do resto da casa (o azul sobre o verde não passaria de 3:1) */}
+                      <span
+                        className={cn(
+                          "text-[11px] font-medium sm:text-xs",
+                          !semDado && "text-foreground/85",
+                          ehHoje && "font-bold underline decoration-2 underline-offset-2",
+                        )}
+                      >
+                        {d.diaDoMes}
+                      </span>
                       {!semDado ? (
                         <span className="hidden text-[10px] text-foreground/85 sm:inline">{formatarNumero(d.nOperacoes)} op</span>
                       ) : null}
@@ -540,29 +585,32 @@ export function PainelCalendario({ linhas, pacote, exposicao, feriados, hoje, va
           </div>
           {diaSel === null ? null : (
             <>
-              <div className="border-b">
-                <Fileira
-                  itens={[
-                    {
-                      rotulo: "resultado",
-                      valor: <Valor valor={totalDia} inteiro={Math.abs(totalDia) >= 1000} />,
-                      info: "resultadoDia",
-                    },
-                    {
-                      rotulo: opsDia.length === 1 ? "operação" : "operações",
-                      valor: formatarNumero(opsDia.length),
-                      info: "operacoes",
-                      textoInfo: "Quantas vezes o robô entrou no mercado e saiu neste pregão. Cada operação vai da entrada até a posição zerar.",
-                    },
-                    {
-                      rotulo: opsDia.length > 0 ? `acerto · ${formatarNumero(gainsDia)} ${gainsDia === 1 ? "gain" : "gains"}` : "acerto",
-                      valor: opsDia.length > 0 ? formatarPct(gainsDia / opsDia.length, 0) : "–",
-                      info: "taxaAcerto",
-                      textoInfo:
-                        "Parte das operações do dia que terminou com lucro depois dos custos; cada uma delas é um gain. Sozinha não diz se o dia foi bom: depende também do tamanho dos ganhos e das perdas.",
-                    },
-                  ]}
-                />
+              {/* 13/10/2026: o resultado do dia é o número protagonista do detalhe (Valor em destaque, no verde ou
+                  no vermelho), e operações e acerto, que não têm sinal, ficam ao lado, menores e sem cor. Antes
+                  eram três números iguais numa fileira. */}
+              <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3 border-b px-4 py-4">
+                <div className="min-w-0">
+                  <p className="text-[11px] text-muted-foreground">
+                    <RotuloComInfo chave="resultadoDia">resultado do dia</RotuloComInfo>
+                  </p>
+                  <p className="mt-2 text-3xl sm:text-4xl">
+                    <Valor valor={totalDia} inteiro={Math.abs(totalDia) >= 1000} destaque />
+                  </p>
+                </div>
+                <dl className="flex shrink-0 gap-6 sm:text-right">
+                  <NumeroDoLado
+                    rotulo={opsDia.length === 1 ? "operação" : "operações"}
+                    valor={formatarNumero(opsDia.length)}
+                    info="operacoes"
+                    textoInfo="Quantas vezes o robô entrou no mercado e saiu neste pregão. Cada operação vai da entrada até a posição zerar."
+                  />
+                  <NumeroDoLado
+                    rotulo={opsDia.length > 0 ? `acerto · ${formatarNumero(gainsDia)} ${gainsDia === 1 ? "gain" : "gains"}` : "acerto"}
+                    valor={opsDia.length > 0 ? formatarPct(gainsDia / opsDia.length, 0) : "–"}
+                    info="taxaAcerto"
+                    textoInfo="Parte das operações do dia que terminou com lucro depois dos custos; cada uma delas é um gain. Sozinha não diz se o dia foi bom: depende também do tamanho dos ganhos e das perdas."
+                  />
+                </dl>
               </div>
 
               {/* MEP e MEN: o pico e o vale do saldo do dia. 22/09/2026: quando o EA 1.1.0 mediu o dia, é o
@@ -665,12 +713,9 @@ export function PainelCalendario({ linhas, pacote, exposicao, feriados, hoje, va
                       saldoSel === "erro" ? (
                         <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 px-3 pb-2.5 text-[11px]" style={{ color: PROFIT.textoFraco }}>
                           <span>saldo medido do dia indisponível</span>
-                          <button
-                            type="button"
-                            onClick={() => tentarDeNovo(diaSel)}
-                            className="rounded-full border px-2 py-0.5 text-[11px] font-medium outline-none focus-visible:ring-2 focus-visible:ring-white/70"
-                            style={{ borderColor: PROFIT.abasBorda, color: PROFIT.titulo }}
-                          >
+                          {/* 13/10/2026: o botão pequeno da moldura, com o foco do site (o anel branco do grafite
+                              sumia na moldura clara) */}
+                          <button type="button" onClick={() => tentarDeNovo(diaSel)} className={BOTAO_DA_MOLDURA}>
                             Tentar de novo
                           </button>
                         </div>
@@ -726,7 +771,7 @@ export function PainelCalendario({ linhas, pacote, exposicao, feriados, hoje, va
                 <div className="min-w-0">
                   <div className="h-1 rounded-full bg-muted">
                     <div
-                      className={cn("h-1 rounded-full", f.total >= 0 ? "bg-positivo" : "bg-negativo")}
+                      className={cn("h-1 rounded-full", corDaBarra(f.total))}
                       style={{ width: `${Math.max(3, Math.round((Math.abs(f.total) / maiorHora) * 100))}%` }}
                     />
                   </div>
@@ -756,7 +801,7 @@ export function PainelCalendario({ linhas, pacote, exposicao, feriados, hoje, va
                 <span className="w-8 font-medium">{f.rotulo}</span>
                 <div className="h-1 flex-1 rounded-full bg-muted">
                   <div
-                    className={cn("h-1 rounded-full", f.total >= 0 ? "bg-positivo" : "bg-negativo")}
+                    className={cn("h-1 rounded-full", corDaBarra(f.total))}
                     style={{ width: `${Math.max(3, Math.round((Math.abs(f.total) / maiorDia) * 100))}%` }}
                   />
                 </div>
@@ -771,7 +816,7 @@ export function PainelCalendario({ linhas, pacote, exposicao, feriados, hoje, va
           </ul>
         </section>
 
-        <ListaDias titulo="Melhores dias" info="melhoresDias" itens={melhores} positivo todos={todosOsDias} aoEscolher={(d) => { trocarMes(mesDe(d)); escolherDia(d, true); }} />
+        <ListaDias titulo="Melhores dias" info="melhoresDias" itens={melhores} todos={todosOsDias} aoEscolher={(d) => { trocarMes(mesDe(d)); escolherDia(d, true); }} />
         <ListaDias titulo="Piores dias" info="pioresDias" itens={piores} todos={todosOsDias} aoEscolher={(d) => { trocarMes(mesDe(d)); escolherDia(d, true); }} />
       </div>
 
@@ -793,18 +838,25 @@ export function PainelCalendario({ linhas, pacote, exposicao, feriados, hoje, va
   );
 }
 
+/**
+ * A cor da barra pelo sinal do próprio valor (13/10/2026): até 12/10/2026 a lista de melhores dias pintava
+ * tudo de verde e a de piores tudo de vermelho, mesmo um "melhor dia" negativo num robô com poucos pregões.
+ * Zero no cinza, como no resto do site.
+ */
+function corDaBarra(v: number): string {
+  return v > 0 ? "bg-positivo" : v < 0 ? "bg-negativo" : "bg-muted-foreground";
+}
+
 function ListaDias({
   titulo,
   info,
   itens,
-  positivo = false,
   todos,
   aoEscolher,
 }: {
   titulo: string;
   info: ChaveIndicador;
   itens: { dia: string; valor: number; n: number }[];
-  positivo?: boolean;
   todos: boolean;
   /** tocar num dia da lista abre esse dia no calendário */
   aoEscolher: (dia: string) => void;
@@ -825,7 +877,7 @@ function ListaDias({
             <button
               type="button"
               onClick={() => aoEscolher(i.dia)}
-              className="linha-interativa -mx-2 flex w-[calc(100%+1rem)] items-center gap-3 rounded-lg px-2 py-1.5 text-left text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+              className="linha-interativa -mx-2 flex w-[calc(100%+1rem)] items-center gap-3 rounded-lg px-2 py-1.5 text-left text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <div className="min-w-0 flex-1">
                 <div className="flex items-baseline justify-between gap-2">
@@ -836,7 +888,7 @@ function ListaDias({
                 </div>
                 <div className="mt-1 h-1 rounded-full bg-muted">
                   <div
-                    className={cn("h-1 rounded-full", positivo ? "bg-positivo" : "bg-negativo")}
+                    className={cn("h-1 rounded-full", corDaBarra(i.valor))}
                     style={{ width: `${Math.max(3, Math.round((Math.abs(i.valor) / maior) * 100))}%` }}
                   />
                 </div>
