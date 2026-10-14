@@ -8,13 +8,8 @@ export interface ItemKpi {
   rotulo: string;
   valor: React.ReactNode;
   detalhe?: React.ReactNode;
-  /**
-   * A cor do número quando ele chega como texto pronto (13/10/2026): "negativo" no drawdown em %, por exemplo,
-   * que é sempre perda. O Valor já se pinta pelo sinal e não precisa disto; sem tom, o número fica na cor do
-   * texto (taxa de acerto, payoff, contagens). O cartão em si não se pinta.
-   */
+  /** Mantidos na interface para não mexer em quem chama; desde 17/09/2026 o cartão não pinta nem mostra ícone. */
   tom?: TomKpi;
-  /** Mantido na interface para não mexer em quem chama; desde 17/09/2026 o cartão não mostra ícone. */
   icone?: React.ReactNode;
   /** chave do glossário: com ela, o rótulo ganha o i do "o que é" ao lado (19/09/2026) */
   info?: ChaveIndicador;
@@ -26,15 +21,6 @@ interface Props {
   itens: ItemKpi[];
   className?: string;
 }
-
-/** A cor do número pelo tom; o Valor dentro dele, que se pinta sozinho, vence. */
-const COR_DO_TOM: Record<TomKpi, string> = {
-  positivo: "text-positivo",
-  negativo: "text-negativo",
-  alerta: "text-alerta",
-  info: "text-info",
-  neutro: "",
-};
 
 /** O rótulo, com o "o que é" quando o item traz a chave do glossário. */
 function Rotulo({ item }: { item: ItemKpi }) {
@@ -50,28 +36,19 @@ function Rotulo({ item }: { item: ItemKpi }) {
 /**
  * Grade de cards de KPI, no desenho do Habitto: painel chapado, rótulo, número e linha de apoio.
  * Saíram o fundo tingido pelo tom e o quadradinho de ícone (17/09/2026): seis metáforas para seis
- * números não diziam nada que o rótulo já não dissesse, e a cor já vem no próprio número.
- * 13/10/2026 (mídia kit da Zeve, "mais cor, principalmente nos valores positivos e negativos"): o número é o
- * protagonista do cartão, maior a partir do lg (no sm a grade de três colunas não tem largura para ele), e
- * pinta pelo sinal (o Valor) ou pelo `tom`; o rótulo fica em cima, apagado, e o apoio embaixo.
+ * números não diziam nada que o rótulo já não dissesse, e a cor já vem no próprio número
+ * (verde e vermelho só no resultado).
  */
 export function CardsKpi({ itens, className }: Props) {
   return (
     <div className={cn("grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6", className)}>
       {itens.map((item) => (
-        <div key={item.rotulo} className="painel flex flex-col p-4">
+        <div key={item.rotulo} className="painel p-4">
           <p className="rotulo-metrica">
             <Rotulo item={item} />
           </p>
-          <p
-            className={cn(
-              "mt-2.5 text-xl leading-none font-semibold tracking-tight tabular-nums lg:text-2xl",
-              item.tom && COR_DO_TOM[item.tom],
-            )}
-          >
-            {item.valor}
-          </p>
-          {item.detalhe ? <p className="mt-2 text-xs text-muted-foreground tabular-nums">{item.detalhe}</p> : null}
+          <p className="mt-2 text-xl leading-none font-semibold tracking-tight tabular-nums">{item.valor}</p>
+          {item.detalhe ? <p className="mt-1.5 text-xs text-muted-foreground tabular-nums">{item.detalhe}</p> : null}
         </div>
       ))}
     </div>
@@ -95,9 +72,7 @@ export function ListaKpi({ itens, className }: Props) {
             </span>
             {item.detalhe ? <span className="block text-xs text-muted-foreground tabular-nums">{item.detalhe}</span> : null}
           </dt>
-          <dd className={cn("shrink-0 text-right text-sm font-semibold whitespace-nowrap tabular-nums", item.tom && COR_DO_TOM[item.tom])}>
-            {item.valor}
-          </dd>
+          <dd className="shrink-0 text-sm font-semibold whitespace-nowrap tabular-nums">{item.valor}</dd>
         </div>
       ))}
     </dl>

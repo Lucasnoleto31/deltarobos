@@ -1,15 +1,10 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Poppins } from "next/font/google";
+import { Inter } from "next/font/google";
 import { ProvedorTema } from "@/components/tema/ProvedorTema";
 import "./globals.css";
 
-// Poppins no texto (ficha padrão do mídia kit, 13/10/2026) e Inter só nos números: a Poppins não tem
-// algarismos tabulares (ver a ficha no topo do globals.css). A Geist Mono do scaffold saiu em 18/09/2026.
-const poppins = Poppins({
-  variable: "--font-poppins",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-});
+// Só a Inter: a Geist Mono do scaffold saiu em 18/09/2026, porque nada usa font-mono e ela era
+// pré-carregada em toda página (23 KB). O --font-mono do globals.css aponta para a do sistema.
 const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin"],
@@ -37,8 +32,8 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   themeColor: [
-    { media: "(prefers-color-scheme: dark)", color: "#050915" },
-    { media: "(prefers-color-scheme: light)", color: "#f5f7fc" },
+    { media: "(prefers-color-scheme: dark)", color: "#0a0a0b" },
+    { media: "(prefers-color-scheme: light)", color: "#f7f5f1" },
   ],
 };
 
@@ -50,7 +45,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       // par obrigatório do scroll-behavior: smooth do globals.css (19/09/2026): sem este atributo, o
       // Next 16 deixa a troca de página deslizar a tela inteira até o topo em vez de ir direto
       data-scroll-behavior="smooth"
-      className={`${poppins.variable} ${inter.variable} h-full antialiased`}
+      className={`${inter.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col">
         <ProvedorTema>{children}</ProvedorTema>

@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { Valor } from "@/components/compartilhados/Valor";
-import { LinhaOperacao, SeloLado } from "@/components/robo/LinhaOperacao";
-import { formatarDataCurta, formatarDuracao, formatarHora, formatarMfeMae, formatarPontos, formatarPreco } from "@/lib/formato";
+import { LinhaOperacao } from "@/components/robo/LinhaOperacao";
+import { formatarDataCurta, formatarDuracao, formatarHora, formatarMfeMae, formatarPontos, formatarPreco, rotuloLado } from "@/lib/formato";
 import { excursaoDaOperacao } from "@/lib/stats/exposicao";
 import { supabaseBrowser } from "@/lib/supabase/cliente";
 import type { OperacaoPublica } from "@/lib/tipos";
@@ -16,11 +16,6 @@ interface Props {
   aoVivo: boolean;
   /** há filtro na URL: muda a frase da lista vazia */
   filtrado: boolean;
-}
-
-/** MFE e MAE são pontos com sinal: verde a favor, vermelho contra, cinza no zero */
-function corDoSinal(v: number): string {
-  return v > 0 ? "text-positivo" : v < 0 ? "text-negativo" : "text-muted-foreground";
 }
 
 export function TabelaOperacoes({ itens, slug, dia, aoVivo, filtrado }: Props) {
@@ -92,22 +87,15 @@ export function TabelaOperacoes({ itens, slug, dia, aoVivo, filtrado }: Props) {
           963–994 px e a célula "+1.320 / −185" mais ~120 px; com " pts" na célula e "(pts)" no cabeçalho
           a tabela pedia 1.145 px e rolava de lado com o "Líquido /ct" fora da tela em qualquer largura.
           Sem a unidade na célula (ela está no title e a coluna "Pontos /ct" ao lado já a diz) fica na
-          casa dos 1.090 px, que cabem em xl. Abaixo de xl ela fica no CSV e na lista do celular.
-          13/10/2026 (mídia kit da Zeve): cabeçalho num fundo apagado e linhas listradas no lugar do fio
-          entre elas; todo número com sinal pinta (pontos, MFE/MAE, bruto e líquido), o líquido é o número
-          forte da linha, o símbolo vai para o cinza e o lado vai no selo de contorno (SeloLado), o mesmo
-          da lista do celular e das últimas operações da visão geral, para a operação se ler igual nas
-          três. Números e duração à direita. Com a Poppins nos cabeçalhos a tabela passou a pedir 971 px em 1024 (7 px além do
-          painel, e o "Pontos /ct" quebrava em duas linhas); com px-2 e o cabeçalho sem quebra ela pede
-          929 px ali, com o SeloLado (medido no navegador). */}
+          casa dos 1.090 px, que cabem em xl. Abaixo de xl ela fica no CSV e na lista do celular. */}
       <div className="hidden overflow-x-auto painel sm:block">
         <table className="w-full text-sm">
           <thead className="text-left text-xs text-muted-foreground">
-            <tr className="border-b border-(--painel-fio) bg-muted/50 [&>th]:px-2 [&>th]:py-2 [&>th]:font-medium [&>th]:whitespace-nowrap">
+            <tr className="[&>th]:px-2.5 [&>th]:py-2 [&>th]:font-medium">
               <th>Data</th>
               <th>Abertura</th>
               <th>Fechamento</th>
-              <th className="text-right">Duração</th>
+              <th>Duração</th>
               <th>Símbolo</th>
               <th>Lado</th>
               <th className="text-right">Entrada</th>
@@ -121,19 +109,18 @@ export function TabelaOperacoes({ itens, slug, dia, aoVivo, filtrado }: Props) {
               <th className="text-right">Líquido /ct</th>
             </tr>
           </thead>
-          <tbody className="[&>tr:nth-child(even)]:bg-muted/40">
+          <tbody className="[&>tr]:border-t">
             {lista.map((o) => {
               const excursao = excursaoDaOperacao(o);
               return (
-              <tr key={o.id} className="tabular-nums [&>td]:px-2 [&>td]:py-2">
+              <tr key={o.id} className="tabular-nums [&>td]:px-2.5 [&>td]:py-2">
                 <td>{formatarDataCurta(o.dia_pregao)}</td>
                 <td>{formatarHora(o.abertura_em)}</td>
                 <td>{formatarHora(o.fechamento_em)}</td>
-                <td className="text-right whitespace-nowrap text-muted-foreground">{o.origem === "manual" ? "–" : formatarDuracao(o.duracao_seg)}</td>
-                <td className="text-muted-foreground">{o.simbolo}</td>
-                <td>
-                  <SeloLado lado={o.lado} />
-                </td>
+                <td className="whitespace-nowrap text-muted-foreground">{o.origem === "manual" ? "–" : formatarDuracao(o.duracao_seg)}</td>
+                <td>{o.simbolo}</td>
+                {/* 19/09/2026: o lado fica neutro; verde e vermelho só no resultado */}
+                <td>{rotuloLado(o.lado)}</td>
                 <td className="text-right">{formatarPreco(o.preco_entrada)}</td>
                 <td className="text-right">{formatarPreco(o.preco_saida)}</td>
                 <td className="text-right">
@@ -142,8 +129,7 @@ export function TabelaOperacoes({ itens, slug, dia, aoVivo, filtrado }: Props) {
                 <td className="hidden text-right whitespace-nowrap text-muted-foreground xl:table-cell">
                   {excursao ? (
                     <span title={`${formatarMfeMae(excursao.mfe, excursao.mae)}${excursao.parcial ? " · medição parcial: o coletor subiu com a operação já aberta" : ""}`}>
-                      <span className={corDoSinal(excursao.mfe)}>{formatarPontos(excursao.mfe, true)}</span> /{" "}
-                      <span className={corDoSinal(excursao.mae)}>{formatarPontos(excursao.mae, true)}</span>
+                      {formatarPontos(excursao.mfe, true)} / {formatarPontos(excursao.mae, true)}
                       {excursao.parcial ? "*" : ""}
                     </span>
                   ) : (
@@ -151,12 +137,12 @@ export function TabelaOperacoes({ itens, slug, dia, aoVivo, filtrado }: Props) {
                   )}
                 </td>
                 <td className="text-right">
-                  <Valor valor={o.resultado_brl_por_contrato} />
+                  <Valor valor={o.resultado_brl_por_contrato} colorir={false} />
                 </td>
                 <td className="text-right text-muted-foreground">
                   <Valor valor={-o.custos_brl_por_contrato} colorir={false} className="text-muted-foreground" />
                 </td>
-                <td className="text-right font-semibold">
+                <td className="text-right font-medium">
                   <Valor valor={o.resultado_brl_por_contrato - o.custos_brl_por_contrato} />
                 </td>
               </tr>

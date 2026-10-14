@@ -4,11 +4,8 @@ import { carregarParametros, listarRobos } from "@/lib/consultas/publico";
 
 export default async function LayoutSite({ children }: { children: React.ReactNode }) {
   const [parametros, robos] = await Promise.all([carregarParametros(), listarRobos()]);
-  // cabeçalho e rodapé listam os mesmos robôs, sem os arquivados: uma busca só, aqui (19/09/2026). A ordem
-  // vai junto desde 13/10/2026: é ela que dá a cor de cada robô (src/lib/cores-robo.ts)
-  const robosNav = robos
-    .filter((r) => r.status !== "arquivado")
-    .map((r) => ({ slug: r.slug, nome: r.nome, ordem: r.ordem }));
+  // cabeçalho e rodapé listam os mesmos robôs, sem os arquivados: uma busca só, aqui (19/09/2026)
+  const robosNav = robos.filter((r) => r.status !== "arquivado").map((r) => ({ slug: r.slug, nome: r.nome }));
 
   return (
     <>

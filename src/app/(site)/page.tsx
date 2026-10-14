@@ -78,7 +78,7 @@ function ultimoPregaoDaCasa(cards: readonly DadosCardRobo[]): UltimoPregaoCasa |
     total.valor += u.valor;
     total.nOperacoes += u.nOperacoes;
     total.nGain += u.nGain;
-    if (total.melhor === null || u.valor > total.melhor.valor) total.melhor = { nome: c.nome, valor: u.valor, ordem: c.ordem };
+    if (total.melhor === null || u.valor > total.melhor.valor) total.melhor = { nome: c.nome, valor: u.valor };
   }
   return total;
 }
@@ -112,7 +112,6 @@ export default async function Home() {
       return {
         slug: r.slug,
         nome: r.nome,
-        ordem: r.ordem,
         ativo: r.ativo,
         ativoNome: r.ativo_nome,
         status: r.status,
@@ -133,9 +132,6 @@ export default async function Home() {
         ultimoPregao: ultimoPregaoDoRobo(linhas, opcoes, hoje),
       };
     });
-
-  // a cor de cada robô vem da ordem do banco (corDoRobo); o resumo ao vivo não traz a ordem, então vai por slug
-  const ordens: Record<string, number> = Object.fromEntries(robos.map((r) => [r.slug, r.ordem]));
 
   const coleta: Record<string, EventoColeta> = Object.fromEntries(
     robos.map((r) => [
@@ -159,7 +155,7 @@ export default async function Home() {
       <BarraAoVivo />
       <Hero textos={parametros.textos} links={parametros.links} ultimoPregao={ultimoPregaoDaCasa(cards)} />
       <GradeRobos cards={cards} />
-      <ResumoDoDia ordens={ordens} />
+      <ResumoDoDia />
       <Comunidade links={parametros.links} videos={videos} />
       <Ecossistema links={parametros.links} />
       <ComoComecar links={parametros.links} />

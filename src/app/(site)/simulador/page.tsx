@@ -2,12 +2,12 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { SkeletonCurva, SkeletonKpis } from "@/components/compartilhados/Skeletons";
 import { Voltar } from "@/components/layout/Voltar";
-import { PainelSimulador, type RoboNoPainel } from "@/components/simulador/PainelSimulador";
+import { PainelSimulador } from "@/components/simulador/PainelSimulador";
 import { TEXTO_FIXO_SIMULADOR } from "@/components/simulador/Semaforo";
 import { carregarParametros, listarEstatisticas, listarMercado, listarRobos } from "@/lib/consultas/publico";
 import { hojeSP } from "@/lib/stats/periodos";
 import { ordenarPorDia, valorDia } from "@/lib/stats/serie";
-import { capitalMinimoDoRobo, type DiaLiquido } from "@/lib/stats/simulador";
+import { capitalMinimoDoRobo, type DiaLiquido, type RoboSimulador } from "@/lib/stats/simulador";
 import type { EstatisticaPublica } from "@/lib/tipos";
 
 export const revalidate = 60;
@@ -43,7 +43,7 @@ export default async function PaginaSimulador() {
     porRobo.set(e.slug, lista);
   }
 
-  const robosSim: RoboNoPainel[] = robos
+  const robosSim: RoboSimulador[] = robos
     .filter((r) => r.status !== "arquivado")
     .map((r) => {
       const opcoes = { base: "liquido", unidade: "brl", valorPonto: r.valor_ponto_brl } as const;
@@ -60,8 +60,6 @@ export default async function PaginaSimulador() {
         ativo: r.ativo,
         ativoNome: r.ativo_nome,
         contaTipo: r.conta_tipo,
-        // só para a cor do robô no painel (corDoRobo); a conta não a usa
-        ordem: r.ordem,
         dias,
         // a regra da aba Risco: margem + drawdown máximo de todo o histórico × fator, no inteiro publicado; null sem margem
         capitalMinimoPorContrato: capitalMinimoDoRobo(dias, margem, parametros.fatorSeguranca),
@@ -73,7 +71,7 @@ export default async function PaginaSimulador() {
     <div className="conteudo space-y-8 py-8">
       <Voltar href="/">Início</Voltar>
       <header className="space-y-1">
-        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Simulador</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">Simulador</h1>
         <p className="text-muted-foreground">O histórico dos robôs, por contrato, aplicado ao seu capital e aos seus contratos.</p>
         <p className="text-sm text-muted-foreground">{TEXTO_FIXO_SIMULADOR}</p>
       </header>

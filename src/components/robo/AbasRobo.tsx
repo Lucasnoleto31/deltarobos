@@ -11,10 +11,7 @@ interface Props {
 }
 
 /**
- * Abas da página do robô em pílulas (18/09/2026): a ativa em destaque, as outras apagadas, o ao vivo à direita.
- * Desde 13/10/2026 (mídia kit da Zeve) a ativa fica no acento, branco sobre o azul (5,4:1 nos dois temas), como o
- * item ativo do Segmentado; até 12/10/2026 era a cor do texto invertida. O "Ao vivo" leva o ícone no acento, que é
- * a cor do que está ao vivo.
+ * Abas da página do robô em pílulas (18/09/2026): a ativa em branco, as outras apagadas, o ao vivo à direita.
  * 19/09/2026: só as abas rolam, com a ponta esmaecendo; o "Ao vivo" fica fora da rolagem, sempre à
  * vista (no celular ele era cortado e o que aparecia na ponta era um "R" solto). O -m-1/p-1 da faixa
  * dá espaço ao anel de foco, que a rolagem cortaria.
@@ -62,7 +59,7 @@ export function AbasRobo({ slug }: Props) {
               className={cn(
                 "h-8 shrink-0 rounded-full px-3.5 text-sm leading-8 whitespace-nowrap transition-colors",
                 ativo
-                  ? "bg-primary font-medium text-primary-foreground"
+                  ? "bg-foreground font-medium text-background"
                   : "text-muted-foreground hover:bg-(--linha-hover) hover:text-foreground",
               )}
             >
@@ -77,7 +74,7 @@ export function AbasRobo({ slug }: Props) {
         prefetch={false}
         className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-(--painel-fio-forte) px-3.5 text-sm whitespace-nowrap text-foreground transition-colors hover:bg-(--linha-hover)"
       >
-        <Radio aria-hidden className="size-4 text-info" /> Ao vivo
+        <Radio className="size-4" /> Ao vivo
       </Link>
     </nav>
   );

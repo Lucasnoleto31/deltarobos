@@ -1,18 +1,18 @@
 // As cores das imagens geradas no servidor (prévias OG do robô e da casa, e a imagem do dia para compartilhar),
 // num lugar só desde 24/09/2026. São as mesmas cores dos tokens do tema escuro (globals.css): a imagem não lê
-// CSS. Desde 13/10/2026, o mídia kit da Zeve: fundo marinho, acento azul #0059FF e o verde e o vermelho fortes
-// do resultado.
+// CSS. O acento é o verde da Quants (19/09/2026, no lugar do dourado); o verde e o vermelho do resultado são os
+// de sempre da cor() das prévias.
 
 import type { TomCard } from "@/lib/stats/card-do-dia";
 
-export const FUNDO = "#050915";
-export const TEXTO = "#f3f6fc";
-export const MUDO = "#98a2b5";
-export const ACENTO = "#0059ff";
-export const POSITIVO = "#22c55e";
-export const NEGATIVO = "#ef4444";
+export const FUNDO = "#0a0a0b";
+export const TEXTO = "#f8f5ef";
+export const MUDO = "#aca496";
+export const ACENTO = "#00ff88";
+export const POSITIVO = "#53b86f";
+export const NEGATIVO = "#e8594b";
 /** a linha do zero (PROFIT.zero) */
-export const ZERO = "#3a4560";
+export const ZERO = "#4d4d4d";
 
 export const COR_DO_TOM: Readonly<Record<TomCard, string>> = { positivo: POSITIVO, negativo: NEGATIVO, neutro: MUDO };
 

@@ -10,10 +10,8 @@ import { Valor } from "@/components/compartilhados/Valor";
 import { MiniCurva } from "@/components/graficos/MiniCurva";
 import { linkSimulador } from "@/components/simulador/simulador-url";
 import { Badge } from "@/components/ui/badge";
-import { corDoRobo } from "@/lib/cores-robo";
 import { formatarNumero, formatarPct } from "@/lib/formato";
 import type { StatusAoVivo } from "@/lib/stats/status-robo";
-import { estiloDoRobo, PontoRobo } from "./cores";
 import { formatarDiaCurto } from "./datas";
 import type { DadosCardRobo, UltimoPregao } from "./tipos";
 
@@ -50,13 +48,6 @@ interface Props {
  * robô, e o ::after dele cobre o cartão inteiro (link esticado), com o mesmo hover, a seta e o anel de
  * foco no cartão. Os i e o selo ficam por cima (z-10): o i abre a explicação e o selo mostra o title. Com
  * o link só no nome, o selo volta a levar a definição para leitor de tela.
- *
- * 13/10/2026, mídia kit da Zeve ("mais cores", Lucas): o cartão ganhou a identidade do robô, sem ser pintado
- * por inteiro. A cor vem da `ordem` do banco (--cor-robo, estiloDoRobo) e aparece no ponto ao lado do nome, no
- * fio do cartão (35%, e 60% no hover) e na mini curva. O número de cima é o protagonista (Valor em destaque);
- * mês, acumulado e drawdown viraram uma lista de apoio com o número alinhado à direita, todos com cor: os dois
- * primeiros pelo sinal e o drawdown sempre no vermelho (é perda). O azul do acento ficou para o que é ação: o link do
- * simulador e a seta, que no hover enche de azul.
  */
 export const CardRobo = memo(function CardRobo({
   card,
@@ -78,31 +69,27 @@ export const CardRobo = memo(function CardRobo({
 
   return (
     <article
-      style={estiloDoRobo(card.ordem)}
       className={cn(
         // o anel de foco do cartão é só do link do título (o esticado); o "Simular com meu capital" tem o contorno próprio
         "group relative flex h-full flex-col painel vidro painel-interativo painel-eleva p-5 has-[h3_a:focus-visible]:ring-2 has-[h3_a:focus-visible]:ring-ring/50",
-        // o fio na cor do robô vence o do .vidro e o do hover do .painel-interativo (utilitário vence componente)
-        "border-[color-mix(in_srgb,var(--cor-robo)_35%,transparent)] hover:border-[color-mix(in_srgb,var(--cor-robo)_60%,transparent)]",
         // os i ficam acima do ::after do link (o InfoIndicador já é relative)
         "[&_button]:z-10",
         emBreve && "opacity-80",
       )}
     >
       <div className="flex items-start justify-between gap-3">
-        <h3 className="flex min-w-0 items-center gap-2 text-lg leading-tight font-semibold">
-          <PontoRobo className="size-2.5" />
-          <Link href={`/robos/${card.slug}`} className="min-w-0 truncate outline-none after:absolute after:inset-0">
-            {card.nome}
-          </Link>
-        </h3>
+        <div className="min-w-0">
+          <h3 className="truncate text-lg font-semibold leading-tight">
+            <Link href={`/robos/${card.slug}`} className="outline-none after:absolute after:inset-0">
+              {card.nome}
+            </Link>
+          </h3>
+          <p className="text-xs text-muted-foreground">
+            {card.ativoNome} · {card.ativo}
+          </p>
+        </div>
         <BadgeStatusRobo status={status} abertas={posicoesAbertas} className="relative z-10" />
       </div>
-      {/* fora da linha do selo, na largura toda: ao lado do "Posicionado · 1 em aberto" o "Mini Índice · WIN"
-          quebrava em duas linhas de 1024 a ~1100 px. Alinhado ao nome, não ao ponto: 10 px do ponto e 8 do gap */}
-      <p className="mt-0.5 pl-[18px] text-xs text-muted-foreground">
-        {card.ativoNome} · {card.ativo}
-      </p>
 
       {emBreve ? (
         <div className="flex flex-1 flex-col justify-between gap-4 pt-5">
@@ -117,78 +104,60 @@ export const CardRobo = memo(function CardRobo({
             <p className="rotulo-metrica">
               <RotuloComInfo chave="resultadoDia">{destaque.rotulo}</RotuloComInfo>
             </p>
-            <p className="mt-2">
-              <Valor
-                valor={destaque.valor}
-                inteiro={Math.abs(destaque.valor) >= 10_000}
-                destaque
-                className="text-3xl"
-              />
+            <p className="mt-1 text-3xl font-semibold tracking-tight">
+              <Valor valor={destaque.valor} inteiro={Math.abs(destaque.valor) >= 10_000} />
             </p>
             {destaque.operacoes ? (
-              <p className="mt-2 text-xs text-muted-foreground tabular-nums">
+              <p className="mt-1 text-xs text-muted-foreground tabular-nums">
                 {formatarNumero(destaque.operacoes)} {destaque.operacoes === 1 ? "operação" : "operações"}
                 {destaque.gains !== undefined ? ` · ${formatarPct(destaque.gains / destaque.operacoes, 0)} de acerto` : ""}
               </p>
             ) : (
-              <p className="mt-2 text-xs text-muted-foreground">sem operação fechada hoje</p>
+              <p className="mt-1 text-xs text-muted-foreground">sem operação fechada hoje</p>
             )}
           </div>
 
-          {/* a curva dos 30 dias na cor do robô (13/10/2026): o sinal do período já está no mês e no acumulado */}
-          <MiniCurva pontos={card.sparkline} altura={64} cor={corDoRobo(card.ordem)} className="mt-4" />
-
-          {/* apoio em lista, rótulo à esquerda e número alinhado à direita: cabe igual em qualquer largura (em
-              linha, os três quebravam de 1024 a ~1100 px e cada cartão ficava de um jeito) */}
-          <dl className="mt-4 space-y-1.5 border-t border-(--painel-fio) pt-3 text-sm">
-            <div className="flex items-baseline justify-between gap-3">
+          <dl className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm">
+            <div className="flex items-baseline gap-1.5">
               <dt className="text-xs text-muted-foreground">
                 <RotuloComInfo chave="mesAtual">Mês</RotuloComInfo>
               </dt>
-              <dd className="font-semibold">
+              <dd className="font-medium">
                 <Valor valor={card.mes} inteiro={Math.abs(card.mes) >= 1000} />
               </dd>
             </div>
-            <div className="flex items-baseline justify-between gap-3">
+            <div className="flex items-baseline gap-1.5">
               <dt className="text-xs text-muted-foreground">
                 <RotuloComInfo chave="acumulado">Acumulado</RotuloComInfo>
               </dt>
-              <dd className="font-semibold">
+              <dd className="font-medium">
                 <Valor valor={card.acumulado} inteiro={Math.abs(card.acumulado) >= 1000} />
-              </dd>
-            </div>
-            <div className="flex items-baseline justify-between gap-3">
-              <dt className="text-xs text-muted-foreground">
-                <RotuloComInfo chave="drawdown">DD máx.</RotuloComInfo>
-              </dt>
-              {/* drawdown é perda: vermelho sempre, cinza só no zero (o Valor decide pelo sinal) */}
-              <dd className="font-semibold">
-                <Valor valor={-card.drawdownMaximo} inteiro />
               </dd>
             </div>
           </dl>
 
-          <div className="mt-auto flex items-end justify-between gap-3 pt-4 text-xs">
+          <MiniCurva pontos={card.sparkline} altura={64} className="mt-4" />
+
+          <div className="mt-4 flex items-center justify-between gap-3 text-xs text-muted-foreground">
+            <span>
+              <RotuloComInfo chave="drawdown">DD máx.</RotuloComInfo>{" "}
+              <Valor valor={-card.drawdownMaximo} inteiro colorir={false} className="text-foreground" />
+            </span>
             {/* "Simular com meu capital" (23/09/2026): o cartão é link esticado, então este link fica por
                 cima dele (relative z-10), como os i. Sem nowrap: no cartão estreito o texto quebra em duas
                 linhas em vez de estourar a largura. Sublinhado por padrão, como na aba Risco: no toque não
-                há hover para dizer que é link. Só o slug entra na URL (linkSimulador), nada de prop nova.
-                13/10/2026: no azul do acento (text-info), a cor de link do site. */}
-            <Link
-              href={linkSimulador(card.slug)}
-              className="relative z-10 min-w-0 font-medium text-info underline decoration-info/40 underline-offset-4 hover:decoration-info"
-            >
+                há hover para dizer que é link. Só o slug entra na URL (linkSimulador), nada de prop nova. */}
+            <Link href={linkSimulador(card.slug)} className="relative z-10 min-w-0 text-center underline underline-offset-4 hover:text-foreground">
               Simular com meu capital
             </Link>
             {/* o empurrãozinho da seta (2 px para cima e para a direita) é o que o cartão inteiro faz
                 em miniatura; mesma curva e mesmos 180 ms do .painel-interativo. A propriedade da
                 transição é "translate", não "transform": o translate-* do Tailwind 4 escreve na
                 propriedade translate, e com "transform" na lista a seta pulava sem transição
-                (conferido no navegador em 19/09/2026). 13/10/2026: no hover enche do azul do botão
-                principal (era a cor do texto), com o branco dele por cima. */}
+                (conferido no navegador em 19/09/2026). */}
             <span
               aria-hidden
-              className="grid size-8 shrink-0 place-items-center rounded-full border border-(--painel-fio-forte) text-foreground transition-[color,background-color,border-color,translate] duration-[180ms] ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:border-primary group-hover:bg-primary group-hover:text-primary-foreground motion-safe:group-hover:-translate-y-0.5 motion-safe:group-hover:translate-x-0.5"
+              className="grid size-8 place-items-center rounded-full border border-(--painel-fio-forte) text-foreground transition-[color,background-color,border-color,translate] duration-[180ms] ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:bg-foreground group-hover:text-background motion-safe:group-hover:-translate-y-0.5 motion-safe:group-hover:translate-x-0.5"
             >
               <ArrowUpRight className="size-4" />
             </span>

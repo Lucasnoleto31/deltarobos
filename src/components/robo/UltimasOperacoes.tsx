@@ -1,18 +1,14 @@
 import { Valor } from "@/components/compartilhados/Valor";
-import { formatarDataCurta, formatarDuracao, formatarHora, formatarPreco } from "@/lib/formato";
+import { formatarDataCurta, formatarDuracao, formatarHora, formatarPreco, rotuloLado } from "@/lib/formato";
 import type { OperacaoPublica } from "@/lib/tipos";
-import { LinhaOperacao, SeloLado } from "./LinhaOperacao";
+import { LinhaOperacao } from "./LinhaOperacao";
 import { VAZIO_DO_PERIODO } from "./periodos-resumo";
 
 interface Props {
   operacoes: OperacaoPublica[];
 }
 
-/**
- * Lista compacta das últimas operações (usada na visão geral). O lado é neutro: cor só no resultado (19/09/2026),
- * num selo de contorno desde 13/10/2026 (SeloLado), o mesmo da lista do celular. Pontos e R$ pintam pelo sinal;
- * a duração vai apagada, como dado de apoio, e todo número fica à direita da coluna.
- */
+/** Lista compacta das últimas operações (usada na visão geral). O lado é neutro: cor só no resultado (19/09/2026). */
 export function UltimasOperacoes({ operacoes }: Props) {
   if (operacoes.length === 0) {
     return <p className="painel px-4 py-8 text-center text-sm text-muted-foreground">{VAZIO_DO_PERIODO.tudo}</p>;
@@ -30,7 +26,7 @@ export function UltimasOperacoes({ operacoes }: Props) {
       <div className="hidden overflow-x-auto painel sm:block">
         <table className="w-full text-sm">
           <thead className="text-left text-xs text-muted-foreground">
-            <tr className="[&>th]:px-3 [&>th]:py-2.5 [&>th]:font-medium">
+            <tr className="[&>th]:px-3 [&>th]:py-2 [&>th]:font-medium">
               <th>Data</th>
               <th>Fech.</th>
               <th>Lado</th>
@@ -43,7 +39,7 @@ export function UltimasOperacoes({ operacoes }: Props) {
           </thead>
           <tbody className="[&>tr]:border-t">
             {operacoes.map((o) => (
-              <tr key={o.id} className="tabular-nums [&>td]:px-3 [&>td]:py-2.5">
+              <tr key={o.id} className="tabular-nums [&>td]:px-3 [&>td]:py-2">
                 <td>{formatarDataCurta(o.dia_pregao)}</td>
                 <td className="whitespace-nowrap">
                   {formatarHora(o.fechamento_em)}
@@ -51,16 +47,14 @@ export function UltimasOperacoes({ operacoes }: Props) {
                     <span className="ml-1 text-xs text-muted-foreground">{formatarDuracao(o.duracao_seg)}</span>
                   ) : null}
                 </td>
-                <td>
-                  <SeloLado lado={o.lado} />
-                </td>
+                <td>{rotuloLado(o.lado)}</td>
                 <td className="hidden md:table-cell">{o.simbolo}</td>
                 <td className="text-right">{formatarPreco(o.preco_entrada)}</td>
                 <td className="text-right">{formatarPreco(o.preco_saida)}</td>
                 <td className="text-right whitespace-nowrap">
                   <Valor valor={o.pontos_por_contrato} unidade="pontos" />
                 </td>
-                <td className="text-right font-semibold whitespace-nowrap">
+                <td className="text-right font-medium whitespace-nowrap">
                   <Valor valor={o.resultado_brl_por_contrato - o.custos_brl_por_contrato} />
                 </td>
               </tr>

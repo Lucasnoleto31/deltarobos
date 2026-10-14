@@ -29,11 +29,9 @@ export function SkeletonKpis({ quantidade = 8 }: { quantidade?: number }) {
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
       {Array.from({ length: quantidade }).map((_, i) => (
-        // a mesma caixa do CardsKpi: rótulo, o número (maior a partir do lg, 13/10/2026) e o apoio
         <div key={i} className="painel p-4">
-          <Skeleton className="h-3 w-20" />
-          <Skeleton className="mt-2.5 h-5 w-28 lg:h-6" />
-          <Skeleton className="mt-2 h-3 w-24" />
+          <Skeleton className="mb-2 h-3 w-20" />
+          <Skeleton className="h-6 w-28" />
         </div>
       ))}
     </div>

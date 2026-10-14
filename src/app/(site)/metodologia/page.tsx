@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { BadgeStatusRobo } from "@/components/compartilhados/BadgeStatusRobo";
 import { GLOSSARIO, type ChaveIndicador } from "@/components/compartilhados/glossario";
 import { RevelarNaRolagem } from "@/components/compartilhados/RevelarNaRolagem";
 import { NavSecoes } from "@/components/layout/NavSecoes";
@@ -60,20 +59,6 @@ function Secao({ id, titulo, children }: { id: string; titulo: string; children:
         <div className="space-y-3 text-pretty text-muted-foreground [&_strong]:text-foreground">{children}</div>
       </RevelarNaRolagem>
     </section>
-  );
-}
-
-// Palavra ou número de resultado no meio do texto, na cor que ele tem no site (13/10/2026, mídia kit da Zeve):
-// verde, vermelho ou o laranja do alerta, os mesmos do semáforo do simulador e da classificação das faixas.
-// O span vai dentro do <strong> porque o [&_strong]:text-foreground da seção venceria uma classe no próprio
-// strong. Sobre o chão claro: verde 4,7:1, vermelho 4,5:1, laranja 4,7:1; no escuro, todos acima de 5:1.
-const COR_DO_DESTAQUE = { positivo: "text-positivo", negativo: "text-negativo", alerta: "text-alerta" } as const;
-
-function Destaque({ tom, children }: { tom: keyof typeof COR_DO_DESTAQUE; children: React.ReactNode }) {
-  return (
-    <strong>
-      <span className={COR_DO_DESTAQUE[tom]}>{children}</span>
-    </strong>
   );
 }
 
@@ -154,7 +139,7 @@ export default function PaginaMetodologia() {
         <Secao id="normalizacao" titulo="Por contrato">
           <p>
             Todo valor é dividido pela quantidade de contratos da operação. Um gain de R$&nbsp;60 com 2 contratos aparece como{" "}
-            <Destaque tom="positivo">R$&nbsp;30 por contrato</Destaque>. Assim, contas com tamanhos de posição diferentes não distorcem a média, e
+            <strong>R$&nbsp;30 por contrato</strong>. Assim, contas com tamanhos de posição diferentes não distorcem a média, e
             você multiplica pelo número de contratos que pretende usar.
           </p>
           <p>
@@ -173,7 +158,7 @@ export default function PaginaMetodologia() {
           </p>
           <p>
             Gain e loss são decididos sempre pelo <strong>líquido</strong>: uma operação que ganhou R$&nbsp;0,10 bruto e
-            pagou R$&nbsp;0,25 de custo conta como <Destaque tom="negativo">loss</Destaque>.
+            pagou R$&nbsp;0,25 de custo conta como loss.
           </p>
         </Secao>
 
@@ -369,9 +354,9 @@ export default function PaginaMetodologia() {
             quantos pregões entraram.
           </Indicador>
           <Indicador chave="semaforoCapital" nome>
-            <Destaque tom="negativo">não cabe</Destaque> se o capital é menor que o capital mínimo ou se o drawdown máximo simulado é maior
-            ou igual ao capital (o patrimônio simulado teria zerado); <Destaque tom="alerta">apertado</Destaque> se cabe, mas o drawdown
-            máximo simulado passa de 25% do capital inicial; <Destaque tom="positivo">cabe</Destaque> no resto (25% exatos cabem). O capital
+            <strong>não cabe</strong> se o capital é menor que o capital mínimo ou se o drawdown máximo simulado é maior
+            ou igual ao capital (o patrimônio simulado teria zerado); <strong>apertado</strong> se cabe, mas o drawdown
+            máximo simulado passa de 25% do capital inicial; <strong>cabe</strong> no resto (25% exatos cabem). O capital
             mínimo por contrato é o número inteiro publicado na aba Risco. Robô sem margem de referência configurada fica
             sem capital mínimo; a soma dos mínimos dos outros robôs escolhidos vale como piso, e acima dele só a regra do
             drawdown decide.
@@ -445,11 +430,11 @@ export default function PaginaMetodologia() {
           <p>
             <strong>Classificação</strong>, com os parâmetros padrão e nesta ordem. Faixa com menos de{" "}
             <strong>{formatarNumero(PF.amostraMinima)} operações</strong> fica sem classificação: com tão poucas, o resultado
-            pode ser sorte ou azar. <Destaque tom="negativo">Evitar</Destaque> se qualquer uma valer: acerto abaixo de{" "}
+            pode ser sorte ou azar. <strong>Evitar</strong> se qualquer uma valer: acerto abaixo de{" "}
             {formatarPct(PF.evitar.acertoMax, 0)}, recuperação abaixo de {formatarMultiplo(PF.evitar.recuperacaoMax)} ou
-            drawdown relativo acima de {vezes(PF.evitar.ddRelativoMin)}. <Destaque tom="positivo">Ligar</Destaque> se acerto ≥{" "}
+            drawdown relativo acima de {vezes(PF.evitar.ddRelativoMin)}. <strong>Ligar</strong> se acerto ≥{" "}
             {formatarPct(PF.ligar.acertoMin, 0)}, recuperação ≥ {formatarMultiplo(PF.ligar.recuperacaoMin)} e drawdown
-            relativo ≤ {vezes(PF.ligar.ddRelativoMax)}. <Destaque tom="alerta">Cautela</Destaque> se acerto ≥ {formatarPct(PF.cautela.acertoMin, 0)}{" "}
+            relativo ≤ {vezes(PF.ligar.ddRelativoMax)}. <strong>Cautela</strong> se acerto ≥ {formatarPct(PF.cautela.acertoMin, 0)}{" "}
             e recuperação ≥ {formatarMultiplo(PF.cautela.recuperacaoMin)}. O resto é <strong>Neutro</strong>. Os parâmetros em
             uso estão em Regras, na aba Faixas de cada robô.
           </p>
@@ -507,45 +492,28 @@ export default function PaginaMetodologia() {
               valor de cada intervalo). É o que desenha a curva do dia nos dias medidos.
             </dd>
           </dl>
-          {/* 19/09/2026: os selos ao lado do nome do robô, com as condições de statusAoVivo (lib/stats/status-robo).
-              13/10/2026: cada termo é o próprio selo, na cor que ele tem no site (BadgeStatusRobo) */}
+          {/* 19/09/2026: os selos ao lado do nome do robô, com as condições de statusAoVivo (lib/stats/status-robo) */}
           <h3 id="status" className="pt-4 text-base font-semibold text-foreground">
             Selo de status
           </h3>
           <dl className="grid gap-3 sm:grid-cols-[160px_1fr]">
-            <dt className="pt-0.5">
-              <BadgeStatusRobo status="operando" explicar={false} />
-            </dt>
+            <dt className="font-medium text-foreground">Operando</dt>
             <dd>Pregão aberto, sinal do coletor em dia, sem posição aberta e dentro do horário de operação do robô.</dd>
-            <dt className="pt-0.5">
-              <BadgeStatusRobo status="posicionado" explicar={false} />
-            </dt>
+            <dt className="font-medium text-foreground">Posicionado</dt>
             <dd>Pregão aberto, sinal do coletor em dia e o robô com posição aberta agora (1 ou mais operações em aberto).</dd>
-            <dt className="pt-0.5">
-              <BadgeStatusRobo status="fora_do_horario" explicar={false} />
-            </dt>
+            <dt className="font-medium text-foreground">Fora do horário</dt>
             <dd>Pregão do ativo fechado; ou pregão aberto, sinal em dia, sem posição e fora do horário de operação do robô.</dd>
-            <dt className="pt-0.5">
-              <BadgeStatusRobo status="desconhecido" explicar={false} />
-            </dt>
+            <dt className="font-medium text-foreground">Sem atualização</dt>
             <dd>Pregão aberto e o coletor sem mandar sinal há mais de {MINUTOS_SEM_SINAL} minutos.</dd>
-            <dt className="pt-0.5">
-              <BadgeStatusRobo status="historico" explicar={false} />
-            </dt>
+            <dt className="font-medium text-foreground">Histórico</dt>
             <dd>O robô não tem coletor no MetaTrader 5: os números vêm só do histórico importado.</dd>
-            <dt className="pt-0.5">
-              <BadgeStatusRobo status="em_breve" explicar={false} />
-            </dt>
+            <dt className="font-medium text-foreground">Em breve</dt>
             <dd>O robô ainda não começou a operar em conta real.</dd>
-            <dt className="pt-0.5">
-              <BadgeStatusRobo status="pausado" explicar={false} />
-            </dt>
+            <dt className="font-medium text-foreground">Pausado</dt>
             <dd>O robô parou de operar; o histórico continua no site.</dd>
             {/* 19/09/2026: o arquivado sai da home, do menu e do Comparativo, mas robos_publico ainda o
                 devolve e /robos/[slug] continua abrindo */}
-            <dt className="pt-0.5">
-              <BadgeStatusRobo status="arquivado" explicar={false} />
-            </dt>
+            <dt className="font-medium text-foreground">Arquivado</dt>
             <dd>O robô saiu da lista do site; a página e o histórico continuam no endereço dele.</dd>
           </dl>
         </Secao>

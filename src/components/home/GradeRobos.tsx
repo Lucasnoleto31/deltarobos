@@ -4,14 +4,12 @@ import { Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import { RevelarNaRolagem } from "@/components/compartilhados/RevelarNaRolagem";
 import { Segmentado } from "@/components/compartilhados/Segmentado";
-import { Valor } from "@/components/compartilhados/Valor";
 import { useAgora } from "@/hooks/useAgora";
+import { formatarBRL } from "@/lib/formato";
 import { pregaoAberto } from "@/lib/stats/pregao";
 import { statusAoVivo } from "@/lib/stats/status-robo";
-import { CabecaSecao } from "./CabecaSecao";
 import { CardRobo } from "./CardRobo";
 import { useCasa } from "./CasaAoVivoProvider";
-import { PontoRobo } from "./cores";
 import type { DadosCardRobo } from "./tipos";
 
 interface Props {
@@ -78,29 +76,27 @@ export function GradeRobos({ cards }: Props) {
 
   // o subtítulo é o fato do mês, não a descrição da seção ("Resultado por 1 contrato... ordenado pelo mês"
   // o Artur achou descritivo demais, 18/09/2026). A regra do por contrato e do líquido está no hero.
-  // 13/10/2026: o líder leva o ponto na cor dele e o valor sai pintado pelo sinal, como no cartão.
   const lider = mesclados
     .filter((c) => c.status !== "em_breve" && c.nDias > 0)
     .reduce<(typeof mesclados)[number] | null>((m, c) => (m === null || c.mes > m.mes ? c : m), null);
   const nomeDoMes = new Date(`${hojeDaCasa}T12:00:00Z`).toLocaleDateString("pt-BR", { month: "long", timeZone: "UTC" });
   const subtitulo =
-    lider && lider.mes > 0 ? (
-      <>
-        <PontoRobo ordem={lider.ordem} className="mr-1.5 align-middle" />
-        {lider.nome} lidera {nomeDoMes}:{" "}
-        <Valor valor={lider.mes} inteiro={Math.abs(lider.mes) >= 1000} className="font-semibold" /> por contrato.
-      </>
-    ) : lider ? (
-      `Em ${nomeDoMes}, ninguém no positivo até agora.`
-    ) : (
-      "Resultado por 1 contrato, líquido de custos."
-    );
+    lider && lider.mes > 0
+      ? `${lider.nome} lidera ${nomeDoMes}: ${formatarBRL(lider.mes, { sinal: true, inteiro: Math.abs(lider.mes) >= 1000 })} por contrato.`
+      : lider
+        ? `Em ${nomeDoMes}, ninguém no positivo até agora.`
+        : "Resultado por 1 contrato, líquido de custos.";
 
   return (
     // o scroll-mt-20 saiu em 19/09/2026: quem desconta o cabeçalho agora é o scroll-padding-top do
     // html, medido; os dois juntos somavam e paravam a seção 80 px abaixo da barra
     <section id="robos" className="conteudo py-8">
-      <CabecaSecao titulo="Os robôs" apoio={subtitulo}>
+      <RevelarNaRolagem className="mb-4 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">Os robôs</h2>
+          <p className="text-sm text-muted-foreground">{subtitulo}</p>
+        </div>
+
         {mostrarFiltros ? (
           <div className="flex flex-wrap items-center gap-2">
             <Segmentado
@@ -122,7 +118,7 @@ export function GradeRobos({ cards }: Props) {
             </label>
           </div>
         ) : null}
-      </CabecaSecao>
+      </RevelarNaRolagem>
 
       {visiveis.length === 0 ? (
         <p className="painel p-5 text-sm text-muted-foreground">

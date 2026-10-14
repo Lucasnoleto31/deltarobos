@@ -1,4 +1,3 @@
-import { cn } from "cn";
 import type { ChaveIndicador } from "@/components/compartilhados/glossario";
 import { RotuloComInfo } from "@/components/compartilhados/InfoIndicador";
 import { Valor } from "@/components/compartilhados/Valor";
@@ -14,33 +13,25 @@ interface Props {
   hoje: string;
 }
 
-/**
- * Os quatro números que se procura primeiro: cartão, rótulo (com o "o que é"), valor e uma linha de apoio.
- * O número é o protagonista do cartão (13/10/2026): maior a partir do lg, onde a grade tem quatro colunas, e
- * pintado pelo sinal (o Valor) ou pela `cor` quando chega como texto pronto (o drawdown em %).
- */
+/** Os quatro números que se procura primeiro: cartão, rótulo (com o "o que é"), valor e uma linha de apoio. */
 function CardKpi({
   rotulo,
   info,
   children,
   detalhe,
-  cor,
 }: {
   rotulo: string;
   info: ChaveIndicador;
   children: React.ReactNode;
   detalhe?: React.ReactNode;
-  cor?: string;
 }) {
   return (
-    <div className="painel flex flex-col p-4">
+    <div className="painel p-4">
       <p className="rotulo-metrica">
         <RotuloComInfo chave={info}>{rotulo}</RotuloComInfo>
       </p>
-      <p className={cn("mt-2.5 text-xl leading-none font-semibold tracking-tight tabular-nums sm:text-2xl lg:text-[1.75rem]", cor)}>
-        {children}
-      </p>
-      {detalhe ? <p className="mt-2 text-xs text-muted-foreground tabular-nums">{detalhe}</p> : null}
+      <p className="mt-2 text-xl leading-none font-semibold tracking-tight tabular-nums sm:text-2xl">{children}</p>
+      {detalhe ? <p className="mt-1.5 text-xs text-muted-foreground tabular-nums">{detalhe}</p> : null}
     </div>
   );
 }
@@ -65,7 +56,7 @@ function LinhaKpi({
         </RotuloComInfo>
         {detalhe ? <span className="block text-xs text-muted-foreground tabular-nums">{detalhe}</span> : null}
       </dt>
-      <dd className="shrink-0 text-right text-sm font-semibold whitespace-nowrap tabular-nums">{children}</dd>
+      <dd className="shrink-0 text-sm font-semibold tabular-nums">{children}</dd>
     </div>
   );
 }
@@ -78,10 +69,6 @@ function LinhaKpi({
  * e Risco desde 19/09/2026: % do capital de referência no número e, embaixo, o R$ e o capital ("-R$ 34.599
  * sobre capital de R$ 35.000"; só o R$ fazia o 98,9% parecer a conta inteira). Sem capital, R$ no número.
  * Desde 19/09/2026 cada rótulo traz o i com o "o que é" do glossário, no lugar das fórmulas que saíram.
- * 13/10/2026 (mídia kit da Zeve, "mais cor, principalmente nos valores positivos e negativos"): o resultado
- * pinta pelo sinal em todo lugar, o drawdown é sempre perda (vermelho, também em %), e as contagens com regra
- * clara de lado (gains e losses, dias positivos e negativos) ganham o verde e o vermelho. Taxa de acerto,
- * fator de lucro, payoff e número de operações não têm sinal e ficam na cor do texto.
  */
 export function KpisRobo({ linhas, valorPonto, capitalReferencia, hoje }: Props) {
   const k = calcularKpis(
@@ -100,17 +87,15 @@ export function KpisRobo({ linhas, valorPonto, capitalReferencia, hoje }: Props)
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <CardKpi rotulo="Acumulado" info="acumulado" detalhe={`${formatarNumero(k.nDias)} ${k.nDias === 1 ? "dia" : "dias"} de pregão`}>
-          <Valor valor={k.acumulado} inteiro={Math.abs(k.acumulado) >= 1000} destaque />
+          <Valor valor={k.acumulado} inteiro={Math.abs(k.acumulado) >= 1000} />
         </CardKpi>
         <CardKpi rotulo="Mês atual" info="mesAtual">
-          <Valor valor={k.mes} inteiro={Math.abs(k.mes) >= 1000} destaque />
+          <Valor valor={k.mes} inteiro={Math.abs(k.mes) >= 1000} />
         </CardKpi>
         <CardKpi
           rotulo="Drawdown máximo"
           // o número é o % do capital quando há capital; sem ele, o R$
           info={k.drawdownMaximoPct !== null ? "drawdownPct" : "drawdown"}
-          // o % chega como texto: a cor vem do cartão (drawdown é sempre perda); o R$ se pinta sozinho
-          cor={k.drawdown.valor !== 0 && k.drawdownMaximoPct !== null ? "text-negativo" : undefined}
           detalhe={
             k.drawdown.valor === 0
               ? undefined
@@ -126,7 +111,7 @@ export function KpisRobo({ linhas, valorPonto, capitalReferencia, hoje }: Props)
           ) : k.drawdownMaximoPct !== null ? (
             formatarPct(k.drawdownMaximoPct)
           ) : (
-            <Valor valor={-k.drawdown.valor} inteiro={k.drawdown.valor >= 1000} destaque />
+            <Valor valor={-k.drawdown.valor} inteiro={k.drawdown.valor >= 1000} />
           )}
         </CardKpi>
         {/* número e rótulo presos (19/09/2026): no celular quebrava "2.420 / losses" */}
@@ -135,8 +120,7 @@ export function KpisRobo({ linhas, valorPonto, capitalReferencia, hoje }: Props)
           info="taxaAcerto"
           detalhe={
             <>
-              <span className="text-positivo">{formatarNumero(k.nGain)}&nbsp;gains</span> ·{" "}
-              <span className="text-negativo">{formatarNumero(k.nLoss)}&nbsp;losses</span>
+              {formatarNumero(k.nGain)}&nbsp;gains · {formatarNumero(k.nLoss)}&nbsp;losses
             </>
           }
         >
@@ -159,11 +143,11 @@ export function KpisRobo({ linhas, valorPonto, capitalReferencia, hoje }: Props)
         <LinhaKpi rotulo="Pior dia" info="piorDia" detalhe={k.piorDia ? formatarData(k.piorDia.dia) : undefined}>
           {k.piorDia ? <Valor valor={k.piorDia.valor} /> : "–"}
         </LinhaKpi>
-        {/* contagem de dias, não dinheiro: era uma cor só (19/09/2026); desde 13/10/2026 cada lado na cor dele */}
+        {/* contagem de dias, não dinheiro: uma cor só (19/09/2026) */}
         <LinhaKpi rotulo="Dias positivos × negativos" info="diasPositivosNegativos">
-          <span className="text-positivo">{formatarNumero(k.diasPositivos)}</span>
+          {formatarNumero(k.diasPositivos)}
           <span className="text-muted-foreground"> × </span>
-          <span className="text-negativo">{formatarNumero(k.diasNegativos)}</span>
+          {formatarNumero(k.diasNegativos)}
         </LinhaKpi>
         <LinhaKpi rotulo="Maior sequência de dias negativos" info="sequenciaDiasNegativos" detalhe={`de positivos: ${formatarNumero(k.maiorSequenciaDiasPositivos)}`}>
           {formatarNumero(k.maiorSequenciaDiasNegativos)}

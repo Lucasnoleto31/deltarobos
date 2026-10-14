@@ -226,7 +226,7 @@ Widget leve (card do robô) pra iframe. Imagem OG com resultado do dia, gerada n
 - Mobile-first. Tema escuro padrão com tema claro.
 - Verde pra positivo, vermelho pra negativo, cinza pra neutro. Fonte com números tabulares.
 - Skeletons em tudo que carrega, indicador "atualizado há Xs" em tudo que é ao vivo.
-- Identidade visual (13/10/2026, pedido do Lucas: "adiciona o nosso mídia kit em todas as páginas... não deixa somente preto e branco... principalmente valores positivos e negativos"): mídia kit da Zeve. Símbolo = o "Z" da Zeve (src/components/marca/Simbolo.tsx); acento azul #0059FF; fundo marinho #050915 no escuro e #F5F7FC no claro; verde e vermelho fortes em todo valor com sinal; uma cor por robô pela coluna `ordem` (src/lib/cores-robo.ts, nunca pelo slug); Poppins no texto e Inter tabular nos números (a Poppins não tem algarismos tabulares). A ficha completa fica no topo de src/app/globals.css. Até 12/10/2026: preto de cinema e o verde da Quants.
+- Identidade visual Delta: cores e logo a definir (pendência).
 - Fazer com que a página do robô e o fechamento do dia fiquem bons em print de celular, pois vão parar em story e WhatsApp. O fechamento pronto é a imagem do dia (§8.8).
 
 ## 10. Segurança
@@ -258,6 +258,6 @@ Widget leve (card do robô) pra iframe. Imagem OG com resultado do dia, gerada n
 - Descrição pública de cada robô (o que pode ser dito da estratégia)
 - Custo por contrato considerado
 - Capital de referência pra drawdown em %
-- ~~Cores e logo da Delta Robôs~~ (13/10/2026: mídia kit da Zeve, seção 9)
+- Cores e logo da Delta Robôs
 - Links: WhatsApp, YouTube, Instagram, Sala ao Vivo, link de abertura de conta no BTG
 - Texto do disclaimer aprovado pelo compliance

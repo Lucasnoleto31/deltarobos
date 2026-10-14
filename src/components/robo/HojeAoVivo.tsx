@@ -6,13 +6,13 @@ import { RotuloComInfo } from "@/components/compartilhados/InfoIndicador";
 import { Valor } from "@/components/compartilhados/Valor";
 import { CompartilharDia } from "@/components/compartilhar/CompartilharDia";
 import { versaoDoDiaAoVivo } from "@/components/compartilhar/regras-do-compartilhar";
-import { formatarHora, formatarNumero, formatarPreco } from "@/lib/formato";
+import { formatarHora, formatarNumero, formatarPreco, rotuloLado } from "@/lib/formato";
 import { fimDoDia } from "@/lib/stats/card-do-dia";
 import { mepMenDoDia } from "@/lib/stats/exposicao";
 import { brlParaPontos } from "@/lib/stats/normalizacao";
 import { horarioDaJanela } from "@/lib/stats/saldo-dia";
 import { CurvaDoDia } from "./CurvaDoDia";
-import { LinhaOperacao, SeloLado } from "./LinhaOperacao";
+import { LinhaOperacao } from "./LinhaOperacao";
 import { OperacoesEmAberto } from "./OperacoesEmAberto";
 import { usePregaoAberto, useRobo } from "./RoboAoVivoProvider";
 
@@ -33,9 +33,6 @@ const TEXTO_MEN_EA = (parcial: boolean) =>
  * O "Hoje" do painel de resultado (spec §8.2): resultado do dia, posição aberta e as operações
  * entrando na hora. Em 18/09/2026 a lista saiu de baixo da curva e passou a ocupar a largura toda:
  * com ela na coluna da direita, a esquerda terminava uma tela antes ("melhore a questão da assimetria").
- * 13/10/2026 (mídia kit da Zeve, "mais cor, principalmente nos valores positivos e negativos"): todo número
- * com sinal pinta (o resultado grande, os pontos, o bruto, o flutuante), e a posição aberta, que é o robô ao
- * vivo, ganha o acento azul, como o selo Posicionado do cabeçalho.
  */
 export function HojeAoVivo() {
   const { estado, robo, pregao, hoje } = useRobo();
@@ -80,11 +77,11 @@ export function HojeAoVivo() {
         <div className="space-y-5">
           {/* sem rótulo em cima do número (19/09/2026): o título do painel já diz "Hoje" */}
           <div>
-            <p className="text-4xl sm:text-5xl">
-              <Valor valor={liquido} destaque />
+            <p className="text-4xl font-semibold tracking-tight sm:text-5xl">
+              <Valor valor={liquido} />
             </p>
-            <p className="mt-2.5 flex flex-wrap gap-x-3 text-sm text-muted-foreground">
-              <Valor valor={pontos} unidade="pontos" className="font-medium" />
+            <p className="mt-1.5 flex flex-wrap gap-x-3 text-sm text-muted-foreground">
+              <Valor valor={pontos} unidade="pontos" colorir={false} className="text-foreground" />
               <span className="tabular-nums">
                 {formatarNumero(ops.length)} {ops.length === 1 ? "operação" : "operações"}
               </span>
@@ -95,7 +92,7 @@ export function HojeAoVivo() {
               ) : null}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Por contrato, líquido de custos (bruto <Valor valor={bruto} />).
+              Por contrato, líquido de custos (bruto <Valor valor={bruto} colorir={false} className="text-muted-foreground" />).
             </p>
             {/* a imagem do dia para a live, o WhatsApp e o Instagram (24/09/2026): só com operação, porque sem ela
                 não há imagem (a rota responde 404) */}
@@ -149,9 +146,7 @@ export function HojeAoVivo() {
           <div>
             {/* o número de cada posição é o flutuante: o i explica, e só aparece quando há posição (19/09/2026) */}
             <div className="mb-2 flex items-baseline justify-between gap-2">
-              <p className="flex items-center gap-2 text-sm font-medium">
-                {/* o ponto no acento: o robô está posicionado agora (o mesmo azul do selo do cabeçalho) */}
-                {estado.posicoes.length > 0 ? <span aria-hidden className="size-2 shrink-0 rounded-full bg-info" /> : null}
+              <p className="text-sm font-medium">
                 {estado.posicoes.length > 0 ? <RotuloComInfo chave="flutuante">Posição aberta</RotuloComInfo> : "Posição aberta"}
               </p>
               {/* "3 operações em aberto" (21/09/2026): cada entrada ainda aberta conta 1, e a lista abaixo agrupa
@@ -169,12 +164,12 @@ export function HojeAoVivo() {
                   return (
                     <li
                       key={`${p.simbolo}-${p.lado}`}
-                      className="flex items-center justify-between gap-3 rounded-xl border border-info/30 bg-info/5 px-3 py-2.5"
+                      className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5"
                     >
                       <div className="min-w-0">
                         <p className="flex items-center gap-2 text-sm">
                           {/* o lado fica neutro (19/09/2026): verde e vermelho só no resultado */}
-                          <SeloLado lado={p.lado} />
+                          <span className="font-medium">{rotuloLado(p.lado)}</span>
                           <span className="font-medium">{p.simbolo}</span>
                         </p>
                         <p className="mt-1 truncate text-xs text-muted-foreground tabular-nums">
@@ -187,8 +182,8 @@ export function HojeAoVivo() {
                           <Valor valor={p.lucro_flutuante_por_contrato} />
                           <span className="ml-1 text-xs font-normal text-muted-foreground">/ct</span>
                         </p>
-                        <p className="text-xs tabular-nums">
-                          <Valor valor={flutuantePontos} unidade="pontos" />
+                        <p className="text-xs text-muted-foreground tabular-nums">
+                          <Valor valor={flutuantePontos} unidade="pontos" colorir={false} className="text-muted-foreground" />
                         </p>
                       </div>
                     </li>
@@ -203,11 +198,8 @@ export function HojeAoVivo() {
         <div className="min-w-0">
           {/* vazio só sem operação E sem série (23/09/2026): com posição aberta e nenhuma saída a série já
               mostra o calor do dia */}
-          {/* o vazio no poço da curva (13/10/2026), com o fundo e o fio da moldura dela; a partir do lg, com a
-              altura dela também, para a primeira operação do dia trocar o texto pelo gráfico sem a coluna pular.
-              No celular, onde a curva vem embaixo do resto, a caixa fica baixa: o vazio não ocupa a tela */}
           {ops.length === 0 && !temSerie ? (
-            <p className="flex min-h-24 items-center justify-center rounded-lg border border-(--painel-fio) bg-background px-4 text-center text-sm text-muted-foreground lg:min-h-72">
+            <p className="py-6 text-center text-sm text-muted-foreground">
               {/* o mesmo texto da tela ao vivo: robô sem coletor não tem dia ao vivo (19/09/2026).
                   "ainda" só com o pregão aberto: no sábado não vem mais nenhuma */}
               {!robo.tem_coletor

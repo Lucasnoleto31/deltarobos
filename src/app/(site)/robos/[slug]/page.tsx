@@ -1,6 +1,6 @@
+import Link from "next/link";
 import { comMarcaAtual } from "@/components/compartilhados/marca";
 import { PONTOS_LEVE, seriePorOperacaoCompacta, type SerieCompacta } from "@/components/graficos/series-da-curva";
-import { CabecaSecao } from "@/components/robo/CabecaSecao";
 import { opcoesDaCurva, recorteDoPeriodo } from "@/components/robo/curva-por-periodo";
 import { Disclaimer } from "@/components/robo/Disclaimer";
 import { KpisRobo } from "@/components/robo/KpisRobo";
@@ -8,6 +8,7 @@ import { PainelResultado } from "@/components/robo/PainelResultado";
 import { PERIODOS_FECHADOS, type PeriodoFechado } from "@/components/robo/periodos-resumo";
 import { Transparencia } from "@/components/robo/Transparencia";
 import { UltimasOperacoes } from "@/components/robo/UltimasOperacoes";
+import { buttonVariants } from "@/components/ui/button";
 import { listarOperacoesCompactas } from "@/lib/consultas/operacoes";
 import {
   buscarRobo,
@@ -100,13 +101,18 @@ export default async function PaginaRobo({ params }: Props) {
             capitalReferencia={robo.capital_referencia}
           />
 
-          {/* os títulos de seção da visão geral num desenho só (13/10/2026, CabecaSecao): h2 e a ação no acento */}
           <section aria-labelledby="kpis" className="space-y-3">
-            <CabecaSecao
-              id="kpis"
-              titulo={primeiroDia ? `Desde ${formatarData(primeiroDia)}` : "Resumo"}
-              acao={{ href: `/robos/${slug}/desempenho`, rotulo: "Ver desempenho completo" }}
-            />
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h2 id="kpis" className="text-lg font-semibold tracking-tight">
+                {primeiroDia ? `Desde ${formatarData(primeiroDia)}` : "Resumo"}
+              </h2>
+              <Link
+                href={`/robos/${slug}/desempenho`}
+                className={buttonVariants({ size: "sm", variant: "outline" })}
+              >
+                Ver desempenho completo
+              </Link>
+            </div>
             <KpisRobo
               linhas={linhas}
               valorPonto={robo.valor_ponto_brl}
@@ -116,10 +122,20 @@ export default async function PaginaRobo({ params }: Props) {
           </section>
 
           {ultimasSoDeHoje ? null : (
-            <section aria-labelledby="ultimas" className="space-y-3">
-              <CabecaSecao id="ultimas" titulo="Últimas operações" acao={{ href: `/robos/${slug}/operacoes`, rotulo: "Lista completa" }} />
-              <UltimasOperacoes operacoes={ultimas} />
-            </section>
+          <section aria-labelledby="ultimas" className="space-y-3">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h2 id="ultimas" className="text-lg font-semibold tracking-tight">
+                Últimas operações
+              </h2>
+              <Link
+                href={`/robos/${slug}/operacoes`}
+                className={buttonVariants({ size: "sm", variant: "outline" })}
+              >
+                Lista completa
+              </Link>
+            </div>
+            <UltimasOperacoes operacoes={ultimas} />
+          </section>
           )}
         </>
       )}
