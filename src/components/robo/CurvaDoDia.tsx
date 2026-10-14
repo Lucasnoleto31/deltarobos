@@ -61,17 +61,6 @@ const eixoEmReais = (v: number) => formatarNumero(v, 2);
 const SEM_ROTULOS: Array<{ x: number; rotulo: string }> = [];
 
 /**
- * No máximo MAX_ROTULOS horários no eixo de baixo (13/10/2026). O pregão inteiro dá dez rótulos de hora em hora
- * (rotulosDeTempo); o desenho esconde um sim, um não abaixo do sm, e mesmo assim, na coluna de 375 px, o primeiro
- * (alinhado à esquerda) encostava no terceiro: "09:0011:00". Fica um a cada `passo`, sempre a partir do primeiro.
- */
-const MAX_ROTULOS = 6;
-function espacarRotulos<T>(rotulos: T[]): T[] {
-  const passo = Math.ceil(rotulos.length / MAX_ROTULOS);
-  return passo <= 1 ? rotulos : rotulos.filter((_, i) => i % passo === 0);
-}
-
-/**
  * O dia em curva, operação a operação, no lugar do tabelão (17/09/2026, pedido do Artur: "essa visão
  * geral com esse tabelão não está legal"). Num dia de 345 operações a tabela não deixava ver o dia;
  * a curva mostra de relance quando subiu, quando devolveu e onde está agora, e apontar um ponto abre a
@@ -127,7 +116,7 @@ export const CurvaDoDia = memo(function CurvaDoDia({
     const medidoDesdeT = inicioDaMedicao(liquida, fechamentos, janela.inicio, coletorAtrasado);
     return {
       pontos,
-      rotulosX: espacarRotulos(rotulosDeTempo(janela)),
+      rotulosX: rotulosDeTempo(janela),
       legenda: legendaCurtaDoSaldo({ bucketSeg, aproximado, medidoDesdeT }),
     };
   }, [saldo, operacoes, dia, horario, valorPonto, coletorAtrasado]);

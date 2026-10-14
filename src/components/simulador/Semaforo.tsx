@@ -17,9 +17,6 @@ const APARENCIA: Record<ResultadoSimulacao["semaforo"], { titulo: string; tom: T
   nao_cabe: { titulo: "Não cabe", tom: "negativo" },
 };
 
-/** a ordem das três luzes, da folga ao aperto */
-const LUZES: ReadonlyArray<ResultadoSimulacao["semaforo"]> = ["cabe", "apertado", "nao_cabe"];
-
 interface Props {
   resultado: ResultadoSimulacao;
   /** o capital inicial informado: a frase repete os números que decidiram */
@@ -34,9 +31,6 @@ interface Props {
  * LIMITE_APERTADO do capital inicial; "cabe" no resto. A regra mora em semaforoDe (lib/stats/simulador);
  * aqui só se escreve a frase que a explica, na mesma ordem das regras e sempre com os números que
  * decidiram, e o texto fixo de compliance logo abaixo.
- * 13/10/2026 (mídia kit da Zeve, "mais cor"): um semáforo de verdade, as três luzes em fila, a acesa na pílula
- * da cor dela (verde, laranja, vermelho) e as outras apagadas, em cinza e com o anel vazio. A fila é só visual;
- * o leitor de tela ouve o estado aceso, como antes.
  */
 export function Semaforo({ resultado, capital, robos }: Props) {
   const { semaforo, capitalMinimo, capitalMinimoConhecido, ddMax, ddMaxPct, robosSemCapitalMinimo } = resultado;
@@ -82,24 +76,12 @@ export function Semaforo({ resultado, capital, robos }: Props) {
         <RotuloComInfo chave="semaforoCapital">Semáforo do capital</RotuloComInfo>
       </h2>
       <div role="status" aria-live="polite">
-        <p className="sr-only">{aparencia.titulo}.</p>
-        <ol aria-hidden className="mt-2 flex flex-wrap items-center gap-1.5">
-          {LUZES.map((luz) => {
-            const acesa = luz === semaforo;
-            return (
-              <li
-                key={luz}
-                className={cn(
-                  "inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm",
-                  acesa ? cn("font-semibold", classesDoTom(APARENCIA[luz].tom)) : "border-transparent text-muted-foreground",
-                )}
-              >
-                <span className={cn("size-2 rounded-full", acesa ? "bg-current" : "border border-current")} />
-                {APARENCIA[luz].titulo}
-              </li>
-            );
-          })}
-        </ol>
+        <p className="mt-2">
+          <span className={cn("inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm font-semibold", classesDoTom(aparencia.tom))}>
+            <span aria-hidden className="size-2 rounded-full bg-current" />
+            {aparencia.titulo}
+          </span>
+        </p>
         <p className="mt-3 text-sm text-pretty">{frase}</p>
         {robosSemCapitalMinimo.length > 0 ? (
           <p className="mt-1 text-sm text-pretty text-muted-foreground">

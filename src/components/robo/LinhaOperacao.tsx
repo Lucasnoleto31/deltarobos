@@ -1,4 +1,3 @@
-import { cn } from "cn";
 import { Valor } from "@/components/compartilhados/Valor";
 import { formatarDataCurta, formatarDuracao, formatarHora, formatarMfeMae, formatarPreco, rotuloLado } from "@/lib/formato";
 import { excursaoDaOperacao } from "@/lib/stats/exposicao";
@@ -29,32 +28,12 @@ interface Props {
 }
 
 /**
- * O lado da operação num selo de contorno neutro (13/10/2026): "Compra" e "Venda" na cor do texto, com largura
- * fixa para a coluna alinhar de uma linha para a outra. Sem cor de propósito: verde e vermelho são do resultado
- * e o azul é do acento, e uma compra não é boa nem ruim. Até 12/10/2026 era texto solto, que se perdia ao lado da hora.
- */
-export function SeloLado({ lado, className }: { lado: Operacao["lado"]; className?: string }) {
-  return (
-    <span
-      className={cn(
-        "inline-flex h-5 min-w-[3.25rem] shrink-0 items-center justify-center rounded-md border border-(--painel-fio-forte) px-1.5 text-[11px] leading-none font-medium text-foreground",
-        className,
-      )}
-    >
-      {rotuloLado(lado)}
-    </span>
-  );
-}
-
-/**
  * Uma operação em duas linhas, para o celular (17/09/2026). A tabela de seis colunas não cabe em
  * 390 px: entrada e saída grudavam ("185.455185.600") e "pts" quebrava de linha. Em cima, a hora, o
  * lado e o resultado em R$, que é o que se procura; embaixo, em cinza, de onde saiu o número:
  * entrada, saída, duração e pontos. Fica dentro de um <ul className="painel">. O lado é neutro desde
- * 19/09/2026 (num selo de contorno desde 13/10/2026, SeloLado). Desde 22/09/2026, a operação medida pelo
- * EA 1.1.0 ganha uma terceira linha com o MFE e o MAE (só quando há medição: a não medida não fica mais alta).
- * 13/10/2026 (mídia kit da Zeve, "mais cor nos valores positivos e negativos"): os pontos também pintam pelo
- * sinal, como o R$ em cima.
+ * 19/09/2026: verde e vermelho ficam só no resultado. Desde 22/09/2026, a operação medida pelo EA 1.1.0
+ * ganha uma terceira linha com o MFE e o MAE (só quando há medição: a não medida não fica mais alta).
  */
 export function LinhaOperacao({ operacao: o, comData = false }: Props) {
   const liquido = o.resultado_brl_por_contrato - o.custos_brl_por_contrato;
@@ -63,12 +42,12 @@ export function LinhaOperacao({ operacao: o, comData = false }: Props) {
   return (
     <li className="sep [--sep:16px] flex items-center justify-between gap-3 px-4 py-2.5 tabular-nums">
       <div className="min-w-0">
-        <p className="flex items-center gap-2 text-sm">
+        <p className="flex items-baseline gap-2 text-sm">
           <span className="font-medium">
             {comData ? `${formatarDataCurta(o.dia_pregao)} · ` : ""}
             {formatarHora(o.fechamento_em)}
           </span>
-          <SeloLado lado={o.lado} />
+          <span>{rotuloLado(o.lado)}</span>
         </p>
         <p className="truncate text-xs text-muted-foreground">
           {temPrecos ? `${formatarPreco(o.preco_entrada)} → ${formatarPreco(o.preco_saida)}` : "histórico importado"}
@@ -85,8 +64,8 @@ export function LinhaOperacao({ operacao: o, comData = false }: Props) {
         <p className="text-sm font-semibold">
           <Valor valor={liquido} />
         </p>
-        <p className="text-xs">
-          <Valor valor={o.pontos_por_contrato} unidade="pontos" />
+        <p className="text-xs text-muted-foreground">
+          <Valor valor={o.pontos_por_contrato} unidade="pontos" colorir={false} />
         </p>
       </div>
     </li>

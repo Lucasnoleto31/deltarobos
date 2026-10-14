@@ -3,12 +3,10 @@ import { Faq } from "@/components/compartilhados/Faq";
 import { RevelarNaRolagem } from "@/components/compartilhados/RevelarNaRolagem";
 import { buttonVariants } from "@/components/ui/button";
 import { formatarNumero } from "@/lib/formato";
-import { CLASSE_TITULO_SECAO } from "./CabecaSecao";
 
 /**
  * Item 14 da home: transparência e FAQ. As perguntas são as mesmas da página do robô e da metodologia.
  * O aviso legal fica só no rodapé, logo abaixo (aparecia duas vezes na mesma tela até 18/09/2026).
- * 13/10/2026: o total de operações é o número da seção, em destaque na cor do texto (não tem sinal).
  */
 export function TransparenciaFaq({ totalOperacoes }: { totalOperacoes: number }) {
   return (
@@ -18,10 +16,10 @@ export function TransparenciaFaq({ totalOperacoes }: { totalOperacoes: number })
         {/* as duas colunas entram separadas, a do FAQ um pouco depois: no computador elas ficam lado a
             lado e a diferença lê como uma coisa só chegando da esquerda (19/09/2026) */}
         <RevelarNaRolagem className="space-y-3">
-          <h2 className={CLASSE_TITULO_SECAO}>Transparência</h2>
+          <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">Transparência</h2>
           <p className="text-muted-foreground">
-            <span className="font-semibold text-foreground tabular-nums">{formatarNumero(totalOperacoes)}</span> operações
-            listadas uma a uma, com entrada, saída, horário e custo. Todo número do site sai delas.
+            {formatarNumero(totalOperacoes)} operações listadas uma a uma, com entrada, saída, horário e custo. Todo número
+            do site sai delas.
           </p>
           <Link href="/metodologia" className={buttonVariants({ variant: "outline" })}>
             Ler a metodologia

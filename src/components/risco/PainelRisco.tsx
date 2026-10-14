@@ -1,6 +1,5 @@
 "use client";
 
-import { cn } from "cn";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { ChaveIndicador } from "@/components/compartilhados/glossario";
@@ -8,7 +7,6 @@ import { RotuloComInfo } from "@/components/compartilhados/InfoIndicador";
 import { Segmentado } from "@/components/compartilhados/Segmentado";
 import { Valor } from "@/components/compartilhados/Valor";
 import { ListaKpi, type ItemKpi } from "@/components/desempenho/CardsKpi";
-import { SELO_TINTA } from "@/components/desempenho/tinta";
 import { mistura } from "@/components/graficos/base";
 import { linkSimulador } from "@/components/simulador/simulador-url";
 import { formatarBRL, formatarData, formatarMultiplo, formatarNumero, formatarPct } from "@/lib/formato";
@@ -51,19 +49,13 @@ const OPCOES_PERIODO: ReadonlyArray<{ valor: PeriodoPainel; rotulo: string }> = 
   { valor: "tudo", rotulo: "Tudo" },
 ];
 
-/**
- * Uma das três colunas do bloco de capital: rótulo (com o "o que é"), número e a linha que liga ele aos outros dois.
- * 13/10/2026 (mídia kit da Zeve): `destaque` faz do número o protagonista do bloco (o capital mínimo, que é a
- * resposta que a aba dá) e `className` pinta o número (o drawdown, sempre no vermelho).
- */
+/** Uma das três colunas do bloco de capital: rótulo (com o "o que é"), número e a linha que liga ele aos outros dois. */
 function CelulaCapital({
   rotulo,
   info,
   children,
   detalhe,
   acao,
-  destaque = false,
-  className,
 }: {
   rotulo: string;
   info: ChaveIndicador;
@@ -71,25 +63,15 @@ function CelulaCapital({
   detalhe: React.ReactNode;
   /** um link de ação embaixo do apoio ("Simular com meu capital" no capital mínimo, 23/09/2026) */
   acao?: React.ReactNode;
-  destaque?: boolean;
-  className?: string;
 }) {
   return (
-    <div className="flex flex-col border-(--painel-fio) p-4 not-first:border-t sm:p-5 sm:not-first:border-t-0 sm:not-first:border-l">
+    <div className="border-(--painel-fio) p-4 not-first:border-t sm:p-5 sm:not-first:border-t-0 sm:not-first:border-l">
       <p className="rotulo-metrica">
         <RotuloComInfo chave={info}>{rotulo}</RotuloComInfo>
       </p>
-      <p
-        className={cn(
-          "mt-2 leading-none font-semibold tracking-tight tabular-nums",
-          destaque ? "text-[1.75rem] sm:text-3xl" : "text-xl sm:text-2xl",
-          className,
-        )}
-      >
-        {children}
-      </p>
+      <p className="mt-2 text-xl leading-none font-semibold tracking-tight tabular-nums sm:text-2xl">{children}</p>
       <p className="mt-1.5 text-xs text-muted-foreground tabular-nums">{detalhe}</p>
-      {acao ? <p className="mt-auto pt-2.5 text-xs">{acao}</p> : null}
+      {acao ? <p className="mt-2 text-xs text-muted-foreground">{acao}</p> : null}
     </div>
   );
 }
@@ -126,7 +108,7 @@ export function PainelRisco({ slug, linhas, perdaMedia, hoje, valorPonto, capita
   const capitalMinimo = margem !== null ? capitalMinimoRecomendado(margem, ddTudo, fatorSeguranca) : null;
 
   if (linhas.length === 0) {
-    return <p className="painel px-4 py-10 text-center text-sm text-muted-foreground">Sem operações fechadas ainda.</p>;
+    return <p className="painel p-8 text-center text-sm text-muted-foreground">Sem operações fechadas ainda.</p>;
   }
 
   const ddTudoBrl = formatarBRL(ddTudo, { inteiro: ddTudo >= 1000 });
@@ -144,8 +126,6 @@ export function PainelRisco({ slug, linhas, perdaMedia, hoje, valorPonto, capita
       rotulo: "Tempo de recuperação",
       info: "tempoRecuperacao",
       valor: dd === 0 ? "–" : kpis.drawdown.diasAteRecuperar !== null ? `${formatarNumero(kpis.drawdown.diasAteRecuperar)} dias` : "em recuperação",
-      // ainda abaixo do pico: no laranja de aviso, como o "Aberto" da tabela de drawdowns (13/10/2026)
-      tom: dd > 0 && kpis.drawdown.diasAteRecuperar === null ? "alerta" : "neutro",
       detalhe:
         kpis.drawdown.inicio && kpis.drawdown.recuperacao
           ? `maior drawdown, de ${formatarData(kpis.drawdown.inicio)} a ${formatarData(kpis.drawdown.recuperacao)}`
@@ -187,7 +167,7 @@ export function PainelRisco({ slug, linhas, perdaMedia, hoje, valorPonto, capita
       <header className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
           Líquido de custos, 1 contrato ·{" "}
-          <Link href="/metodologia#drawdown" className="font-medium text-info underline-offset-4 hover:underline">
+          <Link href="/metodologia#drawdown" className="underline underline-offset-4 hover:text-foreground">
             metodologia
           </Link>
         </p>
@@ -197,24 +177,11 @@ export function PainelRisco({ slug, linhas, perdaMedia, hoje, valorPonto, capita
       <div className="space-y-3">
         {/* Um bloco só para os três (19/09/2026): o % do drawdown é sobre o capital de referência, e o
             capital mínimo é a margem mais o drawdown × fator. Lado a lado, a conta fica à vista. */}
-        {/* 13/10/2026 (mídia kit da Zeve): o drawdown no vermelho (é sempre perda; sem drawdown, o zero fica
-            no cinza), o capital de referência na cor do texto e o capital mínimo como o número protagonista,
-            maior, com o "Simular com meu capital" no azul dos links. */}
         <section aria-label="Drawdown e capital" className="painel grid sm:grid-cols-3">
           <CelulaCapital
             rotulo="Drawdown máximo"
             info={temCapital ? "drawdownPct" : "drawdown"}
-            className={temCapital ? (dd > 0 ? "text-negativo" : "text-muted-foreground") : undefined}
-            detalhe={
-              temCapital ? (
-                <>
-                  <span className={dd > 0 ? "font-medium text-negativo" : undefined}>{formatarBRL(-dd, { inteiro: dd >= 1000, sinal: true })}</span> sobre o
-                  capital de referência
-                </>
-              ) : (
-                "sem capital de referência"
-              )
-            }
+            detalhe={temCapital ? `${formatarBRL(-dd, { inteiro: dd >= 1000, sinal: true })} sobre o capital de referência` : "sem capital de referência"}
           >
             {temCapital ? formatarPct(kpis.drawdownMaximoPct, 1) : <Valor valor={-dd} inteiro={dd >= 1000} />}
           </CelulaCapital>
@@ -224,14 +191,13 @@ export function PainelRisco({ slug, linhas, perdaMedia, hoje, valorPonto, capita
           <CelulaCapital
             rotulo="Capital mínimo · 1 contrato"
             info="capitalMinimo"
-            destaque
             detalhe={
               capitalMinimo !== null
                 ? `margem ${formatarBRL(margem ?? 0, { inteiro: true })} + drawdown ${ddTudoBrl} de todo o histórico × ${fator}`
                 : "margem de referência não configurada"
             }
             acao={
-              <Link href={linkSimulador(slug)} className="font-medium text-info underline-offset-4 hover:underline">
+              <Link href={linkSimulador(slug)} className="underline underline-offset-4 hover:text-foreground">
                 Simular com meu capital
               </Link>
             }
@@ -270,7 +236,7 @@ export function PainelRisco({ slug, linhas, perdaMedia, hoje, valorPonto, capita
         ) : (
           <table className="w-full text-sm">
             <thead className="text-left text-xs text-muted-foreground">
-              <tr className="whitespace-nowrap [&>th]:px-3 [&>th]:py-2 [&>th]:font-medium [&>th:first-child]:pl-4 [&>th:last-child]:pr-4">
+              <tr className="[&>th]:px-3 [&>th]:py-2 [&>th]:font-medium">
                 <th>Início</th>
                 <th className="text-right">R$</th>
                 {temCapital ? <th className="text-right">%</th> : null}
@@ -282,23 +248,15 @@ export function PainelRisco({ slug, linhas, perdaMedia, hoje, valorPonto, capita
             </thead>
             <tbody className="[&>tr]:border-t">
               {episodios.slice(0, 10).map((e) => (
-                <tr key={`${e.inicio}-${e.fundo}`} className="whitespace-nowrap tabular-nums [&>td]:px-3 [&>td]:py-2 [&>td:first-child]:pl-4 [&>td:last-child]:pr-4">
+                <tr key={`${e.inicio}-${e.fundo}`} className="tabular-nums [&>td]:px-3 [&>td]:py-2">
                   <td>{formatarData(e.inicio)}</td>
-                  <td className="text-right font-medium text-negativo">{formatarBRL(e.valor, { inteiro: e.valor >= 1000 })}</td>
-                  {temCapital ? <td className="text-right font-medium text-negativo">{formatarPct(e.valor / (capitalReferencia as number), 1)}</td> : null}
+                  <td className="text-right text-negativo">{formatarBRL(e.valor, { inteiro: e.valor >= 1000 })}</td>
+                  {temCapital ? <td className="text-right text-negativo">{formatarPct(e.valor / (capitalReferencia as number), 1)}</td> : null}
                   <td className="text-right">{e.diasAteRecuperar !== null ? formatarNumero(e.diasAteRecuperar) : `${formatarNumero(e.diasAteFundo)}+`}</td>
-                  {/* recuperado não é resultado: sem verde (19/09/2026). 13/10/2026: o aberto vira um selo no
-                      laranja de aviso (fundo a 12%, texto da tinta: 7,8:1 no claro), para achar de relance o
-                      drawdown que ainda não fechou */}
-                  <td className="text-right">
-                    {e.recuperacao ? (
-                      <span className="text-muted-foreground">Recuperado</span>
-                    ) : (
-                      <span className={cn("inline-block rounded-md px-1.5 py-0.5 text-xs font-medium", SELO_TINTA.alerta)}>Aberto</span>
-                    )}
-                  </td>
+                  {/* recuperado não é resultado: sem verde (19/09/2026) */}
+                  <td className="text-right">{e.recuperacao ? <span className="text-muted-foreground">Recuperado</span> : <span className="text-alerta">Aberto</span>}</td>
                   <td>{formatarData(e.fundo)}</td>
-                  <td>{e.recuperacao ? formatarData(e.recuperacao) : <span className="text-muted-foreground">–</span>}</td>
+                  <td>{e.recuperacao ? formatarData(e.recuperacao) : <span className="text-alerta">—</span>}</td>
                 </tr>
               ))}
             </tbody>
@@ -355,7 +313,7 @@ export function PainelRisco({ slug, linhas, perdaMedia, hoje, valorPonto, capita
                     <Valor valor={p.valor} inteiro={Math.abs(p.valor) >= 1000} className="font-semibold" />
                   </div>
                   <div className="mt-1 h-1 rounded-full bg-muted">
-                    <div className={cn("h-1 rounded-full", p.valor > 0 ? "bg-positivo" : p.valor < 0 ? "bg-negativo" : "bg-muted-foreground")} style={{ width: `${Math.max(3, Math.round((Math.abs(p.valor) / maior) * 100))}%` }} />
+                    <div className="h-1 rounded-full bg-negativo" style={{ width: `${Math.max(3, Math.round((Math.abs(p.valor) / maior) * 100))}%` }} />
                   </div>
                 </li>
               );
@@ -371,12 +329,9 @@ export function PainelRisco({ slug, linhas, perdaMedia, hoje, valorPonto, capita
               <dt className="text-muted-foreground">
                 <RotuloComInfo chave="diasNegativos">Dias negativos</RotuloComInfo>
               </dt>
-              {/* 13/10/2026: a contagem do que foi negativo no vermelho, como o "positivos × negativos" do
-                  Desempenho; o total de pregões e o resto ficam na cor do texto */}
               <dd className="tabular-nums">
                 <strong>
-                  <span className={diario.diasNegativos > 0 ? "text-negativo" : undefined}>{formatarNumero(diario.diasNegativos)}</span> de{" "}
-                  {formatarNumero(diario.nDias)}
+                  {formatarNumero(diario.diasNegativos)} de {formatarNumero(diario.nDias)}
                 </strong>{" "}
                 <span className="text-xs text-muted-foreground">{formatarPct(diario.fracaoNegativa, 0)}</span>
               </dd>
@@ -386,8 +341,7 @@ export function PainelRisco({ slug, linhas, perdaMedia, hoje, valorPonto, capita
                 <RotuloComInfo chave="sequenciaDiasNegativos">Sequência negativa máxima</RotuloComInfo>
               </dt>
               <dd className="tabular-nums">
-                <strong className={diario.maiorSequenciaNegativa > 0 ? "text-negativo" : undefined}>{formatarNumero(diario.maiorSequenciaNegativa)} dias</strong>{" "}
-                <span className="text-xs text-muted-foreground">consecutivos</span>
+                <strong>{formatarNumero(diario.maiorSequenciaNegativa)} dias</strong> <span className="text-xs text-muted-foreground">consecutivos</span>
               </dd>
             </div>
             <div className="flex items-center justify-between py-2">

@@ -2,7 +2,7 @@
 
 import { useCallback, useId, useMemo } from "react";
 import { escalaEmReais } from "@/components/graficos/CurvaCapital";
-import { AmostraDaLinha, CURVA_POR_DIA, DesenhoDaCurva, MolduraProfit, PROFIT, type CoresDaCurva } from "@/components/graficos/CurvaProfit";
+import { AmostraDaLinha, CURVA_POR_DIA, DesenhoDaCurva, MolduraProfit, PROFIT } from "@/components/graficos/CurvaProfit";
 import { formatarBRL } from "@/lib/formato";
 import type { PontoSimulado } from "@/lib/stats/simulador";
 import { pontosDaSimulacao } from "./serie-simulada";
@@ -13,11 +13,6 @@ interface Props {
   /** o capital inicial informado: o zero do desenho e a base do % do drawdown */
   capital: number;
   altura?: number;
-  /**
-   * A cor da linha (13/10/2026): a do robô (corDoRobo) quando a simulação tem um robô só; sem ela, o azul do
-   * acento, como a curva de capital. A área continua verde acima do zero e vermelha abaixo.
-   */
-  cor?: string;
 }
 
 /**
@@ -27,15 +22,13 @@ interface Props {
  * O zero do desenho é o capital inicial; o eixo da direita rotula capital + valor, então lê-se patrimônio.
  * O eixo do drawdown fica em R$ (a prop formatarEixoDrawdown existe para isso), porque somar o capital
  * a uma queda não faria sentido. Sem zoom por arrasto e sem marcadores: é uma leitura, não uma análise.
- * Desde 13/10/2026 a linha é de uma cor só (`cor`), como na curva de capital; até ali, verde e vermelha.
  */
-export function CurvaSimulada({ serie, capital, altura = 320, cor }: Props) {
+export function CurvaSimulada({ serie, capital, altura = 320 }: Props) {
   const id = `simulador-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   const { pontos, rotulosX } = useMemo(() => pontosDaSimulacao(serie, capital), [serie, capital]);
   // referências estáveis: o desenho guarda o traçado enquanto os props não mudam
   const formatarEixo = useCallback((v: number) => escalaEmReais(capital + v), [capital]);
   const formatarEixoDrawdown = useCallback((v: number) => escalaEmReais(v), []);
-  const cores = useMemo((): CoresDaCurva => ({ ...CURVA_POR_DIA, linhaCor: cor ?? PROFIT.acento }), [cor]);
 
   if (serie.length === 0) {
     return (
@@ -51,7 +44,7 @@ export function CurvaSimulada({ serie, capital, altura = 320, cor }: Props) {
       legenda={
         <>
           <span className="inline-flex items-center gap-1.5">
-            <AmostraDaLinha cores={cores} />
+            <AmostraDaLinha cores={CURVA_POR_DIA} />
             Por dia · zero = capital inicial de {formatarBRL(capital, { inteiro: true })}
           </span>
           <span className="inline-flex items-center gap-1.5">
@@ -64,7 +57,7 @@ export function CurvaSimulada({ serie, capital, altura = 320, cor }: Props) {
       <DesenhoDaCurva
         id={id}
         pontos={pontos}
-        cores={cores}
+        cores={CURVA_POR_DIA}
         altura={Math.round(altura * 0.66)}
         alturaDoDrawdown={Math.max(56, Math.round(altura * 0.26))}
         rotulosX={rotulosX}

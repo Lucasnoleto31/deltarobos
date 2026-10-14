@@ -44,8 +44,6 @@ const ALTURA_DOS_ROTULOS = 22;
  * quem chama não mudou. Desde 19/09/2026 a leitura da barra apontada fica numa linha fixa acima do
  * gráfico, como nas curvas: o cartão flutuante cobria as barras vizinhas e, nos gráficos estreitos,
  * a própria barra apontada. Sem o ponteiro, a linha lê a última barra.
- * Cores só por token (13/10/2026, mídia kit da Zeve): resultado positivo no verde, negativo no vermelho, e a
- * faixa do histograma sem sinal (o zero) no cinza do texto apagado, como o zero em todo o site.
  */
 export function GraficoBarras({ dados, unidade, altura = 220, contagem = false, rotuloN = "Operações", aoEscolher }: Props) {
   const [ativo, setAtivo] = useState<number | null>(null);
@@ -142,7 +140,7 @@ export function GraficoBarras({ dados, unidade, altura = 220, contagem = false, 
                 ? "--positivo"
                 : d.tom === "negativo"
                   ? "--negativo"
-                  : "--muted-foreground"
+                  : "--foreground"
               : positivo
                 ? "--positivo"
                 : "--negativo";
