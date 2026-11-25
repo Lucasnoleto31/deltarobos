@@ -1,9 +1,11 @@
 import { cache } from "react";
-import { picoDeEntradasDoRobo } from "@/lib/consultas/entradas";
+import { carregarCasa } from "@/lib/consultas/casa";
+import { picoDeEntradasDoRobo, type PicoDoRobo } from "@/lib/consultas/entradas";
 import { buscarRobo, carregarParametros, listarEstatisticas, listarMercado } from "@/lib/consultas/publico";
 import { capitalMinimoRecomendado } from "@/lib/stats/kpis";
 import { hojeSP } from "@/lib/stats/periodos";
 import { curvaAcumulada, drawdownMaximo } from "@/lib/stats/serie";
+import type { EstatisticaPublica, MercadoPublico, RoboPublico } from "@/lib/tipos";
 
 export interface CapitalDoRobo {
   /** capital mínimo publicado, inteiro em R$; nulo quando o ativo não tem margem cadastrada */
@@ -18,6 +20,32 @@ export interface CapitalDoRobo {
   maiorQueda: number;
   /** o fator de segurança aplicado à maior queda (parâmetro do site) */
   fator: number;
+}
+
+/** A conta, com tudo já lido: a mesma para um robô só e para a lista inteira. */
+function montarCapital(
+  robo: Pick<RoboPublico, "ativo" | "valor_ponto_brl">,
+  linhas: readonly EstatisticaPublica[],
+  mercado: readonly MercadoPublico[],
+  fator: number,
+  pico: PicoDoRobo,
+  hoje: string,
+): CapitalDoRobo {
+  const curva = curvaAcumulada(
+    linhas.filter((l) => l.dia <= hoje),
+    { base: "liquido", unidade: "brl", valorPonto: robo.valor_ponto_brl },
+  );
+  const maiorQueda = drawdownMaximo(curva).valor;
+  const margem = mercado.find((m) => m.prefixo_simbolo === robo.ativo)?.margem_referencia ?? null;
+  const entradas = Math.max(1, pico.maximo);
+  return {
+    capitalMinimo: margem === null ? null : Math.round(capitalMinimoRecomendado(margem, maiorQueda, fator, entradas)),
+    margem,
+    entradas,
+    entradasEm: pico.maximo > 0 ? pico.quando : null,
+    maiorQueda,
+    fator,
+  };
 }
 
 /**
@@ -35,22 +63,28 @@ export const capitalDoRobo = cache(async (slug: string): Promise<CapitalDoRobo |
     picoDeEntradasDoRobo(slug),
   ]);
   if (!robo) return null;
+  return montarCapital(robo, linhas, mercado, parametros.fatorSeguranca, pico, hojeSP());
+});
 
-  const hoje = hojeSP();
-  const curva = curvaAcumulada(
-    linhas.filter((l) => l.dia <= hoje),
-    { base: "liquido", unidade: "brl", valorPonto: robo.valor_ponto_brl },
+/**
+ * O capital de cada robô que aparece no site, pelo slug: para a lista da página inicial e para o simulador.
+ * Reaproveita o que a casca do site já leu (carregarCasa) e só busca, a mais, as entradas abertas de cada robô.
+ */
+export const capitaisDaCasa = cache(async (): Promise<Record<string, CapitalDoRobo>> => {
+  const casa = await carregarCasa();
+  const visiveis = casa.robos.filter((r) => r.status !== "arquivado");
+  const picos = await Promise.all(visiveis.map((r) => picoDeEntradasDoRobo(r.slug)));
+  return Object.fromEntries(
+    visiveis.map((r, i) => [
+      r.slug,
+      montarCapital(
+        r,
+        casa.estatisticas.filter((e) => e.slug === r.slug),
+        casa.mercado,
+        casa.parametros.fatorSeguranca,
+        picos[i],
+        casa.hoje,
+      ),
+    ]),
   );
-  const maiorQueda = drawdownMaximo(curva).valor;
-  const margem = mercado.find((m) => m.prefixo_simbolo === robo.ativo)?.margem_referencia ?? null;
-  const entradas = Math.max(1, pico.maximo);
-
-  return {
-    capitalMinimo: margem === null ? null : Math.round(capitalMinimoRecomendado(margem, maiorQueda, parametros.fatorSeguranca, entradas)),
-    margem,
-    entradas,
-    entradasEm: pico.maximo > 0 ? pico.quando : null,
-    maiorQueda,
-    fator: parametros.fatorSeguranca,
-  };
 });
