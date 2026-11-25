@@ -24,6 +24,7 @@ describe("premissa dos custos", () => {
     expect(custosDaSoma([b, c])).toBe("antes dos custos");
     expect(custosDaSoma([a, b])).toBe("já descontados os custos, menos no B, que não tem custo no histórico");
     expect(custosDaSoma([a, b, c])).toBe("já descontados os custos, menos no B e C, que não têm custo no histórico");
-    expect(custosDaSoma([])).toBe("antes dos custos");
+    // soma vazia: nada a ressalvar
+    expect(custosDaSoma([])).toBe("já descontados os custos");
   });
 });
