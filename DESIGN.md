@@ -211,7 +211,85 @@ Em 375 px tudo vira uma coluna, tabela rola dentro do próprio bloco e nada esto
 - Verde ou vermelho como enfeite; verde em curva; mais de um botão principal por tela.
 - Coluna estreita centralizada com as laterais vazias.
 
-## 9. Antes de entregar uma tela
+## 9. O que cada tela mostra
+
+Revisão de 25/11/2026, a pedido do Lucas ("quais páginas e abas são necessárias? informações que não são
+importantes vamos tirar, coloque indicadores que fazem sentido para o trader quando o assunto é robô"). Quatro
+leituras independentes do sistema (trader iniciante, trader experiente em estratégias automatizadas, gestor
+de risco, produto) chegaram quase ao mesmo desenho. O que o Lucas decidiu diferente delas está marcado.
+
+### Páginas e abas
+
+Site (barra lateral; no celular, barra de baixo): **Visão geral**, **Simular meu capital**, **Como funciona**.
+"Comparar robôs" deixou de ser página: a comparação é a própria lista da Visão geral.
+
+Página do robô, seis abas: **Resumo**, **Ao vivo** (só em robô com coletor), **Dia a dia**, **Quedas e risco**,
+**Melhores horários**, **Operações**. Saíram como abas: Desempenho (o que servia foi para o Resumo) e Relatórios
+(os arquivos de cada mês estão em Dia a dia e no pé de Operações). A Tela ao vivo em tela cheia continua
+existindo e abre pela aba Ao vivo.
+
+Decisões do Lucas que contrariam os analistas e por isso ficam: a aba Melhores horários continua; o histórico
+continua descrito como hoje (sem separar "importado" de "ao vivo"); o Alaska & Square continua na lista e na
+soma.
+
+### A pergunta de cada tela
+
+| Tela | Pergunta | Número principal |
+|---|---|---|
+| Visão geral | Os robôs dão resultado, e qual deles? | Resultado somado no período |
+| Robô › Resumo | Este robô vale a pena? Quanto ganhou e quanto caiu no caminho? | Resultado desde o início |
+| Robô › Ao vivo | O que ele está fazendo agora? | Resultado de hoje |
+| Robô › Dia a dia | Como foi cada dia e cada mês? | Resultado do mês em vista |
+| Robô › Quedas e risco | Quanto posso perder e quanto capital preciso? | Maior queda |
+| Robô › Melhores horários | Em que dia e horário ele vai melhor? | Melhor dia e horário |
+| Robô › Operações | O que ele fez, operação por operação? | (a tabela é a tela) |
+| Simular meu capital | Com o meu capital, quanto eu teria ganho e caído? | Resultado simulado |
+| Como funciona | De onde vêm os números e como eu começo? | (texto) |
+
+### Os indicadores
+
+Ficam, porque respondem ao que o trader precisa para decidir:
+
+| Indicador (como aparece) | Onde | O que diz |
+|---|---|---|
+| Resultado no período | Visão geral, Resumo, Simulador | Ganhou? Com a premissa escrita junto ("com 1 contrato por entrada, já descontados os custos") e o tamanho do histórico ("em 9 meses, 172 pregões") |
+| Maior queda, e se já recuperou | Ao lado de todo resultado; por dentro em Quedas e risco | Quanto já caiu do ponto mais alto ao mais baixo; "ainda não recuperou" ou "recuperou em N dias" |
+| Ganho para cada R$ 1 da maior queda | Lista da Visão geral, Resumo, Quedas e risco | Resultado dividido pela maior queda: "ganhou R$ 1,10 para cada R$ 1 que já chegou a cair". É o que ordena a lista de robôs |
+| Capital mínimo | Lista da Visão geral, Resumo, Quedas e risco, Simulador | Margem por contrato × o máximo de entradas que o robô já teve abertas + maior queda × fator. A conta aparece por extenso em Quedas e risco |
+| Entradas abertas ao mesmo tempo | Resumo ("Como ele opera"), Quedas e risco | "Já teve até 36 entradas abertas ao mesmo tempo": "1 contrato" é por entrada |
+| Abaixo do topo hoje | Resumo, Quedas e risco | Quanto falta para voltar ao ponto mais alto |
+| Meses com ganho e pior mês | Resumo, junto das barras por mês | Consistência: "8 de 10 meses; o pior foi julho, −R$ 18.897" |
+| Dias com ganho; pior dia | Resumo, Dia a dia, Quedas e risco | "122 de 172"; o pior dia com a data |
+| Um dia ruim típico | Quedas e risco | "Em 1 de cada 20 pregões perdeu R$ X ou mais" |
+| Maior sequência de dias com perda | Quedas e risco | Quanto tempo seguido de perda já houve |
+| Acertos, com o necessário para empatar | Resumo ("Como ele opera"), nunca sozinho | "Acerta 83 de cada 100; precisa de 81 só para empatar" |
+| Ganho típico, perda típica e maior perda numa operação | Resumo ("Como ele opera") | Em R$: o tamanho de um ganho e de uma perda |
+| Resultado médio por operação | Resumo ("Como ele opera"), Quedas e risco | "R$ 2,36 por operação; o custo considerado é R$ 0,25": mostra a folga contra custo e execução |
+| Fator de lucro | Resumo ("Como ele opera"), em frase | "Ganhou R$ 1,13 para cada R$ 1 perdido" |
+| Operações por dia e duração típica; pregões em que operou | Resumo ("Como ele opera") | Como é o ritmo do robô: "98 por dia, 4 min cada; operou em 172 de 194 pregões" |
+| Resultado por mês | Resumo (barras), Dia a dia (mapa, com PDF e planilha do mês) | Mês a mês |
+| Tempo caindo, tempo até recuperar, dias abaixo do topo, outras quedas | Quedas e risco | A queda por dentro |
+| Melhor e pior momento do dia | Ao vivo, dia escolhido em Dia a dia | Até onde o dia foi, com a operação aberta |
+| Resultado de hoje, operação aberta | Ao vivo; frase no cabeçalho e na barra lateral | O que o robô faz agora |
+| Cabe, apertado ou não cabe | Simulador | A resposta para o capital digitado |
+| Os robôs andam juntos? | Simulador, quando dois robôs escolhidos ganham e perdem nos mesmos dias | "Ganharam ou perderam juntos em 114 de 131 pregões": juntar os dois soma o risco |
+
+Saíram, porque parecem promessa, repetem outro número ou não dizem nada a quem vai operar: Calmar, índice de
+úlcera, risco de ruína, variação de um dia para o outro, tempo médio para recuperar, média por mês, retorno
+sobre o capital, capital de referência e a queda em % dele, ganho médio contra perda média como razão (0,23),
+melhor dia como indicador (fica só na lista de Dia a dia), sequências de operações, os filtros de pontos,
+"antes dos custos" e contratos, resultado por dia da semana fora da aba de horários, "melhor momento" como
+coluna de Operações, e "contratos por operação", "versão" e "última operação" no cabeçalho do robô.
+
+Regras:
+
+- Número de ganho nunca aparece sem a maior queda ao lado. Acertos nunca aparecem sem o necessário para empatar.
+- Percentual de retorno e média por mês ou por dia não entram em tela nenhuma.
+- Todo indicador diz o tamanho do histórico de onde saiu quando ele for curto (menos de 12 meses).
+- O que depende de dado que o sistema não tem (preço da licença, resultado de clientes, motivo de o robô não
+  ter operado num dia) não é inventado.
+
+## 10. Antes de entregar uma tela
 
 - [ ] Em três segundos dá para dizer qual é o número principal e o que ele significa.
 - [ ] Nada na tela repete outra coisa da tela, e nada sobraria se saísse.

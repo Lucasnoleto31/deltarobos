@@ -27,6 +27,17 @@ export type ChaveIndicador =
   | "mediaMensal"
   | "retorno"
   | "melhorRobo"
+  // os indicadores da revisão de 25/11/2026 (DESIGN.md, seção 9)
+  | "ganhoPorQueda"
+  | "mesesComGanho"
+  | "piorMes"
+  | "quedaAtual"
+  | "diaRuimTipico"
+  | "acertoParaEmpatar"
+  | "resultadoPorOperacao"
+  | "entradasAbertas"
+  | "pregoesOperados"
+  | "andamJuntos"
   // operações
   | "operacoes"
   | "operacoesDia"
@@ -291,7 +302,7 @@ export const GLOSSARIO: Record<ChaveIndicador, EntradaGlossario> = {
   },
   capitalMinimo: {
     nome: "Capital mínimo",
-    texto: "Quanto ter na conta para operar 1 contrato com alguma folga: a garantia que a corretora exige (a margem) mais a maior queda que o robô já teve, aumentada por um fator de segurança. Quedas futuras podem ser maiores.",
+    texto: "Quanto ter na conta para usar o robô com 1 contrato por entrada: a garantia da corretora por contrato (a margem), vezes o máximo de entradas que ele já teve abertas ao mesmo tempo, mais a maior queda com folga de segurança. Quedas futuras podem ser maiores.",
   },
   // 23/09/2026: a página /simulador (lib/stats/simulador). Compliance: aritmética sobre o histórico, nunca
   // recomendação nem projeção; a maior queda em % é sobre o capital inicial informado; o capital mínimo é só
@@ -532,5 +543,46 @@ export const GLOSSARIO: Record<ChaveIndicador, EntradaGlossario> = {
   melhoresFaixas: {
     nome: "Melhores dias e horários",
     texto: "Os dias e horários classificados como Ligar com a maior nota. Se nenhum for Ligar, aparecem os de maior nota entre todos.",
+  },
+  // ── revisão de 25/11/2026: os indicadores que entraram no lugar dos que saíram (DESIGN.md, seção 9) ──
+  ganhoPorQueda: {
+    nome: "Ganho para cada R$ 1 da maior queda",
+    texto: "O resultado do período dividido pela maior queda do mesmo período. Com 1,10, o robô ganhou R$ 1,10 para cada R$ 1 que já chegou a cair. Quanto maior, menos o resultado dependeu de aguentar uma queda grande.",
+  },
+  mesesComGanho: {
+    nome: "Meses com ganho",
+    texto: "Em quantos meses do período o robô terminou com ganho. O mês em andamento entra na conta com o que tem até hoje.",
+  },
+  piorMes: {
+    nome: "Pior mês",
+    texto: "O mês do período em que o robô mais perdeu, com 1 contrato por entrada e já com custos.",
+  },
+  quedaAtual: {
+    nome: "Abaixo do topo hoje",
+    texto: "Quanto o resultado está, hoje, abaixo do ponto mais alto que já alcançou. Zero quer dizer que o robô está no topo.",
+  },
+  diaRuimTipico: {
+    nome: "Um dia ruim típico",
+    texto: "A perda que só 1 em cada 20 pregões superou. O pior dia é um caso só; este número diz o tamanho de um dia ruim que acontece de tempos em tempos.",
+  },
+  acertoParaEmpatar: {
+    nome: "Acertos para empatar",
+    texto: "De cada 100 operações, quantas precisam terminar com ganho só para o robô não perder, dado o tamanho do ganho típico e da perda típica. Quando o ganho é pequeno e a perda é grande, é preciso acertar quase sempre.",
+  },
+  resultadoPorOperacao: {
+    nome: "Resultado médio por operação",
+    texto: "O resultado do período dividido pelo número de operações, já com o custo considerado. É a folga do robô: se na sua conta cada operação custar mais ou sair a um preço pior, é daqui que sai.",
+  },
+  entradasAbertas: {
+    nome: "Entradas abertas ao mesmo tempo",
+    texto: "O máximo de operações que o robô já teve abertas no mesmo instante. Os valores do site são para 1 contrato por entrada: com várias entradas abertas, a conta carrega vários contratos, e a garantia da corretora é por contrato.",
+  },
+  pregoesOperados: {
+    nome: "Pregões em que operou",
+    texto: "Em quantos pregões o robô fechou ao menos uma operação, do primeiro ao último dia do período, contra quantos pregões a bolsa teve.",
+  },
+  andamJuntos: {
+    nome: "Robôs que andam juntos",
+    texto: "Em quantos pregões dois robôs ganharam ou perderam no mesmo dia. Quando isso acontece quase sempre, usar os dois ao mesmo tempo soma o risco em vez de dividir.",
   },
 };
