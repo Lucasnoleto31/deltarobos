@@ -10,13 +10,15 @@
 // 25/11/2026 (DESIGN.md, seção 9): entraram as frases da revisão dos indicadores. "1 contrato" passou a ser
 // dito "por entrada" (o robô acumula entradas, e a garantia da corretora é por contrato), a premissa diz o
 // tamanho do histórico, cada robô escolhido diz quantas entradas abertas a conta considera e, quando dois
-// robôs escolhidos ganham e perdem nos mesmos dias, uma frase conta em quantos pregões.
+// robôs escolhidos ganham e perdem nos mesmos dias, uma frase conta em quantos pregões. Robô escolhido sem
+// capital mínimo (sem garantia cadastrada ou sem a leitura das entradas abertas) aparece com um traço, e a
+// resposta diz que não dá para avaliar, com o motivo.
 
 import type { QuedaDoGrafico } from "@/components/graficos/GraficoResultado";
 import { formatarBRL, formatarData, formatarDataCurta, formatarDataLonga, formatarNumero, formatarPct } from "@/lib/formato";
 import { tempoEmPalavras } from "@/lib/stats/indicadores-robo";
 import { inicioPeriodo, somarDias, somarMeses } from "@/lib/stats/periodos";
-import { LIMITE_APERTADO, type PeriodoSimulador, type PontoSimulado, type Semaforo } from "@/lib/stats/simulador";
+import { LIMITE_APERTADO, consumiriaOCapital, type PeriodoSimulador, type PontoSimulado, type Semaforo } from "@/lib/stats/simulador";
 import type { Drawdown } from "@/lib/stats/tipos";
 
 /**
@@ -64,16 +66,74 @@ export function contratosEmPalavras(
   return `${partes.slice(0, -1).join(", ")} e ${partes[partes.length - 1]}`;
 }
 
+/** Por que um robô está sem capital mínimo (RoboSimulador.semMinimoPorque). */
+export type SemMinimoPorque = "garantia" | "entradas";
+
 /**
  * Quantas entradas abertas ao mesmo tempo a conta do capital mínimo considera para um robô escolhido, no
  * texto pequeno debaixo do nome dele: "até 36 entradas abertas ao mesmo tempo"; com mais de 1 contrato por
  * entrada, quantos contratos isso dá ("até 36 entradas abertas ao mesmo tempo (72 contratos)"). Sem
- * operação acompanhada ao vivo não há medição, e o texto diz isso em vez de afirmar "1 entrada".
+ * operação acompanhada ao vivo não há medição, e o texto diz isso em vez de afirmar "1 entrada". Quando a
+ * leitura das entradas falhou, o texto diz isso (e o capital mínimo do robô fica sem número); sem garantia
+ * cadastrada também não há conta, e o texto não diz o que "a conta considera".
  */
-export function entradasEmPalavras(r: { entradas: number; medidas: boolean; contratos: number; contratosAbertos: number }): string {
-  if (!r.medidas) return "entradas ao mesmo tempo não medidas, a conta considera 1";
+export function entradasEmPalavras(r: {
+  entradas: number;
+  medidas: boolean;
+  contratos: number;
+  contratosAbertos: number;
+  semMinimoPorque?: SemMinimoPorque | null;
+}): string {
+  if (r.semMinimoPorque === "entradas") return "sem a leitura das entradas abertas agora";
+  if (!r.medidas) return r.semMinimoPorque === "garantia" ? "entradas ao mesmo tempo não medidas" : "entradas ao mesmo tempo não medidas, a conta considera 1";
   const base = r.entradas > 1 ? `até ${formatarNumero(r.entradas)} entradas abertas ao mesmo tempo` : "1 entrada aberta por vez";
   return r.contratos > 1 ? `${base} (${contratos(r.contratosAbertos)})` : base;
+}
+
+/**
+ * O capital mínimo de um robô escolhido, no mesmo texto pequeno, com os contratos do campo: "mínimo de
+ * R$ 58.512". Sem o número, um traço, como na lista da Visão geral, e o motivo quando a parte das entradas
+ * não o disse ainda: "mínimo –, sem garantia cadastrada"; sem a leitura das entradas, só "mínimo –".
+ */
+export function minimoEmPalavras(total: number | null, porque: SemMinimoPorque | null): string {
+  if (total !== null) return `mínimo de ${formatarBRL(total, { inteiro: true })}`;
+  return porque === "entradas" ? "mínimo –" : "mínimo –, sem garantia cadastrada";
+}
+
+/** "do Apollo", "do Apollo e do Orion", "do Apollo, do Orion e do Alaska". */
+function dos(nomes: readonly string[]): string {
+  const com = nomes.map((n) => `do ${n}`);
+  return com.length === 1 ? com[0] : `${com.slice(0, -1).join(", ")} e ${com[com.length - 1]}`;
+}
+
+/**
+ * Por que falta o capital mínimo da escolha, numa frase (o termo aparece uma vez, e é ele que abre a
+ * explicação na tela): "Falta o capital mínimo do Alaska: a garantia (a margem) dele não está cadastrada."
+ * Com mais de um robô, os nomes e o motivo de cada grupo. Vazio sem robô de fora.
+ */
+export function faltaDoMinimo(sem: ReadonlyArray<{ nome: string; porque: SemMinimoPorque }>): string {
+  if (sem.length === 0) return "";
+  const garantia = sem.filter((s) => s.porque === "garantia").map((s) => s.nome);
+  const entradas = sem.filter((s) => s.porque === "entradas").map((s) => s.nome);
+  const comeco = `Falta o capital mínimo ${dos(sem.map((s) => s.nome))}`;
+  if (entradas.length === 0) return `${comeco}: a garantia (a margem) ${garantia.length === 1 ? "dele" : "deles"} não está cadastrada.`;
+  if (garantia.length === 0) return `${comeco}: as entradas abertas ${entradas.length === 1 ? "dele" : "deles"} não puderam ser lidas agora.`;
+  return `${comeco}: a garantia (a margem) ${dos(garantia)} não está cadastrada, e as entradas abertas ${dos(entradas)} não puderam ser lidas agora.`;
+}
+
+/**
+ * O que vai debaixo do pedido de capital, antes de alguém digitar: o capital mínimo da escolha ou, sem ele,
+ * por que falta e quanto os outros robôs escolhidos já pedem.
+ */
+export function minimoSemCapital(
+  total: number | null,
+  conhecido: number,
+  sem: ReadonlyArray<{ nome: string; porque: SemMinimoPorque }>,
+): string {
+  const brl = (v: number) => formatarBRL(v, { inteiro: true });
+  if (total !== null) return `O capital mínimo para estes robôs e contratos é ${brl(total)}.`;
+  const outros = conhecido > 0 ? ` Os outros robôs escolhidos pedem ${brl(conhecido)}.` : "";
+  return `${faltaDoMinimo(sem)}${outros} Sem ele, não dá para dizer se um capital cabe.`;
 }
 
 export interface DadosDaResposta {
@@ -82,14 +142,17 @@ export interface DadosDaResposta {
   capital: number;
   /** false = ninguém digitou capital e a simulação usa o capital mínimo da escolha */
   digitado: boolean;
-  /** ResultadoSimulacao.capitalMinimo: null quando algum robô escolhido não tem garantia cadastrada */
+  /** ResultadoSimulacao.capitalMinimo: null quando algum robô escolhido está sem o número */
   capitalMinimo: number | null;
+  /** a soma dos mínimos que existem: sem o total, quanto os outros robôs escolhidos já pedem */
   capitalMinimoConhecido: number;
   capitalQueFalta: number;
+  /** a maior queda simulada do período (ResultadoSimulacao.ddMax) */
+  ddMax: number;
   /** contratosEmPalavras(…, true): "1 contrato por entrada em cada um dos 3 robôs" */
   escolha: string;
-  /** nomes dos robôs escolhidos sem garantia cadastrada */
-  semMinimo: readonly string[];
+  /** os robôs escolhidos sem capital mínimo, com o motivo */
+  semMinimo: ReadonlyArray<{ nome: string; porque: SemMinimoPorque }>;
 }
 
 export interface RespostaDoSimulador {
@@ -99,7 +162,12 @@ export interface RespostaDoSimulador {
   frase: string;
 }
 
-const TITULO_DO_SEMAFORO: Record<Semaforo, string> = { cabe: "Cabe", apertado: "Apertado", nao_cabe: "Não cabe" };
+const TITULO_DO_SEMAFORO: Record<Semaforo, string> = {
+  cabe: "Cabe",
+  apertado: "Apertado",
+  nao_cabe: "Não cabe",
+  sem_avaliacao: "Não dá para avaliar se cabe",
+};
 
 /**
  * A resposta que abre a tela (25/11/2026, DESIGN.md seção 9: "cabe, apertado ou não cabe" vem antes da
@@ -110,16 +178,30 @@ const TITULO_DO_SEMAFORO: Record<Semaforo, string> = { cabe: "Cabe", apertado: "
  *
  * Sem capital digitado a simulação usa o capital mínimo: o título passa a ser esse número (o veredito de um
  * valor que ninguém digitou confundiria) e a frase diz como a conta fica com ele.
+ *
+ * Sem o capital mínimo de algum robô escolhido, a resposta diz que não dá para avaliar, por quê, quanto os
+ * outros robôs já pedem e, se for o caso, que a maior queda do período teria levado o capital inteiro: o que
+ * se sabe vai na frase, mas o veredito não se dá sobre um número incompleto.
  */
 export function respostaDoSimulador(d: DadosDaResposta): RespostaDoSimulador {
   const brl = (v: number) => formatarBRL(v, { inteiro: true });
   const limite = formatarPct(LIMITE_APERTADO, 0);
-  const semGarantia =
-    d.semMinimo.length > 0
-      ? ` Sem garantia cadastrada: ${d.semMinimo.join(", ")}; ${d.capitalMinimoConhecido > 0 ? "a soma dos outros vale como piso" : "só a maior queda decide"}.`
-      : "";
+  const um = d.capital === 1;
+  const consumido = `A maior queda do período teria consumido ${um ? `${brl(d.capital)} inteiro` : `os ${brl(d.capital)} inteiros`}.`;
 
-  if (!d.digitado && d.capitalMinimo !== null) {
+  if (d.semaforo === "sem_avaliacao" || d.capitalMinimo === null) {
+    const conhecido = d.capitalMinimoConhecido;
+    const outros =
+      conhecido <= 0
+        ? ""
+        : d.capital < conhecido
+          ? ` Só os outros robôs escolhidos já pedem ${brl(conhecido)}, mais do que ${brl(d.capital)}.`
+          : ` ${brl(d.capital)} ${um ? "cobre" : "cobrem"} os ${brl(conhecido)} que os outros robôs escolhidos pedem.`;
+    const queda = consumiriaOCapital(d.capital, d.ddMax) ? ` ${consumido}` : "";
+    return { estado: "sem_avaliacao", titulo: TITULO_DO_SEMAFORO.sem_avaliacao, frase: `${faltaDoMinimo(d.semMinimo)}${outros}${queda}` };
+  }
+
+  if (!d.digitado) {
     const comEle =
       d.semaforo === "apertado"
         ? `e com ele a maior queda do período passou de ${limite} do capital: fica apertado`
@@ -133,27 +215,23 @@ export function respostaDoSimulador(d: DadosDaResposta): RespostaDoSimulador {
     };
   }
 
-  const um = d.capital === 1;
-  // o piso que o capital precisa cobrir: o total ou, sem ele, a parte conhecida
-  const piso = d.capitalMinimo ?? d.capitalMinimoConhecido;
-  const qualMinimo = d.capitalMinimo !== null ? "o capital mínimo para estes robôs e contratos" : "o capital mínimo dos robôs com garantia cadastrada";
+  const minimo = d.capitalMinimo;
+  const qualMinimo = "o capital mínimo para estes robôs e contratos";
   let frase: string;
   if (d.semaforo === "nao_cabe") {
     frase =
-      d.capital < piso
-        ? `${brl(d.capital)} ${um ? "fica" : "ficam"} abaixo de ${brl(piso)}, ${qualMinimo}. ${d.capitalQueFalta === 1 ? "Falta" : "Faltam"} ${brl(d.capitalQueFalta)}.`
-        : `A maior queda do período teria consumido ${um ? `${brl(d.capital)} inteiro` : `os ${brl(d.capital)} inteiros`}.`;
+      d.capital < minimo
+        ? `${brl(d.capital)} ${um ? "fica" : "ficam"} abaixo de ${brl(minimo)}, ${qualMinimo}. ${d.capitalQueFalta === 1 ? "Falta" : "Faltam"} ${brl(d.capitalQueFalta)}.`
+        : consumido;
   } else {
     const queda = d.semaforo === "apertado" ? `mas a maior queda do período passou de ${limite} do capital` : `e a maior queda do período ficou dentro de ${limite} do capital`;
-    if (piso <= 0) {
-      frase = d.semaforo === "apertado" ? `A maior queda do período passou de ${limite} do capital.` : `A maior queda do período ficou dentro de ${limite} do capital.`;
-    } else if (d.capital === piso) {
+    if (d.capital === minimo) {
       frase = `${brl(d.capital)} ${um ? "é" : "são"} exatamente ${qualMinimo}, ${queda}.`;
     } else {
-      frase = `${brl(d.capital)} ${um ? "cobre" : "cobrem"} ${qualMinimo}, ${brl(piso)}, ${queda}.`;
+      frase = `${brl(d.capital)} ${um ? "cobre" : "cobrem"} ${qualMinimo}, ${brl(minimo)}, ${queda}.`;
     }
   }
-  return { estado: d.semaforo, titulo: TITULO_DO_SEMAFORO[d.semaforo], frase: `${frase}${semGarantia}` };
+  return { estado: d.semaforo, titulo: TITULO_DO_SEMAFORO[d.semaforo], frase };
 }
 
 /** Quantos pares cabem na frase dos robôs que andam juntos; os outros viram "e mais N pares". */

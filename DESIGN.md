@@ -33,29 +33,45 @@ O dono do produto (Lucas) recusou quatro desenhos antes deste. As frases dele s�
    da maior queda (do ponto mais alto ao mais baixo que veio depois), com o valor escrito ao lado. Verde não
    entra em gráfico de curva: verde e vermelho são de número de ganho e de perda.
 5. **Palavras de leigo.** "Maior queda", não drawdown. A premissa do número vem escrita junto dele ("com 1
-   contrato, já descontados os custos"). Nenhuma tela depende de instrução para ser usada.
+   contrato por entrada, já descontados os custos"). Nenhuma tela depende de instrução para ser usada.
 
 ## 3. Estrutura
 
 ```
-┌─────────────┬──────────────────────────────────────────────────────────────┐
-│ marca       │ ● Pregão aberto  Mini Índice 168.805 −0,10%  Hoje…   data · há 5 s │  fita (fixa)
-│ Visão geral ├──────────────────────────────────────────────────────────────┤
-│ Comparar    │ título da tela (texto pequeno)            período · período   │
-│ Simular     │ +R$ 76.418          Dias com ganho  170 de 241                │
-│ Como func.  │ premissa · período  Pior dia        02/09  −R$ 13.863         │
-│             │                     Maior queda     −R$ 44.360                │
-│ Robôs       │ ─────────── curva, com a maior queda em vermelho ──────────── │
-│  Apollo     │                                                               │
-│   hoje…     │ Por robô                 Em 12 meses   Novembro   Maior queda │
-│  Orion      │ Orion   hoje…   ~~~~     +R$ 37.660    +R$ 2.514  −R$ 7.903   │
-│   hoje…     │ Apollo  hoje…   ~~~~     +R$ 39.845    +R$ 2.029  −R$ 35.408  │
-│ nota + botão│ pé: links para fora · aviso legal                             │
-└─────────────┴──────────────────────────────────────────────────────────────┘
+┌─────────────┬──────────────────────────────────────────────────────────────────────────┐
+│ marca       │ ● Pregão aberto  Mini Índice 168.805 −0,10%  Hoje…        data · há 5 s  │  fita (fixa)
+│ Visão geral ├──────────────────────────────────────────────────────────────────────────┤
+│ Simular meu │ Resultado somado dos robôs    Somados · Lado a lado  │  período          │
+│   capital   │ +R$ 77.505              Dias com ganho  170 de 241                       │
+│ Como func.  │ premissa · período      Pior dia        02/09  −R$ 13.863                │
+│             │                         Maior queda     −R$ 44.360                       │
+│ Robôs       │ ─────────────── curva, com a maior queda em vermelho ──────────────────  │
+│  Robô A     │                                                                          │
+│   hoje…     │ Por robô             Em 12 meses  Maior queda  Ganho para   Capital      │
+│  Robô B     │                                                cada R$ 1 da mínimo       │
+│   hoje…     │                                                maior queda               │
+│             │ Robô A       ~~~~    +R$ 39.845   −R$ 7.903    R$ 5,04      R$ 17.255    │
+│             │  hoje… · histórico de 8 anos e 10 meses, 2.150 pregões                   │
+│             │ Robô B       ~~~~    +R$ 37.660   −R$ 35.408   R$ 1,06      R$ 58.512    │
+│             │  hoje… · histórico de 9 meses, 172 pregões                               │
+│ nota + botão│ pé: links para fora · aviso legal                                        │
+└─────────────┴──────────────────────────────────────────────────────────────────────────┘
 ```
 
-- `src/app/(site)/layout.tsx` monta a casca (`.casca`, `.lateral`, `BarraTopo`, `Rodape`) e assina o ao vivo
-  uma vez. No celular a barra lateral vira gaveta e a fita desce para uma segunda linha.
+Os nomes e os números do desenho são de exemplo: os robôs, a ordem e os valores vêm do banco.
+
+- `src/app/(site)/layout.tsx` monta a casca (`.casca`, `.lateral`, `BarraTopo`, `Rodape`, `BarraInferior`) e
+  assina o ao vivo uma vez. A barra lateral tem três áreas: Visão geral, Simular meu capital e Como funciona
+  ("Comparar" deixou de existir em 25/11/2026: a comparação é a lista da Visão geral). Embaixo delas, os robôs
+  com o que cada um fez hoje, a nota "Todos os valores são para 1 contrato por entrada, já descontados os
+  custos" e o botão "Como começar".
+- Na Visão geral, a linha de título leva dois seletores alinhados à borda da curva: "Somados · Lado a lado"
+  (só quando há dois robôs ou mais com histórico) e o período, "12 meses · Desde o início · 30 pregões". A
+  lista "Por robô" tem quatro números por robô: o resultado no período (o rótulo da coluna diz qual: "Em 12
+  meses", "Desde o início", "Em 30 pregões"), a maior queda do mesmo período, o ganho para cada R$ 1 da maior
+  queda e o capital mínimo. Vem ordenada pelo ganho por queda, do maior para o menor; quem não tem o número
+  leva um traço com o motivo e vai para o fim. Debaixo do nome, o que o robô fez hoje e o tamanho do histórico.
+  Uma coluna por número a partir de 1280 px; a miniatura da curva entra a partir de 1440 px.
 - Toda tela usa `CorpoPagina` (margens da área de trabalho, seções separadas por 40 px). Tela com título
   próprio usa `CabecalhoPagina`; a página do robô tem `CabecalhoRobo` e `AbasRobo`, e o layout do robô já
   embrulha cada aba num `CorpoPagina` (a aba devolve só as seções).
@@ -71,16 +87,22 @@ O celular tem versão própria (pedido do Lucas em 25/11/2026: "monte a versão 
 computador encolhida. Vale abaixo de `lg` (1024 px).
 
 - **A navegação fica embaixo**, presa, ao alcance do polegar (`components/layout/BarraInferior.tsx`): Visão
-  geral, Robôs, Comparar, Simular, Mais. Só texto, com um fio em cima do item atual. "Robôs" e "Mais" abrem uma
-  folha que sobe de baixo: a dos robôs traz a lista com o que cada um fez hoje, ao vivo; a de Mais, Como
-  funciona, como começar, os canais e o tema. Não há botão de menu nem gaveta.
+  geral, Robôs, Simular, Mais. Só texto, com um fio em cima do item atual. "Robôs" e "Mais" abrem uma
+  folha que sobe de baixo: a dos robôs traz a lista com o que cada um fez hoje, ao vivo (sem o resultado do
+  mês, que seria ganho sem a maior queda ao lado); a de Mais, Como funciona, como começar, os canais e o tema.
+  Não há botão de menu nem gaveta. "Comparar" saiu da barra em 25/11/2026, com a página.
 - **Nada fica preso em cima**, a não ser as abas do robô. A marca e a fita de mercado rolam com a página
   (`--altura-cabecalho` é 0 no celular): presa em cima, a fita tirava tela do conteúdo.
 - **O número aparece na primeira tela.** O cabeçalho do robô é compacto: nome e o que ele fez hoje, a
   descrição em até duas linhas, o botão com os dois atalhos na mesma linha e os dados de cadastro em texto
-  corrido. A ordem da página inicial é número, curva, fatos, lista.
+  corrido. A ordem da página inicial é número, seletor, curva, fatos, lista e, no fim, o botão "Como começar"
+  (no celular não há barra lateral para ele). Na lista, cada robô é uma linha com nome, resultado e maior
+  queda; o que ele fez hoje, o tamanho do histórico, o ganho para cada R$ 1 da maior queda e o capital mínimo
+  vêm embaixo, em texto pequeno.
 - **Não existe "passar por cima".** O que no computador se escolhe com o ponteiro, no celular tem um seletor
-  em texto: na página inicial, "Todos · Orion · Apollo…" acima da curva. Tocar numa linha de robô navega.
+  em texto: na página inicial, "Somados · Lado a lado · Robô A · Robô B…" acima da curva, um seletor só para a
+  vista e para o robô (só aparece com dois robôs ou mais com histórico; os robôs vêm na ordem do banco, que
+  não muda com o período). Tocar numa linha de robô navega.
 - **Alvo de toque de pelo menos 36 px**: os seletores em texto têm essa altura sem o fio descer do texto; linha
   de lista e de folha, 52 px.
 - Tabela larga rola de lado dentro do próprio bloco, com a coluna do resultado presa; lista de fatos e de
@@ -131,6 +153,7 @@ Em `src/app/globals.css`. Não se cria cor nem medida na tela: usa-se o token.
 | `Indicadores` + `Indicador`, `CardsKpi` | `components/sistema/Indicadores.tsx`, `components/desempenho/CardsKpi.tsx` | Números lado a lado com um fio em cima, sem caixa. No máximo 6, e só os que a tela precisa |
 | `ListaKpi` | `components/desempenho/CardsKpi.tsx` | "Mais números": rótulo à esquerda, valor à direita, uma linha por número |
 | `GraficoResultado` | `components/graficos/GraficoResultado.tsx` | A curva com a maior queda em vermelho e a mira; `barras` liga o resultado de cada dia embaixo (só em período curto). Exporta `escalaJusta` e `noEixo` para outras curvas |
+| `GraficoComparativo` | `components/comparativo/GraficoComparativo.tsx` | O "Lado a lado" da Visão geral: a curva de cada robô no mesmo eixo de tempo, cada uma num tom do texto (do mais forte ao mais leve, na ordem da lista) com o nome na ponta e a maior queda de cada uma em vermelho; o robô apontado fica em destaque e os outros apagam |
 | `CurvaCapital`, `DesenhoDaCurva` | `components/graficos/` | A curva detalhada do robô (por dia e por operação), no mesmo traço; também leem `--alt-curva` |
 | `MiniCurva` (`cor="neutra"`) e a `Miniatura` da home | `components/graficos/MiniCurva.tsx`, `PainelCasa` | Curva pequena em linha de lista; quando há várias, mesma escala |
 | `Segmentado` | `components/compartilhados/Segmentado.tsx` | Período, agrupamento, filtro: opções em texto de 13 px com um fio debaixo da escolhida |
@@ -175,17 +198,20 @@ Em 375 px tudo vira uma coluna, tabela rola dentro do próprio bloco e nada esto
 | Jargão | Na tela |
 |---|---|
 | Drawdown, DD máx. | **Maior queda** ("do ponto mais alto ao mais baixo que veio depois") |
-| Taxa de acerto | **Acertos** ("de cada 100 operações, 83 terminaram com ganho") |
+| Drawdown atual | Abaixo do topo hoje |
+| Resultado ÷ drawdown (fator de recuperação) | Ganho para cada R$ 1 da maior queda ("ganhou R$ 1,10 para cada R$ 1 que já chegou a cair") |
+| Margem | Garantia (a margem): o que a corretora exige por contrato aberto |
+| Taxa de acerto | **Acertos** ("de cada 100 operações, 83 terminaram com ganho"), sempre com o necessário para empatar ("precisa de 81 só para empatar") |
 | Dias positivos | Dias com ganho ("170 de 241") |
 | Gains / losses | Operações com ganho / com perda |
-| Payoff | Ganho médio contra perda média |
+| Payoff | Não aparece como razão. Em "Como ele opera", ganho típico e perda típica, cada um em R$ |
 | Fator de lucro | Fator de lucro, com apoio: "ganhou R$ 1,13 para cada R$ 1 perdido" |
 | Acumulado | Desde o início / Resultado no período |
-| Líquido / bruto | Já descontados os custos / antes dos custos |
-| Por contrato | "com 1 contrato" (escrito junto do número principal, não em todo número) |
+| Líquido | "já descontados os custos": os valores da tela são sempre líquidos, sem opção de ver antes dos custos (esse valor fica só nas planilhas). O robô cujo histórico não tem custo cadastrado diz isso no lugar ("com 1 contrato por entrada, antes dos custos"; "este histórico não tem custo nenhum descontado") |
+| Por contrato | "com 1 contrato por entrada" (escrito junto do número principal, não em todo número: o robô pode ter várias entradas abertas ao mesmo tempo, cada uma com 1 contrato) |
 | Operando, Posicionado, Histórico | "hoje ainda sem operação", "em operação agora", "sem acompanhamento ao vivo · dados até 24/11" |
 | MEP / MEN, MFE / MAE | Melhor momento / pior momento (do dia, da operação) |
-| Volatilidade | O quanto o resultado varia de um dia para o outro |
+| Volatilidade | O quanto o resultado varia de um dia para o outro (saiu das telas em 25/11/2026) |
 | Heatmap | Mapa dos dias |
 | Faixa (dia × hora) | Dia e horário |
 | Score | Nota |
@@ -194,7 +220,8 @@ Em 375 px tudo vira uma coluna, tabela rola dentro do próprio bloco e nada esto
 | Trade | Operação |
 
 - Frase curta, com sujeito e número. Valores com sinal e unidade: `+R$ 2.514`, `−R$ 800`, `83%`.
-- Média diária não entra em destaque (o iniciante multiplica por 22 e lê como salário).
+- Média por dia ou por mês e percentual de retorno não entram em tela nenhuma (o iniciante multiplica a média
+  do dia por 22 e lê como salário).
 - O site não promete o que não sabe: "hoje ainda sem operação", nunca "ligado" ou "operando".
 - Sem tom de vendas, sem adjetivo, sem promessa. Resultado passado não garante futuro.
 
@@ -232,6 +259,21 @@ Decisões do Lucas que contrariam os analistas e por isso ficam: a aba Melhores 
 continua descrito como hoje (sem separar "importado" de "ao vivo"); o Alaska & Square continua na lista e na
 soma.
 
+### Decisões tomadas durante a obra
+
+- **Quedas e risco não tem seletor de período.** A aba lê sempre o histórico inteiro, para a maior queda do
+  alto da tela ser a mesma que entra na conta do capital mínimo logo abaixo (com "Mês", a tela mostrava uma
+  maior queda menor que a da conta).
+- **"30 pregões" é a mesma janela de datas para todos os robôs.** Na Visão geral o período é um corte de data
+  só, para a soma e para cada robô: os últimos 30 pregões em que algum robô operou. Um robô que não operou em
+  todos eles aparece com os que operou. Assim as linhas da lista somam o número grande, e as curvas do "Lado a
+  lado" dividem o mesmo eixo de tempo. O mesmo vale para "12 meses".
+- **No "Lado a lado" os robôs se distinguem pelo tom do texto, com o nome escrito na ponta da linha.** Do tom
+  mais forte ao mais leve, na ordem da lista; nunca uma cor por robô (verde e vermelho continuam só para ganho,
+  perda e maior queda). Passar o ponteiro perto de uma linha, ou sobre o robô na lista, põe a dele em destaque
+  e apaga as outras. Cada curva parte de zero no começo do período; o robô que estreou dentro do período começa
+  onde o histórico dele começa.
+
 ### A pergunta de cada tela
 
 | Tela | Pergunta | Número principal |
@@ -255,11 +297,11 @@ Ficam, porque respondem ao que o trader precisa para decidir:
 | Resultado no período | Visão geral, Resumo, Simulador | Ganhou? Com a premissa escrita junto ("com 1 contrato por entrada, já descontados os custos") e o tamanho do histórico ("em 9 meses, 172 pregões") |
 | Maior queda, e se já recuperou | Ao lado de todo resultado; por dentro em Quedas e risco | Quanto já caiu do ponto mais alto ao mais baixo; "ainda não recuperou" ou "recuperou em N dias" |
 | Ganho para cada R$ 1 da maior queda | Lista da Visão geral, Resumo, Quedas e risco | Resultado dividido pela maior queda: "ganhou R$ 1,10 para cada R$ 1 que já chegou a cair". É o que ordena a lista de robôs |
-| Capital mínimo | Lista da Visão geral, Resumo, Quedas e risco, Simulador | Margem por contrato × o máximo de entradas que o robô já teve abertas + maior queda × fator. A conta aparece por extenso em Quedas e risco |
-| Entradas abertas ao mesmo tempo | Resumo ("Como ele opera"), Quedas e risco | "Já teve até 36 entradas abertas ao mesmo tempo": "1 contrato" é por entrada |
+| Capital mínimo | Lista da Visão geral, cabeçalho do robô, Resumo, Quedas e risco, Simulador | Margem por contrato × o máximo de entradas que o robô já teve abertas + maior queda × fator. A conta aparece por extenso em Quedas e risco |
+| Entradas abertas ao mesmo tempo | Cabeçalho do robô, Resumo ("Como ele opera"), Quedas e risco, Simulador | "Já teve até 36 entradas abertas ao mesmo tempo": "1 contrato" é por entrada |
 | Abaixo do topo hoje | Resumo, Quedas e risco | Quanto falta para voltar ao ponto mais alto |
 | Meses com ganho e pior mês | Resumo, junto das barras por mês | Consistência: "8 de 10 meses; o pior foi julho, −R$ 18.897" |
-| Dias com ganho; pior dia | Resumo, Dia a dia, Quedas e risco | "122 de 172"; o pior dia com a data |
+| Dias com ganho; pior dia | Visão geral, Resumo, Dia a dia, Quedas e risco | "122 de 172"; o pior dia com a data |
 | Um dia ruim típico | Quedas e risco | "Em 1 de cada 20 pregões perdeu R$ X ou mais" |
 | Maior sequência de dias com perda | Quedas e risco | Quanto tempo seguido de perda já houve |
 | Acertos, com o necessário para empatar | Resumo ("Como ele opera"), nunca sozinho | "Acerta 83 de cada 100; precisa de 81 só para empatar" |

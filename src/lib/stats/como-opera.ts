@@ -5,6 +5,9 @@
  * numa operação, resultado médio por operação com o custo considerado, fator de lucro, operações por dia,
  * duração típica e pregões em que operou).
  *
+ * O ganho para cada R$ 1 da maior queda e o resultado médio por operação não são contados aqui: vêm de
+ * ./serie-casa (ganhoPorQueda) e de ./risco (resultadoPorOperacao), para serem o mesmo número em todas as telas.
+ *
  * Tudo em R$, com 1 contrato por entrada e já descontados os custos, a partir da série diária
  * (estatisticas_publico), que guarda o histórico inteiro; só a duração precisa das operações. Funções puras:
  * quem busca no banco é a página.
@@ -19,7 +22,9 @@ import {
   type DiaValor,
   type ResumoDosMeses,
 } from "./indicadores-robo";
+import { resultadoPorOperacao, type ResultadoPorOperacao } from "./risco";
 import { curvaAcumulada, drawdownMaximo } from "./serie";
+import { ganhoPorQueda } from "./serie-casa";
 import type { LinhaDiaria, OpcoesSerie } from "./tipos";
 
 // Em R$ líquido o valor do ponto não entra na conta (valorDia só o usa em pontos): fica 1 para fechar o tipo.
@@ -45,15 +50,6 @@ export function situacaoDaQueda(queda: { valor: number; diasAteRecuperar: number
   return { tipo: "recuperou", dias: queda.diasAteRecuperar, abaixoDoTopo: abaixo };
 }
 
-/**
- * Quanto o robô ganhou para cada R$ 1 que já chegou a cair: resultado ÷ maior queda. Só existe quando os
- * dois são positivos: sem queda não há o que dividir, e com prejuízo a frase "ganhou para cada R$ 1" não vale.
- */
-export function ganhoPorQueda(resultado: number, maiorQueda: number): number | null {
-  if (!(resultado > 0) || !(maiorQueda > 0)) return null;
-  return resultado / maiorQueda;
-}
-
 // ---------------------------------------------------------------------------------------------------------
 // O resumo do período, ao lado do número grande
 // ---------------------------------------------------------------------------------------------------------
@@ -68,6 +64,10 @@ export interface ResumoDoPeriodo {
   /** a maior queda do período, do ponto mais alto ao mais baixo que veio depois (positivo; 0 = nunca recuou) */
   maiorQueda: number;
   situacao: SituacaoDaQueda;
+  /**
+   * Quanto ganhou para cada R$ 1 da maior queda (resultado ÷ maior queda), pela conta de ./serie-casa, a mesma
+   * que ordena a lista da Visão geral e aparece em Quedas e risco; nulo sem ganho ou sem queda no período.
+   */
   ganhoPorQueda: number | null;
   /** quantos meses, quantos com ganho, o pior e o melhor */
   meses: ResumoDosMeses;
@@ -95,7 +95,7 @@ export function resumoDoPeriodo(linhas: readonly LinhaDiaria[]): ResumoDoPeriodo
     ultimoDia: dias.length > 0 ? dias[dias.length - 1].dia : null,
     maiorQueda: queda.valor,
     situacao: situacaoDaQueda(queda, quedaAtual(dias).valor),
-    ganhoPorQueda: ganhoPorQueda(resultado, queda.valor),
+    ganhoPorQueda: ganhoPorQueda(resultado, queda.valor).valor,
     meses: resumirMeses(resultadoPorMes(dias)),
     diasComGanho,
     piorDia,
@@ -120,10 +120,11 @@ export interface ComoOpera {
   perdaTipica: number | null;
   /** a maior perda numa operação só (R$, negativo) e o pregão em que foi, ou nulo sem perda */
   maiorPerda: DiaValor | null;
-  /** resultado do histórico ÷ operações, já com o custo descontado; nulo sem operação */
-  resultadoPorOperacao: number | null;
-  /** o custo médio descontado de cada operação (R$, positivo ou zero); nulo sem operação */
-  custoPorOperacao: number | null;
+  /**
+   * O resultado médio por operação, já com o custo, e o custo considerado em cada uma: a conta de ./risco
+   * (resultadoPorOperacao), a mesma de Quedas e risco. Nulo sem operação.
+   */
+  porOperacao: ResultadoPorOperacao | null;
   /** soma dos ganhos ÷ soma das perdas: quanto ganhou para cada R$ 1 perdido; nulo sem perda */
   fatorLucro: number | null;
   /** operações por pregão em que operou; nulo sem pregão */
@@ -141,8 +142,6 @@ export function comoOpera(linhas: readonly LinhaDiaria[]): ComoOpera {
   let nPerda = 0;
   let somaGanho = 0;
   let somaPerda = 0;
-  let resultado = 0;
-  let custos = 0;
   let maiorPerda: DiaValor | null = null;
   for (const l of linhas) {
     if (l.n_operacoes > 0) pregoes += 1;
@@ -151,8 +150,6 @@ export function comoOpera(linhas: readonly LinhaDiaria[]): ComoOpera {
     nPerda += l.n_loss;
     somaGanho += l.soma_gain_brl_por_contrato;
     somaPerda += l.soma_loss_brl_por_contrato;
-    resultado += l.resultado_brl_por_contrato - l.custos_brl_por_contrato;
-    custos += l.custos_brl_por_contrato;
     if (l.maior_loss_brl_por_contrato < 0 && (maiorPerda === null || l.maior_loss_brl_por_contrato < maiorPerda.valor)) {
       maiorPerda = { dia: l.dia, valor: l.maior_loss_brl_por_contrato };
     }
@@ -167,8 +164,7 @@ export function comoOpera(linhas: readonly LinhaDiaria[]): ComoOpera {
     ganhoTipico,
     perdaTipica,
     maiorPerda,
-    resultadoPorOperacao: operacoes > 0 ? resultado / operacoes : null,
-    custoPorOperacao: operacoes > 0 ? custos / operacoes : null,
+    porOperacao: resultadoPorOperacao(linhas),
     fatorLucro: somaPerda < 0 ? somaGanho / Math.abs(somaPerda) : null,
     operacoesPorDia: pregoes > 0 ? operacoes / pregoes : null,
   };

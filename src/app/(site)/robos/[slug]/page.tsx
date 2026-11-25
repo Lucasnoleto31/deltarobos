@@ -131,6 +131,7 @@ export default async function PaginaRobo({ params }: Props) {
         pontosPorOperacao={pontosPorOperacao}
         valorPonto={robo.valor_ponto_brl}
         capitalMinimo={capital?.capitalMinimo ?? null}
+        entradasMedidas={(capital?.entradasEm ?? null) !== null}
       />
 
       {barras.length > 1 ? (

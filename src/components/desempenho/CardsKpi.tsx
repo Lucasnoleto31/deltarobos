@@ -13,7 +13,7 @@ export interface ItemKpi {
   icone?: React.ReactNode;
   /** chave do glossário: com ela, o rótulo vira o gatilho do "o que é" (sublinhado pontilhado, sem ícone) */
   info?: ChaveIndicador;
-  /** troca o texto do glossário quando o número não é de um robô só (os robôs somados do Comparativo) */
+  /** troca o texto do glossário quando o número da tela pede outra explicação (a duração típica do Resumo é a mediana) */
   infoTexto?: string;
 }
 
@@ -46,9 +46,9 @@ const GRADE_LONGA = "grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6";
 
 /**
  * Faixa de indicadores (ficha Mesa, 25/11/2026): um painel só, dividido por fios, com rótulo, número e
- * linha de apoio em cada célula. Eram N cartões soltos em grade; o nome e a interface ficaram para não
- * mexer em quem chama (Desempenho, Risco, Simulador, Comparativo). É o mesmo desenho de
- * `sistema/Indicadores`, recebendo a lista pronta.
+ * linha de apoio em cada célula. Eram N cartões soltos em grade. As telas que a usavam (a aba Desempenho e a
+ * página Comparar) saíram na revisão de 25/11/2026 (DESIGN.md, seção 9) e as outras passaram a ListaKpi ou a
+ * `sistema/Indicadores`, o mesmo desenho recebendo a lista pronta; fica exportada com a mesma interface.
  */
 export function CardsKpi({ itens, className }: Props) {
   return (
@@ -67,9 +67,9 @@ export function CardsKpi({ itens, className }: Props) {
 }
 
 /**
- * O resto dos números em lista: rótulo e apoio à esquerda, valor à direita, uma linha por número com fio
- * entre elas. Duas colunas a partir do lg (três em tela muito larga), e o fio sai das linhas que fecham
- * o painel.
+ * Números em lista: rótulo e apoio à esquerda, valor à direita, uma linha por número com fio entre elas, em
+ * duas colunas a partir do lg. É o "Como ele opera" do Resumo do robô e as listas de Quedas e risco e de
+ * Melhores horários.
  */
 export function ListaKpi({ itens, className }: Props) {
   return (

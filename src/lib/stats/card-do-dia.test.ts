@@ -667,9 +667,13 @@ describe("resumirMes", () => {
     expect(r.diasComGanho).toBe(2);
   });
 
-  it("duração típica: a média das operações que têm horário de entrada", () => {
+  it("duração típica: a mediana das operações que têm horário de entrada, a mesma conta da aba Resumo", () => {
     expect(resumirMes(base).duracaoTipicaSeg).toBeNull();
     expect(resumirMes({ ...base, duracoesSeg: [60, 180, Number.NaN, -5] }).duracaoTipicaSeg).toBe(120);
+    // uma operação que atravessou a tarde não puxa o número: a média daria 360 s
+    expect(resumirMes({ ...base, duracoesSeg: [60, 120, 900] }).duracaoTipicaSeg).toBe(120);
+    // duração zero é a do histórico importado, que não tem horário de entrada
+    expect(resumirMes({ ...base, duracoesSeg: [0, 0] }).duracaoTipicaSeg).toBeNull();
   });
 
   it("mês sem operação: zeros e nulos, sem quebrar", () => {

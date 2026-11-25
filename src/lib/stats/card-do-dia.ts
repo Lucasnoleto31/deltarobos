@@ -35,6 +35,7 @@
 
 import { formatarBRL, formatarDataLonga, formatarHora, formatarNumero, formatarPontos } from "@/lib/formato";
 import type { BaldeCompacto, FechamentoCompacto, OperacaoPublica, RoboPublico } from "@/lib/tipos";
+import { duracaoTipica } from "./como-opera";
 import { mepMenDoDia, type ExposicaoHoje } from "./exposicao";
 import { acertoParaEmpatar, contarPregoes, tempoEmPalavras } from "./indicadores-robo";
 import { excursao } from "./operacoes";
@@ -690,7 +691,10 @@ export interface ResumoDoMes {
   operou: ComoOperou;
   /** operações por pregão com operação; nulo sem pregão */
   operacoesPorPregao: number | null;
-  /** a duração média, em segundos, das operações com horário de entrada; nulo se nenhuma tem */
+  /**
+   * a duração típica, em segundos, das operações com horário de entrada: a mediana (duracaoTipica, a mesma
+   * conta da aba Resumo); nulo se nenhuma tem
+   */
   duracaoTipicaSeg: number | null;
   dias: DiaDoMes[];
 }
@@ -723,7 +727,6 @@ export function resumirMes({ mes, linhas, hoje, feriados, duracoesSeg }: Entrada
   const daBolsa = contarPregoes(`${mes}-01`, fimDoMes < hoje ? fimDoMes : hoje, feriados);
 
   const operou = comoOperou(ordenadas);
-  const duracoes = duracoesSeg.filter((s) => Number.isFinite(s) && s >= 0);
 
   return {
     mes,
@@ -738,7 +741,8 @@ export function resumirMes({ mes, linhas, hoje, feriados, duracoesSeg }: Entrada
     piorDia,
     operou,
     operacoesPorPregao: pregoes > 0 ? operou.operacoes / pregoes : null,
-    duracaoTipicaSeg: duracoes.length > 0 ? duracoes.reduce((s, v) => s + v, 0) / duracoes.length : null,
+    // a mediana, como na aba Resumo: uma operação que atravessa a tarde não muda o que é o normal
+    duracaoTipicaSeg: duracaoTipica(duracoesSeg),
     dias,
   };
 }

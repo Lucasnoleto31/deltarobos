@@ -3,6 +3,7 @@ import { partesDoValor } from "@/components/card/cores";
 import type { CapitalDoRobo } from "@/lib/consultas/capital";
 import { formatarBRL, formatarData, formatarDataCurta, formatarDuracao, formatarHora, formatarNumero, formatarPontos, formatarPreco, rotuloLado } from "@/lib/formato";
 import type { ResumoDoMes } from "@/lib/stats/card-do-dia";
+import { casasDosAcertos } from "@/lib/stats/como-opera";
 import type { OperacaoPublica, RoboPublico } from "@/lib/tipos";
 
 /*
@@ -94,9 +95,9 @@ function mesPorExtenso(mes: string): string {
   return new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC", month: "long", year: "numeric" }).format(new Date(`${mes}-01T00:00:00Z`));
 }
 
-/** "83 de cada 100" a partir de uma fração de 0 a 1 */
-function deCada100(fracao: number): number {
-  return Math.round(fracao * 100);
+/** "83", "80,6": a fração de 0 a 1 em "de cada 100", com as casas de casasDosAcertos (a regra da aba Resumo) */
+function deCada100(fracao: number, casas: 0 | 1): string {
+  return formatarNumero(fracao * 100, casas);
 }
 
 /** "98", "4,3": uma casa só quando o número é pequeno e não é inteiro */
@@ -180,7 +181,7 @@ export function RelatorioMensal({ robo, resumo, capital, ops, totalOps, geradoEm
   // o ritmo do mês: quantas operações por pregão, quanto dura cada uma e em quantos pregões operou
   const ritmo = [
     resumo.operacoesPorPregao !== null
-      ? `${quantas(resumo.operacoesPorPregao)} por pregão${resumo.duracaoTipicaSeg !== null ? `, ${formatarDuracao(resumo.duracaoTipicaSeg)} cada, em média` : ""}`
+      ? `${quantas(resumo.operacoesPorPregao)} por pregão${resumo.duracaoTipicaSeg !== null ? `, cada uma dura ${formatarDuracao(resumo.duracaoTipicaSeg)}, normalmente` : ""}`
       : "",
     resumo.pregoesDaBolsa !== null
       ? `operou em ${formatarNumero(resumo.pregoes)} de ${pregoes(resumo.pregoesDaBolsa)} do mês${resumo.emAndamento ? " até agora" : ""}`
@@ -189,10 +190,12 @@ export function RelatorioMensal({ robo, resumo, capital, ops, totalOps, geradoEm
   const comoOperou: Item[] = [{ rotulo: "Operações", valor: formatarNumero(operou.operacoes), apoio: ritmo.join("; ") }];
   // acertos nunca aparecem sem o necessário para empatar: sem ganho ou sem perda para comparar, a linha não entra
   if (operou.acertos !== null && operou.paraEmpatar !== null) {
+    // inteiros, ou uma casa quando os dois arredondariam para o mesmo número (como na aba Resumo)
+    const casas = casasDosAcertos(operou.acertos, operou.paraEmpatar);
     comoOperou.push({
       rotulo: "Acertos",
-      valor: `${deCada100(operou.acertos)} de cada 100`,
-      apoio: `Pelo tamanho dos ganhos e das perdas, precisava de ${deCada100(operou.paraEmpatar)} de cada 100 só para empatar.`,
+      valor: `${deCada100(operou.acertos, casas)} de cada 100`,
+      apoio: `Pelo tamanho dos ganhos e das perdas, precisava de ${deCada100(operou.paraEmpatar, casas)} de cada 100 só para empatar.`,
     });
   }
   if (operou.ganhoTipico !== null && operou.perdaTipica !== null) {

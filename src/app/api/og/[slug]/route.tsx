@@ -3,8 +3,9 @@ import { formatarDiaCurto } from "@/components/home/datas";
 import { ACENTO, ALERTA, FIO, FUNDO, MUDO, NEGATIVO, TEXTO, corDoResultado as cor, partesDoValor } from "@/components/card/cores";
 import { SIMBOLO_CAMINHOS, SIMBOLO_VIEWBOX } from "@/components/marca/Simbolo";
 import { buscarRobo, listarEstatisticas } from "@/lib/consultas/publico";
-import { formatarBRL, formatarHora } from "@/lib/formato";
+import { formatarBRL, formatarHora, formatarNumero } from "@/lib/formato";
 import { comoOperou, tamanhoParaCaber, tempoDeHistorico } from "@/lib/stats/card-do-dia";
+import { casasDosAcertos } from "@/lib/stats/como-opera";
 import { hojeSP } from "@/lib/stats/periodos";
 import { resumirCardRobo } from "@/lib/stats/resumo-robo";
 import { curvaAcumulada, drawdownMaximo, valorDia } from "@/lib/stats/serie";
@@ -106,11 +107,13 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug: s
   ];
   // acertos nunca aparecem sem o necessário para empatar
   if (operou.acertos !== null && operou.paraEmpatar !== null) {
+    // inteiros, ou uma casa quando os dois arredondariam para o mesmo número (como na aba Resumo)
+    const casas = casasDosAcertos(operou.acertos, operou.paraEmpatar);
     fatos.push({
       rotulo: "Acertos",
-      valor: `${Math.round(operou.acertos * 100)} de cada 100`,
+      valor: `${formatarNumero(operou.acertos * 100, casas)} de cada 100`,
       tom: TEXTO,
-      nota: `precisa de ${Math.round(operou.paraEmpatar * 100)} para empatar`,
+      nota: `precisa de ${formatarNumero(operou.paraEmpatar * 100, casas)} para empatar`,
     });
   }
 

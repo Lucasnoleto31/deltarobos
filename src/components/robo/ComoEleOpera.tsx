@@ -1,3 +1,4 @@
+import { RotuloComInfo } from "@/components/compartilhados/InfoIndicador";
 import { Valor } from "@/components/compartilhados/Valor";
 import { ListaKpi, type ItemKpi } from "@/components/desempenho/CardsKpi";
 import { formatarBRL, formatarData, formatarDuracao, formatarNumero } from "@/lib/formato";
@@ -16,6 +17,9 @@ interface Props {
   className?: string;
 }
 
+// A duração é a mediana das operações medidas (duracaoTipica): o texto do glossário fala em tempo médio
+const TEXTO_DA_DURACAO =
+  "Quanto dura uma operação típica, da entrada à saída: metade das operações dura menos do que isso e metade dura mais. Mostra se o robô fica segundos, minutos ou horas com uma operação aberta.";
 
 /**
  * "Como ele opera", na aba Resumo do robô (revisão de 25/11/2026, DESIGN.md seção 9): o jeito do robô em uma
@@ -50,9 +54,10 @@ export function ComoEleOpera({ como: c, duracaoSeg, pregoes, entradas, className
       info: "taxaAcerto",
       valor: `${de100.acertos} de cada 100`,
       detalhe:
-        de100.paraEmpatar !== null
-          ? `precisa de ${de100.paraEmpatar} só para empatar`
-          : c.perdaTipica === null
+        de100.paraEmpatar !== null ? (
+          // o "só para empatar" abre a explicação: é a metade da frase que o leigo não conhece
+          <RotuloComInfo chave="acertoParaEmpatar">{`precisa de ${de100.paraEmpatar} só para empatar`}</RotuloComInfo>
+        ) : c.perdaTipica === null
             ? "nenhuma operação terminou com perda até aqui"
             : "nenhuma operação terminou com ganho até aqui",
     },
@@ -69,6 +74,7 @@ export function ComoEleOpera({ como: c, duracaoSeg, pregoes, entradas, className
   if (c.ganhoTipico !== null) {
     itens.push({
       rotulo: "Ganho típico",
+      info: "ganhoMedio",
       valor: <Valor valor={c.ganhoTipico} />,
       detalhe: "o tamanho médio de uma operação que termina com ganho",
     });
@@ -76,6 +82,7 @@ export function ComoEleOpera({ como: c, duracaoSeg, pregoes, entradas, className
   if (c.perdaTipica !== null) {
     itens.push({
       rotulo: "Perda típica",
+      info: "perdaMedia",
       valor: <Valor valor={c.perdaTipica} />,
       detalhe: "o tamanho médio de uma operação que termina com perda",
     });
@@ -83,26 +90,36 @@ export function ComoEleOpera({ como: c, duracaoSeg, pregoes, entradas, className
   if (c.maiorPerda !== null) {
     itens.push({
       rotulo: "Maior perda numa operação",
+      info: "maiorPerda",
       valor: <Valor valor={c.maiorPerda.valor} inteiro={Math.abs(c.maiorPerda.valor) >= 1000} />,
       detalhe: `em ${formatarData(c.maiorPerda.dia)}`,
     });
   }
-  if (c.resultadoPorOperacao !== null) {
+  if (c.porOperacao !== null) {
     itens.push({
       rotulo: "Resultado médio por operação",
       info: "resultadoPorOperacao",
-      valor: <Valor valor={c.resultadoPorOperacao} />,
+      valor: <Valor valor={c.porOperacao.resultado} />,
       detalhe:
-        c.custoPorOperacao !== null && c.custoPorOperacao > 0
-          ? `o custo considerado é ${formatarBRL(c.custoPorOperacao)} por operação`
-          : "nenhum custo foi descontado",
+        c.porOperacao.custo > 0
+          ? `o custo considerado é ${formatarBRL(c.porOperacao.custo)} por operação`
+          : "o histórico não tem custo descontado",
     });
   }
   if (c.operacoesPorDia !== null) {
     itens.push({
       rotulo: "Operações por dia",
       valor: formatarNumero(c.operacoesPorDia, c.operacoesPorDia >= 10 ? 0 : 1),
-      detalhe: duracaoSeg !== null ? `cada uma dura cerca de ${formatarDuracao(duracaoSeg)}` : undefined,
+      detalhe: "nos pregões em que operou",
+    });
+  }
+  if (duracaoSeg !== null) {
+    itens.push({
+      rotulo: "Duração típica",
+      info: "duracaoMedia",
+      infoTexto: TEXTO_DA_DURACAO,
+      valor: formatarDuracao(duracaoSeg),
+      detalhe: "da entrada à saída de uma operação",
     });
   }
   if (pregoes.operou > 0 && pregoes.de && pregoes.ate) {

@@ -18,9 +18,15 @@ interface Props {
   linkQuero?: string;
   /** o capital mínimo do robô (capitalDoRobo, o mesmo número de todas as telas); nulo sem margem cadastrada */
   capitalMinimo: number | null;
-  /** o máximo de entradas que o robô já teve abertas ao mesmo tempo; nulo quando não há medição */
+  /**
+   * o máximo de entradas que o robô já teve abertas ao mesmo tempo; nulo quando não há medição (histórico sem
+   * horário de entrada): aí a conta do capital considera 1 entrada, e o cabeçalho diz isso junto do número
+   */
   entradas: number | null;
 }
+
+/** As mesmas palavras de Quedas e risco e do Resumo. */
+const NOTA_SEM_ENTRADAS = "a conta considera 1 entrada porque o histórico deste robô não traz o horário de entrada";
 
 /**
  * Cabeçalho da página do robô (spec §8.2; ficha Mesa, 25/11/2026): o caminho de volta, o nome, o que o robô
@@ -125,24 +131,37 @@ export function CabecalhoRobo({ linkQuero, capitalMinimo, entradas }: Props) {
             <dd>{formatarData(robo.conta_real_desde)}</dd>
           </div>
         ) : null}
-        {!emBreve && capitalMinimo !== null ? (
-          <div className="flex gap-1.5">
+        {emBreve ? null : (
+          // sem margem cadastrada o capital fica em traço; sem medição das entradas, a nota diz o que a conta supôs
+          <div className="flex flex-wrap gap-x-1.5">
             <dt className="text-sutil">
               <RotuloComInfo chave="capitalMinimo">Capital mínimo</RotuloComInfo>
             </dt>
-            <dd>{formatarBRL(capitalMinimo, { inteiro: true })}</dd>
+            <dd>{capitalMinimo !== null ? formatarBRL(capitalMinimo, { inteiro: true }) : <span className="text-sutil">–</span>}</dd>
+            {capitalMinimo !== null && entradas === null ? (
+              <dd className="text-[0.8125rem] text-pretty text-sutil">({NOTA_SEM_ENTRADAS})</dd>
+            ) : null}
           </div>
-        ) : null}
-        {!emBreve && entradas !== null ? (
+        )}
+        {!emBreve && entradas !== null && entradas > 1 ? (
           // lê-se "Até 36 entradas abertas ao mesmo tempo": o número no meio da frase, e o termo abre a explicação
           <div className="flex gap-1.5">
             <dt className="text-sutil">Até</dt>
             <dd>
               {formatarNumero(entradas)}{" "}
               <RotuloComInfo chave="entradasAbertas" className="text-sutil">
-                {entradas === 1 ? "entrada aberta por vez" : "entradas abertas ao mesmo tempo"}
+                entradas abertas ao mesmo tempo
               </RotuloComInfo>
             </dd>
+          </div>
+        ) : null}
+        {!emBreve && entradas === 1 ? (
+          // o robô que nunca teve duas entradas abertas: "Até 1" não se diz
+          <div className="flex gap-1.5">
+            <dt className="text-sutil">
+              <RotuloComInfo chave="entradasAbertas">Entradas abertas</RotuloComInfo>
+            </dt>
+            <dd>1 por vez</dd>
           </div>
         ) : null}
         {robo.conta_tipo === "demo" ? (

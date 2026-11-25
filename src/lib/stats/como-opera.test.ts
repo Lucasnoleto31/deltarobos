@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { casasDosAcertos, comoOpera, duracaoTipica, ganhoPorQueda, pregoesOperados, resumoDoPeriodo, situacaoDaQueda } from "./como-opera";
+import { casasDosAcertos, comoOpera, duracaoTipica, pregoesOperados, resumoDoPeriodo, situacaoDaQueda } from "./como-opera";
+import { resultadoPorOperacao } from "./risco";
+import { ganhoPorQueda } from "./serie-casa";
 import type { LinhaDiaria } from "./tipos";
 
 /** Um pregão com as operações informadas pelo resultado já com custos (ganhos positivos, perdas negativas). */
@@ -39,18 +41,6 @@ describe("situacaoDaQueda", () => {
   });
 });
 
-describe("ganhoPorQueda", () => {
-  it("resultado dividido pela maior queda", () => {
-    expect(ganhoPorQueda(1100, 1000)).toBeCloseTo(1.1);
-  });
-
-  it("não existe sem queda nem com prejuízo", () => {
-    expect(ganhoPorQueda(1100, 0)).toBeNull();
-    expect(ganhoPorQueda(-200, 1000)).toBeNull();
-    expect(ganhoPorQueda(0, 1000)).toBeNull();
-  });
-});
-
 describe("resumoDoPeriodo", () => {
   const linhas = [
     pregao("2026-01-05", { ganhos: [300] }),
@@ -74,6 +64,13 @@ describe("resumoDoPeriodo", () => {
     expect(r.maiorQueda).toBe(500);
     expect(r.situacao).toEqual({ tipo: "recuperou", dias: 29, abaixoDoTopo: 50 });
     expect(r.ganhoPorQueda).toBeCloseTo(0.5);
+  });
+
+  it("o ganho para cada R$ 1 da maior queda é o da conta da Visão geral e de Quedas e risco", () => {
+    const r = resumoDoPeriodo(linhas);
+    expect(r.ganhoPorQueda).toBe(ganhoPorQueda(r.resultado, r.maiorQueda).valor);
+    // sem queda nenhuma não há o que dividir
+    expect(resumoDoPeriodo([pregao("2026-03-02", { ganhos: [40] }), pregao("2026-03-03", { ganhos: [10] })]).ganhoPorQueda).toBeNull();
   });
 
   it("a maior queda ainda aberta", () => {
@@ -129,11 +126,12 @@ describe("comoOpera", () => {
     expect(comoOpera(linhas).maiorPerda).toEqual({ dia: "2026-01-06", valor: -120 });
   });
 
-  it("resultado médio por operação já com o custo, e o custo ao lado", () => {
+  it("resultado médio por operação já com o custo, e o custo ao lado: a conta de Quedas e risco", () => {
     const c = comoOpera(linhas);
     // 200 de ganho, 220 de perda: -20 em 10 operações
-    expect(c.resultadoPorOperacao).toBeCloseTo(-2);
-    expect(c.custoPorOperacao).toBeCloseTo(0.25);
+    expect(c.porOperacao?.resultado).toBeCloseTo(-2);
+    expect(c.porOperacao?.custo).toBeCloseTo(0.25);
+    expect(c.porOperacao).toEqual(resultadoPorOperacao(linhas));
   });
 
   it("fator de lucro e ritmo", () => {
@@ -156,8 +154,7 @@ describe("comoOpera", () => {
     const c = comoOpera([]);
     expect(c.operacoes).toBe(0);
     expect(c.acertos).toBeNull();
-    expect(c.resultadoPorOperacao).toBeNull();
-    expect(c.custoPorOperacao).toBeNull();
+    expect(c.porOperacao).toBeNull();
     expect(c.operacoesPorDia).toBeNull();
   });
 });

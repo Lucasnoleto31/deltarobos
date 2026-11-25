@@ -13,11 +13,12 @@ export const TEXTO_FIXO_SIMULADOR = "Aritmética sobre o histórico; não é rec
 
 // A cor da palavra que responde. Verde não entra: na ficha Mesa verde é só de ganho, e um "Cabe" verde se lê
 // como recomendação. "Apertado" leva a cor de atenção e "Não cabe" a de perda (é o caso em que a maior queda
-// ou o mínimo passam do capital); "Cabe" e o capital mínimo ficam na cor do texto.
+// ou o mínimo passam do capital); "Cabe", o capital mínimo e o "não dá para avaliar" ficam na cor do texto.
 const COR: Record<RespostaDoSimulador["estado"], string> = {
   cabe: "text-foreground",
   apertado: "text-alerta",
   nao_cabe: "text-negativo",
+  sem_avaliacao: "text-foreground",
   minimo: "text-foreground",
 };
 
@@ -40,11 +41,11 @@ interface Props {
 /**
  * A resposta do simulador, a primeira coisa da tela depois do campo de capital (25/11/2026, DESIGN.md seção
  * 9): "Cabe", "Apertado" ou "Não cabe" em uma palavra, e uma frase com os números que decidem. "Não cabe"
- * quando o capital fica abaixo do capital mínimo dos robôs e contratos escolhidos (sem o total, por robô sem
- * garantia cadastrada, abaixo da soma dos mínimos conhecidos) ou quando a maior queda simulada consumiria o
- * capital inteiro; "apertado" quando cabe mas a maior queda passa de LIMITE_APERTADO do capital; "cabe" no
- * resto. A regra mora em semaforoDe (lib/stats/simulador) e a frase em respostaDoSimulador (serie-simulada),
- * com teste; aqui é só o desenho.
+ * quando o capital fica abaixo do capital mínimo dos robôs e contratos escolhidos ou quando a maior queda
+ * simulada consumiria o capital inteiro; "apertado" quando cabe mas a maior queda passa de LIMITE_APERTADO do
+ * capital; "cabe" no resto. Com algum robô escolhido sem capital mínimo (sem garantia cadastrada ou sem a
+ * leitura das entradas abertas), "Não dá para avaliar se cabe", com o motivo. A regra mora em semaforoDe
+ * (lib/stats/simulador) e a frase em respostaDoSimulador (serie-simulada), com teste; aqui é só o desenho.
  *
  * Era uma frase pequena debaixo do número grande, sem os números. Subiu para antes do resultado e ganhou o
  * capital mínimo e o quanto falta: o capital mínimo saiu da lista de fatos, para não aparecer duas vezes. O
@@ -59,8 +60,12 @@ export function Semaforo({ resultado, capital, digitado, escolha, robos, fatorSe
     capitalMinimo: resultado.capitalMinimo,
     capitalMinimoConhecido: resultado.capitalMinimoConhecido,
     capitalQueFalta: resultado.capitalQueFalta,
+    ddMax: resultado.ddMax,
     escolha,
-    semMinimo: resultado.robosSemCapitalMinimo.map((slug) => robos.find((r) => r.slug === slug)?.nome ?? slug),
+    semMinimo: resultado.robosSemCapitalMinimo.map((slug) => {
+      const robo = robos.find((r) => r.slug === slug);
+      return { nome: robo?.nome ?? slug, porque: robo?.semMinimoPorque ?? "garantia" };
+    }),
   });
 
   // o "o que é" do glossário fala de 1 robô com 1 contrato; aqui é a soma da escolha
@@ -86,6 +91,9 @@ export function Semaforo({ resultado, capital, digitado, escolha, robos, fatorSe
       <p className="text-[1.375rem] leading-tight font-medium tracking-tight">
         {resposta.estado === "minimo" ? (
           comOQueE(resposta.titulo)
+        ) : resposta.estado === "sem_avaliacao" ? (
+          // não é veredito: sem o ", pelo histórico"
+          <span className={COR.sem_avaliacao}>{resposta.titulo}</span>
         ) : (
           <>
             <span className={COR[resposta.estado]}>{resposta.titulo}</span>

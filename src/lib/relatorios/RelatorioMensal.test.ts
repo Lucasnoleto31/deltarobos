@@ -141,7 +141,16 @@ describe("RelatorioMensal: o que o PDF escreve", () => {
     // R$ 288 de ganho para R$ 315 de perda
     expect(texto[texto.indexOf("Fator de lucro") + 2]).toBe("ganhou R$ 0,91 para cada R$ 1 perdido");
     expect(texto[texto.indexOf("Resultado médio por operação") + 1]).toBe("O custo considerado é de R$ 0,25 por operação.");
-    expect(texto[texto.indexOf("Operações") + 1]).toBe("5 por pregão, 4 min cada, em média; operou em 3 de 21 pregões do mês");
+    // a duração é a mediana, como na aba Resumo
+    expect(texto[texto.indexOf("Operações") + 1]).toBe("5 por pregão, cada uma dura 4 min, normalmente; operou em 3 de 21 pregões do mês");
+  });
+
+  it("acertos e o necessário para empatar que arredondariam para o mesmo número saem com uma casa", () => {
+    // 25 de 31 com ganho (80,6) e ganho de R$ 24 contra perda de R$ 102 (precisa de 80,95): os dois dariam 81
+    const texto = relatorio({ linhas: [pregao("2026-10-01", Array(25).fill(24), Array(6).fill(-102))] }).map(semNbsp);
+    const i = texto.indexOf("Acertos");
+    expect(texto[i + 1]).toBe("Pelo tamanho dos ganhos e das perdas, precisava de 81,0 de cada 100 só para empatar.");
+    expect(texto[i + 2]).toBe("80,6 de cada 100");
   });
 
   it("mês sem operação com perda: sem acertos e sem fator de lucro, porque não há com o que comparar", () => {

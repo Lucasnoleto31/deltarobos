@@ -7,10 +7,13 @@ import {
   MAXIMO_DE_PARES_NA_FRASE,
   contratosEmPalavras,
   entradasEmPalavras,
+  faltaDoMinimo,
   fraseAndamJuntos,
   historicoCurto,
   historicoEmPalavras,
   intervaloDeDatas,
+  minimoEmPalavras,
+  minimoSemCapital,
   pregoes,
   quandoEmPalavras,
   quedaDaSimulacao,
@@ -216,6 +219,73 @@ describe("entradasEmPalavras", () => {
       "entradas ao mesmo tempo não medidas, a conta considera 1",
     );
   });
+
+  it("leitura das entradas que falhou: diz isso, e não afirma o que a conta considera", () => {
+    expect(entradasEmPalavras({ entradas: 1, medidas: false, contratos: 1, contratosAbertos: 1, semMinimoPorque: "entradas" })).toBe(
+      "sem a leitura das entradas abertas agora",
+    );
+  });
+
+  it("sem garantia cadastrada não há conta: as entradas medidas aparecem, as não medidas não dizem \"a conta considera 1\"", () => {
+    expect(entradasEmPalavras({ entradas: 36, medidas: true, contratos: 1, contratosAbertos: 36, semMinimoPorque: "garantia" })).toBe(
+      "até 36 entradas abertas ao mesmo tempo",
+    );
+    expect(entradasEmPalavras({ entradas: 1, medidas: false, contratos: 1, contratosAbertos: 1, semMinimoPorque: "garantia" })).toBe(
+      "entradas ao mesmo tempo não medidas",
+    );
+  });
+});
+
+describe("minimoEmPalavras", () => {
+  it("o capital mínimo do robô com os contratos do campo, no inteiro publicado", () => {
+    expect(minimoEmPalavras(58512, null)).toBe(`mínimo de ${formatarBRL(58512, { inteiro: true })}`);
+  });
+
+  it("sem o número, um traço; o motivo vai junto quando a parte das entradas não o disse", () => {
+    expect(minimoEmPalavras(null, "garantia")).toBe("mínimo –, sem garantia cadastrada");
+    expect(minimoEmPalavras(null, "entradas")).toBe("mínimo –");
+  });
+});
+
+describe("faltaDoMinimo e minimoSemCapital", () => {
+  const brl = (v: number) => formatarBRL(v, { inteiro: true });
+
+  it("um robô: o nome e o motivo", () => {
+    expect(faltaDoMinimo([{ nome: "Alaska", porque: "garantia" }])).toBe("Falta o capital mínimo do Alaska: a garantia (a margem) dele não está cadastrada.");
+    expect(faltaDoMinimo([{ nome: "Orion", porque: "entradas" }])).toBe("Falta o capital mínimo do Orion: as entradas abertas dele não puderam ser lidas agora.");
+  });
+
+  it("mais de um robô, com o mesmo motivo ou com motivos diferentes", () => {
+    expect(
+      faltaDoMinimo([
+        { nome: "Alaska", porque: "garantia" },
+        { nome: "Orion", porque: "garantia" },
+      ]),
+    ).toBe("Falta o capital mínimo do Alaska e do Orion: a garantia (a margem) deles não está cadastrada.");
+    expect(
+      faltaDoMinimo([
+        { nome: "Alaska", porque: "garantia" },
+        { nome: "Orion", porque: "entradas" },
+        { nome: "Apollo", porque: "entradas" },
+      ]),
+    ).toBe(
+      "Falta o capital mínimo do Alaska, do Orion e do Apollo: a garantia (a margem) do Alaska não está cadastrada, e as entradas abertas do Orion e do Apollo não puderam ser lidas agora.",
+    );
+  });
+
+  it("nenhum robô de fora: nada", () => {
+    expect(faltaDoMinimo([])).toBe("");
+  });
+
+  it("antes do capital digitado: o capital mínimo da escolha, ou por que falta e quanto os outros pedem", () => {
+    expect(minimoSemCapital(110386, 110386, [])).toBe(`O capital mínimo para estes robôs e contratos é ${brl(110386)}.`);
+    expect(minimoSemCapital(null, 72766, [{ nome: "Alaska", porque: "garantia" }])).toBe(
+      `Falta o capital mínimo do Alaska: a garantia (a margem) dele não está cadastrada. Os outros robôs escolhidos pedem ${brl(72766)}. Sem ele, não dá para dizer se um capital cabe.`,
+    );
+    expect(minimoSemCapital(null, 0, [{ nome: "Alaska", porque: "entradas" }])).toBe(
+      "Falta o capital mínimo do Alaska: as entradas abertas dele não puderam ser lidas agora. Sem ele, não dá para dizer se um capital cabe.",
+    );
+  });
 });
 
 describe("fraseAndamJuntos", () => {
@@ -336,6 +406,7 @@ describe("respostaDoSimulador", () => {
     capitalMinimo: 102886,
     capitalMinimoConhecido: 102886,
     capitalQueFalta: 0,
+    ddMax: 20000,
     escolha: "1 contrato por entrada em cada um dos 3 robôs",
     semMinimo: [],
   };
@@ -391,7 +462,7 @@ describe("respostaDoSimulador", () => {
       { ...base, semaforo: "nao_cabe", capital: 30000, capitalQueFalta: 72886 },
       { ...base, semaforo: "apertado", capital: 102886 },
       { ...base, semaforo: "apertado", capital: 102886, digitado: false },
-      { ...base, capitalMinimo: null, capitalMinimoConhecido: 53262, semMinimo: ["Alaska"] },
+      { ...base, semaforo: "sem_avaliacao", capitalMinimo: null, capitalMinimoConhecido: 53262, semMinimo: [{ nome: "Alaska", porque: "garantia" }] },
     ];
     for (const c of casos) {
       const r = respostaDoSimulador(c);
@@ -399,24 +470,50 @@ describe("respostaDoSimulador", () => {
     }
   });
 
-  it("robô sem garantia cadastrada: a soma dos outros vale como piso, e a frase diz quem ficou de fora", () => {
-    const semTotal = { ...base, capitalMinimo: null, capitalMinimoConhecido: 53262, semMinimo: ["Alaska"] };
-    expect(respostaDoSimulador({ ...semTotal, semaforo: "nao_cabe", capital: 30000, capitalQueFalta: 23262 }).frase).toBe(
-      `${brl(30000)} ficam abaixo de ${brl(53262)}, o capital mínimo dos robôs com garantia cadastrada. Faltam ${brl(23262)}. Sem garantia cadastrada: Alaska; a soma dos outros vale como piso.`,
-    );
-    expect(respostaDoSimulador({ ...semTotal, semaforo: "cabe", capital: 200000 }).frase).toBe(
-      `${brl(200000)} cobrem o capital mínimo dos robôs com garantia cadastrada, ${brl(53262)}, e a maior queda do período ficou dentro de 25% do capital. Sem garantia cadastrada: Alaska; a soma dos outros vale como piso.`,
+  it("não cabe porque a maior queda teria levado o capital inteiro, mesmo cobrindo o mínimo", () => {
+    expect(respostaDoSimulador({ ...base, semaforo: "nao_cabe", capital: 110000, ddMax: 120000 }).frase).toBe(
+      `A maior queda do período teria consumido os ${brl(110000)} inteiros.`,
     );
   });
 
-  it("nenhum robô com garantia cadastrada: só a maior queda decide", () => {
-    const nada = { ...base, capitalMinimo: null, capitalMinimoConhecido: 0, semMinimo: ["Alaska"] };
-    expect(respostaDoSimulador({ ...nada, semaforo: "apertado", capital: 1000 }).frase).toBe(
-      "A maior queda do período passou de 25% do capital. Sem garantia cadastrada: Alaska; só a maior queda decide.",
+  it("robô escolhido sem capital mínimo: não dá para avaliar, com o motivo e quanto os outros já pedem", () => {
+    const semTotal: DadosDaResposta = {
+      ...base,
+      semaforo: "sem_avaliacao",
+      capitalMinimo: null,
+      capitalMinimoConhecido: 53262,
+      semMinimo: [{ nome: "Alaska", porque: "garantia" }],
+    };
+    const abaixo = respostaDoSimulador({ ...semTotal, capital: 30000, capitalQueFalta: 23262 });
+    expect(abaixo.estado).toBe("sem_avaliacao");
+    expect(abaixo.titulo).toBe("Não dá para avaliar se cabe");
+    expect(abaixo.frase).toBe(
+      `Falta o capital mínimo do Alaska: a garantia (a margem) dele não está cadastrada. Só os outros robôs escolhidos já pedem ${brl(53262)}, mais do que ${brl(30000)}.`,
     );
-    expect(respostaDoSimulador({ ...nada, semaforo: "nao_cabe", capital: 1000 }).frase).toBe(
-      `A maior queda do período teria consumido os ${brl(1000)} inteiros. Sem garantia cadastrada: Alaska; só a maior queda decide.`,
+    // capital de sobra também não vira "cabe"
+    const acima = respostaDoSimulador({ ...semTotal, capital: 200000 });
+    expect(acima.titulo).toBe("Não dá para avaliar se cabe");
+    expect(acima.frase).toBe(
+      `Falta o capital mínimo do Alaska: a garantia (a margem) dele não está cadastrada. ${brl(200000)} cobrem os ${brl(53262)} que os outros robôs escolhidos pedem.`,
     );
+  });
+
+  it("sem capital mínimo de nenhum robô escolhido: o motivo e, se for o caso, que a maior queda levaria o capital inteiro", () => {
+    const nada: DadosDaResposta = {
+      ...base,
+      semaforo: "sem_avaliacao",
+      capitalMinimo: null,
+      capitalMinimoConhecido: 0,
+      semMinimo: [{ nome: "Alaska", porque: "entradas" }],
+    };
+    expect(respostaDoSimulador({ ...nada, capital: 1000, ddMax: 300 }).frase).toBe(
+      "Falta o capital mínimo do Alaska: as entradas abertas dele não puderam ser lidas agora.",
+    );
+    expect(respostaDoSimulador({ ...nada, capital: 1000, ddMax: 1000 }).frase).toBe(
+      `Falta o capital mínimo do Alaska: as entradas abertas dele não puderam ser lidas agora. A maior queda do período teria consumido os ${brl(1000)} inteiros.`,
+    );
+    // sem capital digitado não há número para usar: a resposta é a mesma, não um "capital mínimo de –"
+    expect(respostaDoSimulador({ ...nada, digitado: false }).estado).toBe("sem_avaliacao");
   });
 
   it("singular: R$ 1 fica, falta R$ 1", () => {

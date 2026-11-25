@@ -35,7 +35,7 @@ async function ultimoPregaoDeTodos(hoje: string) {
     .map((e) => {
       const robo = porRobo.get(e.slug)!;
       const o = { base: "liquido" as const, unidade: "brl" as const, valorPonto: robo.valor_ponto_brl };
-      return { slug: e.slug, nome: robo.nome, valor: valorDia(e, o) };
+      return { slug: e.slug, nome: robo.nome, valor: valorDia(e, o), operou: e.n_operacoes > 0 };
     })
     .sort((a, b) => b.valor - a.valor);
 
@@ -51,15 +51,17 @@ async function ultimoPregaoDeTodos(hoje: string) {
  * Revisão dos indicadores (25/11/2026, DESIGN.md seção 9): a premissa diz "com 1 contrato por entrada em cada
  * robô", porque um robô pode ter várias entradas abertas ao mesmo tempo. A imagem continua sendo só o dia (o
  * de hoje ou o último pregão): não resume um período, não traz percentual nem média, e por isso não ganhou
- * outros números.
+ * outros números. O robô que ainda não operou no dia aparece por último, com "sem operação" escrito no lugar
+ * de um "R$ 0,00" (DESIGN.md, seção 8: nada de fileira de zeros).
  */
 export async function GET() {
   const hoje = hojeSP();
   const resumo = await resumoCasaHoje();
   const vivos = (resumo?.robos ?? [])
     .filter((r) => r.status === "ativo" || r.n_operacoes > 0)
-    .sort((a, b) => b.resultado_liquido_por_contrato - a.resultado_liquido_por_contrato)
-    .map((r) => ({ slug: r.slug, nome: r.nome, valor: r.resultado_liquido_por_contrato }));
+    .map((r) => ({ slug: r.slug, nome: r.nome, valor: r.resultado_liquido_por_contrato, operou: r.n_operacoes > 0 }))
+    // quem operou vem primeiro, do melhor para o pior; quem ainda não operou fica no fim (e sai antes, se passar de 4)
+    .sort((a, b) => Number(b.operou) - Number(a.operou) || b.valor - a.valor);
 
   // Sem operação hoje (fim de semana, feriado, antes da abertura) a imagem mostra o último pregão com a
   // data, como a home desde 19/09/2026: um "R$ 0,00" compartilhado no sábado não diz nada.
@@ -100,7 +102,7 @@ export async function GET() {
         </div>
 
         {/* o número grande, como o do site: sinal e moeda mais apagados; negativo, vermelho inteiro */}
-        <div style={{ display: "flex", flexDirection: "column", marginTop: 64 }}>
+        <div style={{ display: "flex", flexDirection: "column", marginTop: 48 }}>
           <span style={{ fontSize: 28, color: MUDO }}>{rotulo}</span>
           <div style={{ display: "flex", alignItems: "flex-end", marginTop: 14 }}>
             {prefixo ? (
@@ -113,26 +115,26 @@ export async function GET() {
           ) : null}
         </div>
 
-        {/* cada robô, depois de um fio */}
+        {/* cada robô, depois de um fio, e embaixo de onde vêm os números. A nota ficava à direita da linha dos
+            robôs e, com três robôs e um "sem operação", passava para duas linhas por cima do último */}
         <div
           style={{
             display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-end",
+            flexDirection: "column",
             marginTop: "auto",
             borderTop: `1px solid ${FIO}`,
-            paddingTop: 28,
+            paddingTop: 24,
           }}
         >
-          <div style={{ display: "flex", gap: 56 }}>
+          <div style={{ display: "flex", gap: 48 }}>
             {robos.map((r) => (
               <div key={r.slug} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 <span style={{ fontSize: 22, color: MUDO }}>{r.nome}</span>
-                <span style={{ fontSize: 36, color: cor(r.valor) }}>{brl(r.valor)}</span>
+                <span style={{ fontSize: 36, color: r.operou ? cor(r.valor) : MUDO, whiteSpace: "nowrap" }}>{r.operou ? brl(r.valor) : "sem operação"}</span>
               </div>
             ))}
           </div>
-          <span style={{ fontSize: 20, color: SUTIL }}>
+          <span style={{ fontSize: 20, color: SUTIL, marginTop: 16 }}>
             {passado ? "direto do MetaTrader 5" : `ao vivo, direto do MetaTrader 5 · ${formatarHora(new Date())}`}
           </span>
         </div>

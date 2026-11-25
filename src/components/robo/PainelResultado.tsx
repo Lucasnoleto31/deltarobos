@@ -24,12 +24,20 @@ interface Props {
   valorPonto: number;
   /** o capital mínimo do robô (capitalDoRobo): o mesmo número do cabeçalho e das outras telas, sem período */
   capitalMinimo: number | null;
+  /**
+   * false quando o histórico do robô não traz o horário de entrada (só operações importadas): aí a conta do
+   * capital considera 1 entrada aberta, e a tela diz isso junto do número
+   */
+  entradasMedidas: boolean;
 }
 
 const fmtMes = new Intl.DateTimeFormat("pt-BR", { month: "long", timeZone: "UTC" });
 const fmtMesComAno = new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric", timeZone: "UTC" });
 /** "julho", ou "julho de 2024" quando o período passa de um ano e o mês sozinho não diz qual. `mes` é "YYYY-MM". */
 const nomeDoMes = (mes: string, comAno: boolean) => (comAno ? fmtMesComAno : fmtMes).format(new Date(`${mes}-01T12:00:00Z`));
+
+/** As mesmas palavras de Quedas e risco, para o robô cujo histórico não permite contar as entradas abertas. */
+const NOTA_SEM_ENTRADAS = "a conta considera 1 entrada porque o histórico deste robô não traz o horário de entrada";
 
 const plural = (n: number, um: string, varios: string) => `${formatarNumero(n)} ${n === 1 ? um : varios}`;
 /** Dinheiro sem sinal, para distância e capital: "R$ 12.000", "R$ 85,50". */
@@ -75,7 +83,7 @@ function Rotulo({ chave, nota, children }: { chave?: ChaveIndicador; nota?: Reac
  * Os números saem de resumoDoPeriodo (lib/stats/como-opera) sobre a série diária recortada. O capital mínimo
  * não muda com o período: é o do histórico inteiro, o mesmo do cabeçalho.
  */
-export function PainelResultado({ linhas, pontosPorOperacao, valorPonto, capitalMinimo }: Props) {
+export function PainelResultado({ linhas, pontosPorOperacao, valorPonto, capitalMinimo, entradasMedidas }: Props) {
   const { robo, hoje } = useRobo();
   const [periodo, setPeriodo] = useState<PeriodoFechado>("tudo");
 
@@ -96,6 +104,7 @@ export function PainelResultado({ linhas, pontosPorOperacao, valorPonto, capital
         serie={pontosPorOperacao[periodo]}
         valorPonto={valorPonto}
         capitalMinimo={capitalMinimo}
+        entradasMedidas={entradasMedidas}
         hoje={hoje}
       />
     </section>
@@ -109,6 +118,7 @@ function ResultadoDoPeriodo({
   serie,
   valorPonto,
   capitalMinimo,
+  entradasMedidas,
   hoje,
 }: {
   periodo: PeriodoFechado;
@@ -118,6 +128,7 @@ function ResultadoDoPeriodo({
   serie: SerieCompacta;
   valorPonto: number;
   capitalMinimo: number | null;
+  entradasMedidas: boolean;
   hoje: string;
 }) {
   const opcoes = useMemo(() => opcoesDaCurva(valorPonto), [valorPonto]);
@@ -182,11 +193,23 @@ function ResultadoDoPeriodo({
             <span className="font-medium">{formatarBRL(r.ganhoPorQueda)}</span>
           </Fato>
         ) : null}
-        {capitalMinimo !== null ? (
-          <Fato rotulo={<Rotulo chave="capitalMinimo">Capital mínimo</Rotulo>}>
+        {/* sem margem cadastrada (ou sem a leitura das entradas) o capital fica em traço: o site não inventa a conta */}
+        <Fato
+          rotulo={
+            <Rotulo
+              chave="capitalMinimo"
+              nota={capitalMinimo !== null && !entradasMedidas ? NOTA_SEM_ENTRADAS : undefined}
+            >
+              Capital mínimo
+            </Rotulo>
+          }
+        >
+          {capitalMinimo !== null ? (
             <span className="font-medium">{formatarBRL(capitalMinimo, { inteiro: true })}</span>
-          </Fato>
-        ) : null}
+          ) : (
+            <span className="text-sutil">–</span>
+          )}
+        </Fato>
       </Fatos>
       <Fatos>
         {r.meses.meses > 1 ? (

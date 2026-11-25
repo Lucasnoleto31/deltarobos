@@ -55,6 +55,8 @@ function Esqueleto() {
  * robô já teve abertas ao mesmo tempo + maior queda × fator. Aqui não se refaz a conta, para o número ser
  * o mesmo em toda tela. Os dados da série vêm do carregarCasa, que o layout do site e o capitaisDaCasa já
  * leram nesta mesma renderização (cache por requisição): a simulação e o capital mínimo saem das mesmas linhas.
+ * Sem o número (o ativo sem garantia cadastrada, ou a leitura das entradas abertas falhou), o robô leva um
+ * traço e o motivo, e a resposta do painel diz que não dá para avaliar.
  */
 export default async function PaginaSimulador() {
   const [casa, capitais] = await Promise.all([carregarCasa(), capitaisDaCasa()]);
@@ -69,7 +71,7 @@ export default async function PaginaSimulador() {
 
   const robosSim: RoboSimulador[] = casa.robos
     .filter((r) => r.status !== "arquivado")
-    .map((r) => {
+    .map((r): RoboSimulador => {
       const opcoes = { base: "liquido", unidade: "brl", valorPonto: r.valor_ponto_brl } as const;
       // R$ líquido por 1 contrato SEM arredondar: o banco guarda 4 casas e a conta do capital mínimo também não
       // arredonda os dias; a soma do dia da carteira é que sai a centavos (somarCarteira)
@@ -84,8 +86,10 @@ export default async function PaginaSimulador() {
         ativoNome: r.ativo_nome,
         contaTipo: r.conta_tipo,
         dias,
-        // o número publicado do robô com 1 contrato por entrada; null sem margem cadastrada para o ativo
+        // o número publicado do robô com 1 contrato por entrada; null sem margem cadastrada para o ativo ou
+        // quando a leitura das entradas abertas falhou (capital.ts não conta 1 entrada em silêncio)
         capitalMinimoPorContrato: capital?.capitalMinimo ?? null,
+        semMinimoPorque: capital && capital.capitalMinimo !== null ? null : !capital || capital.margem === null ? "garantia" : "entradas",
         entradasAbertas: capital?.entradas ?? 1,
         // sem operação acompanhada ao vivo não há o que medir: a tela diz isso em vez de afirmar "1 entrada"
         entradasMedidas: capital ? capital.entradasEm !== null : false,

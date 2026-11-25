@@ -30,6 +30,8 @@ import {
   historicoCurto,
   historicoEmPalavras,
   intervaloDeDatas,
+  minimoEmPalavras,
+  minimoSemCapital,
   pregoes,
 } from "./serie-simulada";
 import { inteiroDe, lerCapital, lerUrlSimulador, normalizarContratos, urlSimulador, type EstadoSimulador } from "./simulador-url";
@@ -100,7 +102,9 @@ function CampoInteiro({
  * revisão de 25/11/2026 a tela responde nesta ordem, que é a do código e a do celular:
  * 1. o capital, que a pessoa digita;
  * 2. a resposta: "Cabe", "Apertado" ou "Não cabe", com o capital mínimo dos robôs e contratos escolhidos e
- *    quanto falta. Sem capital digitado, a simulação usa o capital mínimo e a resposta é esse número;
+ *    quanto falta. Sem capital digitado, a simulação usa o capital mínimo e a resposta é esse número. Com
+ *    algum robô escolhido sem capital mínimo (sem garantia cadastrada ou sem a leitura das entradas abertas),
+ *    o robô leva um traço e a resposta diz que não dá para avaliar, e por quê;
  * 3. os robôs e os contratos por entrada de cada um. Debaixo do nome, em texto pequeno, quantas entradas
  *    abertas ao mesmo tempo a conta do capital mínimo considera para ele ("1 contrato" é por entrada, e a
  *    garantia da corretora é por contrato), o capital mínimo dele e, quando o histórico tem menos de 12
@@ -185,7 +189,10 @@ export function PainelSimulador({ robos, hoje, fatorSeguranca }: Props) {
   // o que a conta do capital mínimo considera para cada robô escolhido: contratos, entradas abertas e o mínimo dele
   const daSelecao = new Map(minimoDaSelecao.porRobo.map((p) => [p.slug, p]));
   const escolhidos = minimoDaSelecao.porRobo.map((p) => ({ nome: nomeDe(p.slug), contratos: p.contratos }));
-  const semMinimo = minimoDaSelecao.semMinimo.map(nomeDe).join(", ");
+  const semMinimo = minimoDaSelecao.semMinimo.map((slug) => ({
+    nome: nomeDe(slug),
+    porque: robos.find((x) => x.slug === slug)?.semMinimoPorque ?? "garantia",
+  }));
   // "1 contrato por entrada em cada um dos 3 robôs", "2 contratos por entrada no Apollo e 1 no Orion"
   const escolha = contratosEmPalavras(escolhidos, robos.length, true);
   const nota = fraseAndamJuntos(pares.map((p) => ({ ...p, a: nomeDe(p.a), b: nomeDe(p.b) })));
@@ -221,13 +228,7 @@ export function PainelSimulador({ robos, hoje, fatorSeguranca }: Props) {
         ) : capital === null ? (
           <div className="max-w-xl text-pretty text-muted-foreground">
             <p>Informe o seu capital para ver quanto os robôs escolhidos teriam ganho e quanto teriam caído.</p>
-            <p className="mt-3 text-sm">
-              {minimoDaSelecao.total !== null
-                ? `O capital mínimo para estes robôs e contratos é ${brl(minimoDaSelecao.total)}.`
-                : minimoDaSelecao.conhecido > 0
-                  ? `O capital mínimo dos robôs com garantia cadastrada soma ${brl(minimoDaSelecao.conhecido)}. Sem garantia cadastrada: ${semMinimo}.`
-                  : `Sem garantia cadastrada: ${semMinimo}.`}
-            </p>
+            <p className="mt-3 text-sm">{minimoSemCapital(minimoDaSelecao.total, minimoDaSelecao.conhecido, semMinimo)}</p>
           </div>
         ) : !comResultado ? (
           <p className="max-w-xl text-pretty text-muted-foreground">Os robôs escolhidos não operaram neste período.</p>
@@ -285,8 +286,10 @@ export function PainelSimulador({ robos, hoje, fatorSeguranca }: Props) {
                             medidas: r.entradasMedidas,
                             contratos: escolhido.contratos,
                             contratosAbertos: escolhido.contratosAbertos,
+                            semMinimoPorque: r.semMinimoPorque,
                           }),
-                          escolhido.total !== null ? `mínimo de ${brl(escolhido.total)}` : "sem garantia cadastrada",
+                          // sem o número, um traço e o motivo, como na lista da Visão geral
+                          minimoEmPalavras(escolhido.total, r.semMinimoPorque),
                         ]
                           .filter((parte) => parte !== null)
                           .join(" · ")

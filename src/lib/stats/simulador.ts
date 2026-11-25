@@ -19,13 +19,16 @@
 //
 // Bordas fechadas na revisão de 23/09/2026: o capital mínimo por contrato é o INTEIRO que a aba Risco
 // mostra (Math.round), para quem digita exatamente o número publicado não ler "não cabe"; as
-// comparações do semáforo são a centavos, porque o acumulado é soma de centavos em ponto flutuante;
-// com robô sem margem configurada, a soma dos mínimos conhecidos vale como piso; e drawdown simulado
-// maior ou igual ao capital é "não cabe" (o patrimônio simulado teria zerado).
+// comparações do semáforo são a centavos, porque o acumulado é soma de centavos em ponto flutuante; e
+// drawdown simulado maior ou igual ao capital é "não cabe" (o patrimônio simulado teria zerado).
 //
 // 25/11/2026 (DESIGN.md, seção 9): saiu o resultado em % do capital (percentual de retorno não entra em
 // tela nenhuma; a queda em % do capital fica, porque mede risco) e entraram os meses com ganho, quanto
-// falta para o capital mínimo e os pares de robôs que ganham e perdem nos mesmos dias.
+// falta para o capital mínimo e os pares de robôs que ganham e perdem nos mesmos dias. Robô escolhido sem
+// capital mínimo (sem garantia cadastrada para o ativo, ou sem a leitura das entradas abertas) deixa a
+// resposta em "sem_avaliacao": até então a soma dos mínimos conhecidos valia como piso e a tela dizia
+// "cabe" sobre um número incompleto. A soma conhecida continua no resultado, para a frase dizer quanto os
+// outros robôs já pedem.
 
 import { andamJuntos, ehParQueAndaJunto, resultadoPorMes, resumirMeses } from "./indicadores-robo";
 import { capitalMinimoRecomendado } from "./kpis";
@@ -74,9 +77,15 @@ export interface RoboSimulador {
   dias: readonly DiaLiquido[];
   /**
    * O capital mínimo publicado do robô com 1 contrato por entrada (lib/consultas/capital.ts, a regra de
-   * capitalMinimoDoRobo), inteiro em R$; null = o ativo não tem margem cadastrada.
+   * capitalMinimoDoRobo), inteiro em R$; null = não há o número (veja semMinimoPorque).
    */
   capitalMinimoPorContrato: number | null;
+  /**
+   * Por que o capital mínimo é null: "garantia" = o ativo não tem a garantia (a margem) cadastrada;
+   * "entradas" = a leitura das entradas abertas falhou, e o capital ficaria menor do que o real. null quando
+   * há o número.
+   */
+  semMinimoPorque: "garantia" | "entradas" | null;
   /** o máximo de entradas abertas ao mesmo tempo que a conta do capital mínimo considera (1 sem medição) */
   entradasAbertas: number;
   /** false = não há operação acompanhada ao vivo para medir as entradas, e o 1 acima é só o piso da conta */
@@ -99,7 +108,8 @@ export interface PontoSimulado extends PontoCurva {
   patrimonio: number;
 }
 
-export type Semaforo = "cabe" | "apertado" | "nao_cabe";
+/** "sem_avaliacao" = algum robô escolhido está sem capital mínimo, e sem ele não dá para dizer se cabe. */
+export type Semaforo = "cabe" | "apertado" | "nao_cabe" | "sem_avaliacao";
 
 export interface CapitalMinimoRobo {
   slug: string;
@@ -155,9 +165,12 @@ export interface ResultadoSimulacao {
   diasNegativos: number;
   /** soma de total por robô selecionado; null se ALGUM selecionado tem porContrato null */
   capitalMinimo: number | null;
-  /** soma dos mínimos conhecidos dos robôs selecionados (= capitalMinimo quando todos têm margem): o piso do semáforo */
+  /**
+   * soma dos mínimos conhecidos dos robôs selecionados (= capitalMinimo quando todos têm o número): sem o
+   * total, quanto os outros robôs já pedem, que a frase da resposta cita
+   */
   capitalMinimoConhecido: number;
-  /** quanto falta para o capital alcançar o capital mínimo (ou o piso conhecido, sem o total); 0 quando cobre */
+  /** quanto falta para o capital alcançar o capital mínimo (ou a soma conhecida, sem o total); 0 quando cobre */
   capitalQueFalta: number;
   /** só robôs com contratos > 0, na ordem de `robos` */
   capitalMinimoPorRobo: CapitalMinimoRobo[];
@@ -180,8 +193,9 @@ const ordenar = <T extends { dia: string }>(itens: readonly T[]): T[] =>
   [...itens].sort((a, b) => (a.dia < b.dia ? -1 : a.dia > b.dia ? 1 : 0));
 
 /**
- * Soma ponderada da carteira, generalizando somarSeries de comparativo/page.tsx: Map por dia; robô sem
- * linha no dia contribui 0; só entram robôs com contratos > 0; devolve em ordem de dia, a centavos.
+ * Soma ponderada da carteira, a mesma soma dia a dia que somarSeries (lib/stats/serie-casa) faz para a casa
+ * na Visão geral, mas com os contratos de cada robô: Map por dia; robô sem linha no dia contribui 0; só
+ * entram robôs com contratos > 0; devolve em ordem de dia, a centavos.
  */
 export function somarCarteira(
   robos: readonly RoboSimulador[],
@@ -245,8 +259,9 @@ function entradasDe(robo: RoboSimulador): number {
  * capital mínimo de 1 contrato já é margem × entradas abertas + maior queda × fator, multiplicar pelos
  * contratos multiplica as duas parcelas: a margem passa a valer para entradas × contratos (`contratosAbertos`,
  * o que o robô chegaria a ter aberto ao mesmo tempo) e a queda cresce na mesma proporção. `total` é null
- * quando algum deles não tem margem configurada; `conhecido` é a soma dos que têm (um piso: o total, se
- * existisse, seria maior), e `semMinimo` diz quais ficaram de fora.
+ * quando algum deles está sem o número (sem garantia cadastrada ou sem a leitura das entradas abertas);
+ * `conhecido` é a soma dos que têm (o total, se existisse, seria maior), e `semMinimo` diz quais ficaram de
+ * fora.
  */
 export function capitalMinimoDaCarteira(
   robos: readonly RoboSimulador[],
@@ -294,23 +309,23 @@ export function paresQueAndamJuntos(
   return pares.sort((x, y) => y.mesmoSentido / y.diasEmComum - x.mesmoSentido / x.diasEmComum);
 }
 
+/** A maior queda simulada levaria o capital inteiro (o patrimônio simulado teria zerado), a centavos. */
+export function consumiriaOCapital(capital: number, ddMax: number): boolean {
+  return emCentavos(ddMax) >= emCentavos(capital);
+}
+
 /**
- * nao_cabe: capital < capital mínimo publicado (sem o total, por robô sem margem configurada, vale o
- * piso: a soma dos mínimos conhecidos, porque um piso já basta para concluir que não cabe) ou drawdown
- * máximo simulado >= capital (o patrimônio simulado teria zerado); apertado: ddMax > LIMITE_APERTADO ×
- * capital (igual = cabe); cabe: o resto. Comparações a centavos: ddMax é soma de centavos em ponto
- * flutuante e 25% exatos passavam por 1e-13.
+ * sem_avaliacao: capital mínimo null (algum robô escolhido sem garantia cadastrada ou sem a leitura das
+ * entradas abertas): sem o número inteiro não se afirma nada, nem "não cabe"; nao_cabe: capital < capital
+ * mínimo publicado ou drawdown máximo simulado >= capital (o patrimônio simulado teria zerado); apertado:
+ * ddMax > LIMITE_APERTADO × capital (igual = cabe); cabe: o resto. Comparações a centavos: ddMax é soma de
+ * centavos em ponto flutuante e 25% exatos passavam por 1e-13.
  */
-export function semaforoDe(
-  capital: number,
-  capitalMinimo: number | null,
-  ddMax: number,
-  capitalMinimoConhecido: number = capitalMinimo ?? 0,
-): Semaforo {
-  if (capital < (capitalMinimo ?? capitalMinimoConhecido)) return "nao_cabe";
-  const dd = emCentavos(ddMax);
-  if (dd >= emCentavos(capital)) return "nao_cabe";
-  if (dd > emCentavos(LIMITE_APERTADO * capital)) return "apertado";
+export function semaforoDe(capital: number, capitalMinimo: number | null, ddMax: number): Semaforo {
+  if (capitalMinimo === null) return "sem_avaliacao";
+  if (capital < capitalMinimo) return "nao_cabe";
+  if (consumiriaOCapital(capital, ddMax)) return "nao_cabe";
+  if (emCentavos(ddMax) > emCentavos(LIMITE_APERTADO * capital)) return "apertado";
   return "cabe";
 }
 
@@ -359,6 +374,6 @@ export function simular(e: EntradaSimulacao): ResultadoSimulacao {
     capitalQueFalta: Math.max(0, (minimo.total ?? minimo.conhecido) - capital),
     capitalMinimoPorRobo: minimo.porRobo,
     robosSemCapitalMinimo: minimo.semMinimo,
-    semaforo: semaforoDe(capital, minimo.total, ddMax, minimo.conhecido),
+    semaforo: semaforoDe(capital, minimo.total, ddMax),
   };
 }

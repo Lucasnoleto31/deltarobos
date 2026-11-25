@@ -114,13 +114,15 @@ Alaska & Square vem com `--sem-lote`: o "lote" da origem (4 a 16) não é contra
 a curva certa é a soma direta dos resultados (+R$ 14.269,60 até 11/09/2026). Esse robô não tem
 conta nem coletor: `custo_por_contrato = 0`, `capital_referencia = 25000`, corte em 2026-09-12.
 
-Robô só com histórico importado (sem conta principal, como o Alaska & Square) aparece com status
-"Histórico" e sem painel ao vivo; `robos_publico.tem_coletor` diz isso ao front.
+Robô só com histórico importado (sem conta principal, como o Alaska & Square) aparece com a frase "sem
+acompanhamento ao vivo · dados até dd/mm" e sem a aba Ao vivo (`/robos/<slug>/hoje` responde 404);
+`robos_publico.tem_coletor` diz isso ao front.
 
 ### Operações em aberto (ao vivo)
 
-O site mostra quantas operações cada robô tem abertas agora (barra e cards da home, "Hoje ao vivo" e
-`/robos/<slug>/ao-vivo`). Conta-se **entradas abertas**: cada ticket (posição) aberto no MT5 vale 1; nunca
+O site mostra quantas operações cada robô tem abertas agora (aba Ao vivo da página do robô e
+`/robos/<slug>/ao-vivo`; desde 25/11/2026 a home não tem mais cards, e a fita de mercado diz só quantos robôs
+estão em operação agora). Conta-se **entradas abertas**: cada ticket (posição) aberto no MT5 vale 1; nunca
 volume nem contratos. A regra é uma só, em todo lugar (migration 0020): só a conta principal do robô e só
 tickets que já passaram de `robos.atraso_publico_segundos`. É a mesma expressão do booleano `posicionado`,
 que continua existindo. `coleta_status.n_posicoes` não serve para isso (é por conta e sem atraso).
@@ -145,21 +147,22 @@ hidratação) também não, como o selo Posicionado.
 
 ### Relatórios mensais
 
-`/robos/<slug>/relatorios` lista os meses com operação; `/api/relatorios/<slug>/<YYYY-MM>/pdf`
-gera o PDF (`@react-pdf/renderer`, resumo + por dia + por série + todas as operações) e
-`/api/relatorios/<slug>/<YYYY-MM>/csv` o CSV, ambos a partir de `operacoes_publico`. Meses
-fechados ficam em cache por um dia.
+Os meses com operação estão na lista "Mês a mês" da aba Dia a dia (`/robos/<slug>/calendario#mes-a-mes`)
+e os mais recentes, no pé da aba Operações. Desde 25/11/2026 a aba Relatórios não existe:
+`/robos/<slug>/relatorios` redireciona para `#mes-a-mes` (`next.config.ts`). `/api/relatorios/<slug>/<YYYY-MM>/pdf`
+gera o PDF (`@react-pdf/renderer`) e `/api/relatorios/<slug>/<YYYY-MM>/csv` a planilha (CSV), ambos a partir
+de `operacoes_publico`. Meses fechados ficam em cache por um dia.
 
 ### Curva de capital por operação
 
 Na curva de capital, a aba "Por operação" liga um ponto a cada operação fechada, até 20 mil operações
 no período (`PONTOS_FIEL` em `src/components/graficos/series-da-curva.ts`); acima disso o site agrupa
-operações vizinhas. A Visão geral do robô chega com a série leve de 240 pontos (`PONTOS_LEVE`), que
+operações vizinhas. A aba Resumo do robô chega com a série leve de 240 pontos (`PONTOS_LEVE`), que
 pinta na hora, e quando o visitante abre "Por operação" busca a série completa em
 `/api/robos/<slug>/curva/<periodo>` (`periodo` em `PERIODOS_FECHADOS`, hoje `semana`, `mes`, `ano` e
 `tudo`): JSON só com dados públicos, montado com as mesmas funções da página, em cache por 60 s
-(404 para robô inexistente, 400 para período inválido). A aba Desempenho e o calendário já têm as
-operações no navegador e desenham na resolução fiel direto.
+(404 para robô inexistente, 400 para período inválido). A aba Dia a dia já tem as operações no
+navegador e desenha na resolução fiel direto.
 
 ### Excursões medidas pelo EA (MFE/MAE, MEP/MEN) e candles
 
@@ -250,8 +253,8 @@ anteriores ao extremo).
 Dia sem linha na view (EA anterior à 1.1.2, robô sem coletor, dia importado): a curva por fechamento de
 sempre, rotulada "por fechamento", agora com os dentes de MFE/MAE por operação (traço vertical do acumulado
 antes + MAE até o acumulado antes + MFE; em série agrupada, o envelope da fatia). Os dentes também aparecem
-na aba Desempenho e na visão geral "Por operação" (`dentes` em `SerieCompacta`, só quando alguma operação
-da série tem MFE/MAE). Regra na spec §7 e na Metodologia (`/metodologia#curva-do-dia`).
+na curva "Por operação" da aba Resumo (`dentes` em `SerieCompacta`, só quando alguma operação da série tem
+MFE/MAE). Regra na spec §7 e em Como funciona (`/metodologia#curva-do-dia`).
 
 ### Imagem do dia para compartilhar
 
@@ -304,19 +307,20 @@ nenhuma fonte externa é carregada.
 
 `/simulador` aplica o histórico público, por 1 contrato e já com custos, ao capital e aos contratos que o
 visitante informa. Tudo fica na URL (`?capital=30000&r=apollo:2,orion:1&periodo=12m`; `r` ausente = todos os
-robôs com 1, `r=` = nenhum, padrões omitidos), e os links "Simular com meu capital" da aba Risco e do card do
-robô chegam com o robô preenchido. Para cada dia de pregão soma contratos × resultado líquido por contrato de
-cada robô (dia sem operação = 0), desenha patrimônio = capital + acumulado com o drawdown embaixo e mostra
-resultado do período, drawdown máximo (em R$ e em % do **capital inicial informado**, nunca do patrimônio do
-momento), pior mês (com quantos pregões entraram: os meses das pontas podem estar incompletos), pior dia,
-maior sequência de dias negativos e o capital mínimo da carteira (soma de contratos × capital mínimo por
-contrato da aba Risco, o real inteiro publicado, com o drawdown de todo o histórico; robô sem margem
-configurada deixa a soma dos outros como piso). O semáforo é só uma leitura disso: não cabe (capital abaixo do
+robôs com 1, `r=` = nenhum, padrões omitidos), e os links do cabeçalho do robô e da aba Quedas e risco chegam
+com o robô preenchido. Sem `capital` na URL, simula com o capital mínimo da escolha (25/11/2026). Para cada dia
+de pregão soma contratos × resultado líquido por contrato de cada robô (dia sem operação = 0), desenha
+patrimônio = capital + acumulado com a maior queda em vermelho na linha e mostra o resultado do período em R$
+(sem %), drawdown máximo (em R$ e em % do **capital inicial informado**, nunca do patrimônio do momento), pior
+mês (com quantos pregões entraram: os meses das pontas podem estar incompletos), pior dia, dias negativos com
+a maior sequência e o capital mínimo da carteira (soma de contratos × capital mínimo de cada robô, o mesmo da
+aba Quedas e risco: garantia por contrato × entradas abertas ao mesmo tempo + maior queda de todo o histórico
+× fator, no real inteiro publicado; robô sem margem configurada deixa a soma dos outros como piso). O semáforo é só uma leitura disso: não cabe (capital abaixo do
 mínimo ou do piso conhecido, ou drawdown simulado que consumiria o capital inteiro), apertado (drawdown máximo
 simulado acima de 25% do capital) ou cabe. `capital` e `n` na URL aceitam só dígitos. É aritmética sobre o
 histórico, não recomendação nem projeção de resultado, e a página diz isso em texto fixo. Cálculo puro em
-`src/lib/stats/simulador.ts`, URL em `src/components/simulador/simulador-url.ts`, regra na spec §8.6 e na
-Metodologia (`/metodologia#simulador`).
+`src/lib/stats/simulador.ts`, URL em `src/components/simulador/simulador-url.ts`, regra na spec §8.6 e em
+Como funciona (`/metodologia#simulador`).
 
 ### Regras de segurança do schema
 
@@ -400,9 +404,14 @@ NEXT_PUBLIC_SITE_URL
 mt5/                      EA coletor
 supabase/migrations/      schema (24 migrations, ordem numérica)
 supabase/seed.sql         dados iniciais
-src/app/(site)/           home, /robos/[slug], /comparativo, /simulador, /metodologia
+src/app/(site)/           / (Visão geral), /simulador, /metodologia (Como funciona) e o robô: /robos/[slug]
+                          (Resumo), /hoje (Ao vivo, só com coletor), /calendario (Dia a dia), /risco
+                          (Quedas e risco), /faixas (Melhores horários), /operacoes
+src/app/(tela-cheia)/     /robos/[slug]/ao-vivo (tela cheia do dia) e /embed/[slug] (widget)
+next.config.ts            redireciona /comparativo, /robos/[slug]/desempenho e /robos/[slug]/relatorios
 src/app/api/ingest/       ping, deal, heartbeat, history, candles, reconciliar
 src/app/api/robos/        curva por operação por período (cache 60 s) e série do saldo do dia (JSON público)
+src/app/api/relatorios/   relatório do mês em PDF e operações do mês em planilha (CSV)
 src/app/api/og/           imagens: prévia OG do robô e da casa, e a imagem do dia para compartilhar
 src/components/           ui (shadcn), layout, home, robo, graficos, simulador, compartilhados, card (imagem do dia), compartilhar
 src/hooks/                realtime (useRoboAoVivo, useCasaAoVivo), relógio

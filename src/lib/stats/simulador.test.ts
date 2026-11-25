@@ -11,6 +11,7 @@ import {
   PERIODO_SIMULADOR_PADRAO,
   capitalMinimoDaCarteira,
   capitalMinimoDoRobo,
+  consumiriaOCapital,
   curvaSimulada,
   ehPeriodoSimulador,
   paresQueAndamJuntos,
@@ -39,6 +40,7 @@ function robo(
     contaTipo: "demo",
     dias,
     capitalMinimoPorContrato,
+    semMinimoPorque: capitalMinimoPorContrato === null ? "garantia" : null,
     entradasAbertas,
     entradasMedidas: entradasAbertas > 1,
   };
@@ -293,7 +295,7 @@ describe("capitalMinimoDaCarteira", () => {
     expect(r.porRobo.map((p) => p.slug)).toEqual(["orion"]);
   });
 
-  it("null quando algum robô escolhido não tem margem configurada, e diz qual; a soma dos outros fica como piso", () => {
+  it("null quando algum robô escolhido não tem margem configurada, e diz qual; a soma dos outros fica à parte", () => {
     const semMargem = robo("alaska", [["2026-09-01", 10]], null);
     const r = capitalMinimoDaCarteira([apollo, semMargem], { apollo: 1, alaska: 1 });
     expect(r.total).toBeNull();
@@ -423,19 +425,22 @@ describe("semaforoDe", () => {
   });
 
   it("não cabe quando o drawdown simulado consumiria o capital inteiro", () => {
-    expect(semaforoDe(1000, null, 1000)).toBe("nao_cabe");
-    expect(semaforoDe(1000, null, 1059)).toBe("nao_cabe");
+    expect(semaforoDe(1000, 100, 1000)).toBe("nao_cabe");
+    expect(semaforoDe(1000, 100, 1059)).toBe("nao_cabe");
     expect(semaforoDe(1000, 100, 999.99)).toBe("apertado");
+    expect(consumiriaOCapital(1000, 1000)).toBe(true);
+    expect(consumiriaOCapital(1000, 999.99)).toBe(false);
+    // a centavos: a soma em ponto flutuante não deixa a queda igual ao capital passar por "não consome"
+    expect(consumiriaOCapital(0.3, 0.1 + 0.2)).toBe(true);
   });
 
-  it("sem o total, a soma dos mínimos conhecidos é piso; acima dela só o drawdown decide", () => {
-    expect(semaforoDe(1000, null, 0, 4290)).toBe("nao_cabe");
-    expect(semaforoDe(4290, null, 0, 4290)).toBe("cabe");
-    expect(semaforoDe(4290, null, 1073, 4290)).toBe("apertado");
-    // nada conhecido (todos sem margem): só o drawdown
-    expect(semaforoDe(100, null, 25)).toBe("cabe");
-    expect(semaforoDe(100, null, 26)).toBe("apertado");
-    expect(semaforoDe(100, null, 100)).toBe("nao_cabe");
+  it("sem o capital mínimo (robô sem garantia cadastrada ou sem a leitura das entradas), não dá para avaliar", () => {
+    // com qualquer capital e qualquer queda: sem o número inteiro não se afirma nem "cabe" nem "não cabe"
+    expect(semaforoDe(1000, null, 0)).toBe("sem_avaliacao");
+    expect(semaforoDe(1_000_000, null, 25)).toBe("sem_avaliacao");
+    expect(semaforoDe(100, null, 100)).toBe("sem_avaliacao");
+    // zero é um número (carteira vazia), não falta de número
+    expect(semaforoDe(100, 0, 0)).toBe("cabe");
   });
 });
 
@@ -525,7 +530,7 @@ describe("simular", () => {
     expect(r.piorMes).toEqual({ mes: "2026-09", valor: 0, nDias: 3 });
   });
 
-  it("quanto falta para o capital mínimo: zero quando cobre; sem o total, falta para o piso conhecido", () => {
+  it("quanto falta para o capital mínimo: zero quando cobre; sem o total, falta para a soma dos outros", () => {
     expect(simular({ ...entrada, capital: 10000 }).capitalQueFalta).toBe(3000);
     expect(simular({ ...entrada, capital: 13000 }).capitalQueFalta).toBe(0);
     expect(simular({ ...entrada, capital: 50000 }).capitalQueFalta).toBe(0);
@@ -648,24 +653,27 @@ describe("simular", () => {
     expect(r.capitalMinimoPorRobo.map((p) => p.slug)).toEqual(["orion"]);
   });
 
-  it("robô sem margem configurada: capital mínimo null, e a soma dos mínimos conhecidos vira piso", () => {
+  it("robô escolhido sem capital mínimo: o total é null, a resposta não avalia, e a soma dos outros fica para a frase", () => {
     const semMargem = robo("alaska", [["2026-05-05", -100]], null);
     const base = { ...entrada, robos: [apollo, semMargem], contratos: { apollo: 1, alaska: 1 } };
     const r = simular({ ...base, capital: 1000 });
     expect(r.capitalMinimo).toBeNull();
     expect(r.capitalMinimoConhecido).toBe(5000);
+    expect(r.capitalQueFalta).toBe(4000);
     expect(r.robosSemCapitalMinimo).toEqual(["alaska"]);
-    // R$ 1.000 já fica abaixo dos R$ 5.000 do Apollo sozinho: não cabe, mesmo sem o total
-    expect(r.semaforo).toBe("nao_cabe");
-    // cobrindo o piso, só o drawdown decide: dd 400 (100 → -300) é 8% de 5.000
-    const cobre = simular({ ...base, capital: 5000 });
-    expect(cobre.ddMax).toBe(400);
-    expect(cobre.semaforo).toBe("cabe");
-    // só robôs sem margem: nada conhecido, e o drawdown decide sozinho, inclusive o "não cabe" por zerar o capital
-    const so = { ...entrada, robos: [semMargem], contratos: { alaska: 1 } };
-    expect(simular({ ...so, capital: 100 }).semaforo).toBe("nao_cabe");
-    expect(simular({ ...so, capital: 101 }).semaforo).toBe("apertado");
-    expect(simular({ ...so, capital: 400 }).semaforo).toBe("cabe");
+    expect(r.semaforo).toBe("sem_avaliacao");
+    // nem com capital de sobra: sem o número do Alaska, "cabe" seria uma afirmação sobre um número incompleto
+    const sobra = simular({ ...base, capital: 1_000_000 });
+    expect(sobra.semaforo).toBe("sem_avaliacao");
+    expect(sobra.capitalQueFalta).toBe(0);
+    // a simulação em R$ não depende do capital mínimo: o resultado e a maior queda continuam
+    expect(sobra.ddMax).toBe(400);
+    expect(sobra.serie.length).toBeGreaterThan(0);
+    // sem a leitura das entradas abertas é o mesmo caso
+    const semLeitura = { ...robo("orion", ORION, null), semMinimoPorque: "entradas" as const };
+    expect(simular({ ...entrada, robos: [semLeitura], contratos: { orion: 1 } }).semaforo).toBe("sem_avaliacao");
+    // desmarcado, o robô sem número não atrapalha
+    expect(simular({ ...base, contratos: { apollo: 1, alaska: 0 }, capital: 5000 }).semaforo).toBe("cabe");
   });
 
   it("carteira vazia devolve zeros, série vazia, pior mês/dia null e cabe", () => {
