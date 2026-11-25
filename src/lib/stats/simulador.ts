@@ -174,13 +174,19 @@ export function curvaSimulada(dias: ReadonlyArray<{ dia: string; valor: number }
  * (formatarBRL com inteiro): tela e regra usam o mesmo número, e quem digita exatamente o publicado não
  * lê "não cabe" por meio centavo. null sem margem configurada.
  */
-export function capitalMinimoDoRobo(dias: readonly DiaLiquido[], margem: number | null, fatorSeguranca: number): number | null {
+export function capitalMinimoDoRobo(
+  dias: readonly DiaLiquido[],
+  margem: number | null,
+  fatorSeguranca: number,
+  /** o máximo de entradas que o robô já teve abertas ao mesmo tempo (a margem é por contrato); 1 sem medição */
+  entradasAbertas = 1,
+): number | null {
   if (margem === null) return null;
   const curva = curvaSimulada(
     dias.map(([dia, valor]) => ({ dia, valor })),
     0,
   );
-  return Math.round(capitalMinimoRecomendado(margem, drawdownMaximo(curva).valor, fatorSeguranca));
+  return Math.round(capitalMinimoRecomendado(margem, drawdownMaximo(curva).valor, fatorSeguranca, entradasAbertas));
 }
 
 /**
