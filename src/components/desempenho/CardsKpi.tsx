@@ -13,7 +13,7 @@ export interface ItemKpi {
   detalhe?: React.ReactNode;
   /** chave do glossário: com ela, o rótulo vira o gatilho do "o que é" (sublinhado pontilhado, sem ícone) */
   info?: ChaveIndicador;
-  /** troca o texto do glossário quando o número da tela pede outra explicação (a duração típica do Resumo é a mediana) */
+  /** troca o texto do glossário quando o número da tela pede outra explicação (por exemplo, a premissa de custos do robô) */
   infoTexto?: string;
 }
 

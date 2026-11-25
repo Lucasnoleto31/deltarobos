@@ -51,8 +51,10 @@ export function Fato({
   children: React.ReactNode;
 }) {
   return (
+    // o rótulo quebra em linhas e o número não encolhe: com uma nota longa no rótulo, o número era empurrado para
+    // fora da tela no celular (25/11/2026, capital mínimo do robô sem medição de entradas)
     <div className="flex items-baseline justify-between gap-6 leading-7">
-      <dt className="text-muted-foreground">
+      <dt className="min-w-0 text-muted-foreground">
         {info ? (
           <RotuloComInfo chave={info} texto={infoTexto}>
             {rotulo}
@@ -61,7 +63,7 @@ export function Fato({
           rotulo
         )}
       </dt>
-      <dd className="min-w-0 text-right">{children}</dd>
+      <dd className="shrink-0 text-right">{children}</dd>
     </div>
   );
 }

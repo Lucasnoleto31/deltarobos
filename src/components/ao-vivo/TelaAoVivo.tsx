@@ -18,6 +18,7 @@ import { LINK_DO_PAINEL } from "@/components/sistema/Painel";
 import { buttonVariants } from "@/components/ui/button";
 import { useMontado } from "@/hooks/useMontado";
 import { formatarBRL, formatarDataLonga, formatarHora, formatarNumero, formatarPreco, rotuloLado } from "@/lib/formato";
+import { premissaDoRobo } from "@/lib/premissa";
 import { fimDoDia } from "@/lib/stats/card-do-dia";
 import { mepMenDoDia } from "@/lib/stats/exposicao";
 import { excursao } from "@/lib/stats/operacoes";
@@ -36,7 +37,7 @@ const NA_LISTA = 40;
  * a página do robô (a aba Ao vivo, de onde esta tela abre desde 25/11/2026). Depois, o desenho de toda tela do
  * sistema:
  *
- * - o resultado do dia em número grande, com a premissa embaixo ("com 1 contrato por entrada, já descontados
+ * - o resultado do dia em número grande, com a premissa embaixo (premissaDoRobo: "com 1 contrato por entrada, já descontados
  *   os custos");
  * - a operação aberta em uma frase ("Em operação agora: compra a 168.805, aberta há 3 min, +R$ 35,00 até aqui");
  * - três fatos ao lado: quantas operações, o melhor e o pior momento do dia (o risco). A contagem de operações
@@ -64,7 +65,7 @@ export function TelaAoVivo() {
   const liquidos = useMemo(() => ops.map((o) => o.resultado_brl_por_contrato - o.custos_brl_por_contrato), [ops]);
   const liquido = liquidos.reduce((s, v) => s + v, 0);
 
-  // O melhor e o pior momento do dia, já descontados os custos como o número grande: os medidos pelo EA tick a
+  // O melhor e o pior momento do dia, com a mesma premissa de custos do número grande: os medidos pelo EA tick a
   // tick (22/09/2026), com a hora; sem medição (EA antigo, robô sem coletor), os de fechamento em fechamento,
   // a mesma reserva da imagem do dia. O pior momento é o risco da tela: onde aparece ganho, aparece o pior caso
   const momentos = useMemo(() => {
@@ -105,9 +106,12 @@ export function TelaAoVivo() {
     const url = window.location.href;
     try {
       if (navigator.share) {
+        // robô sem acompanhamento ao vivo não tem "hoje" para contar: vai só o link (25/11/2026)
         await navigator.share({
           title: `${robo.nome} ao vivo`,
-          text: `${robo.nome} hoje: ${formatarBRL(liquido, { sinal: true })} com 1 contrato por entrada, já descontados os custos`,
+          ...(robo.tem_coletor
+            ? { text: `${robo.nome} hoje: ${formatarBRL(liquido, { sinal: true })} ${premissaDoRobo(robo.custo_por_contrato)}` }
+            : {}),
           url,
         });
       } else await navigator.clipboard.writeText(url);
@@ -152,6 +156,7 @@ export function TelaAoVivo() {
               rotulo="Compartilhar"
               caminhoDoLink={`/robos/${robo.slug}/ao-vivo`}
               contaDemo={robo.conta_tipo === "demo"}
+              custoPorContrato={robo.custo_por_contrato}
             />
           ) : (
             <button type="button" onClick={compartilharLink} className={buttonVariants({ variant: "outline", size: "sm" })}>
@@ -185,7 +190,9 @@ export function TelaAoVivo() {
                   {/* a tela é para ser lida de longe: em monitor largo (a partir de 1536 px, onde há lugar ao lado dos
                       fatos e da lista) o número passa do teto de 72 px do resto do sistema */}
                   <NumeroGrande valor={liquido} centavos={Math.abs(liquido) < 1000} className="2xl:text-[length:clamp(4.5rem,5.4vw,6.5rem)]" />
-                  <p className="mt-3 text-sm text-pretty text-muted-foreground">com 1 contrato por entrada, já descontados os custos · {origem}</p>
+                  <p className="mt-3 text-sm text-pretty text-muted-foreground">
+                    {premissaDoRobo(robo.custo_por_contrato)} · {origem}
+                  </p>
                   {/* A operação aberta, em uma frase. O valor é o resultado em aberto: muda com o preço até ela
                       fechar. O lado fica neutro (19/09/2026): verde e vermelho só no resultado. A linha existe
                       sempre, com ou sem operação aberta, para a curva não subir e descer a cada entrada */}
@@ -247,7 +254,7 @@ export function TelaAoVivo() {
                     valorPonto={robo.valor_ponto_brl}
                     titulo="O dia, operação a operação"
                     tituloSerie="O dia, medido no MetaTrader 5"
-                    // a premissa ("com 1 contrato, já descontados os custos") já está debaixo do número grande
+                    // a premissa (premissaDoRobo) já está debaixo do número grande
                     legenda="resultado do dia"
                     coletorAtrasado={estado.exposicaoHoje?.excursao_ea_parcial === true}
                   />

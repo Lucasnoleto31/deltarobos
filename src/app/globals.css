@@ -457,19 +457,6 @@
     white-space: nowrap;
   }
 
-  /* ---------- números lado a lado ---------- */
-  /* uma fileira de números separados por espaço, com um fio em cima; sem caixa em volta de cada um */
-  .indicadores {
-    display: grid;
-    column-gap: 2.5rem;
-    row-gap: 1.5rem;
-    border-top: 1px solid var(--painel-fio);
-    padding-top: 1.25rem;
-  }
-  .indicador {
-    min-width: 0;
-  }
-
   /* ---------- tabela ---------- */
   /* a tabela sangra 12 px para cada lado: o texto alinha com o resto da página e o realce da linha sob o
      ponteiro tem respiro */

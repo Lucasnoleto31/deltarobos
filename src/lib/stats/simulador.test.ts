@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { formatarBRL } from "@/lib/formato";
-import { calcularKpis, capitalMinimoRecomendado } from "./kpis";
+import { capitalMinimoRecomendado } from "./kpis";
 import { filtrarPeriodo, somarDias } from "./periodos";
 import { curvaAcumulada, drawdownMaximo, ordenarPorDia, valorDia } from "./serie";
 import {
@@ -213,19 +213,15 @@ describe("capitalMinimoDoRobo", () => {
     expect(formatarBRL(cru, { inteiro: true })).toBe(formatarBRL(4151, { inteiro: true }));
   });
 
-  it("bate com a aba Risco em Tudo (calcularKpis sobre a série diária líquida), inclusive com as 4 casas do banco", () => {
+  it("bate com Quedas e risco (a maior queda da série diária líquida), inclusive com as 4 casas do banco", () => {
     const linhas = APOLLO.map(([dia, liquido]) => linha(dia, liquido));
-    const dd = calcularKpis(linhas, OPCOES, { hoje: HOJE }).drawdown.valor;
+    const dd = drawdownMaximo(curvaAcumulada(ordenarPorDia(linhas), OPCOES)).valor;
     expect(capitalMinimoDoRobo(APOLLO, 1500, 1.5)).toBe(Math.round(capitalMinimoRecomendado(1500, dd, 1.5)));
 
     // 200 pregões de -10,004 (numeric(14,4)): dd 2.000,80 → R$ 4.001, o mesmo da aba Risco. Se cada dia
     // fosse arredondado a centavos antes (-10,00), o dd seria 2.000,00 e o mínimo R$ 4.000: outro número.
     const quatroCasas: DiaLiquido[] = Array.from({ length: 200 }, (_, i) => [somarDias("2025-01-01", i), -10.004]);
-    const dd4 = calcularKpis(
-      quatroCasas.map(([dia, v]) => linha(dia, v)),
-      OPCOES,
-      { hoje: HOJE },
-    ).drawdown.valor;
+    const dd4 = drawdownMaximo(curvaAcumulada(ordenarPorDia(quatroCasas.map(([dia, v]) => linha(dia, v))), OPCOES)).valor;
     expect(dd4).toBeCloseTo(2000.8, 6);
     expect(capitalMinimoDoRobo(quatroCasas, 1000, 1.5)).toBe(4001);
     expect(capitalMinimoDoRobo(quatroCasas, 1000, 1.5)).toBe(Math.round(capitalMinimoRecomendado(1000, dd4, 1.5)));

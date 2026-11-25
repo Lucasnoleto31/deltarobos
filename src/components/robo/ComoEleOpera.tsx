@@ -20,12 +20,8 @@ interface Props {
   className?: string;
 }
 
-// A duração é a mediana das operações medidas (duracaoTipica): o texto do glossário fala em tempo médio
-const TEXTO_DA_DURACAO =
-  "Quanto dura uma operação típica, da entrada à saída: metade das operações dura menos do que isso e metade dura mais. Mostra se o robô fica segundos, minutos ou horas com uma operação aberta.";
-
 /**
- * Os balões que falam em custo, com a premissa do robô (revisão de 25/11/2026): o texto padrão do glossário diz
+ * Os balões que falam em custo, com a premissa do robô (revisão de 25/11/2026): o texto padrão do glossário dizia
  * "já descontados os custos" sempre, e o robô cujo histórico não tem custo cadastrado aparecia assim no Resumo,
  * contra a premissa do número grande e a nota do resultado médio por operação. A premissa vem de lib/premissa.
  */
@@ -144,7 +140,6 @@ export function ComoEleOpera({ como: c, custoPorContrato, duracaoSeg, pregoes, e
     itens.push({
       rotulo: "Duração típica",
       info: "duracaoMedia",
-      infoTexto: TEXTO_DA_DURACAO,
       valor: formatarDuracao(duracaoSeg),
       detalhe: "da entrada à saída de uma operação",
     });

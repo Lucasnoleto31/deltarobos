@@ -88,7 +88,11 @@ export async function GET() {
   // os custos de quem entrou no número (mesmo os que não couberam na linha de baixo); quem não operou no dia não
   // soma nada, e só conta se ninguém operou
   const operaram = todos.filter((r) => r.operou);
-  const daSoma: RoboDaSoma[] = (operaram.length > 0 ? operaram : todos).map((r) => ({ nome: r.nome, custoPorContrato: custoPorSlug.get(r.slug) }));
+  const entram = operaram.length > 0 ? operaram : todos;
+  const daSoma: RoboDaSoma[] = entram.map((r) => ({ nome: r.nome, custoPorContrato: custoPorSlug.get(r.slug) }));
+  // sem o cadastro de algum robô (leitura que falhou e voltou vazia), a imagem não afirma nada sobre os custos:
+  // "antes dos custos" para todos seria falso e ficaria 60 s em cache
+  const custosConhecidos = entram.every((r) => custoPorSlug.has(r.slug));
   const rotulo = passado ? "Resultado do último pregão, robôs somados" : "Resultado de hoje, robôs somados";
   const [prefixo, algarismos] = partesDoValor(robos.length > 0 ? brl(total) : "Em breve");
   const negativo = robos.length > 0 && total < 0;
@@ -133,7 +137,7 @@ export async function GET() {
           </div>
           {robos.length > 0 ? (
             // com robô sem custo na soma a frase passa de uma linha e quebra (cabem duas antes do fio de baixo)
-            <span style={{ fontSize: 24, lineHeight: 1.25, color: MUDO, marginTop: 18 }}>{`com 1 contrato por entrada em cada robô, ${custosDaSoma(daSoma)}`}</span>
+            <span style={{ fontSize: 24, lineHeight: 1.25, color: MUDO, marginTop: 18 }}>{custosConhecidos ? `com 1 contrato por entrada em cada robô, ${custosDaSoma(daSoma)}` : "com 1 contrato por entrada em cada robô"}</span>
           ) : null}
         </div>
 

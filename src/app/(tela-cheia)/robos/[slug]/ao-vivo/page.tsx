@@ -11,6 +11,7 @@ import {
   listarPosicoes,
   listarRobos,
 } from "@/lib/consultas/publico";
+import { premissaDoRobo } from "@/lib/premissa";
 import { hojeSP } from "@/lib/stats/periodos";
 import { pregaoAberto } from "@/lib/stats/pregao";
 
@@ -37,7 +38,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!robo) return { title: "Robô não encontrado" };
   return {
     title: `${robo.nome} · Ao vivo`,
-    description: `O resultado de hoje do ${robo.nome}, ao vivo, com 1 contrato por entrada e já descontados os custos.`,
+    description: `O resultado de hoje do ${robo.nome}, ao vivo, ${premissaDoRobo(robo.custo_por_contrato)}.`,
     openGraph: { images: [{ url: `/api/og/${slug}`, width: 1200, height: 630 }] },
   };
 }

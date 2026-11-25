@@ -41,9 +41,10 @@ export interface PropsCompartilharDia {
   contaDemo?: boolean;
   /**
    * robos.custo_por_contrato: a legenda do compartilhamento escreve a premissa de src/lib/premissa ("já
-   * descontados os custos" ou "antes dos custos"), como a imagem. Sem ele a legenda não fala dos custos.
+   * descontados os custos" ou "antes dos custos"), como a imagem. Obrigatório: as três telas que compartilham o
+   * dia (Ao vivo, tela cheia e dia escolhido) esqueceram de passá-lo e a legenda perdeu a premissa (25/11/2026).
    */
-  custoPorContrato?: number | null;
+  custoPorContrato: number | null;
 }
 
 /**

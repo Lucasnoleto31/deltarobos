@@ -6,6 +6,7 @@ import { RotuloComInfo } from "@/components/compartilhados/InfoIndicador";
 import { Valor } from "@/components/compartilhados/Valor";
 import { CompartilharDia } from "@/components/compartilhar/CompartilharDia";
 import { versaoDoCard } from "@/components/compartilhar/url-do-card";
+import { custosDoRobo } from "@/lib/premissa";
 import { CURVA_POR_OPERACAO, DesenhoDaCurva, MolduraProfit } from "@/components/graficos/CurvaProfit";
 import { PONTOS_LEVE, baldesDoPregao, janelaDosDados, legendaCurtaDoSaldo, rotulosDeTempo, serieDoSaldoParaDesenho, seriePorOperacao } from "@/components/graficos/series-da-curva";
 import { LINK_DO_PAINEL } from "@/components/sistema/Painel";
@@ -46,14 +47,14 @@ interface Props {
 // e "extremo" eram palavras de quem fez o sistema; a ressalva diz a mesma coisa em palavras de quem lê
 const PARCIAL = " Parcial: a medição começou com o dia em andamento e pode ter perdido um ponto anterior.";
 const TEXTO_MEP = {
-  ea: (parcial: boolean) =>
-    `O ponto mais alto que o saldo do dia alcançou, já com custos, medido no MetaTrader 5 a cada movimento do preço, com a posição aberta: o mesmo número do Profit.${parcial ? PARCIAL : ""}`,
+  ea: (parcial: boolean, custo: number) =>
+    `O ponto mais alto que o saldo do dia alcançou, ${custosDoRobo(custo)}, medido no MetaTrader 5 a cada movimento do preço, com a posição aberta: o mesmo número do Profit.${parcial ? PARCIAL : ""}`,
   fechamento:
     "O ponto mais alto que o saldo do dia alcançou, conferido a cada operação fechada. A posição ainda aberta não entra na conta, por isso nunca passa do MEP da plataforma Profit, que acompanha o saldo a cada movimento do preço.",
 };
 const TEXTO_MEN = {
-  ea: (parcial: boolean) =>
-    `O ponto mais baixo que o saldo do dia alcançou, já com custos, medido no MetaTrader 5 a cada movimento do preço, com a posição aberta: o quanto o dia chegou a ficar no prejuízo.${parcial ? PARCIAL : ""}`,
+  ea: (parcial: boolean, custo: number) =>
+    `O ponto mais baixo que o saldo do dia alcançou, ${custosDoRobo(custo)}, medido no MetaTrader 5 a cada movimento do preço, com a posição aberta: o quanto o dia chegou a ficar no prejuízo.${parcial ? PARCIAL : ""}`,
   fechamento:
     "O ponto mais baixo que o saldo do dia alcançou, conferido a cada operação fechada: o quanto o dia chegou a ficar no prejuízo. A posição ainda aberta não entra na conta, por isso nunca passa do MEN da plataforma Profit, que acompanha o saldo a cada movimento do preço.",
 };
@@ -220,6 +221,7 @@ export function DiaEscolhido({
             rotulo="Compartilhar"
             className="shrink-0"
             contaDemo={contaDemo}
+            custoPorContrato={custoPorContrato}
           />
         ) : null}
       </header>
@@ -251,7 +253,7 @@ export function DiaEscolhido({
               <dl className="mt-4 text-sm">
                 <div className="flex items-baseline justify-between gap-4 leading-7">
                   <dt className="text-muted-foreground">
-                    <RotuloComInfo chave="mep" texto={medido ? TEXTO_MEP.ea(medido.parcial) : TEXTO_MEP.fechamento}>
+                    <RotuloComInfo chave="mep" texto={medido ? TEXTO_MEP.ea(medido.parcial, custoPorContrato) : TEXTO_MEP.fechamento}>
                       Melhor momento
                     </RotuloComInfo>
                   </dt>
@@ -268,7 +270,7 @@ export function DiaEscolhido({
                 </div>
                 <div className="flex items-baseline justify-between gap-4 leading-7">
                   <dt className="text-muted-foreground">
-                    <RotuloComInfo chave="men" texto={medido ? TEXTO_MEN.ea(medido.parcial) : TEXTO_MEN.fechamento}>
+                    <RotuloComInfo chave="men" texto={medido ? TEXTO_MEN.ea(medido.parcial, custoPorContrato) : TEXTO_MEN.fechamento}>
                       Pior momento
                     </RotuloComInfo>
                   </dt>

@@ -176,7 +176,7 @@ export function PainelCalendario({
     [grade],
   );
 
-  // cada pregão do histórico: o resultado (1 contrato por entrada, já descontados os custos), as operações e as com ganho
+  // cada pregão do histórico: o resultado (1 contrato por entrada, com a premissa de custos do robô) e as operações
   const dias = useMemo<DiaResultado[]>(
     () => linhas.map((l) => ({ dia: l.dia, valor: valorDia(l, opcoes), n: l.n_operacoes, g: l.n_gain })),
     [linhas, opcoes],

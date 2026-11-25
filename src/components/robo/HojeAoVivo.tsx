@@ -233,6 +233,7 @@ export function HojeAoVivo({ ultimoPregao }: Props) {
                 temOperacao
                 caminhoDoLink={anterior ? undefined : `/robos/${robo.slug}/hoje`}
                 contaDemo={robo.conta_tipo === "demo"}
+                custoPorContrato={robo.custo_por_contrato}
               />
             </div>
           ) : null}
