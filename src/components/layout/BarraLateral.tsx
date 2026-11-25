@@ -2,7 +2,7 @@
 
 import { cn } from "cn";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSelectedLayoutSegment } from "next/navigation";
 import { TextoDeHoje } from "@/components/home/TextoDeHoje";
 import { useRobosAoVivo, type RoboBase } from "@/components/home/useRobosAoVivo";
 import { Simbolo } from "@/components/marca/Simbolo";
@@ -36,6 +36,10 @@ interface Props {
  */
 export function ConteudoLateral({ robos, links, aoNavegar }: Props) {
   const pathname = usePathname();
+  // A página inicial se reconhece pelo segmento de rota, não por pathname === "/": no HTML estático da home o
+  // servidor não enxerga "/" no usePathname, e o item atual só aparecia no navegador, com erro de hidratação
+  // #418 em toda visita (o mesmo caso do BotaoGrupo em 20/09/2026). O segmento é igual no servidor e no cliente.
+  const naHome = useSelectedLayoutSegment() === null;
   const vivos = useRobosAoVivo(robos);
 
   return (
@@ -54,7 +58,7 @@ export function ConteudoLateral({ robos, links, aoNavegar }: Props) {
       <nav aria-label="Áreas" className="py-5">
         <ul>
           {AREAS.map((a) => {
-            const atual = a.exato ? pathname === a.href : pathname.startsWith(a.href);
+            const atual = a.exato ? naHome : pathname.startsWith(a.href);
             return (
               <li key={a.href}>
                 <Link

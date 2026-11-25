@@ -2,7 +2,7 @@
 
 import { cn } from "cn";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSelectedLayoutSegment } from "next/navigation";
 import { useState } from "react";
 import { Valor } from "@/components/compartilhados/Valor";
 import { linkAberturaDeConta } from "@/components/home/ComoComecar";
@@ -37,6 +37,9 @@ const LINHA = "linha-interativa flex min-h-13 items-center justify-between gap-4
  */
 export function BarraInferior({ robos, links }: Props) {
   const pathname = usePathname();
+  // a home pelo segmento de rota, não por pathname === "/": no HTML estático dela o servidor não enxerga "/"
+  // (erro de hidratação #418; ver BarraLateral)
+  const naHome = useSelectedLayoutSegment() === null;
   const vivos = useRobosAoVivo(robos);
   const [aberta, setAberta] = useState<{ folha: Folha; em: string } | null>(null);
   const folha = aberta && aberta.em === pathname ? aberta.folha : null;
@@ -51,7 +54,7 @@ export function BarraInferior({ robos, links }: Props) {
       <nav aria-label="Principal" className="fixed inset-x-0 bottom-0 z-40 border-t bg-background pb-[env(safe-area-inset-bottom)] lg:hidden">
         <ul className="grid grid-cols-5 text-muted-foreground">
           <li>
-            <Link href="/" aria-current={pathname === "/" ? "page" : undefined} className={cn(ITEM, pathname === "/" && folha === null && ATUAL)}>
+            <Link href="/" aria-current={naHome ? "page" : undefined} className={cn(ITEM, naHome && folha === null && ATUAL)}>
               Visão geral
             </Link>
           </li>
