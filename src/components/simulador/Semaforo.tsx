@@ -1,6 +1,8 @@
 import { cn } from "cn";
-import { formatarPct } from "@/lib/formato";
-import { LIMITE_APERTADO, type ResultadoSimulacao, type RoboSimulador } from "@/lib/stats/simulador";
+import { RotuloComInfo } from "@/components/compartilhados/InfoIndicador";
+import { formatarMultiplo } from "@/lib/formato";
+import type { ResultadoSimulacao, RoboSimulador } from "@/lib/stats/simulador";
+import { respostaDoSimulador, type RespostaDoSimulador } from "./serie-simulada";
 
 /**
  * O texto fixo de compliance do simulador. Vai uma vez, debaixo do título da página, onde aparece com ou
@@ -9,77 +11,89 @@ import { LIMITE_APERTADO, type ResultadoSimulacao, type RoboSimulador } from "@/
  */
 export const TEXTO_FIXO_SIMULADOR = "Aritmética sobre o histórico; não é recomendação nem projeção de resultado.";
 
-// O estado em uma palavra e a cor dela. Verde não entra: na ficha Mesa verde é só de ganho, e um "Cabe"
-// verde se lê como recomendação. "Apertado" leva a cor de atenção e "Não cabe" a de perda (é o caso em que a
-// maior queda ou o mínimo passam do capital); "Cabe" fica na cor do texto.
-const APARENCIA: Record<ResultadoSimulacao["semaforo"], { titulo: string; cor: string }> = {
-  cabe: { titulo: "Cabe", cor: "text-foreground" },
-  apertado: { titulo: "Apertado", cor: "text-alerta" },
-  nao_cabe: { titulo: "Não cabe", cor: "text-negativo" },
+// A cor da palavra que responde. Verde não entra: na ficha Mesa verde é só de ganho, e um "Cabe" verde se lê
+// como recomendação. "Apertado" leva a cor de atenção e "Não cabe" a de perda (é o caso em que a maior queda
+// ou o mínimo passam do capital); "Cabe" e o capital mínimo ficam na cor do texto.
+const COR: Record<RespostaDoSimulador["estado"], string> = {
+  cabe: "text-foreground",
+  apertado: "text-alerta",
+  nao_cabe: "text-negativo",
+  minimo: "text-foreground",
 };
+
+const TERMO = /capital mínimo/i;
 
 interface Props {
   resultado: ResultadoSimulacao;
-  /** o capital informado */
+  /** o capital da simulação: o digitado ou, sem ele, o capital mínimo da escolha */
   capital: number;
+  /** false = ninguém digitou capital */
+  digitado: boolean;
+  /** os robôs e contratos escolhidos em palavras: "1 contrato por entrada em cada um dos 3 robôs" */
+  escolha: string;
   robos: readonly RoboSimulador[];
+  /** o fator da regra publicada do capital mínimo: só para o "o que é" */
+  fatorSeguranca: number;
   className?: string;
 }
 
 /**
- * O semáforo do capital (23/09/2026): "não cabe" quando o capital fica abaixo do capital mínimo publicado
- * (sem o total, por robô sem margem configurada, abaixo da soma dos mínimos conhecidos) ou quando a maior
- * queda simulada consumiria o capital inteiro; "apertado" quando cabe mas a maior queda passa de
- * LIMITE_APERTADO do capital informado; "cabe" no resto. A regra mora em semaforoDe (lib/stats/simulador);
- * aqui só se escreve a frase que a explica, na mesma ordem das regras.
+ * A resposta do simulador, a primeira coisa da tela depois do campo de capital (25/11/2026, DESIGN.md seção
+ * 9): "Cabe", "Apertado" ou "Não cabe" em uma palavra, e uma frase com os números que decidem. "Não cabe"
+ * quando o capital fica abaixo do capital mínimo dos robôs e contratos escolhidos (sem o total, por robô sem
+ * garantia cadastrada, abaixo da soma dos mínimos conhecidos) ou quando a maior queda simulada consumiria o
+ * capital inteiro; "apertado" quando cabe mas a maior queda passa de LIMITE_APERTADO do capital; "cabe" no
+ * resto. A regra mora em semaforoDe (lib/stats/simulador) e a frase em respostaDoSimulador (serie-simulada),
+ * com teste; aqui é só o desenho.
  *
- * 25/11/2026 (ficha Mesa): deixou de ser um painel com título, pílula colorida e três parágrafos. É uma
- * frase debaixo do número, com o estado na frente em texto colorido. Os números que decidem (o capital, o
- * capital mínimo e a maior queda em % do capital) estão escritos ao lado, na premissa e na lista de fatos,
- * e por isso a frase não os repete; só o limite de 25% aparece aqui. "Pelo histórico" vai junto do estado
- * para ninguém ler "cabe" como garantia.
+ * Era uma frase pequena debaixo do número grande, sem os números. Subiu para antes do resultado e ganhou o
+ * capital mínimo e o quanto falta: o capital mínimo saiu da lista de fatos, para não aparecer duas vezes. O
+ * próprio termo "capital mínimo" abre a explicação da conta. "Pelo histórico" vai junto da palavra para
+ * ninguém ler "cabe" como garantia. Sem capital digitado, o título é o capital mínimo da escolha.
  */
-export function Semaforo({ resultado, capital, robos, className }: Props) {
-  const { semaforo, capitalMinimo, capitalMinimoConhecido, robosSemCapitalMinimo } = resultado;
-  const aparencia = APARENCIA[semaforo];
-  const limite = formatarPct(LIMITE_APERTADO, 0);
-  const semMinimo = robosSemCapitalMinimo.map((slug) => robos.find((r) => r.slug === slug)?.nome ?? slug);
-  // sem o total (algum robô sem margem), a parte conhecida ainda é um piso que a frase cita
-  const parteConhecida = capitalMinimo === null && capitalMinimoConhecido > 0;
+export function Semaforo({ resultado, capital, digitado, escolha, robos, fatorSeguranca, className }: Props) {
+  const resposta = respostaDoSimulador({
+    semaforo: resultado.semaforo,
+    capital,
+    digitado,
+    capitalMinimo: resultado.capitalMinimo,
+    capitalMinimoConhecido: resultado.capitalMinimoConhecido,
+    capitalQueFalta: resultado.capitalQueFalta,
+    escolha,
+    semMinimo: resultado.robosSemCapitalMinimo.map((slug) => robos.find((r) => r.slug === slug)?.nome ?? slug),
+  });
 
-  let frase: string;
-  if (semaforo === "nao_cabe") {
-    if (capitalMinimo !== null && capital < capitalMinimo) {
-      frase = "O capital está abaixo do mínimo publicado para estes robôs e contratos.";
-    } else if (capital < capitalMinimoConhecido) {
-      frase = "O capital está abaixo do mínimo publicado dos robôs que têm mínimo configurado.";
-    } else {
-      frase = "A maior queda teria consumido o capital inteiro.";
-    }
-  } else if (semaforo === "apertado") {
-    frase =
-      capitalMinimo !== null
-        ? `O capital cobre o mínimo publicado, mas a maior queda passou de ${limite} do capital.`
-        : parteConhecida
-          ? `O capital cobre o mínimo conhecido, mas a maior queda passou de ${limite} do capital.`
-          : `A maior queda passou de ${limite} do capital.`;
-  } else {
-    frase =
-      capitalMinimo !== null
-        ? `O capital cobre o mínimo publicado e a maior queda ficou dentro de ${limite} do capital.`
-        : parteConhecida
-          ? `O capital cobre o mínimo conhecido e a maior queda ficou dentro de ${limite} do capital.`
-          : `A maior queda ficou dentro de ${limite} do capital.`;
-  }
+  // o "o que é" do glossário fala de 1 robô com 1 contrato; aqui é a soma da escolha
+  const oQueE = `A soma dos robôs escolhidos. Para cada um: a garantia da corretora por contrato (a margem), vezes os contratos que ele pode ter abertos ao mesmo tempo, mais a maior queda de todo o histórico dele vezes ${formatarMultiplo(fatorSeguranca, 1)}. Quedas futuras podem ser maiores.`;
+  // o termo aparece uma vez, no título (sem capital digitado) ou na frase, e é ele que abre a explicação
+  const comOQueE = (texto: string) => {
+    const achado = TERMO.exec(texto);
+    if (!achado) return texto;
+    return (
+      <>
+        {texto.slice(0, achado.index)}
+        <RotuloComInfo chave="capitalMinimo" texto={oQueE}>
+          {achado[0]}
+        </RotuloComInfo>
+        {texto.slice(achado.index + achado[0].length)}
+      </>
+    );
+  };
 
   return (
-    // região viva: quem muda o capital pelo teclado ouve o estado novo sem sair do campo
-    <p role="status" aria-live="polite" className={cn("max-w-3xl text-sm text-pretty text-muted-foreground", className)}>
-      <span className="sr-only">Semáforo do capital: </span>
-      <span className={cn("font-medium", aparencia.cor)}>{aparencia.titulo}</span>, pelo histórico. {frase}
-      {semMinimo.length > 0
-        ? ` Sem capital mínimo configurado: ${semMinimo.join(", ")}; ${parteConhecida ? "a soma dos outros vale como piso" : "só a maior queda decide"}.`
-        : ""}
-    </p>
+    // região viva: quem muda o capital pelo teclado ouve a resposta nova sem sair do campo
+    <div role="status" aria-live="polite" className={cn("max-w-3xl", className)}>
+      <p className="text-[1.375rem] leading-tight font-medium tracking-tight">
+        {resposta.estado === "minimo" ? (
+          comOQueE(resposta.titulo)
+        ) : (
+          <>
+            <span className={COR[resposta.estado]}>{resposta.titulo}</span>
+            <span className="font-normal text-muted-foreground">, pelo histórico</span>
+          </>
+        )}
+      </p>
+      <p className="mt-2 text-[0.9375rem] text-pretty text-muted-foreground">{resposta.estado === "minimo" ? resposta.frase : comOQueE(resposta.frase)}</p>
+    </div>
   );
 }

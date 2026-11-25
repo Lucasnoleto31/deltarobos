@@ -33,11 +33,15 @@ const NA_LISTA = 40;
  * Tela cheia do dia (spec §8.4): só o que o robô fez hoje, para deixar aberta num monitor ou no celular.
  * Refeita na ficha Mesa (25/11/2026): usa a tela inteira e não tem caixa. Em cima, uma faixa fina com a marca
  * (é ela que diz, num print, de quem é o número), o "atualizado há…", o compartilhar e o caminho de volta para
- * a página do robô. Depois, o desenho de toda tela do sistema:
+ * a página do robô (a aba Ao vivo, de onde esta tela abre desde 25/11/2026). Depois, o desenho de toda tela do
+ * sistema:
  *
- * - o resultado do dia em número grande, com a premissa embaixo ("com 1 contrato, já descontados os custos");
+ * - o resultado do dia em número grande, com a premissa embaixo ("com 1 contrato por entrada, já descontados
+ *   os custos");
  * - a operação aberta em uma frase ("Em operação agora: compra a 168.805, aberta há 3 min, +R$ 35,00 até aqui");
- * - três fatos ao lado: quantas operações e quantas com ganho, o melhor e o pior momento do dia (o risco);
+ * - três fatos ao lado: quantas operações, o melhor e o pior momento do dia (o risco). A contagem de operações
+ *   com ganho saiu em 25/11/2026 (DESIGN.md, seção 9): acertos não aparecem sem o necessário para empatar, e
+ *   essa conta é do histórico, na aba Resumo;
  * - a curva do dia, que no computador ocupa a altura que sobra da janela;
  * - as operações de hoje em linhas com fio, a mais recente em cima. No computador ficam numa coluna ao lado
  *   da curva, rolando dentro dela; no celular vêm embaixo, só as seis últimas.
@@ -48,7 +52,7 @@ const NA_LISTA = 40;
  * Era um cartão de story centralizado (17/09/2026), com no máximo 448 px de largura, três números em caixas
  * (pontos, operações, acerto), a posição numa caixa e a curva na moldura do Profit. Saíram os pontos (a conta
  * em pontos fica na aba Operações e na imagem do dia), os selos e as caixas. Os números do dia continuam
- * saindo das operações ao vivo, pela mesma regra do "Hoje" da página do robô (ganho = líquido acima de zero).
+ * saindo das operações ao vivo, como na aba Ao vivo da página do robô.
  */
 export function TelaAoVivo() {
   const { estado, robo, pregao, hoje } = useRobo();
@@ -59,7 +63,6 @@ export function TelaAoVivo() {
   const ops = estado.operacoes;
   const liquidos = useMemo(() => ops.map((o) => o.resultado_brl_por_contrato - o.custos_brl_por_contrato), [ops]);
   const liquido = liquidos.reduce((s, v) => s + v, 0);
-  const comGanho = liquidos.filter((v) => v > 0).length;
 
   // O melhor e o pior momento do dia, já descontados os custos como o número grande: os medidos pelo EA tick a
   // tick (22/09/2026), com a hora; sem medição (EA antigo, robô sem coletor), os de fechamento em fechamento,
@@ -104,7 +107,7 @@ export function TelaAoVivo() {
       if (navigator.share) {
         await navigator.share({
           title: `${robo.nome} ao vivo`,
-          text: `${robo.nome} hoje: ${formatarBRL(liquido, { sinal: true })} com 1 contrato, já descontados os custos`,
+          text: `${robo.nome} hoje: ${formatarBRL(liquido, { sinal: true })} com 1 contrato por entrada, já descontados os custos`,
           url,
         });
       } else await navigator.clipboard.writeText(url);
@@ -155,8 +158,9 @@ export function TelaAoVivo() {
               Compartilhar
             </button>
           )}
-          {/* o caminho de volta (18/09/2026, Artur: "toda página precisa ter uma maneira de voltar") */}
-          <Link href={`/robos/${robo.slug}`} className={LINK_DO_PAINEL}>
+          {/* o caminho de volta (18/09/2026, Artur: "toda página precisa ter uma maneira de voltar"): a aba Ao vivo,
+              de onde a tela cheia abre; o robô sem coletor não tem essa aba e volta para o Resumo */}
+          <Link href={robo.tem_coletor ? `/robos/${robo.slug}/hoje` : `/robos/${robo.slug}`} className={LINK_DO_PAINEL}>
             Página do {robo.nome}
           </Link>
         </div>
@@ -181,7 +185,7 @@ export function TelaAoVivo() {
                   {/* a tela é para ser lida de longe: em monitor largo (a partir de 1536 px, onde há lugar ao lado dos
                       fatos e da lista) o número passa do teto de 72 px do resto do sistema */}
                   <NumeroGrande valor={liquido} centavos={Math.abs(liquido) < 1000} className="2xl:text-[length:clamp(4.5rem,5.4vw,6.5rem)]" />
-                  <p className="mt-3 text-sm text-pretty text-muted-foreground">com 1 contrato, já descontados os custos · {origem}</p>
+                  <p className="mt-3 text-sm text-pretty text-muted-foreground">com 1 contrato por entrada, já descontados os custos · {origem}</p>
                   {/* A operação aberta, em uma frase. O valor é o resultado em aberto: muda com o preço até ela
                       fechar. O lado fica neutro (19/09/2026): verde e vermelho só no resultado. A linha existe
                       sempre, com ou sem operação aberta, para a curva não subir e descer a cada entrada */}
@@ -211,7 +215,6 @@ export function TelaAoVivo() {
                   <Fatos className="lg:pb-0.5">
                     <Fato rotulo="Operações">
                       <span className="font-medium">{formatarNumero(ops.length)}</span>
-                      <span className="text-muted-foreground"> · {formatarNumero(comGanho)} com ganho</span>
                     </Fato>
                     {momentos ? (
                       <>

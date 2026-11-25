@@ -47,6 +47,11 @@ async function ultimoPregaoDeTodos(hoje: string) {
  * das telas do sistema, sem caixa: a marca e a data em cima; o número grande, com o sinal e o "R$" mais
  * apagados e a premissa embaixo; e, depois de um fio, o resultado de cada robô numa linha. A informação é a
  * mesma de antes; os textos passaram para as palavras do site ("com 1 contrato", "já descontados os custos").
+ *
+ * Revisão dos indicadores (25/11/2026, DESIGN.md seção 9): a premissa diz "com 1 contrato por entrada em cada
+ * robô", porque um robô pode ter várias entradas abertas ao mesmo tempo. A imagem continua sendo só o dia (o
+ * de hoje ou o último pregão): não resume um período, não traz percentual nem média, e por isso não ganhou
+ * outros números.
  */
 export async function GET() {
   const hoje = hojeSP();
@@ -104,7 +109,7 @@ export async function GET() {
             <span style={{ fontSize: 120, lineHeight: 1, letterSpacing: -4, color: negativo ? NEGATIVO : TEXTO }}>{algarismos}</span>
           </div>
           {robos.length > 0 ? (
-            <span style={{ fontSize: 24, color: MUDO, marginTop: 18 }}>com 1 contrato em cada robô, já descontados os custos</span>
+            <span style={{ fontSize: 24, color: MUDO, marginTop: 18 }}>com 1 contrato por entrada em cada robô, já descontados os custos</span>
           ) : null}
         </div>
 

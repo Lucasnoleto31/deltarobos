@@ -32,8 +32,12 @@ const SEM_MEDIDA = <span className="text-sutil">–</span>;
 /**
  * A tabela de operações (ficha Mesa, 25/11/2026): é a tela inteira da aba. Classe .tbl, sem caixa, na
  * largura toda, linha de 40 px (são 50 por página, de milhares). Os cabeçalhos são palavras de todo dia:
- * "Melhor momento" e "Pior momento" no lugar de MFE / MAE, com a explicação do glossário no próprio rótulo.
- * Só a coluna Resultado leva verde e vermelho; os pontos ficam neutros, para o olho ter uma coluna só.
+ * "Pior momento" no lugar de MAE, com a explicação do glossário no próprio rótulo. Só a coluna Resultado
+ * leva verde e vermelho; os pontos ficam neutros, para o olho ter uma coluna só.
+ *
+ * Revisão de 25/11/2026 (DESIGN.md, seção 9): saiu a coluna "Melhor momento" (MFE). Quanto a operação
+ * chegou a ganhar antes de fechar não ajuda a decidir; quanto chegou a perder, sim, e por isso o pior
+ * momento ficou. O melhor momento de cada operação continua na planilha do mês.
  *
  * O que saiu da tabela e continua no arquivo que se baixa no pé: símbolo do contrato, resultado antes dos
  * custos e os custos de cada operação. A coluna Resultado é o valor já descontado.
@@ -46,7 +50,7 @@ const SEM_MEDIDA = <span className="text-sutil">–</span>;
  * O fio à esquerda da coluna presa só aparece quando há o que rolar.
  *
  * Coluna que a página inteira não tem como preencher não aparece: robô de histórico importado não tem
- * preço de entrada e saída, duração nem melhor e pior momento, e ficaria com fileiras de traços.
+ * preço de entrada e saída, duração nem pior momento, e ficaria com fileiras de traços.
  */
 export function TabelaOperacoes({ itens, slug, dia, aoVivo, filtrado, semLado = false, className }: Props) {
   // novas/removidas chegam pelo realtime e zeram quando o servidor manda outra página
@@ -70,7 +74,7 @@ export function TabelaOperacoes({ itens, slug, dia, aoVivo, filtrado, semLado = 
     const canal = sb
       .channel(`robo:${slug}`, { config: { private: true } })
       .on("broadcast", { event: "operacao" }, ({ payload }) => {
-        // o evento é a linha inteira de operacoes_publico: vem com MFE/MAE (e é reemitido quando o EA os manda)
+        // o evento é a linha inteira de operacoes_publico: vem com o pior momento (e é reemitido quando o EA o manda)
         const op = payload as OperacaoPublica;
         if (op.dia_pregao !== dia) return;
         setNovas((l) => [op, ...l.filter((x) => x.id !== op.id)]);
@@ -119,7 +123,7 @@ export function TabelaOperacoes({ itens, slug, dia, aoVivo, filtrado, semLado = 
   }));
   const temPrecos = lista.some((o) => o.preco_entrada !== null || o.preco_saida !== null);
   const temDuracao = lista.some((o) => o.origem !== "manual");
-  const temMomentos = linhas.some((l) => l.excursao !== null);
+  const temPiorMomento = linhas.some((l) => l.excursao !== null);
   const temParcial = linhas.some((l) => l.excursao?.parcial);
 
   const presa = cn("sticky right-0 bg-background", rola && "border-l");
@@ -150,15 +154,10 @@ export function TabelaOperacoes({ itens, slug, dia, aoVivo, filtrado, semLado = 
                 </>
               ) : null}
               {temDuracao ? <th className="num">Duração</th> : null}
-              {temMomentos ? (
-                <>
-                  <th className="num">
-                    <RotuloComInfo chave="mfe">Melhor momento</RotuloComInfo>
-                  </th>
-                  <th className="num">
-                    <RotuloComInfo chave="mae">Pior momento</RotuloComInfo>
-                  </th>
-                </>
+              {temPiorMomento ? (
+                <th className="num">
+                  <RotuloComInfo chave="mae">Pior momento</RotuloComInfo>
+                </th>
               ) : null}
               <th className="num">Pontos</th>
               <th className={cn("num", presa)}>Resultado</th>
@@ -189,29 +188,17 @@ export function TabelaOperacoes({ itens, slug, dia, aoVivo, filtrado, semLado = 
                     </>
                   ) : null}
                   {temDuracao ? <td className="num text-muted-foreground">{importada ? SEM_MEDIDA : formatarDuracao(o.duracao_seg)}</td> : null}
-                  {temMomentos ? (
-                    <>
-                      <td className="num text-muted-foreground">
-                        {excursao ? (
-                          <>
-                            {pontos(excursao.mfe)}
-                            {parcial}
-                          </>
-                        ) : (
-                          SEM_MEDIDA
-                        )}
-                      </td>
-                      <td className="num text-muted-foreground">
-                        {excursao ? (
-                          <>
-                            {pontos(excursao.mae)}
-                            {parcial}
-                          </>
-                        ) : (
-                          SEM_MEDIDA
-                        )}
-                      </td>
-                    </>
+                  {temPiorMomento ? (
+                    <td className="num text-muted-foreground">
+                      {excursao ? (
+                        <>
+                          {pontos(excursao.mae)}
+                          {parcial}
+                        </>
+                      ) : (
+                        SEM_MEDIDA
+                      )}
+                    </td>
                   ) : null}
                   <td className="num text-muted-foreground">{pontos(o.pontos_por_contrato)}</td>
                   {/* o fundo da célula presa é utilitário e venceria o realce de linha da .tbl: o realce vem junto */}
@@ -226,7 +213,7 @@ export function TabelaOperacoes({ itens, slug, dia, aoVivo, filtrado, semLado = 
       </div>
       {temParcial ? (
         <p className="mt-3 text-[0.8125rem] text-pretty text-muted-foreground">
-          * A medição começou com a operação já aberta: o melhor e o pior momento podem ter ido além do que aparece.
+          * A medição começou com a operação já aberta: o pior momento pode ter ido além do que aparece.
         </p>
       ) : null}
     </div>

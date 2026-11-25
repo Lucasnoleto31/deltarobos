@@ -17,6 +17,17 @@ export const PERIODOS_RESUMO: ReadonlyArray<{ valor: PeriodoResumo; rotulo: stri
 
 export const PERIODOS_FECHADOS: readonly PeriodoFechado[] = ["semana", "mes", "ano", "tudo"];
 
+/**
+ * Os períodos que a aba Resumo do robô oferece (25/11/2026, DESIGN.md seção 9), na ordem do seletor: a tela
+ * abre sempre em "desde o início", que é a pergunta dela. "Hoje" saiu daqui: é a aba Ao vivo.
+ */
+export const PERIODOS_DO_RESUMO: ReadonlyArray<{ valor: PeriodoFechado; rotulo: string }> = [
+  { valor: "tudo", rotulo: "Desde o início" },
+  { valor: "ano", rotulo: "Ano" },
+  { valor: "mes", rotulo: "Mês" },
+  { valor: "semana", rotulo: "Semana" },
+];
+
 export const TITULO_DO_PERIODO: Record<PeriodoFechado, string> = {
   semana: "Resultado da semana",
   mes: "Resultado do mês",

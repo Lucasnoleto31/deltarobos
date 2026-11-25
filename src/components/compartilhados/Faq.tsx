@@ -16,16 +16,17 @@ const MINUTOS_SEM_SINAL = formatarNumero(LIMITE_SEM_HEARTBEAT_SEG / 60);
  * As perguntas comuns do site, num lugar só e fechadas até alguém querer ler (17/09/2026: a explicação saiu
  * de cima dos números). Desde a ficha Mesa (25/11/2026) moram no fim de Como funciona (/metodologia).
  *
- * 25/11/2026 (ficha Mesa, DESIGN.md seção 7; Lucas: "para um leigo está muito difícil de entender"): as
- * respostas citam a tela pelo nome que ela tem hoje e sem jargão.
- * - "por contrato" virou "com 1 contrato", a frase que acompanha os números, e a resposta diz o que é um
- *   contrato;
- * - o custo de cada robô era "mostrado na seção Transparência": a seção se chama "De onde vêm os números";
- * - "dá pra ver o bruto com um toggle": é a opção "Antes dos custos" da aba Desempenho;
- * - a conta demo tinha "um selo": é a linha "Conta: Demo" do cabeçalho do robô;
- * - "emolumentos" são "taxas da bolsa", e o aviso de coletor parado é o texto "sem atualização".
- * Robô sem custo cadastrado aparece antes dos custos (a página dele diz "não configurado"), e por isso a
- * resposta dos custos continua com "por padrão".
+ * 25/11/2026, revisão das telas e dos indicadores (DESIGN.md, seção 9). As respostas seguem as mesmas regras
+ * das telas e citam cada uma pelo nome que tem hoje:
+ * - a premissa é "com 1 contrato por entrada": a resposta diz o que é contrato e por que "por entrada";
+ * - não existem mais a opção "Antes dos custos", a aba Desempenho nem a aba Relatórios (os arquivos de cada
+ *   mês estão em Dia a dia);
+ * - entraram as perguntas de quem vai pôr o robô na própria conta: quanto preciso ter (o capital mínimo pela
+ *   regra nova), se o resultado vai ser igual ao da minha conta, por que não há rendimento por mês e se
+ *   acertar muito basta. Acertos nunca aparecem sem o necessário para empatar;
+ * - o que o site não sabe (preço da licença, alíquota de imposto, se o robô estava ligado) não é inventado.
+ * Nenhuma resposta leva número de robô nem de ativo: isso está nas telas, vindo do banco.
+ * Robô sem custo cadastrado aparece sem o desconto (a página dele diz "não configurado").
  */
 export const PERGUNTAS_FREQUENTES: PerguntaFaq[] = [
   {
@@ -33,24 +34,44 @@ export const PERGUNTAS_FREQUENTES: PerguntaFaq[] = [
     r: "De um coletor: um programa que roda dentro do MetaTrader 5 das contas da Quants Robôs. Ele não opera, só lê a conta e envia ao site cada operação assim que ela fecha. Nenhum número é digitado à mão.",
   },
   {
-    p: "O que quer dizer “com 1 contrato”?",
-    r: "Contrato é a unidade de negociação na bolsa: um robô pode operar 1, 2 ou mais de cada vez. Para todos ficarem na mesma régua, o site divide cada resultado pela quantidade de contratos da operação e mostra quanto daria com 1. Se você opera 3 contratos, multiplique por 3.",
+    p: "O que quer dizer “com 1 contrato por entrada”?",
+    r: "Contrato é a unidade de negociação na bolsa. O site divide cada resultado pela quantidade de contratos da operação e mostra quanto daria com 1. O “por entrada” importa porque alguns robôs abrem uma entrada nova antes de fechar a anterior: com várias abertas, a conta carrega vários contratos ao mesmo tempo. O máximo que cada robô já teve está no Resumo dele.",
+  },
+  {
+    p: "Quanto preciso ter na conta?",
+    r: "O site calcula um capital mínimo para cada robô: a garantia que a corretora exige por contrato (a margem), vezes o máximo de entradas que ele já teve abertas ao mesmo tempo, mais a maior queda do histórico com uma folga de segurança. O valor aparece na lista da Visão geral e no Resumo de cada robô; a conta, parcela por parcela, está na aba Quedas e risco. Em Simular meu capital você confere com o seu valor.",
   },
   {
     p: "Os custos estão descontados?",
-    r: "Sim, por padrão. De cada operação sai um custo fixo por contrato (corretagem e taxas da bolsa). O valor de cada robô está na página dele, em “De onde vêm os números”; robô sem custo cadastrado aparece com os valores antes dos custos, e a página diz isso. Para ver os números sem o desconto, escolha “Antes dos custos” na aba Desempenho.",
+    r: "Sim. De cada operação sai um custo fixo por contrato (corretagem e taxas da bolsa), mostrado na página de cada robô. É um custo de referência: o da sua corretora pode ser outro. Robô sem custo cadastrado aparece sem esse desconto, e a página dele diz isso.",
   },
   {
-    p: "O resultado vai bater com o meu extrato?",
-    r: "Os pontos, sim. O valor em reais depende dos seus custos e da sua corretora. Por isso o site usa um custo de referência, mostrado na página de cada robô, e deixa ver os valores antes dos custos.",
+    p: "O resultado vai ser igual na minha conta?",
+    r: "Não exatamente. Os números são os da conta da Quants Robôs, com 1 contrato por entrada e um custo de referência. Na sua conta mudam o preço em que cada ordem sai e os custos da sua corretora, e ainda há o imposto de renda e a licença do robô, que não estão em nenhum número do site. E resultado passado não garante resultado futuro.",
+  },
+  {
+    p: "Por que o site não mostra quanto o robô rende por mês?",
+    r: "Porque o resultado não vem igual todo mês, e uma média esconde os meses de perda. No lugar dela o site mostra em quantos meses o robô terminou com ganho, qual foi o pior mês e, ao lado de todo resultado, a maior queda.",
+  },
+  {
+    p: "Um robô que acerta quase sempre é melhor?",
+    r: "Não necessariamente. Se cada perda for muito maior que cada ganho, é preciso acertar quase sempre só para empatar. Por isso os acertos aparecem sempre ao lado de quantos acertos o robô precisa para empatar: o que importa é a distância entre os dois.",
   },
   {
     p: "Com que frequência atualiza?",
     r: `Uma operação fechada aparece em até 5 segundos. Se o coletor ficar mais de ${MINUTOS_SEM_SINAL} minutos sem mandar sinal com o pregão aberto, o site escreve “sem atualização” em vez de mostrar dado velho como se fosse ao vivo.`,
   },
   {
+    p: "O site sabe se o robô está ligado?",
+    r: "Não. O site sabe se o pregão está aberto, se é horário do robô e se o coletor está mandando sinal. Por isso escreve “hoje ainda sem operação” ou “em operação agora”, e nunca “ligado”. Quando o robô passa um dia sem operar, o site mostra o dia sem operação e não inventa o motivo.",
+  },
+  {
     p: "De qual conta vêm as estatísticas?",
-    r: "Cada robô tem uma conta principal da Quants Robôs, que alimenta os números públicos. Quando ela é uma conta demo, o cabeçalho da página do robô traz “Conta: Demo”.",
+    r: "Cada robô tem uma conta principal da Quants Robôs, que alimenta os números públicos. Quando ela é uma conta demo, a página do robô diz isso junto dos dados dele.",
+  },
+  {
+    p: "Onde estão os arquivos de cada mês?",
+    r: "Na aba Dia a dia de cada robô: o mês escolhido tem o arquivo em PDF e a planilha com as operações.",
   },
 ];
 

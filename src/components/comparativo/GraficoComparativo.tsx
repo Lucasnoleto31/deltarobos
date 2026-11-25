@@ -2,14 +2,14 @@
 
 import { cn } from "cn";
 import { useMemo } from "react";
-import { passo } from "@/components/graficos/base";
+import { escalaJusta, noEixo } from "@/components/graficos/GraficoResultado";
 import { formatarBRL } from "@/lib/formato";
 
-/** A curva de um robô no eixo de tempo comum (ver curvaNoEixo). */
+/** A curva de um robô no eixo de tempo comum (ver curvaNoEixo, em lib/stats/serie-casa). */
 export interface SerieDoComparativo {
   slug: string;
   nome: string;
-  /** o acumulado do período em cada pregão do eixo; nulo antes do primeiro pregão do robô */
+  /** o acumulado do período em cada pregão do eixo; nulo onde o robô ainda não tem linha */
   acumulado: ReadonlyArray<number | null>;
   /** a maior queda do robô, com o pico e o fundo nos índices do eixo */
   queda: { iInicio: number; iFundo: number; valor: number } | null;
@@ -18,8 +18,9 @@ export interface SerieDoComparativo {
 interface Props {
   /** o eixo de tempo: todo pregão em que algum robô operou no período */
   dias: readonly string[];
+  /** as curvas, na ordem da lista de robôs: sem destaque, a primeira é a de tom mais forte */
   series: readonly SerieDoComparativo[];
-  /** o robô em destaque: a linha dele na cor do texto, com a maior queda em vermelho; as outras apagadas */
+  /** o robô em destaque: a linha dele na cor do texto, com o valor da maior queda escrito; as outras apagadas */
   destaque: string | null;
   /** o pregão sob o ponteiro (quem chama mostra a leitura dele; aqui só se desenha a mira) */
   ativo: number | null;
@@ -29,46 +30,26 @@ interface Props {
   className?: string;
 }
 
-// A altura: quem chama pode fixar com --alt-curva. O padrão desconta o que esta tela tem acima e abaixo do
-// gráfico (fita, cabeçalho da página, número, cabeçalho da tabela e a primeira linha), para a parte principal
-// caber sem rolar.
-const ALTURA = "var(--alt-curva, clamp(14rem, calc(100dvh - 35rem), 30rem))";
+// A altura: quem chama fixa com --alt-curva (a página inicial usa a mesma da curva somada, para a tela não
+// pular ao trocar de uma para a outra).
+const ALTURA = "var(--alt-curva, clamp(14rem, calc(100dvh - 39rem), 30rem))";
 
 // o nome na ponta tem ~13 px; na altura mínima do gráfico (14rem) isto dá 17 px entre um nome e o vizinho
 const VAO_ENTRE_NOMES = 7.5;
+
+// Sem robô em destaque, o que distingue uma linha da outra são os tons do texto, do mais forte ao mais leve,
+// na ordem da lista (e o nome na ponta). Nunca uma cor por robô.
+const TONS = [
+  { traco: "var(--foreground)", nome: "text-foreground" },
+  { traco: "var(--muted-foreground)", nome: "text-muted-foreground" },
+  { traco: "var(--sutil)", nome: "text-sutil" },
+] as const;
+const tomDe = (i: number) => TONS[Math.min(i, TONS.length - 1)];
 
 const fmtMes = new Intl.DateTimeFormat("pt-BR", { month: "short", timeZone: "UTC" });
 const mesCurto = (dia: string) => fmtMes.format(new Date(`${dia}T12:00:00Z`)).replace(".", "");
 const diaCurto = (dia: string) => `${dia.slice(8, 10)}/${dia.slice(5, 7)}`;
 const f = (v: number) => (Math.round(v * 1000) / 1000).toString();
-
-/**
- * A régua justa do GraficoResultado (ele não a exporta): do menor ao maior valor com uma folga pequena, as
- * marcas nos valores redondos que caem dentro e o zero sempre presente, na borda de baixo quando nenhuma
- * curva desce dele.
- */
-function escalaJusta(valores: number[]) {
-  const max = valores.reduce((m, v) => Math.max(m, v), 0);
-  const min = valores.reduce((m, v) => Math.min(m, v), 0);
-  const amplitude = max - min || 1;
-  const topo = max + amplitude * 0.08;
-  const fundo = min < 0 ? min - amplitude * 0.06 : 0;
-  const p = passo(amplitude, 4);
-  const marcas: number[] = [];
-  for (let v = Math.ceil(fundo / p) * p; v <= topo; v += p) marcas.push(Math.round(v * 100) / 100);
-  const y = (v: number) => ((topo - v) / (topo - fundo)) * 100;
-  return { marcas, y };
-}
-
-/** "R$ 40 mil" a partir de mil: o eixo não precisa dos centavos. */
-function noEixo(v: number): string {
-  if (v === 0) return "R$ 0";
-  if (Math.abs(v) >= 1000) {
-    const mil = Math.abs(v) / 1000;
-    return `${v < 0 ? "−" : ""}R$ ${mil.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} mil`;
-  }
-  return formatarBRL(v, { inteiro: true });
-}
 
 /** Onde cada nome fica na ponta da linha (0 a 100, de cima para baixo), afastando os que cairiam um sobre o outro. */
 function espalhar(pontas: ReadonlyArray<{ slug: string; y: number }>): Map<string, number> {
@@ -84,16 +65,22 @@ function espalhar(pontas: ReadonlyArray<{ slug: string; y: number }>): Map<strin
 }
 
 /**
- * As curvas dos robôs no mesmo gráfico (ficha Mesa, 25/11/2026), no desenho do GraficoResultado: uma linha
- * fina e neutra por robô, todas no mesmo eixo de tempo e na mesma escala de valor, com o nome escrito na
- * ponta de cada uma. Nunca uma cor por robô: a linha do robô em destaque (o do ponteiro, ou o da linha da
- * tabela apontada) fica na cor do texto, com a maior queda dela em vermelho, e as outras ficam apagadas.
- * Verde não entra em curva.
+ * As curvas dos robôs no mesmo gráfico, "lado a lado" (ficha Mesa, 25/11/2026), no desenho do
+ * GraficoResultado: uma linha fina por robô, todas no mesmo eixo de tempo e na mesma escala de valor, com o
+ * nome escrito na ponta de cada uma. Nunca uma cor por robô, e verde não entra em curva.
  *
- * Sem caixa, sem área preenchida, sem legenda à parte: os nomes na ponta e a tabela logo abaixo são a
+ * - Sem robô em destaque, as linhas levam os tons do texto (a primeira da lista é a mais forte) e cada uma
+ *   tem o trecho da própria maior queda em vermelho.
+ * - Com um robô em destaque (o do ponteiro, ou o da linha da lista apontada), a linha dele fica na cor do
+ *   texto, com a maior queda em vermelho e o valor escrito ao lado; as outras ficam apagadas.
+ *
+ * Sem caixa, sem área preenchida, sem legenda à parte: os nomes na ponta e a lista logo abaixo são a
  * legenda. O ponteiro (ou o dedo) escolhe um pregão e a linha mais perto dele; a leitura fica com quem
  * chama, que troca o número grande da tela. O desenho é SVG esticado na largura (o traço não estica) e todo
  * texto é HTML, para não deformar.
+ *
+ * 25/11/2026: era o gráfico da página "Comparar robôs", que deixou de existir; hoje é a opção "Lado a lado"
+ * da curva da página inicial. A régua e o rótulo do eixo são os que o GraficoResultado exporta.
  */
 export function GraficoComparativo({ dias, series, destaque, ativo, aoApontar, aoDestacar, className }: Props) {
   const n = dias.length;
@@ -104,7 +91,7 @@ export function GraficoComparativo({ dias, series, destaque, ativo, aoApontar, a
     for (const s of series) for (const v of s.acumulado) if (v !== null) valores.push(v);
     const escala = escalaJusta(valores);
     const x = (i: number) => ((i + 0.5) / Math.max(1, n)) * 100;
-    const linhas = series.map((s) => {
+    const linhas = series.map((s, ordem) => {
       const partes: string[] = [];
       let ultimo: number | null = null;
       for (let i = 0; i < s.acumulado.length; i += 1) {
@@ -127,6 +114,7 @@ export function GraficoComparativo({ dias, series, destaque, ativo, aoApontar, a
       return {
         slug: s.slug,
         nome: s.nome,
+        tom: tomDe(ordem),
         d: partes.join(""),
         ultimo,
         queda: q && noPico !== null && noPico !== undefined ? { d: trecho.join(""), x: x(q.iInicio), y: escala.y(noPico), valor: q.valor } : null,
@@ -143,10 +131,10 @@ export function GraficoComparativo({ dias, series, destaque, ativo, aoApontar, a
   }
 
   const { escala, x, linhas, nomes } = desenho;
-  // sem destaque (não acontece com robô na tela), todas as linhas ficam na cor do texto
-  const emDestaque = (slug: string) => destaque === null || destaque === slug;
   const principal = linhas.find((l) => l.slug === destaque) ?? null;
-  const serieDoDestaque = series.find((s) => s.slug === destaque) ?? null;
+  // um destaque que não está entre as curvas (robô sem pregão no período) não apaga as outras
+  const semDestaque = principal === null;
+  const serieDoDestaque = principal ? (series.find((s) => s.slug === principal.slug) ?? null) : null;
 
   // embaixo: os anos quando o período passa de um ano e meio, os meses quando é longo, umas seis datas quando é curto
   const rotulos: { i: number; texto: string }[] = [];
@@ -198,7 +186,7 @@ export function GraficoComparativo({ dias, series, destaque, ativo, aoApontar, a
     // a calha da direita é do eixo de valores, como no GraficoResultado
     <div
       role="img"
-      aria-label="Curvas do resultado acumulado de cada robô no período, na mesma escala"
+      aria-label="Curvas do resultado acumulado de cada robô no período, na mesma escala, com a maior queda em vermelho"
       className={cn("pr-16 sm:pr-20", className)}
     >
       <div className="relative grid grid-cols-[minmax(0,1fr)_auto]">
@@ -226,20 +214,32 @@ export function GraficoComparativo({ dias, series, destaque, ativo, aoApontar, a
             onPointerLeave={sair}
           >
             <svg aria-hidden viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 block size-full overflow-visible">
-              {/* as apagadas primeiro, a do destaque por cima */}
-              {linhas.map((l) =>
-                emDestaque(l.slug) ? null : (
-                  <path key={l.slug} d={l.d} fill="none" stroke="var(--sutil)" strokeWidth={1.2} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
-                ),
+              {semDestaque ? (
+                <>
+                  {/* de trás para a frente: a linha mais forte fica por cima */}
+                  {[...linhas].reverse().map((l) => (
+                    <path key={l.slug} d={l.d} fill="none" stroke={l.tom.traco} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+                  ))}
+                  {linhas.map((l) =>
+                    l.queda && l.queda.d ? (
+                      <path key={l.slug} d={l.queda.d} fill="none" stroke="var(--negativo)" strokeWidth={1.7} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+                    ) : null,
+                  )}
+                </>
+              ) : (
+                <>
+                  {/* as apagadas primeiro, a do destaque por cima */}
+                  {linhas.map((l) =>
+                    l === principal ? null : (
+                      <path key={l.slug} d={l.d} fill="none" stroke="var(--sutil)" strokeWidth={1.2} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+                    ),
+                  )}
+                  <path d={principal.d} fill="none" stroke="var(--foreground)" strokeWidth={1.6} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+                  {principal.queda && principal.queda.d ? (
+                    <path d={principal.queda.d} fill="none" stroke="var(--negativo)" strokeWidth={1.9} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+                  ) : null}
+                </>
               )}
-              {linhas.map((l) =>
-                emDestaque(l.slug) ? (
-                  <path key={l.slug} d={l.d} fill="none" stroke="var(--foreground)" strokeWidth={1.6} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
-                ) : null,
-              )}
-              {principal?.queda ? (
-                <path d={principal.queda.d} fill="none" stroke="var(--negativo)" strokeWidth={1.9} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
-              ) : null}
             </svg>
             {principal?.queda ? (
               <span
@@ -298,7 +298,7 @@ export function GraficoComparativo({ dias, series, destaque, ativo, aoApontar, a
                 }}
                 className={cn(
                   "absolute left-0 max-w-full -translate-y-1/2 truncate py-0.5 pl-2.5 leading-none transition-colors",
-                  emDestaque(l.slug) ? "font-medium text-foreground" : "text-muted-foreground",
+                  semDestaque ? l.tom.nome : l === principal ? "font-medium text-foreground" : "text-sutil",
                 )}
                 style={{ top: `${y}%` }}
               >

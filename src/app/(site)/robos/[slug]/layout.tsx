@@ -4,6 +4,7 @@ import { AbasRobo } from "@/components/robo/AbasRobo";
 import { CabecalhoRobo } from "@/components/robo/CabecalhoRobo";
 import { CorpoPagina } from "@/components/sistema/Pagina";
 import { RoboAoVivoProvider } from "@/components/robo/RoboAoVivoProvider";
+import { SoComColetor } from "@/components/robo/SoComColetor";
 import {
   buscarRobo,
   listarExposicaoDia,
@@ -13,6 +14,7 @@ import {
   listarPosicoes,
   listarRobos,
 } from "@/lib/consultas/publico";
+import { capitalDoRobo } from "@/lib/consultas/capital";
 import { carregarCasa } from "@/lib/consultas/casa";
 import { hojeSP } from "@/lib/stats/periodos";
 import { pregaoAberto } from "@/lib/stats/pregao";
@@ -59,6 +61,9 @@ export async function generateMetadata({ params }: Pick<Props, "params">): Promi
  * Cabeçalho, estado ao vivo e abas compartilhados por todas as páginas do robô. Desde a ficha Mesa
  * (25/11/2026) o cabeçalho e a faixa de abas ocupam a largura da área de trabalho, e cada aba desenha
  * os próprios painéis dentro do CorpoPagina. O caminho de volta mora no cabeçalho.
+ *
+ * O capital mínimo e as entradas abertas do cabeçalho vêm de capitalDoRobo, a mesma conta de todas as telas
+ * (com cache por requisição: a aba que pedir de novo recebe o mesmo objeto).
  */
 export default async function LayoutRobo({ children, params }: Props) {
   const { slug } = await params;
@@ -67,14 +72,15 @@ export default async function LayoutRobo({ children, params }: Props) {
 
   const hoje = hojeSP();
   // os links do site (o botão "Quero esse robô" do cabeçalho): a mesma leitura do layout do site, com cache
-  const [casa, operacoes, posicoes, feriados, mercado, exposicao] = await Promise.all([
+  const [casa, operacoes, posicoes, feriados, mercado, exposicao, capital] = await Promise.all([
     carregarCasa(),
     listarOperacoesDoDia(slug, hoje),
     listarPosicoes(slug),
     listarFeriados(),
     listarMercado(),
-    // MEP/MEN de hoje medidos pelo EA (22/09/2026), para o painel "Hoje ao vivo"
+    // MEP/MEN de hoje medidos pelo EA (22/09/2026), para a aba Ao vivo
     listarExposicaoDia(slug, { dia: hoje }),
+    capitalDoRobo(slug),
   ]);
 
   const mercadoDoAtivo = mercado.find((m) => m.prefixo_simbolo === robo.ativo);
@@ -91,9 +97,17 @@ export default async function LayoutRobo({ children, params }: Props) {
         feriados={feriados}
         pregaoAbertoNoServidor={pregaoAberto(new Date(), pregao, feriados)}
       >
-        <CabecalhoRobo linkQuero={casa.parametros.links.whatsapp || undefined} />
-        <AbasRobo slug={slug} />
-        <CorpoPagina>{children}</CorpoPagina>
+        <CabecalhoRobo
+          linkQuero={casa.parametros.links.whatsapp || undefined}
+          capitalMinimo={capital?.capitalMinimo ?? null}
+          // sem medição (robô só com histórico importado, sem horário de entrada) o cabeçalho não afirma nada
+          entradas={capital && capital.entradasEm !== null ? capital.entradas : null}
+        />
+        <AbasRobo slug={slug} temColetor={robo.tem_coletor} />
+        {/* a aba Ao vivo de um robô sem coletor responde 404 daqui, antes do esqueleto de carregamento */}
+        <SoComColetor temColetor={robo.tem_coletor}>
+          <CorpoPagina>{children}</CorpoPagina>
+        </SoComColetor>
       </RoboAoVivoProvider>
     </article>
   );

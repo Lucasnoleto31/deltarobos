@@ -52,7 +52,8 @@ export function Transparencia({ robo, className }: Props) {
           valor={robo.custo_por_contrato > 0 ? `${formatarBRL(robo.custo_por_contrato)} por contrato, a cada operação` : "não configurado: valores antes dos custos"}
         />
         <Linha href="/metodologia#normalizacao" rotulo="Quanto vale 1 ponto" valor={`${formatarBRL(robo.valor_ponto_brl)} por contrato de ${robo.ativo_nome}`} />
-        <Linha href={`/robos/${robo.slug}/relatorios`} rotulo="Relatórios mensais" valor="PDF e CSV" />
+        {/* os arquivos de cada mês moram na aba Dia a dia desde 25/11/2026 (a aba Relatórios saiu) */}
+        <Linha href={`/robos/${robo.slug}/calendario#mes-a-mes`} rotulo="Relatórios mensais" valor="PDF e CSV" />
         {robo.relatorio_mt5_url ? <Linha href={robo.relatorio_mt5_url} externo rotulo="Relatório do MetaTrader" valor="abrir" /> : null}
       </ul>
     </Painel>

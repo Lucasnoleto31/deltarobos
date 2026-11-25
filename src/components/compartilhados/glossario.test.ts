@@ -84,13 +84,61 @@ describe("glossário de indicadores", () => {
       lote: "Tamanho sugerido da posição",
       bruto: "Antes dos custos",
       liquido: "Já descontados os custos",
-      porContrato: "Com 1 contrato",
+      porContrato: "Com 1 contrato por entrada",
       diasPositivos: "Dias com ganho",
       volatilidade: "Variação de um dia para o outro",
     };
     for (const [chave, rotulo] of Object.entries(rotulos) as Array<[ChaveIndicador, string]>) {
       expect(GLOSSARIO[chave].nome, chave).toBe(rotulo);
     }
+  });
+
+  // 25/11/2026 (revisão dos indicadores, DESIGN.md seção 9): os indicadores que entraram e os que mudaram de
+  // nome, com o rótulo que as telas usam ("ganho típico", "perda típica", "maior perda numa operação")
+  it("os indicadores da revisão de 25/11/2026 têm o nome da tela", () => {
+    const rotulos: Partial<Record<ChaveIndicador, string>> = {
+      ganhoPorQueda: "Ganho para cada R$ 1 da maior queda",
+      mesesComGanho: "Meses com ganho",
+      piorMes: "Pior mês",
+      quedaAtual: "Abaixo do topo hoje",
+      diaRuimTipico: "Um dia ruim típico",
+      acertoParaEmpatar: "Acertos para empatar",
+      resultadoPorOperacao: "Resultado médio por operação",
+      entradasAbertas: "Entradas abertas ao mesmo tempo",
+      pregoesOperados: "Pregões em que operou",
+      andamJuntos: "Robôs que andam juntos",
+      ganhoMedio: "Ganho típico",
+      perdaMedia: "Perda típica",
+      maiorPerda: "Maior perda numa operação",
+      duracaoMedia: "Duração típica",
+    };
+    for (const [chave, rotulo] of Object.entries(rotulos) as Array<[ChaveIndicador, string]>) {
+      expect(GLOSSARIO[chave].nome, chave).toBe(rotulo);
+    }
+  });
+
+  // a regra do capital mínimo (Lucas, 25/11/2026): garantia por contrato x o máximo de entradas abertas ao
+  // mesmo tempo + maior queda com folga. O texto cita as três parcelas e a premissa
+  it("capital mínimo cita a garantia (a margem), as entradas abertas e a maior queda", () => {
+    const t = GLOSSARIO.capitalMinimo.texto;
+    expect(t).toMatch(/1 contrato por entrada/);
+    expect(t).toMatch(/garantia/);
+    expect(t).toMatch(/\(a margem\)/);
+    expect(t).toMatch(/entradas que ele já teve abertas ao mesmo tempo/);
+    expect(t).toMatch(/maior queda/);
+    expect(GLOSSARIO.entradasAbertas.texto).toMatch(/1 contrato por entrada/);
+  });
+
+  // acertos nunca aparecem sem o necessário para empatar: o próprio texto dos acertos manda olhar para ele
+  it("acertos apontam para o necessário para empatar", () => {
+    expect(GLOSSARIO.taxaAcerto.texto).toMatch(/para empatar/);
+    expect(GLOSSARIO.acertoParaEmpatar.texto).toMatch(/ganho típico/);
+    expect(GLOSSARIO.acertoParaEmpatar.texto).toMatch(/perda típica/);
+  });
+
+  // nada de valor de ativo escrito à mão (quanto vale o ponto, a garantia): isso vem do banco e muda sem deploy
+  it.each(entradas)("%s: sem valor de ativo fixo no texto", (_chave, e) => {
+    expect(e.texto).not.toMatch(/cada ponto vale R\$|é R\$ 0,|R\$ 150/);
   });
 
   it("o termo técnico fica no texto, entre parênteses, para quem já conhece", () => {

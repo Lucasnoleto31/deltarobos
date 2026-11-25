@@ -4,7 +4,6 @@ import { cn } from "cn";
 import Link from "next/link";
 import { usePathname, useSelectedLayoutSegment } from "next/navigation";
 import { useState } from "react";
-import { Valor } from "@/components/compartilhados/Valor";
 import { linkAberturaDeConta } from "@/components/home/ComoComecar";
 import { TextoDeHoje } from "@/components/home/TextoDeHoje";
 import { useRobosAoVivo, type RoboBase } from "@/components/home/useRobosAoVivo";
@@ -27,10 +26,14 @@ const LINHA = "linha-interativa flex min-h-13 items-center justify-between gap-4
 
 /**
  * A navegação do celular (25/11/2026, Lucas: "monte a versão também para o celular"): uma barra presa
- * embaixo, ao alcance do polegar, com as cinco coisas que a barra lateral tem no computador. Visão geral,
- * Comparar e Simular navegam; Robôs e Mais abrem uma folha que sobe de baixo: a dos robôs traz a lista com o
- * que cada um fez hoje, ao vivo; a de Mais, Como funciona, como começar, os canais e o tema. Era um botão de
- * menu no canto de cima abrindo uma gaveta com tudo dentro.
+ * embaixo, ao alcance do polegar, com o que a barra lateral tem no computador: Visão geral, Robôs, Simular e
+ * Mais. Visão geral e Simular navegam; Robôs e Mais abrem uma folha que sobe de baixo: a dos robôs traz a
+ * lista com o que cada um fez hoje, ao vivo; a de Mais, Como funciona, como começar, os canais e o tema. Era
+ * um botão de menu no canto de cima abrindo uma gaveta com tudo dentro.
+ *
+ * "Comparar" saiu da barra em 25/11/2026: a página deixou de existir, e a comparação é a lista da Visão
+ * geral. Na folha dos robôs saiu o resultado do mês, que era um número de ganho sem a maior queda ao lado
+ * (DESIGN.md, seção 9); ficou o que cada robô fez hoje, como na barra lateral.
  *
  * Só texto, como a barra lateral; o item atual leva um fio em cima. A folha guarda em que página foi aberta:
  * navegar (por ela ou pelo voltar do navegador) a fecha. Some a partir de lg, onde a barra lateral existe.
@@ -52,7 +55,7 @@ export function BarraInferior({ robos, links }: Props) {
   return (
     <>
       <nav aria-label="Principal" className="fixed inset-x-0 bottom-0 z-40 border-t bg-background pb-[env(safe-area-inset-bottom)] lg:hidden">
-        <ul className="grid grid-cols-5 text-muted-foreground">
+        <ul className="grid grid-cols-4 text-muted-foreground">
           <li>
             <Link href="/" aria-current={naHome ? "page" : undefined} className={cn(ITEM, naHome && folha === null && ATUAL)}>
               Visão geral
@@ -62,15 +65,6 @@ export function BarraInferior({ robos, links }: Props) {
             <button type="button" onClick={() => abrir("robos")} aria-haspopup="dialog" className={cn(ITEM, (folha === "robos" || (emRobo && folha === null)) && ATUAL)}>
               Robôs
             </button>
-          </li>
-          <li>
-            <Link
-              href="/comparativo"
-              aria-current={pathname.startsWith("/comparativo") ? "page" : undefined}
-              className={cn(ITEM, pathname.startsWith("/comparativo") && folha === null && ATUAL)}
-            >
-              Comparar
-            </Link>
           </li>
           <li>
             <Link
@@ -108,18 +102,13 @@ export function BarraInferior({ robos, links }: Props) {
                           className="block truncate"
                         />
                       </span>
-                      {r.status === "em_breve" ? null : (
-                        <span className="shrink-0 text-right text-[0.8125rem] text-sutil">
-                          no mês <Valor valor={r.mes} inteiro={Math.abs(r.mes) >= 1000} className="ml-1 text-sm font-medium" />
-                        </span>
-                      )}
                     </Link>
                   </li>
                 );
               })}
             </ul>
           )}
-          <p className="border-t px-5 py-3 text-xs text-sutil">Todos os valores são para 1 contrato, já descontados os custos.</p>
+          <p className="border-t px-5 py-3 text-xs text-sutil">Todos os valores são para 1 contrato por entrada, já descontados os custos.</p>
         </SheetContent>
       </Sheet>
 

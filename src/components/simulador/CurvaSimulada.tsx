@@ -18,8 +18,9 @@ interface Props {
 }
 
 // A altura da curva nesta tela: desconta o que o simulador tem acima do gráfico (a fita, o cabeçalho da página,
-// o número com os fatos e a frase do semáforo), para o resultado inteiro caber sem rolar em 1440 e 1920 px.
-const ALTURA = { "--alt-curva": "clamp(14rem, calc(100dvh - 33rem), 28rem)" } as React.CSSProperties;
+// a resposta "cabe, apertado ou não cabe", que desde 25/11/2026 vem antes do resultado, e o número com os fatos),
+// para o resultado inteiro caber sem rolar em 1440 e 1920 px.
+const ALTURA = { "--alt-curva": "clamp(14rem, calc(100dvh - 35rem), 28rem)" } as React.CSSProperties;
 
 /**
  * O resultado simulado dia a dia (ficha Mesa, 25/11/2026): a mesma curva da página inicial, linha fina na

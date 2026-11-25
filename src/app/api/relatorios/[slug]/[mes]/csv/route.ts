@@ -14,7 +14,11 @@ function celula(v: string | number | null): string {
   return /[;"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-/** GET /api/relatorios/[slug]/[mes]/csv — operações do mês em CSV (; e vírgula decimal). */
+/**
+ * GET /api/relatorios/[slug]/[mes]/csv — a planilha do mês: uma linha por operação, em CSV (; e vírgula decimal,
+ * para abrir no Excel em português). É o dado bruto, com tudo o que as telas e o PDF deixaram de mostrar: o
+ * código do contrato, o resultado antes dos custos (bruto) e os custos de cada operação.
+ */
 export async function GET(_req: Request, { params }: { params: Promise<{ slug: string; mes: string }> }) {
   const { slug, mes } = await params;
   if (!ehMes(mes)) return new Response("mês inválido, use YYYY-MM", { status: 400 });
@@ -25,8 +29,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug: s
   const ops = await listarOperacoesDoMes(slug, mes);
   if (ops.length === 0) return new Response("sem operações nesse mês", { status: 404 });
 
-  // 22/09/2026: mfe/mae no FIM, em pontos por contrato, vazios na operação não medida (quem já lê o CSV
-  // por posição de coluna não muda nada)
+  // 22/09/2026: o melhor e o pior momento da operação no FIM, em pontos por contrato, vazios na operação não
+  // medida (quem já lê o CSV por posição de coluna não muda nada).
+  // 25/11/2026: as colunas e a ordem são as mesmas; só o nome das duas últimas mudou. Eram
+  // "mfe_pontos_por_contrato" e "mae_pontos_por_contrato", siglas em inglês que o site não usa mais: nas telas
+  // são o melhor e o pior momento da operação. As outras já estavam em português.
   const cabecalho = [
     "robo",
     "dia",
@@ -42,8 +49,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug: s
     "custos_brl_por_contrato",
     "liquido_brl_por_contrato",
     "origem",
-    "mfe_pontos_por_contrato",
-    "mae_pontos_por_contrato",
+    "melhor_momento_pontos_por_contrato",
+    "pior_momento_pontos_por_contrato",
   ];
   const linhas = ops.map((o) => {
     const excursao = excursaoDaOperacao(o);

@@ -1,19 +1,12 @@
 import { formatarData } from "@/lib/formato";
+import { acumular, maiorQueda } from "@/lib/stats/serie-casa";
 import type { LinhaDiaria } from "@/lib/stats/tipos";
 import type { FiltrosUrl } from "./params";
 
 /** O que o resumo lê de cada pregão da série diária (estatisticas_publico). */
 export type DiaDoResumo = Pick<
   LinhaDiaria,
-  | "dia"
-  | "n_operacoes"
-  | "n_gain"
-  | "n_loss"
-  | "resultado_brl_por_contrato"
-  | "custos_brl_por_contrato"
-  | "soma_gain_brl_por_contrato"
-  | "soma_loss_brl_por_contrato"
-  | "maior_loss_brl_por_contrato"
+  "dia" | "n_operacoes" | "resultado_brl_por_contrato" | "custos_brl_por_contrato" | "maior_loss_brl_por_contrato"
 >;
 
 export interface ResumoDoFiltro {
@@ -21,8 +14,14 @@ export interface ResumoDoFiltro {
   operacoes: number;
   /** o resultado somado, em R$ para 1 contrato, com os custos de cada operação já descontados */
   soma: number;
-  /** a operação que mais perdeu (valor negativo); nulo se nenhuma perdeu ou se o filtro é só das que ganharam */
+  /** a operação que mais perdeu (valor negativo); nulo se nenhuma perdeu */
   pior: number | null;
+  /**
+   * A maior queda do período do filtro: do ponto mais alto ao mais baixo que veio depois, somando dia a dia
+   * e partindo de zero (positivo; 0 = não recuou). A mesma conta das outras telas (maiorQueda, serie-casa):
+   * sem filtro, é a maior queda do robô.
+   */
+  maiorQueda: number;
 }
 
 /**
@@ -31,32 +30,35 @@ export interface ResumoDoFiltro {
  * banco grava com a mesma regra da lista (migration 0025): por pregão, o resultado, os custos, quantas
  * operações ganharam e perderam e a soma de cada grupo, sempre pelo resultado já descontado do custo.
  *
- * Cobre o período e o filtro de ganho ou perda. A série diária não separa compra de venda: com filtro de
- * lado devolve nulo, e a tela mostra só a contagem em vez de um número aproximado.
+ * Só cobre o filtro de período. Devolve nulo, e a tela mostra só a contagem, em dois casos:
+ * - filtro de compra ou venda: a série diária não separa os lados, e a tela não arrisca número aproximado;
+ * - filtro de ganho ou perda (desde a revisão de 25/11/2026): a soma só das operações que ganharam é um
+ *   número de ganho sem a queda ao lado, que o leigo lê como o que o robô rendeu. Resultado é a soma de tudo.
+ *
+ * A soma vem sempre com a maior queda do mesmo período (DESIGN.md, seção 9: número de ganho nunca aparece
+ * sem a maior queda ao lado).
  */
 export function resumirFiltro(dias: ReadonlyArray<DiaDoResumo>, f: FiltrosUrl): ResumoDoFiltro | null {
-  if (f.lado) return null;
+  if (f.lado || f.resultado) return null;
   let operacoes = 0;
-  let soma = 0;
   let pior: number | null = null;
+  const doPeriodo: { dia: string; valor: number }[] = [];
   for (const d of dias) {
     if (f.de && d.dia < f.de) continue;
     if (f.ate && d.dia > f.ate) continue;
-    if (f.resultado === "gain") {
-      operacoes += d.n_gain;
-      soma += d.soma_gain_brl_por_contrato;
-      continue;
-    }
-    if (f.resultado === "loss") {
-      operacoes += d.n_loss;
-      soma += d.soma_loss_brl_por_contrato;
-    } else {
-      operacoes += d.n_operacoes;
-      soma += d.resultado_brl_por_contrato - d.custos_brl_por_contrato;
-    }
+    operacoes += d.n_operacoes;
+    doPeriodo.push({ dia: d.dia, valor: d.resultado_brl_por_contrato - d.custos_brl_por_contrato });
     if (d.maior_loss_brl_por_contrato < 0 && (pior === null || d.maior_loss_brl_por_contrato < pior)) pior = d.maior_loss_brl_por_contrato;
   }
-  return { operacoes, soma, pior };
+  // a queda se mede em ordem de data, venha a série como vier
+  doPeriodo.sort((a, b) => (a.dia < b.dia ? -1 : a.dia > b.dia ? 1 : 0));
+  const curva = acumular(doPeriodo);
+  return {
+    operacoes,
+    soma: curva.length > 0 ? curva[curva.length - 1].acumulado : 0,
+    pior,
+    maiorQueda: maiorQueda(curva)?.valor ?? 0,
+  };
 }
 
 /**

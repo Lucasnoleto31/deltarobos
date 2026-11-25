@@ -92,15 +92,19 @@ const quedaEmReais = (v: number) => formatarBRL(v, { sinal: true, inteiro: Math.
 const MAX_ROTULOS = 6;
 
 /**
- * O dia escolhido no calendário (ficha Mesa, 25/11/2026): a data, o resultado, quantas operações e quantas
- * com ganho, o melhor e o pior momento do dia e a curva do saldo. Fica ao lado do mês no computador e
- * embaixo dele no celular. Sem caixa: repete, menor, o desenho do lado do mês (linha de título, número, fatos).
+ * O dia escolhido no calendário (ficha Mesa, 25/11/2026): a data, o resultado, quantas operações, o melhor e
+ * o pior momento do dia e a curva do saldo. Fica ao lado do mês no computador e embaixo dele no celular. Sem
+ * caixa: repete, menor, o desenho do lado do mês (linha de título, número, fatos).
+ *
+ * Revisão de 25/11/2026 (DESIGN.md, seção 9): saiu o "N com ganho" de debaixo do resultado. Acertos não
+ * aparecem sem o necessário para empatar, e num dia só essa conta não diz nada; o resultado do dia e o pior
+ * momento já contam como o dia foi.
  *
  * O que mudou do "Detalhe do dia" anterior, com os mesmos números das mesmas funções:
  * - eram três fileiras de números centralizados (resultado, operações e acerto; MEP e MEN) dentro de um
  *   cartão; agora o resultado é o número do bloco, as operações vão em palavras debaixo dele ("em 12
- *   operações, 9 com ganho", no lugar da taxa de acerto) e o MEP e o MEN viraram "Melhor momento" e "Pior
- *   momento", em lista. Quem conhece o Profit acha a sigla na explicação do rótulo;
+ *   operações") e o MEP e o MEN viraram "Melhor momento" e "Pior momento", em lista. Quem conhece o Profit
+ *   acha a sigla na explicação do rótulo;
  * - "Por hora de entrada" saiu: repetia, em barras, o que a curva do dia mostra no eixo do tempo.
  *
  * A curva (23/09/2026): a série do saldo medida pelo EA quando o dia a tem (a faixa, as bolinhas de fechamento
@@ -131,7 +135,6 @@ export function DiaEscolhido({
   const idCurva = `cal-${idBase}`;
 
   const total = ops.reduce((s, op) => s + valorOperacao(op, opcoes), 0);
-  const comGanho = ops.filter((op) => op[4] - op[5] > 0).length;
 
   // o dia em curva, operação a operação (as operações compactas já vêm em ordem de fechamento); desde
   // 23/09/2026 é a reserva: vale nos dias sem a série do saldo medida pelo EA, e enquanto ela carrega
@@ -233,7 +236,6 @@ export function DiaEscolhido({
               </p>
               <p className="mt-3 text-sm text-muted-foreground">
                 em {formatarNumero(ops.length)} {ops.length === 1 ? "operação" : "operações"}
-                {ops.length > 1 ? `, ${formatarNumero(comGanho)} com ganho` : ""}
               </p>
             </>
           ) : (

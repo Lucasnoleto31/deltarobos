@@ -24,10 +24,11 @@ const SEMANA = [
   { curto: "Sex", longo: "Sexta" },
 ];
 
-// cada dia é uma casa entre dois fios: 56 px no celular, 60 px daí para cima (19/09/2026: altura fixa e baixa;
-// esticadas até o detalhe, as casas ficavam com 135 px e o número perdido no canto). A cor do fio de cima vai à
-// parte (FIO), porque no dia escolhido ele troca para a cor do texto e duas cores de borda na mesma casa disputariam
-const CASA = "flex h-14 min-w-0 flex-col border-t px-2 py-2 text-left sm:h-[3.75rem] sm:px-3";
+// cada dia é uma casa entre dois fios, de 60 px (19/09/2026: altura fixa e baixa; esticadas até o detalhe, as
+// casas ficavam com 135 px e o número perdido no canto). No celular eram 56 px até 25/11/2026: "não operou" não
+// cabe numa linha nos 56 px de largura útil da casa e precisa de duas. A cor do fio de cima vai à parte (FIO),
+// porque no dia escolhido ele troca para a cor do texto e duas cores de borda na mesma casa disputariam
+const CASA = "flex h-[3.75rem] min-w-0 flex-col border-t px-2 py-2 text-left sm:px-3";
 const FIO = "border-(--painel-fio)";
 
 /** Na casa do dia os centavos só aparecem em valor pequeno e quebrado: "+R$ 46,75", mas "+R$ 80" e "+R$ 1.342". */
@@ -50,8 +51,10 @@ function curto(v: number): string {
  * um mês poder ser comparado com outro.
  *
  * O dia escolhido leva o realce de linha e o fio de cima na cor do texto. Dia sem operação não é botão: fica
- * só o número, apagado, e "feriado" quando a bolsa não abriu. O número de operações saiu da casa (está no
- * detalhe do dia, ao lado) e continua no nome que o leitor de tela lê.
+ * só o número, apagado, com "feriado" quando a bolsa não abriu e "não operou" quando a bolsa abriu e o robô
+ * não fechou operação (25/11/2026; quem decide é gradeMes, em lib/stats/calendario, e só afirma quando dá
+ * para saber). O motivo o sistema não sabe e a casa não inventa. O número de operações saiu da casa (está
+ * no detalhe do dia, ao lado) e continua no nome que o leitor de tela lê.
  */
 export function MesEmGrade({ semanas, nomeDoMes, escolhido, hoje, forca, aoEscolher }: Props) {
   return (
@@ -79,11 +82,12 @@ export function MesEmGrade({ semanas, nomeDoMes, escolhido, hoje, forca, aoEscol
           );
 
           if (d.valor === null) {
+            // dia de semana em que a bolsa não abriu, ou pregão em que o robô não fechou operação
+            const oQueHouve = !d.pregao ? "feriado" : d.naoOperou ? "não operou" : null;
             return (
               <div key={d.dia} className={cn(CASA, FIO, "text-sutil")}>
                 {numero}
-                {/* dia de semana em que a bolsa não abriu */}
-                {d.pregao ? null : <span className="mt-1.5 text-xs leading-none">feriado</span>}
+                {oQueHouve ? <span className="mt-1 text-xs leading-[1.1] sm:mt-1.5 sm:leading-none">{oQueHouve}</span> : null}
               </div>
             );
           }

@@ -20,10 +20,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 /**
- * Aba "Dia a dia" (rota /calendario; ficha Mesa, 25/11/2026): o resultado do mês em vista, o mês em casas com
- * o dia escolhido ao lado, os melhores e os piores dias do histórico e o mapa de todos os meses. Aqui só se
- * buscam os dados; o desenho inteiro é do PainelCalendario, que devolve as seções para o CorpoPagina do
- * layout do robô.
+ * Aba "Dia a dia" (rota /calendario): como foi cada dia e cada mês? O resultado do mês em vista, o mês em
+ * casas com o dia escolhido ao lado, a lista "Mês a mês" com o PDF e a planilha de cada mês (é para a âncora
+ * #mes-a-mes que o site manda quem abria /relatorios, que deixou de existir em 25/11/2026) e os melhores e
+ * os piores dias do histórico. Aqui só se buscam os dados; o desenho inteiro é do PainelCalendario, que
+ * devolve as seções para o CorpoPagina do layout do robô.
+ *
+ * Os meses da lista saem da mesma série diária que a página de relatórios lia (listarEstatisticas): um mês
+ * entra quando tem ao menos um dia com operação, que é também quando as rotas /api/relatorios têm o que
+ * entregar.
  */
 export default async function PaginaCalendario({ params }: Props) {
   const { slug } = await params;
@@ -32,6 +37,7 @@ export default async function PaginaCalendario({ params }: Props) {
     buscarRobo(slug),
     listarEstatisticas(slug),
     listarOperacoesCompactas(slug),
+    // os feriados da bolsa: sem eles o calendário não sabe dizer em que dia útil a bolsa abriu
     listarFeriados(),
     // MEP/MEN por dia medidos pelo EA 1.1.0 (22/09/2026): uma linha por dia com medição, já sem robo_id
     listarExposicaoDia(slug),
@@ -55,6 +61,8 @@ export default async function PaginaCalendario({ params }: Props) {
       nomeRobo={robo.nome}
       contaDemo={robo.conta_tipo === "demo"}
       temColetor={robo.tem_coletor}
+      // só o robô com coletor e ativo é acompanhado dia a dia: nele, pregão sem operação até ontem é "não operou"
+      acompanhado={robo.tem_coletor && robo.status === "ativo"}
       horario={horario}
     />
   );

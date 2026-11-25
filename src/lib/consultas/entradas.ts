@@ -18,8 +18,11 @@ export interface PicoDoRobo {
  * importadas não têm horário de entrada). "Com 1 contrato" é por entrada: o robô que acumula entradas
  * contra o movimento chega a carregar dezenas, e é isso que dimensiona a garantia e o capital.
  * Busca só os dois horários de cada operação, em páginas paralelas; zero se não há operação ao vivo.
+ *
+ * Nulo quando a leitura falha: a falha não pode virar "1 entrada" em silêncio, porque o capital mínimo sairia
+ * menor do que o real em todas as telas. Com nulo, capital.ts publica o capital como desconhecido (um traço).
  */
-export const picoDeEntradasDoRobo = cache(async (slug: string): Promise<PicoDoRobo> => {
+export const picoDeEntradasDoRobo = cache(async (slug: string): Promise<PicoDoRobo | null> => {
   try {
     const sb = supabasePublico();
     const passo = 1000; // teto do PostgREST por requisição
@@ -51,6 +54,6 @@ export const picoDeEntradasDoRobo = cache(async (slug: string): Promise<PicoDoRo
     return { maximo: pico.maximo, quando: pico.quando === null ? null : new Date(pico.quando).toISOString() };
   } catch (e) {
     avisar("picoDeEntradasDoRobo", e);
-    return { maximo: 0, quando: null };
+    return null;
   }
 });

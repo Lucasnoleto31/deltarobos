@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import { calcularPorPeriodo } from "@/components/robo/ops-por-periodo";
 import { PainelRisco } from "@/components/risco/PainelRisco";
-import { listarOperacoesCompactas } from "@/lib/consultas/operacoes";
-import { buscarRobo, carregarParametros, listarEstatisticas, listarMercado } from "@/lib/consultas/publico";
-import { resumoOperacoes } from "@/lib/stats/operacoes";
+import { capitalDoRobo } from "@/lib/consultas/capital";
+import { buscarRobo, listarEstatisticas, listarExposicaoDia } from "@/lib/consultas/publico";
 import { hojeSP } from "@/lib/stats/periodos";
-import type { LinhaDiaria } from "@/lib/stats/tipos";
+import { contaDoCapital, piorMomentoMedido, resultadoPorOperacao, riscoDoRobo } from "@/lib/stats/risco";
+import { ordenarPorDia, valorDia } from "@/lib/stats/serie";
+import { LIMITE_APERTADO } from "@/lib/stats/simulador";
 
 export const revalidate = 60;
 
@@ -21,54 +21,42 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 /**
- * Aba "Quedas e risco" (ficha Mesa, 25/11/2026): a maior queda em número grande, a curva com ela em vermelho,
- * as maiores quedas, o capital para aguentar e os índices de risco em lista. A página só busca e recorta; o
- * desenho é do PainelRisco.
+ * Aba "Quedas e risco" (revisão de 25/11/2026, DESIGN.md seção 9): quanto posso perder e quanto capital
+ * preciso? A página busca e chama as contas puras; o desenho é do PainelRisco.
+ *
+ * - A série diária vira data e valor (R$, 1 contrato por entrada, já com custos) e riscoDoRobo lê o histórico
+ *   inteiro: a maior queda com as datas, as outras quedas e os dias ruins. Só data e valor de cada pregão vão
+ *   ao navegador, para a curva; as operações não são mais buscadas (serviam ao risco de ruína, que saiu).
+ * - O capital mínimo e as parcelas vêm de capitalDoRobo, a mesma leitura das outras telas; contaDoCapital só
+ *   fecha as parcelas em R$ inteiros. O limite de "apertado" é o do simulador.
+ * - O pior momento dentro de um pregão sai das medições do coletor (exposicao_dia_publico), só nos pregões
+ *   que estão na série; sem medição a linha não aparece.
  */
 export default async function PaginaRisco({ params }: Props) {
   const { slug } = await params;
   const hoje = hojeSP();
-  const [robo, linhas, ops, mercado, parametros] = await Promise.all([
+  const [robo, linhas, capital, exposicao] = await Promise.all([
     buscarRobo(slug),
     listarEstatisticas(slug),
-    listarOperacoesCompactas(slug),
-    listarMercado(),
-    carregarParametros(),
+    capitalDoRobo(slug),
+    listarExposicaoDia(slug),
   ]);
-  if (!robo) return null;
+  if (!robo) return null; // o layout já tratou o 404
 
-  const margem = mercado.find((m) => m.prefixo_simbolo === robo.ativo)?.margem_referencia ?? null;
-
-  // 18/09/2026: das operações o painel só usava a perda média (risco de ruína), por período; ela
-  // sai pronta daqui e as ~15 mil operações (~700 KB no HTML) não vão mais ao navegador
   const opcoes = { base: "liquido", unidade: "brl", valorPonto: robo.valor_ponto_brl } as const;
-  const perdaMedia = calcularPorPeriodo(ops, hoje, (opsP) => resumoOperacoes(opsP, opcoes).mediaLoss);
-
-  // só os campos de LinhaDiaria: robo_id, slug e atualizado_em de cada dia não são lidos no cliente
-  const linhasDiarias: LinhaDiaria[] = linhas.map((l) => ({
-    dia: l.dia,
-    pontos_por_contrato: l.pontos_por_contrato,
-    resultado_brl_por_contrato: l.resultado_brl_por_contrato,
-    custos_brl_por_contrato: l.custos_brl_por_contrato,
-    n_operacoes: l.n_operacoes,
-    n_gain: l.n_gain,
-    n_loss: l.n_loss,
-    soma_gain_brl_por_contrato: l.soma_gain_brl_por_contrato,
-    soma_loss_brl_por_contrato: l.soma_loss_brl_por_contrato,
-    maior_gain_brl_por_contrato: l.maior_gain_brl_por_contrato,
-    maior_loss_brl_por_contrato: l.maior_loss_brl_por_contrato,
-  }));
+  const ateHoje = ordenarPorDia(linhas.filter((l) => l.dia <= hoje));
+  const dias = ateHoje.map((l) => ({ dia: l.dia, valor: valorDia(l, opcoes) }));
 
   return (
     <PainelRisco
       slug={slug}
-      linhas={linhasDiarias}
-      perdaMedia={perdaMedia}
-      hoje={hoje}
-      valorPonto={robo.valor_ponto_brl}
-      capitalReferencia={robo.capital_referencia}
-      margem={margem}
-      fatorSeguranca={parametros.fatorSeguranca}
+      dias={dias.map((d) => [d.dia, d.valor] as const)}
+      risco={riscoDoRobo(dias)}
+      capital={capital}
+      conta={capital ? contaDoCapital(capital, LIMITE_APERTADO) : null}
+      limite={LIMITE_APERTADO}
+      momento={piorMomentoMedido(exposicao, dias, robo.custo_por_contrato, robo.valor_ponto_brl)}
+      porOperacao={resultadoPorOperacao(ateHoje)}
     />
   );
 }

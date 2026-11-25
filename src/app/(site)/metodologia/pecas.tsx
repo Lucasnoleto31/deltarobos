@@ -90,23 +90,32 @@ export interface LinhaDaConta {
   valor: React.ReactNode;
 }
 
+/** A linha pequena debaixo de um exemplo: de onde o número saiu, o que ele não diz. */
+export function Nota({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <p className={cn("mt-2 max-w-sm text-[0.8125rem] leading-relaxed text-pretty text-muted-foreground", className)}>{children}</p>;
+}
+
 /**
  * Uma conta de exemplo, como numa folha de papel: uma linha por parcela e o resultado embaixo de um fio.
  * É a lista de fatos da página inicial (rótulo à esquerda, valor à direita), com o total no fim.
+ * `desenho` vai em cima da conta, quando o exemplo tem uma figura (as entradas abertas ao mesmo tempo).
  */
 export function Conta({
   titulo = "Exemplo",
+  desenho,
   linhas,
   resultado,
   className,
 }: {
   titulo?: string;
+  desenho?: React.ReactNode;
   linhas: LinhaDaConta[];
   resultado?: LinhaDaConta;
   className?: string;
 }) {
   return (
     <AoLado titulo={titulo} className={className}>
+      {desenho ? <div className="mt-3 mb-3">{desenho}</div> : null}
       <dl>
         {linhas.map((l, i) => (
           <div key={i} className="flex items-baseline justify-between gap-4 leading-7">
@@ -244,5 +253,44 @@ export function CurvaDeExemplo({
         <path d={trecho} fill="none" stroke="var(--negativo)" strokeWidth={1.8} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
       ) : null}
     </svg>
+  );
+}
+
+/**
+ * As entradas de um exemplo, cada uma num traço que vai da hora em que abre até a hora em que fecha, e um fio
+ * vertical no instante em que mais delas estão abertas ao mesmo tempo. As que estão abertas nesse instante
+ * levam a cor do texto e um traço mais grosso; as outras, a cor de apoio. `quando` é o que `picoDeEntradasAbertas` (lib/stats/indicadores-robo)
+ * devolve para os mesmos intervalos: o desenho não refaz a conta.
+ */
+export function EntradasDeExemplo({
+  intervalos,
+  quando,
+  descricao,
+  className,
+}: {
+  intervalos: ReadonlyArray<readonly [abre: number, fecha: number]>;
+  quando: number | null;
+  descricao: string;
+  className?: string;
+}) {
+  const inicio = Math.min(...intervalos.map((i) => i[0]));
+  const fim = Math.max(...intervalos.map((i) => i[1]));
+  const pct = (t: number) => (fim === inicio ? 0 : ((t - inicio) / (fim - inicio)) * 100);
+  return (
+    <div role="img" aria-label={descricao} className={cn("relative", className)}>
+      {quando !== null ? <span aria-hidden className="absolute inset-y-0 w-px bg-(--painel-fio-forte)" style={{ left: `${pct(quando)}%` }} /> : null}
+      {intervalos.map(([abre, fecha], i) => {
+        const aberta = quando !== null && abre <= quando && quando < fecha;
+        return (
+          <div key={i} className="relative h-5">
+            <span
+              aria-hidden
+              className={cn("absolute top-1/2 -translate-y-1/2", aberta ? "h-[3px] bg-foreground" : "h-0.5 bg-muted-foreground")}
+              style={{ left: `${pct(abre)}%`, width: `${pct(fecha) - pct(abre)}%` }}
+            />
+          </div>
+        );
+      })}
+    </div>
   );
 }

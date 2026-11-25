@@ -24,9 +24,10 @@ const PREGAO_PADRAO: HorarioPregao = { inicio: "09:00", fim: "18:00" };
 /**
  * GET /api/og/[slug]/[dia] — a imagem do dia para compartilhar (24/09/2026, pedido do Lucas: "uma imagem pronta ao
  * fim de cada pregão ... é o que alimenta a live, o WhatsApp e o Instagram sem montar nada na mão"). PNG com a
- * marca, o robô, a data, o resultado líquido por contrato, operações, acerto, MEP, MEN e a curva real do dia (a
- * mesma do Hoje ao vivo), em ?formato=quadrado (1080×1080, o padrão) ou ?formato=story (1080×1920). Qualquer outro
- * parâmetro, como o v= que o botão põe para a prévia de hoje não vir velha, é ignorado aqui.
+ * marca, o robô, a data, o resultado do dia (com 1 contrato por entrada, já descontados os custos), as operações e
+ * quantas com ganho, o melhor e o pior momento do dia e a curva real do dia (a mesma do Hoje ao vivo), em
+ * ?formato=quadrado (1080×1080, o padrão) ou ?formato=story (1080×1920). Qualquer outro parâmetro, como o v= que
+ * o botão põe para a prévia de hoje não vir velha, é ignorado aqui.
  *
  * Respostas: 400 dia inválido ou futuro; 404 robô desconhecido ou dia sem operação pública; 503 sem cache (e
  * Retry-After) quando o banco falha, como a rota do saldo: as consultas normalmente engolem o erro e devolvem lista

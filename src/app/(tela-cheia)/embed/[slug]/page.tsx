@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { CardEmbed } from "@/components/embed/CardEmbed";
 import { ForcarTema } from "@/components/embed/ForcarTema";
 import { buscarRobo, listarEstatisticas } from "@/lib/consultas/publico";
+import { tempoDeHistorico } from "@/lib/stats/card-do-dia";
 import { hojeSP } from "@/lib/stats/periodos";
 import { resumirCardRobo } from "@/lib/stats/resumo-robo";
 
@@ -38,7 +39,7 @@ export default async function PaginaEmbed({ params, searchParams }: Props) {
   return (
     <div className="p-4">
       <ForcarTema tema={tema} />
-      <CardEmbed robo={robo} resumo={resumo} hoje={hoje} linkSite={`${site}/robos/${slug}`} />
+      <CardEmbed robo={robo} resumo={resumo} hoje={hoje} linkSite={`${site}/robos/${slug}`} historico={tempoDeHistorico(linhas, hoje)?.texto ?? null} />
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { LINK_DO_PAINEL, Painel } from "@/components/sistema/Painel";
 import { buttonVariants } from "@/components/ui/button";
 import type { Links } from "@/lib/tipos";
@@ -12,14 +13,29 @@ interface Props {
 // 20/09/2026, correção do Artur sobre como o produto funciona de verdade: (1) o robô roda numa conta
 // DESSA corretora, não numa subconta; (3) a equipe NÃO instala — libera a licença e ajuda com
 // treinamento, e a instalação no MetaTrader 5 é do cliente (a equipe só entra quando ele não consegue).
-const PASSOS: { titulo: string; texto: string }[] = [
+// 25/11/2026 (revisão das telas, DESIGN.md seção 9): o passo 2 aponta para onde a escolha se faz hoje: a
+// lista da Visão geral (resultado, maior queda e capital mínimo de cada robô) e Simular meu capital. Não
+// existe mais a tela "Comparar robôs".
+const PASSOS: { titulo: string; texto: React.ReactNode }[] = [
   {
     titulo: "Abra sua conta na corretora parceira",
     texto: "Pelo link do assessor. O robô roda numa conta dessa corretora.",
   },
   {
     titulo: "Escolha o robô",
-    texto: "Cada robô tem página própria, com o resultado dia a dia, as quedas e todas as operações.",
+    texto: (
+      <>
+        A{" "}
+        <Link href="/" className={LINK_DO_PAINEL}>
+          Visão geral
+        </Link>{" "}
+        mostra o resultado, a maior queda e o capital mínimo de cada um. Em{" "}
+        <Link href="/simulador" className={LINK_DO_PAINEL}>
+          Simular meu capital
+        </Link>{" "}
+        você vê se o seu capital cabe.
+      </>
+    ),
   },
   {
     titulo: "Instale e libere a licença",
@@ -41,28 +57,33 @@ export function linkAberturaDeConta(links: Links): string {
 }
 
 /**
- * Como começar, em três passos (ficha Mesa, 25/11/2026): a lista numerada e os dois caminhos embaixo. Saiu
- * da página inicial na segunda passada (o Lucas mandou tirar o que não era necessário ali) e mora no alto
- * de "Como funciona"; o botão "Como começar" da barra lateral e o rodapé levam ao mesmo lugar.
+ * Como começar, em três passos (ficha Mesa, 25/11/2026). Saiu da página inicial (o Lucas mandou tirar o que
+ * não era necessário ali) e mora no alto de "Como funciona"; o botão "Como começar" da barra lateral e o
+ * rodapé levam ao mesmo lugar.
+ *
+ * 25/11/2026, revisão das telas: os passos são linhas com fio, uma embaixo da outra (o número, o que fazer e
+ * a explicação ao lado), como as outras listas do site. Eram três blocos iguais lado a lado, que a ficha não
+ * quer (DESIGN.md, seção 8). No celular a explicação desce para baixo do título.
  */
 export function ComoComecar({ links, className }: Props) {
   return (
-    <Painel id="como-comecar" titulo="Como começar" apoio="três passos" className={className}>
-      <ol className="grid gap-x-12 gap-y-5 lg:grid-cols-3">
+    <Painel id="como-comecar" titulo="Como começar" apoio="três passos" corpo="" className={className}>
+      <ol>
         {PASSOS.map((p, i) => (
-          <li key={p.titulo} className="grid grid-cols-[1.25rem_minmax(0,1fr)] gap-x-3">
-            <span aria-hidden className="text-sm text-sutil">
+          <li
+            key={p.titulo}
+            className="grid grid-cols-[1.25rem_minmax(0,1fr)] gap-x-3 gap-y-1 border-b border-(--painel-fio) py-3.5 text-sm md:grid-cols-[1.25rem_19rem_minmax(0,1fr)] md:gap-x-6"
+          >
+            <span aria-hidden className="text-sutil">
               {i + 1}
             </span>
-            <div>
-              <h3 className="text-sm font-medium">{p.titulo}</h3>
-              <p className="mt-1 text-sm text-pretty text-muted-foreground">{p.texto}</p>
-            </div>
+            <h3 className="font-medium">{p.titulo}</h3>
+            <p className="col-start-2 max-w-3xl leading-relaxed text-pretty text-muted-foreground md:col-start-3">{p.texto}</p>
           </li>
         ))}
       </ol>
 
-      <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-3">
+      <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-3">
         <a href={linkAberturaDeConta(links)} target="_blank" rel="noopener noreferrer" className={buttonVariants({ className: "h-9" })}>
           Abrir conta na corretora parceira
         </a>

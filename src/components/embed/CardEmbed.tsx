@@ -11,6 +11,8 @@ interface Props {
   resumo: ResumoCardRobo;
   hoje: string;
   linkSite: string;
+  /** o tamanho do histórico em palavras ("9 meses", "8 anos e 10 meses"), de tempoDeHistorico; nulo sem pregão */
+  historico: string | null;
 }
 
 /**
@@ -25,9 +27,13 @@ interface Props {
  * dias. A etiqueta "Ao vivo" também: o embed não tem tempo real, e o site não promete o que não sabe. "Conta
  * demo" continua escrito, sempre.
  *
+ * Revisão dos indicadores (25/11/2026, DESIGN.md seção 9): a premissa diz "com 1 contrato por entrada" (o robô
+ * pode ter várias entradas abertas ao mesmo tempo) e o resultado desde o início diz o tamanho do histórico de
+ * onde saiu ("em 9 meses"). O widget não mostra acertos, percentual nem média: não precisou de mais nada.
+ *
  * O bloco inteiro é um link para a página do robô, que abre em outra aba.
  */
-export function CardEmbed({ robo, resumo, hoje, linkSite }: Props) {
+export function CardEmbed({ robo, resumo, hoje, linkSite, historico }: Props) {
   const emBreve = robo.status === "em_breve";
   const pregoes = resumo.sparkline.length;
   // o número grande é o fim da curva desenhada logo abaixo: o acumulado dos últimos 30 dias (resumirCardRobo)
@@ -61,7 +67,7 @@ export function CardEmbed({ robo, resumo, hoje, linkSite }: Props) {
             <>
               <NumeroGrande valor={noPeriodo} centavos={!inteiro(noPeriodo)} className="mt-3" />
               <p className="mt-2 text-[0.8125rem] text-pretty text-muted-foreground">
-                nos últimos 30 dias, com 1 contrato, já descontados os custos · {formatarData(hoje)}
+                nos últimos 30 dias, com 1 contrato por entrada, já descontados os custos · {formatarData(hoje)}
               </p>
             </>
           ) : (
@@ -81,6 +87,7 @@ export function CardEmbed({ robo, resumo, hoje, linkSite }: Props) {
               <dt className="text-muted-foreground">Desde o início</dt>
               <dd className="font-medium">
                 <Valor valor={resumo.acumulado} inteiro={inteiro(resumo.acumulado)} />
+                {historico ? <span className="font-normal text-muted-foreground"> em {historico}</span> : null}
               </dd>
             </div>
             <div className="flex items-baseline gap-1.5">

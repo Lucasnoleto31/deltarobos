@@ -11,6 +11,8 @@ const NO_TOPO = 5;
 interface Props {
   id: string;
   titulo: string;
+  /** de quanto histórico sai a lista: "desde o início", ou o tamanho dele quando é curto */
+  apoio: string;
   itens: { dia: string; valor: number; n: number }[];
   /** escolher um dia da lista abre esse dia no calendário */
   aoEscolher: (dia: string) => void;
@@ -25,8 +27,12 @@ interface Props {
  *
  * 19/09/2026: o número da posição não aparece (a ordem da lista já diz) e a lista não repete "os 5 primeiros
  * do histórico", que ficava errado embaixo de "Piores dias"; o recorte, "desde o início", vai ao lado do título.
+ *
+ * 25/11/2026 (DESIGN.md, seção 9): quando o histórico tem menos de 12 meses, o recorte diz o tamanho dele
+ * ("em 9 meses de histórico, 172 pregões"); quem monta a frase é o painel. "Melhor dia" deixou de ser
+ * indicador de destaque na tela e mora só aqui, ao lado dos piores dias.
  */
-export function ListaDeDias({ id, titulo, itens, aoEscolher, className }: Props) {
+export function ListaDeDias({ id, titulo, apoio, itens, aoEscolher, className }: Props) {
   const [todos, setTodos] = useState(false);
   const mostrados = todos ? itens : itens.slice(0, NO_TOPO);
   const idLista = `${id}-lista`;
@@ -35,7 +41,7 @@ export function ListaDeDias({ id, titulo, itens, aoEscolher, className }: Props)
     <Painel
       id={id}
       titulo={titulo}
-      apoio="desde o início"
+      apoio={apoio}
       corpo=""
       className={className}
       acao={

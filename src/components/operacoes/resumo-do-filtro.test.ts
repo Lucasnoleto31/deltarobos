@@ -12,12 +12,8 @@ function pregao(dia: string, ganhos: number[], perdas: number[], custo = 0.25): 
   return {
     dia,
     n_operacoes: todas.length,
-    n_gain: ganhos.length,
-    n_loss: perdas.length,
     resultado_brl_por_contrato: liquido + custos,
     custos_brl_por_contrato: custos,
-    soma_gain_brl_por_contrato: ganhos.reduce((s, v) => s + v, 0),
-    soma_loss_brl_por_contrato: perdas.reduce((s, v) => s + v, 0),
     maior_loss_brl_por_contrato: perdas.length > 0 ? Math.min(...perdas) : 0,
   };
 }
@@ -45,18 +41,22 @@ describe("resumirFiltro", () => {
     expect(resumirFiltro(DIAS, { ...SEM_FILTRO, ate: "2026-10-30" })?.operacoes).toBe(3);
   });
 
-  it("só as que ganharam: conta e soma os ganhos, sem pior operação", () => {
-    const r = resumirFiltro(DIAS, { ...SEM_FILTRO, resultado: "gain" });
-    expect(r?.operacoes).toBe(4);
-    expect(r?.soma).toBeCloseTo(120, 6);
-    expect(r?.pior).toBeNull();
+  it("traz a maior queda do período, dia a dia e partindo de zero", () => {
+    // os dias somam +18,25, +30,75 e -71,75: o ponto mais alto é 49 (em 03/11) e o mais baixo depois dele, -22,75
+    expect(resumirFiltro(DIAS, SEM_FILTRO)?.maiorQueda).toBeCloseTo(71.75, 6);
+    // só o último dia: começa perdendo, e isso já é queda
+    expect(resumirFiltro(DIAS, { ...SEM_FILTRO, de: "2026-11-04" })?.maiorQueda).toBeCloseTo(71.75, 6);
+    // período que só subiu não tem queda
+    expect(resumirFiltro(DIAS, { ...SEM_FILTRO, ate: "2026-11-03" })?.maiorQueda).toBe(0);
   });
 
-  it("só as que perderam: conta e soma as perdas", () => {
-    const r = resumirFiltro(DIAS, { ...SEM_FILTRO, resultado: "loss" });
-    expect(r?.operacoes).toBe(3);
-    expect(r?.soma).toBeCloseTo(-142.75, 6);
-    expect(r?.pior).toBe(-96.25);
+  it("a queda não depende da ordem em que os dias chegam", () => {
+    expect(resumirFiltro([...DIAS].reverse(), SEM_FILTRO)?.maiorQueda).toBeCloseTo(71.75, 6);
+  });
+
+  it("só as que ganharam ou só as que perderam: não soma (seria um ganho sem a queda ao lado)", () => {
+    expect(resumirFiltro(DIAS, { ...SEM_FILTRO, resultado: "gain" })).toBeNull();
+    expect(resumirFiltro(DIAS, { ...SEM_FILTRO, resultado: "loss" })).toBeNull();
   });
 
   it("período sem perda não tem pior operação", () => {
@@ -69,7 +69,7 @@ describe("resumirFiltro", () => {
   });
 
   it("sem pregão no filtro devolve zero operações", () => {
-    expect(resumirFiltro(DIAS, { ...SEM_FILTRO, de: "2027-01-01" })).toEqual({ operacoes: 0, soma: 0, pior: null });
+    expect(resumirFiltro(DIAS, { ...SEM_FILTRO, de: "2027-01-01" })).toEqual({ operacoes: 0, soma: 0, pior: null, maiorQueda: 0 });
   });
 });
 

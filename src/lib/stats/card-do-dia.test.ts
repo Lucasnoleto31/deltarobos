@@ -5,13 +5,16 @@ import {
   FRASE_LEGAL_PADRAO,
   PONTOS_CARD,
   caminhosDaCurva,
+  comoOperou,
   dataPorExtenso,
   enderecoCurto,
   fimDoDia,
   fraseLegalCurta,
   montarCardDoDia,
+  resumirMes,
   rotulosDoCard,
   tamanhoParaCaber,
+  tempoDeHistorico,
   tomDoValor,
   type CurvaDoCard,
   type EntradaCardDoDia,
@@ -21,6 +24,7 @@ import {
 import type { ExposicaoHoje } from "./exposicao";
 import { excursao } from "./operacoes";
 import { epochBrasilia } from "./saldo-dia";
+import type { LinhaDiaria } from "./tipos";
 
 // Tudo com datas fixas (23/09/2026, quarta-feira, e 24/09/2026): nada aqui olha o relógio.
 const DIA = "2026-09-23";
@@ -212,12 +216,12 @@ describe("montarCardDoDia: números e textos", () => {
     // só o nome do ativo, como no cabeçalho do robô (era "Mini Índice · WIN")
     expect(d.ativo).toBe("Mini Índice");
     expect(d.data).toBe("quarta-feira, 23 de setembro de 2026");
-    // a premissa uma vez na imagem: "com 1 contrato" junto do número e "Já descontados os custos" no rodapé
-    // (25/11/2026; eram "Resultado do dia, por contrato" e "Por 1 contrato, líquido de custos · ...")
+    // a premissa uma vez na imagem: "com 1 contrato por entrada" junto do número e "Já descontados os custos" no
+    // rodapé (25/11/2026; eram "Resultado do dia, por contrato" e "Por 1 contrato, líquido de custos · ...")
     expect(d.rodape).toBe("Já descontados os custos · quantsrobos.com/robos/robo-teste");
     expect(d.legal).toBe("Resultados passados não garantem resultados futuros.");
     expect(d.parcial).toBeNull();
-    expect(d.rotuloResultado).toBe("Resultado do dia, com 1 contrato");
+    expect(d.rotuloResultado).toBe("Resultado do dia, com 1 contrato por entrada");
   });
 
   it("nenhum texto da imagem usa o jargão antigo (ficha Mesa, 25/11/2026)", () => {
@@ -257,8 +261,11 @@ describe("montarCardDoDia: números e textos", () => {
     expect(cabe(montar().notaMepMen, 24)).toBe(true);
     expect(cabe(pior.rodape, 26)).toBe(true);
     expect(cabe(pior.rotuloResultado, 30)).toBe(true);
-    // a frase inteira no rodapé não caberia: é por isso que o "com 1 contrato" fica só no rótulo do resultado
-    expect(cabe(`Com 1 contrato, já descontados os custos · quantsrobos.com/robos/alaska-square`, 26)).toBe(false);
+    // o rótulo parcial é o mais comprido dos dois ("Resultado parcial, com 1 contrato por entrada")
+    const parcial = montar({ dia: HOJE, operacoes: [op("10:00", 30, { dia: HOJE })], agora: new Date("2026-09-24T17:32:00Z") });
+    expect(cabe(parcial.rotuloResultado, 30)).toBe(true);
+    // a frase inteira no rodapé não caberia: é por isso que o "com 1 contrato por entrada" fica só no rótulo do resultado
+    expect(cabe(`Com 1 contrato por entrada, já descontados os custos · quantsrobos.com/robos/alaska-square`, 26)).toBe(false);
   });
 
   it("uma operação só: 'Operação' no singular e '1' com ganho; sem ativo_nome, só o código do ativo", () => {
@@ -292,7 +299,7 @@ describe("montarCardDoDia: parcial", () => {
   it("hoje, antes do fim do pregão: selo com a hora do último dado e rótulo parcial", () => {
     const d = montar({ dia: HOJE, operacoes: opsDeHoje, agora: new Date("2026-09-24T17:32:00Z") });
     expect(d.parcial).toBe("Parcial · até 14:30");
-    expect(d.rotuloResultado).toBe("Resultado parcial, com 1 contrato");
+    expect(d.rotuloResultado).toBe("Resultado parcial, com 1 contrato por entrada");
   });
 
   it("com série, a hora é a do último balde quando ele vem depois da última saída", () => {
@@ -319,7 +326,7 @@ describe("montarCardDoDia: parcial", () => {
     const posicionado = { ...ROBO, posicionado: true };
     const d = montar({ robo: posicionado, dia: HOJE, operacoes: opsDeHoje, agora: new Date("2026-09-24T21:00:00.100Z") });
     expect(d.parcial).toBe("Parcial · até 14:30");
-    expect(d.rotuloResultado).toBe("Resultado parcial, com 1 contrato");
+    expect(d.rotuloResultado).toBe("Resultado parcial, com 1 contrato por entrada");
     // em dia passado, posicionado não muda nada: o dia já fechou
     expect(montar({ robo: posicionado, agora: DEPOIS }).parcial).toBeNull();
   });
@@ -492,5 +499,193 @@ describe("caminhosDaCurva", () => {
     expect(c.yZero).toBe(50);
     expect(c.ultimo).toEqual({ x: 90, y: 82 });
     expect(c.rotulosX).toEqual([{ x: 50, texto: "12:00" }]);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------
+// O resto do que sai do site: a prévia do robô, o widget e o relatório do mês (25/11/2026)
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * Um pregão da série diária. `ganhos` e `perdas` são o resultado de cada operação já com o custo descontado
+ * (perdas negativas); `zeradas` são operações que fecharam em zero. O custo é de R$ 0,25 por operação.
+ */
+function pregao(dia: string, ganhos: number[], perdas: number[], zeradas = 0): LinhaDiaria {
+  const soma = (v: number[]) => v.reduce((s, x) => s + x, 0);
+  const n = ganhos.length + perdas.length + zeradas;
+  const custos = n * 0.25;
+  return {
+    dia,
+    pontos_por_contrato: 0,
+    resultado_brl_por_contrato: soma(ganhos) + soma(perdas) + custos,
+    custos_brl_por_contrato: custos,
+    n_operacoes: n,
+    n_gain: ganhos.length,
+    n_loss: perdas.length,
+    soma_gain_brl_por_contrato: soma(ganhos),
+    soma_loss_brl_por_contrato: soma(perdas),
+    maior_gain_brl_por_contrato: ganhos.length > 0 ? Math.max(...ganhos) : 0,
+    maior_loss_brl_por_contrato: perdas.length > 0 ? Math.min(...perdas) : 0,
+  };
+}
+
+describe("comoOperou", () => {
+  it("acertos com o necessário para empatar, o tamanho do ganho e da perda e o fator de lucro em R$", () => {
+    // ganho de R$ 24 e perda de R$ 105: acerta 9 de cada 10 e precisa de 81 de cada 100 só para empatar
+    const o = comoOperou([pregao("2026-10-01", [24, 24, 24, 24], [-105]), pregao("2026-10-02", [24, 24, 24, 24, 24], [])]);
+    expect(o.operacoes).toBe(10);
+    expect(o.comGanho).toBe(9);
+    expect(o.comPerda).toBe(1);
+    expect(o.acertos).toBeCloseTo(0.9, 9);
+    expect(o.ganhoTipico).toBeCloseTo(24, 9);
+    expect(o.perdaTipica).toBeCloseTo(105, 9);
+    expect(o.paraEmpatar).toBeCloseTo(105 / 129, 9);
+    expect(Math.round((o.paraEmpatar ?? 0) * 100)).toBe(81);
+    expect(o.maiorPerda).toBe(-105);
+    // R$ 216 de ganho para R$ 105 de perda: R$ 2,06 para cada R$ 1 perdido
+    expect(o.fatorLucro).toBeCloseTo(216 / 105, 9);
+    // (216 − 105) ÷ 10 operações
+    expect(o.porOperacao).toBeCloseTo(11.1, 9);
+  });
+
+  it("a maior perda é a da pior operação entre todos os pregões, e operação zerada entra só no total", () => {
+    const o = comoOperou([pregao("2026-10-01", [10], [-40, -15]), pregao("2026-10-02", [10], [-70], 2)]);
+    expect(o.maiorPerda).toBe(-70);
+    expect(o.operacoes).toBe(7);
+    expect(o.acertos).toBeCloseTo(2 / 7, 9);
+    expect(o.perdaTipica).toBeCloseTo(125 / 3, 9);
+  });
+
+  it("sem operação com perda não há o que comparar: nada de 'para empatar' nem de fator de lucro", () => {
+    const o = comoOperou([pregao("2026-10-01", [30, 20], [])]);
+    expect(o.acertos).toBe(1);
+    expect(o.paraEmpatar).toBeNull();
+    expect(o.perdaTipica).toBeNull();
+    expect(o.maiorPerda).toBeNull();
+    expect(o.fatorLucro).toBeNull();
+    expect(o.ganhoTipico).toBeCloseTo(25, 9);
+  });
+
+  it("sem operação com ganho também não; e sem pregão tudo vem vazio", () => {
+    const soPerda = comoOperou([pregao("2026-10-01", [], [-30])]);
+    expect(soPerda.acertos).toBe(0);
+    expect(soPerda.paraEmpatar).toBeNull();
+    expect(soPerda.ganhoTipico).toBeNull();
+    expect(soPerda.fatorLucro).toBe(0);
+
+    const vazio = comoOperou([]);
+    expect(vazio.operacoes).toBe(0);
+    expect(vazio.acertos).toBeNull();
+    expect(vazio.porOperacao).toBeNull();
+    expect(vazio.fatorLucro).toBeNull();
+  });
+});
+
+describe("tempoDeHistorico", () => {
+  const dias = (...lista: string[]) => lista.map((dia) => ({ dia }));
+
+  it("do primeiro ao último pregão até hoje, em palavras; menos de 12 meses é curto", () => {
+    const t = tempoDeHistorico(dias("2026-03-02", "2026-02-13", "2026-11-25", "2026-11-25", "2026-11-26"), "2026-11-25");
+    // o dia 26 é depois de hoje e fica de fora; o dia repetido conta uma vez
+    expect(t).toEqual({ de: "2026-02-13", ate: "2026-11-25", texto: "9 meses", curto: true, pregoes: 3 });
+  });
+
+  it("12 meses completos já não é curto; um dia a menos ainda é", () => {
+    expect(tempoDeHistorico(dias("2025-11-25", "2026-11-25"), "2026-11-25")).toMatchObject({ texto: "1 ano", curto: false });
+    expect(tempoDeHistorico(dias("2025-11-26", "2026-11-25"), "2026-11-25")).toMatchObject({ texto: "11 meses", curto: true });
+    expect(tempoDeHistorico(dias("2018-01-15", "2026-11-25"), "2026-11-25")).toMatchObject({ texto: "8 anos e 10 meses", curto: false });
+  });
+
+  it("sem pregão até hoje: nulo", () => {
+    expect(tempoDeHistorico([], "2026-11-25")).toBeNull();
+    expect(tempoDeHistorico(dias("2026-11-26"), "2026-11-25")).toBeNull();
+  });
+});
+
+describe("resumirMes", () => {
+  // outubro de 2026 começa numa quinta-feira e tem 22 dias úteis
+  const OUTUBRO = [
+    pregao("2026-09-30", [999], []),
+    pregao("2026-10-06", [400], []),
+    pregao("2026-10-01", [100], []),
+    pregao("2026-10-02", [], [-300]),
+    pregao("2026-10-05", [50], []),
+    pregao("2026-10-07", [], [-30]),
+    pregao("2026-11-03", [], [-999]),
+  ];
+  const base = { mes: "2026-10", linhas: OUTUBRO, hoje: "2026-11-25", feriados: [] as string[], duracoesSeg: [] as number[] };
+
+  it("o resultado do mês vem com a maior queda de dentro do mês, os dias com ganho e o pior dia", () => {
+    const r = resumirMes(base);
+    expect(r.emAndamento).toBe(false);
+    expect(r.resultado).toBeCloseTo(220, 9);
+    expect(r.pregoes).toBe(5);
+    expect(r.ultimoDia).toBe("2026-10-07");
+    // subiu a +100 no dia 1º, caiu a −200 no dia 2 e só passou de +100 de novo no dia 6
+    expect(r.maiorQueda).toEqual({ valor: 300, inicio: "2026-10-01", fundo: "2026-10-02", recuperouEm: "2026-10-06" });
+    expect(r.diasComGanho).toBe(3);
+    expect(r.piorDia).toEqual({ dia: "2026-10-02", valor: -300 });
+    // os dias em ordem, com o somado do mês; setembro e novembro ficam de fora
+    expect(r.dias.map((d) => d.dia)).toEqual(["2026-10-01", "2026-10-02", "2026-10-05", "2026-10-06", "2026-10-07"]);
+    expect(r.dias.map((d) => d.somado)).toEqual([100, -200, -150, 250, 220]);
+    expect(r.dias[1]).toEqual({ dia: "2026-10-02", operacoes: 1, comGanho: 0, comPerda: 1, resultado: -300, somado: -200 });
+    // como operou: 5 operações, 3 com ganho; ganho de R$ 183,33 e perda de R$ 165
+    expect(r.operou.operacoes).toBe(5);
+    expect(r.operou.acertos).toBeCloseTo(0.6, 9);
+    expect(r.operou.paraEmpatar).toBeCloseTo(165 / (550 / 3 + 165), 9);
+    expect(r.operou.porOperacao).toBeCloseTo(44, 9);
+    expect(r.operacoesPorPregao).toBe(1);
+  });
+
+  it("pregões da bolsa no mês: dias úteis menos os feriados", () => {
+    expect(resumirMes(base).pregoesDaBolsa).toBe(22);
+    expect(resumirMes({ ...base, feriados: ["2026-10-12", "2026-11-02"] }).pregoesDaBolsa).toBe(21);
+  });
+
+  it("mês em andamento: conta só até hoje e a queda que não voltou fica sem data de recuperação", () => {
+    const r = resumirMes({ ...base, hoje: "2026-10-05" });
+    expect(r.emAndamento).toBe(true);
+    expect(r.resultado).toBeCloseTo(-150, 9);
+    expect(r.pregoes).toBe(3);
+    expect(r.ultimoDia).toBe("2026-10-05");
+    expect(r.maiorQueda).toEqual({ valor: 300, inicio: "2026-10-01", fundo: "2026-10-02", recuperouEm: null });
+    // quinta, sexta e segunda
+    expect(r.pregoesDaBolsa).toBe(3);
+  });
+
+  it("mês que só cai: a maior queda é o que perdeu, contada do zero do começo do mês", () => {
+    const r = resumirMes({ ...base, linhas: [pregao("2026-10-01", [], [-100]), pregao("2026-10-02", [], [-50])] });
+    expect(r.maiorQueda).toEqual({ valor: 150, inicio: "2026-10-01", fundo: "2026-10-02", recuperouEm: null });
+    expect(r.diasComGanho).toBe(0);
+    expect(r.resultado).toBeCloseTo(-150, 9);
+  });
+
+  it("mês que só sobe: sem queda, e o pior dia é o de menor ganho", () => {
+    const r = resumirMes({ ...base, linhas: [pregao("2026-10-01", [80], []), pregao("2026-10-02", [20], [])] });
+    expect(r.maiorQueda.valor).toBe(0);
+    expect(r.piorDia).toEqual({ dia: "2026-10-02", valor: 20 });
+    expect(r.diasComGanho).toBe(2);
+  });
+
+  it("duração típica: a média das operações que têm horário de entrada", () => {
+    expect(resumirMes(base).duracaoTipicaSeg).toBeNull();
+    expect(resumirMes({ ...base, duracoesSeg: [60, 180, Number.NaN, -5] }).duracaoTipicaSeg).toBe(120);
+  });
+
+  it("mês sem operação: zeros e nulos, sem quebrar", () => {
+    const r = resumirMes({ ...base, mes: "2026-08" });
+    expect(r.resultado).toBe(0);
+    expect(r.pregoes).toBe(0);
+    expect(r.ultimoDia).toBeNull();
+    expect(r.piorDia).toBeNull();
+    expect(r.maiorQueda.valor).toBe(0);
+    expect(r.operacoesPorPregao).toBeNull();
+    expect(r.dias).toEqual([]);
+  });
+
+  it("sem a conta fechar (mais dias operados que pregões da bolsa), o total de pregões não aparece", () => {
+    const r = resumirMes({ ...base, hoje: "2026-10-02", feriados: ["2026-10-01", "2026-10-02"] });
+    expect(r.pregoes).toBe(2);
+    expect(r.pregoesDaBolsa).toBeNull();
   });
 });

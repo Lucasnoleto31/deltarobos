@@ -7,6 +7,8 @@ import { useEffect, useRef } from "react";
 
 interface Props {
   slug: string;
+  /** robô com coletor (robos.tem_coletor): só ele tem a aba Ao vivo */
+  temColetor: boolean;
 }
 
 /**
@@ -15,10 +17,15 @@ interface Props {
  * Eram pílulas dentro de um painel arredondado. Os nomes dizem o que a pessoa vai achar, não o jargão:
  * "Dia a dia" (calendário), "Quedas e risco", "Melhores horários" (faixas).
  *
+ * Revisão de 25/11/2026 (DESIGN.md, seção 9), uma pergunta por aba: Resumo (vale a pena?), Ao vivo (o que ele
+ * está fazendo agora?; só em robô com coletor), Dia a dia, Quedas e risco, Melhores horários e Operações.
+ * Saíram Desempenho, que repetia o Resumo com filtros (o que servia foi para o Resumo), e Relatórios (os
+ * arquivos de cada mês estão em Dia a dia). Os endereços antigos redirecionam (next.config.ts).
+ *
  * No celular a faixa rola de lado, com a ponta esmaecendo, e abre com a aba atual no meio; o foco do
  * teclado traz a aba para fora do esmaecido. Mexe só na rolagem da faixa, não na da página.
  */
-export function AbasRobo({ slug }: Props) {
+export function AbasRobo({ slug, temColetor }: Props) {
   const pathname = usePathname();
   const faixaRef = useRef<HTMLDivElement>(null);
 
@@ -31,14 +38,12 @@ export function AbasRobo({ slug }: Props) {
 
   const base = `/robos/${slug}`;
   const abas = [
-    { href: base, rotulo: "Visão geral", exato: true },
-    { href: `${base}/desempenho`, rotulo: "Desempenho", exato: false },
+    { href: base, rotulo: "Resumo", exato: true },
+    ...(temColetor ? [{ href: `${base}/hoje`, rotulo: "Ao vivo", exato: false }] : []),
     { href: `${base}/calendario`, rotulo: "Dia a dia", exato: false },
     { href: `${base}/risco`, rotulo: "Quedas e risco", exato: false },
     { href: `${base}/faixas`, rotulo: "Melhores horários", exato: false },
     { href: `${base}/operacoes`, rotulo: "Operações", exato: false },
-    // Relatórios é aba rara: busca no clique em vez de pré-carregar em toda visita (18/09/2026)
-    { href: `${base}/relatorios`, rotulo: "Relatórios", exato: false, prefetch: false },
   ];
 
   return (
@@ -55,7 +60,6 @@ export function AbasRobo({ slug }: Props) {
               <Link
                 key={a.href}
                 href={a.href}
-                prefetch={a.prefetch}
                 aria-current={ativo ? "page" : undefined}
                 className={cn(
                   "-mb-px flex h-10 shrink-0 items-center border-b-2 text-sm whitespace-nowrap transition-colors outline-none focus-visible:text-foreground focus-visible:underline",

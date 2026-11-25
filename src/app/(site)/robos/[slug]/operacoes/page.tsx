@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Valor } from "@/components/compartilhados/Valor";
+import { ArquivosPorMes } from "@/components/operacoes/ArquivosPorMes";
 import { BotaoCsv } from "@/components/operacoes/BotaoCsv";
 import { FiltrosOperacoes } from "@/components/operacoes/FiltrosOperacoes";
 import { Paginacao } from "@/components/operacoes/Paginacao";
@@ -10,7 +11,10 @@ import { TabelaOperacoes } from "@/components/operacoes/TabelaOperacoes";
 import { LINK_DO_PAINEL, Painel } from "@/components/sistema/Painel";
 import { listarOperacoes, type FiltroLado, type FiltroResultado } from "@/lib/consultas/operacoes";
 import { buscarRobo, listarEstatisticas } from "@/lib/consultas/publico";
+import { mesesRelatorio } from "@/lib/consultas/relatorios";
 import { formatarNumero } from "@/lib/formato";
+import { historicoCurto } from "@/lib/stats/calendario";
+import { tempoEmPalavras } from "@/lib/stats/indicadores-robo";
 import { ehDia, hojeSP } from "@/lib/stats/periodos";
 
 interface Props {
@@ -33,17 +37,26 @@ function primeiro(v: string | string[] | undefined): string | undefined {
  * planilha para baixar e, na primeira página sem filtro, as operações de hoje entrando ao vivo.
  *
  * Ficha Mesa (25/11/2026): a tabela é a tela. Em cima dela, uma linha de título que diz quantas operações
- * há no filtro, quanto somam e qual foi a pior, com a premissa escrita junto; a linha de filtros, sem
- * caixa; a tabela na largura toda; e no pé, discretos, a paginação e o arquivo para baixar. Saíram o
- * painel de filtros com os botões Filtrar e Limpar, o botão de exportar com ícone no topo e três colunas
- * (símbolo, resultado antes dos custos e custos), que continuam no arquivo.
+ * há no filtro, quanto somam, a maior queda do período e a pior operação, com a premissa escrita junto; a
+ * linha de filtros, sem caixa; a tabela na largura toda; e no pé, discretos, a paginação, o arquivo do
+ * filtro e os arquivos de cada mês. Saíram o painel de filtros com os botões Filtrar e Limpar, o botão de
+ * exportar com ícone no topo e três colunas (símbolo, resultado antes dos custos e custos), que continuam
+ * no arquivo.
+ *
+ * Revisão de 25/11/2026 (DESIGN.md, seção 9):
+ * - saiu a coluna "Melhor momento" da tabela (ver TabelaOperacoes);
+ * - a soma do filtro vem com a maior queda do mesmo período ao lado, e deixou de aparecer quando o filtro
+ *   é só das operações que ganharam ou só das que perderam (ver resumirFiltro);
+ * - a aba Relatórios deixou de existir: os arquivos dos meses mais recentes estão no pé desta tabela, e a
+ *   lista de todos os meses, na aba Dia a dia.
  *
  * 19/09/2026: o título "Operações" repetia a aba logo acima. Continua sem repetir: o título visível agora
  * é a contagem ("16.773 operações"); sem operação nenhuma, fica só para leitor de tela.
  *
- * A soma e a pior operação vêm da série diária do robô, que o banco grava com a mesma regra da lista (ver
- * resumirFiltro). Só aparecem quando a série contou exatamente as operações que a lista tem; com filtro de
- * compra ou venda, que a série não separa, a linha mostra só a contagem.
+ * A soma, a maior queda e a pior operação vêm da série diária do robô, que o banco grava com a mesma regra
+ * da lista (ver resumirFiltro). Só aparecem quando a série contou exatamente as operações que a lista tem;
+ * com filtro de compra ou venda, que a série não separa, a linha mostra só a contagem. A mesma série diz
+ * quais meses têm arquivo (mesesRelatorio, a consulta que a página de relatórios usava).
  */
 export default async function PaginaOperacoes({ params, searchParams }: Props) {
   const [{ slug }, sp] = await Promise.all([params, searchParams]);
@@ -63,8 +76,8 @@ export default async function PaginaOperacoes({ params, searchParams }: Props) {
   const [robo, dados, dias] = await Promise.all([
     buscarRobo(slug),
     listarOperacoes(slug, { ...filtros, pagina }),
-    // a série diária, para a soma do filtro; com filtro de lado ela não serve, então nem é lida
-    lado ? [] : listarEstatisticas(slug, { de }),
+    // a série diária inteira: dela saem a soma do filtro e os meses que têm arquivo para baixar
+    listarEstatisticas(slug),
   ]);
   if (!robo) return null; // o layout já tratou o 404
 
@@ -89,8 +102,15 @@ export default async function PaginaOperacoes({ params, searchParams }: Props) {
   const resumo = resumirFiltro(dias, filtros);
   const soma = resumo !== null && resumo.operacoes === dados.total ? resumo : null;
   // a mesma regra do bloco "De onde vêm os números": robô sem custo cadastrado mostra o valor antes dos custos
-  const premissa = robo.custo_por_contrato > 0 ? "com 1 contrato, já descontados os custos" : "com 1 contrato, antes dos custos";
+  const premissa = `com 1 contrato por entrada, ${robo.custo_por_contrato > 0 ? "já descontados os custos" : "antes dos custos"}`;
   const descricao = descreverFiltro(filtros);
+  // os meses com operação, do mais recente para o mais antigo: cada um tem um PDF e uma planilha
+  const meses = mesesRelatorio(dias).map((m) => m.mes);
+  // Sem filtro de período, a soma é a do histórico inteiro: quando ele tem menos de 12 meses, a linha diz
+  // o tamanho ("em 9 meses"). A série chega em ordem de data.
+  const primeiroDia = dias[0]?.dia;
+  const ultimoDia = dias[dias.length - 1]?.dia;
+  const emQuanto = !de && !ate && primeiroDia && ultimoDia && historicoCurto(primeiroDia, ultimoDia) ? ` em ${tempoEmPalavras(primeiroDia, ultimoDia)}` : "";
 
   const miolo = (
     <>
@@ -100,12 +120,14 @@ export default async function PaginaOperacoes({ params, searchParams }: Props) {
       <div className="mt-3 transition-opacity duration-150 peer-aria-busy:opacity-50">
         <TabelaOperacoes itens={dados.itens} slug={slug} dia={hoje} aoVivo={pagina === 1 && !filtrado} filtrado={filtrado} semLado={lado !== null} />
         {dados.total > 0 ? (
-          <div className="mt-4 flex flex-wrap items-baseline justify-between gap-x-8 gap-y-3 text-[0.8125rem]">
+          <div className="mt-4 flex flex-wrap items-baseline justify-between gap-x-8 gap-y-4 text-[0.8125rem]">
             <Paginacao slug={slug} filtros={filtros} pagina={dados.pagina} paginas={dados.paginas} />
             <BotaoCsv slug={slug} filtros={filtros} total={dados.total} className="ml-auto" />
           </div>
         ) : null}
       </div>
+      {/* os arquivos de cada mês não dependem do filtro: ficam fora do bloco que apaga durante a busca */}
+      <ArquivosPorMes slug={slug} meses={meses} className="mt-5" />
     </>
   );
 
@@ -138,6 +160,14 @@ export default async function PaginaOperacoes({ params, searchParams }: Props) {
             <>
               {dados.total === 1 ? "resultado " : "resultado somado "}
               <Valor valor={soma.soma} inteiro={Math.abs(soma.soma) >= 1000} className="font-medium" />
+              {emQuanto}
+              {/* onde aparece o resultado, aparece a maior queda do mesmo período */}
+              {soma.maiorQueda > 0 ? (
+                <>
+                  {" · maior queda "}
+                  <Valor valor={-soma.maiorQueda} inteiro={soma.maiorQueda >= 1000} className="font-medium" />
+                </>
+              ) : null}
               {soma.pior !== null && dados.total > 1 ? (
                 <>
                   {" · pior operação "}

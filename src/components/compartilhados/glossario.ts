@@ -15,7 +15,14 @@ import { LOTE_POR_CLASSE } from "@/lib/stats/faixas";
  * Regras do texto (glossario.test.ts confere as mecânicas): uma ou duas frases curtas, para quem nunca
  * operou; o que o número mede e como ler; sem fórmula com símbolos, sem sigla sem explicar, sem marketing,
  * sem exclamação e sem começar repetindo o nome. Cada texto foi conferido contra a conta em src/lib/stats:
- * se a conta mudar, o texto muda junto. A conta completa, com as fórmulas, fica na metodologia.
+ * se a conta mudar, o texto muda junto. A conta completa, com exemplo, fica em Como funciona (/metodologia).
+ *
+ * Revisão dos indicadores, 25/11/2026 (DESIGN.md, seção 9): a premissa dos números passou a ser "com 1
+ * contrato por entrada, já descontados os custos" (um robô pode ter várias entradas abertas ao mesmo tempo),
+ * e os textos dizem assim. "Ganho típico", "perda típica", "maior perda numa operação" e "duração típica"
+ * são os nomes que a tela usa. Texto nenhum cita valor de ativo (quanto vale o ponto, a garantia): isso vem
+ * do banco e muda sem deploy. As chaves dos indicadores que saíram do site (média por mês, retorno, Calmar,
+ * índice de úlcera, risco de ruína e outros) continuam aqui só até a última tela deixar de citá-las.
  */
 export type ChaveIndicador =
   // resultado
@@ -142,23 +149,23 @@ export const GLOSSARIO: Record<ChaveIndicador, EntradaGlossario> = {
   // ── resultado ────────────────────────────────────────────────────────────────────────────────────
   acumulado: {
     nome: "Resultado desde o início",
-    texto: "Soma de tudo o que o robô ganhou e perdeu desde a primeira operação registrada no site, com 1 contrato e já descontados os custos.",
+    texto: "Soma de tudo o que o robô ganhou e perdeu desde a primeira operação registrada no site, com 1 contrato por entrada e já descontados os custos.",
   },
   resultadoPeriodo: {
     nome: "Resultado no período",
-    texto: "Soma dos ganhos menos as perdas das operações fechadas no período escolhido. Positivo quer dizer que o robô terminou o período com ganho.",
+    texto: "Soma dos ganhos menos as perdas das operações fechadas no período escolhido, com 1 contrato por entrada e já descontados os custos. Positivo quer dizer que o robô terminou o período com ganho.",
   },
   resultadoDia: {
     nome: "Resultado do dia",
-    texto: "Quanto o robô ganhou ou perdeu nas operações fechadas naquele dia, com 1 contrato e já descontados os custos.",
+    texto: "Quanto o robô ganhou ou perdeu nas operações fechadas naquele dia, com 1 contrato por entrada e já descontados os custos.",
   },
   mesAtual: {
     nome: "Mês atual",
-    texto: "Resultado das operações fechadas do dia 1º deste mês até hoje, com 1 contrato e já descontados os custos.",
+    texto: "Resultado das operações fechadas do dia 1º deste mês até hoje, com 1 contrato por entrada e já descontados os custos.",
   },
   resultadoMes: {
     nome: "Resultado do mês",
-    texto: "Soma do resultado de todos os dias do mês mostrado, com 1 contrato e já descontados os custos.",
+    texto: "Soma do resultado de todos os dias do mês mostrado, com 1 contrato por entrada e já descontados os custos.",
   },
   mediaMensal: {
     nome: "Média por mês",
@@ -170,7 +177,7 @@ export const GLOSSARIO: Record<ChaveIndicador, EntradaGlossario> = {
   },
   melhorRobo: {
     nome: "Melhor robô",
-    texto: "O robô com o maior resultado no dia, com 1 contrato e já descontados os custos.",
+    texto: "O robô com o maior resultado no dia, com 1 contrato por entrada e já descontados os custos.",
   },
 
   // ── operações ────────────────────────────────────────────────────────────────────────────────────
@@ -183,12 +190,12 @@ export const GLOSSARIO: Record<ChaveIndicador, EntradaGlossario> = {
     texto: "Média de operações em cada dia em que o robô operou. Mostra se ele opera pouco ou muito num dia.",
   },
   duracaoMedia: {
-    nome: "Duração média",
-    texto: "Tempo médio entre a entrada e a saída de cada operação.",
+    nome: "Duração típica",
+    texto: "Tempo médio entre a entrada e a saída de cada operação. Mostra se o robô fica segundos, minutos ou horas com uma operação aberta.",
   },
   taxaAcerto: {
     nome: "Acertos",
-    texto: "De cada 100 operações, quantas terminaram com ganho, já descontados os custos (o mercado chama de taxa de acerto). Sozinho, não diz se o robô ganha dinheiro: depende também do tamanho dos ganhos e das perdas.",
+    texto: "De cada 100 operações, quantas terminaram com ganho, já descontados os custos (o mercado chama de taxa de acerto). Sozinho, não diz se o robô ganha dinheiro: veja ao lado quantos acertos ele precisa só para empatar.",
   },
   gainsLosses: {
     nome: "Operações com ganho e com perda",
@@ -203,20 +210,20 @@ export const GLOSSARIO: Record<ChaveIndicador, EntradaGlossario> = {
     texto: "O tamanho do ganho médio comparado com o da perda média (o mercado chama de payoff). Se der 2, o ganho médio é o dobro da perda média. Quanto menor, mais o robô precisa acertar para lucrar.",
   },
   ganhoMedio: {
-    nome: "Ganho médio por operação",
-    texto: "Quanto o robô ganha, em média, numa operação que termina com ganho.",
+    nome: "Ganho típico",
+    texto: "Quanto o robô ganha, em média, numa operação que termina com ganho, com 1 contrato por entrada e já descontados os custos.",
   },
   perdaMedia: {
-    nome: "Perda média por operação",
-    texto: "Quanto o robô perde, em média, numa operação que termina com perda.",
+    nome: "Perda típica",
+    texto: "Quanto o robô perde, em média, numa operação que termina com perda, com 1 contrato por entrada e já descontados os custos.",
   },
   maiorGanho: {
     nome: "Melhor operação",
     texto: "O resultado da operação que mais ganhou no período.",
   },
   maiorPerda: {
-    nome: "Pior operação",
-    texto: "O resultado da operação que mais perdeu no período. Mostra a maior perda que o robô teve numa operação só.",
+    nome: "Maior perda numa operação",
+    texto: "O resultado da operação que mais perdeu no período, com 1 contrato por entrada e já descontados os custos. É o pior caso de uma operação só.",
   },
   maiorSequencia: {
     nome: "Maior sequência",
@@ -359,11 +366,11 @@ export const GLOSSARIO: Record<ChaveIndicador, EntradaGlossario> = {
   // ── base dos números ─────────────────────────────────────────────────────────────────────────────
   pontos: {
     nome: "Pontos",
-    texto: "Quanto o preço andou a favor ou contra nas operações, antes de converter em reais. No Mini Índice, cada ponto vale R$ 0,20 com 1 contrato.",
+    texto: "Quanto o preço andou a favor ou contra nas operações, antes de converter em reais. Quanto vale cada ponto depende do ativo e está na página do robô.",
   },
   valorPonto: {
     nome: "Quanto vale 1 ponto",
-    texto: "Valor, em reais, de cada ponto que o preço anda, com 1 contrato. No Mini Índice é R$ 0,20.",
+    texto: "Valor, em reais, de cada ponto que o preço anda, com 1 contrato. Muda de um ativo para outro e está na página de cada robô.",
   },
   bruto: {
     nome: "Antes dos custos",
@@ -371,15 +378,15 @@ export const GLOSSARIO: Record<ChaveIndicador, EntradaGlossario> = {
   },
   liquido: {
     nome: "Já descontados os custos",
-    texto: "Resultado depois de tirar o custo de cada operação, que é a corretagem mais as taxas da bolsa (o mercado chama de resultado líquido). É como o site mostra os números, a não ser que a tela diga antes dos custos.",
+    texto: "Resultado depois de tirar o custo de cada operação, que é a corretagem mais as taxas da bolsa (o mercado chama de resultado líquido). É como o site mostra todos os números.",
   },
   custos: {
     nome: "Custos",
-    texto: "Corretagem e taxas da bolsa, cobradas a cada operação num valor fixo por contrato. O site tira esse valor de cada operação antes de mostrar o resultado.",
+    texto: "Corretagem e taxas da bolsa, cobradas a cada operação num valor fixo por contrato. O site tira esse valor de cada operação antes de mostrar o resultado. É uma referência: o custo da sua corretora pode ser outro.",
   },
   porContrato: {
-    nome: "Com 1 contrato",
-    texto: "Todo resultado é dividido pela quantidade de contratos da operação, para mostrar quanto daria com 1 contrato. Assim dá para comparar os robôs e multiplicar pelo número de contratos que você pretende usar.",
+    nome: "Com 1 contrato por entrada",
+    texto: "Todo resultado é dividido pela quantidade de contratos da operação, para mostrar quanto daria com 1. Como o robô pode ter várias entradas abertas ao mesmo tempo, a conta pode carregar vários contratos, mesmo com 1 em cada entrada.",
   },
   contratosPadrao: {
     nome: "Contratos por operação",
@@ -530,7 +537,7 @@ export const GLOSSARIO: Record<ChaveIndicador, EntradaGlossario> = {
   },
   quemRendeuMais: {
     nome: "Quem rendeu mais",
-    texto: "Resultado de cada robô no período escolhido, com 1 contrato e já descontados os custos, do maior para o menor.",
+    texto: "Resultado de cada robô no período escolhido, com 1 contrato por entrada e já descontados os custos, do maior para o menor.",
   },
   mapaFaixas: {
     nome: "Mapa dos dias e horários",
@@ -555,7 +562,7 @@ export const GLOSSARIO: Record<ChaveIndicador, EntradaGlossario> = {
   },
   piorMes: {
     nome: "Pior mês",
-    texto: "O mês do período em que o robô mais perdeu, com 1 contrato por entrada e já com custos.",
+    texto: "O mês de menor resultado no período: aquele em que o robô mais perdeu ou, se nenhum fechou com perda, o que menos ganhou. Com 1 contrato por entrada e já descontados os custos.",
   },
   quedaAtual: {
     nome: "Abaixo do topo hoje",
@@ -563,7 +570,7 @@ export const GLOSSARIO: Record<ChaveIndicador, EntradaGlossario> = {
   },
   diaRuimTipico: {
     nome: "Um dia ruim típico",
-    texto: "A perda que só 1 em cada 20 pregões superou. O pior dia é um caso só; este número diz o tamanho de um dia ruim que acontece de tempos em tempos.",
+    texto: "A perda que 1 em cada 20 pregões alcançou ou passou. O pior dia é um caso só; este número diz o tamanho de um dia ruim que acontece de tempos em tempos.",
   },
   acertoParaEmpatar: {
     nome: "Acertos para empatar",

@@ -2,7 +2,14 @@
  * As contas da página inicial e da visão geral do robô (ficha Mesa, 25/11/2026): somar os robôs dia a dia,
  * recortar o período, acumular, achar a maior queda e resumir os pregões em palavras de leigo. Tudo em
  * R$ para 1 contrato, já descontados os custos: os valores chegam prontos de `valorDia`.
+ *
+ * 25/11/2026, revisão das telas (DESIGN.md, seção 9): a lista "Por robô" da página inicial passou a ser a
+ * comparação entre os robôs, e as contas dela moram aqui: o período igual para todos, o ganho para cada R$ 1
+ * da maior queda, a ordem da lista, o tamanho do histórico e as curvas no mesmo eixo de tempo ("lado a lado").
  */
+
+import { tempoEmPalavras } from "./indicadores-robo";
+import { somarDias, somarMeses } from "./periodos";
 
 /** Um pregão: o resultado, quantas operações fecharam e quantas delas com ganho. */
 export interface DiaResultado {
@@ -109,4 +116,164 @@ export function amostrar(valores: readonly number[], maximo: number): number[] {
   const saida: number[] = [];
   for (let k = 0; k < maximo; k++) saida.push(valores[Math.round((k / (maximo - 1)) * (valores.length - 1))]);
   return saida;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// O período da página inicial
+// ---------------------------------------------------------------------------------------------------------
+
+/** Os períodos da página inicial: os últimos 12 meses, tudo, ou os últimos 30 pregões. */
+export type PeriodoDaCasa = "12m" | "tudo" | "30";
+
+/** Quantos pregões tem o período curto. */
+export const PREGOES_DO_PERIODO_CURTO = 30;
+
+/**
+ * O primeiro dia que entra no período, ou nulo quando entra tudo. É um dia só para a tela inteira: a soma e
+ * cada robô são cortados na mesma data, para as linhas da lista somarem o número grande e as curvas dividirem
+ * o mesmo eixo de tempo.
+ * - 12 meses: o dia de hoje de um ano atrás fica de fora.
+ * - 30 pregões: os últimos 30 pregões em que algum robô operou (`somada` é a soma dos robôs, em ordem de
+ *   data). Um robô que não operou em todos eles aparece com os que operou.
+ */
+export function inicioDoPeriodoDaCasa(somada: ReadonlyArray<{ dia: string }>, periodo: PeriodoDaCasa, hoje: string): string | null {
+  if (periodo === "tudo") return null;
+  if (periodo === "12m") return somarDias(somarMeses(hoje, -12), 1);
+  return somada.length > PREGOES_DO_PERIODO_CURTO ? somada[somada.length - PREGOES_DO_PERIODO_CURTO].dia : null;
+}
+
+/** Os dias de `inicio` em diante (nulo devolve tudo). */
+export function aPartirDe<T extends { dia: string }>(dias: readonly T[], inicio: string | null): T[] {
+  return inicio === null ? [...dias] : dias.filter((d) => d.dia >= inicio);
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// Ganho para cada R$ 1 da maior queda
+// ---------------------------------------------------------------------------------------------------------
+
+export interface GanhoPorQueda {
+  /** quantos reais o robô ganhou para cada R$ 1 da maior queda; nulo quando a conta enganaria */
+  valor: number | null;
+  /** o que falta para haver número: o período não terminou com ganho, ou a curva nunca recuou */
+  falta: "ganho" | "queda" | null;
+}
+
+/**
+ * O resultado do período dividido pela maior queda do mesmo período (`queda` positiva): com 1,10, o robô
+ * ganhou R$ 1,10 para cada R$ 1 que já chegou a cair. É o que ordena a lista de robôs.
+ *
+ * Só existe com ganho e com queda. Resultado negativo dividido pela queda dá um número negativo que parece
+ * nota e não diz nada, e sem queda a divisão não tem resposta: nos dois casos a tela mostra um traço e diz
+ * qual dos dois faltou.
+ */
+export function ganhoPorQueda(resultado: number, queda: number): GanhoPorQueda {
+  if (!(resultado > 0)) return { valor: null, falta: "ganho" };
+  if (!(queda > 0)) return { valor: null, falta: "queda" };
+  return { valor: resultado / queda, falta: null };
+}
+
+/** O que a ordem da lista de robôs precisa saber de cada linha. */
+export interface LinhaNaOrdem {
+  /** o ganho para cada R$ 1 da maior queda, ou nulo quando não há o número */
+  ganhoPorQueda: number | null;
+  /** o resultado do período */
+  resultado: number;
+  /** pregões do robô no período */
+  pregoes: number;
+}
+
+/**
+ * A ordem da lista de robôs: do maior ganho por queda para o menor. Quem não tem o número vai para o fim
+ * (entre eles, do maior resultado para o menor), e depois de todos quem não operou no período.
+ */
+export function compararNaLista(a: LinhaNaOrdem, b: LinhaNaOrdem): number {
+  const grupo = (l: LinhaNaOrdem) => (l.pregoes <= 0 ? 2 : l.ganhoPorQueda === null ? 1 : 0);
+  const ga = grupo(a);
+  const gb = grupo(b);
+  if (ga !== gb) return ga - gb;
+  if (ga === 0 && a.ganhoPorQueda !== b.ganhoPorQueda) return (b.ganhoPorQueda ?? 0) - (a.ganhoPorQueda ?? 0);
+  return b.resultado - a.resultado;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// O tamanho do histórico
+// ---------------------------------------------------------------------------------------------------------
+
+export interface TamanhoDoHistorico {
+  /** o primeiro e o último pregão com operação */
+  desde: string;
+  ate: string;
+  /** pregões com operação */
+  pregoes: number;
+  /** o tempo entre o primeiro e o último pregão, em palavras: "9 meses", "8 anos e 10 meses" */
+  tempo: string;
+}
+
+/**
+ * De quanto tempo e de quantos pregões saem os números de um robô. Resultado de 9 meses ao lado de resultado
+ * de 8 anos não se compara sem dizer; por isso cada linha da lista leva isto escrito. `dias` em ordem de data.
+ */
+export function tamanhoDoHistorico(dias: ReadonlyArray<{ dia: string }>): TamanhoDoHistorico | null {
+  if (dias.length === 0) return null;
+  const desde = dias[0].dia;
+  const ate = dias[dias.length - 1].dia;
+  return { desde, ate, pregoes: dias.length, tempo: tempoEmPalavras(desde, ate) };
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// As curvas lado a lado
+// ---------------------------------------------------------------------------------------------------------
+
+/** O eixo de tempo comum: todo pregão em que algum robô operou no período, em ordem e sem repetir. */
+export function eixoComum(robos: ReadonlyArray<{ dias: ReadonlyArray<{ dia: string }> }>): string[] {
+  const dias = new Set<string>();
+  for (const r of robos) for (const d of r.dias) dias.add(d.dia);
+  return [...dias].sort();
+}
+
+/** A curva de um robô no eixo comum. */
+export interface CurvaNoEixo {
+  /** o acumulado do período em cada pregão do eixo; nulo onde ainda não há linha */
+  acumulado: Array<number | null>;
+  /** o resultado do robô em cada pregão do eixo; nulo no dia em que ele não operou */
+  noDia: Array<number | null>;
+  /** a maior queda, com o pico e o fundo nos índices do eixo (pico na partida = o primeiro pregão do robô) */
+  queda: MaiorQueda | null;
+}
+
+/**
+ * Põe a curva de um robô (o acumulado do período, partindo de zero) no eixo comum. No dia em que ele não
+ * operou o acumulado fica onde estava e a linha segue reta. Antes do primeiro pregão dele no período há dois
+ * casos, e `desdeOComeco` diz qual:
+ * - o robô já existia quando o período começou (verdadeiro): a linha parte de zero no começo do eixo;
+ * - o histórico dele começa dentro do período (falso): não há linha antes, e a curva começa no meio do
+ *   gráfico, que é a verdade (ele não tinha resultado nenhum para mostrar).
+ * O eixo precisa conter todos os dias da curva.
+ */
+export function curvaNoEixo(
+  eixo: readonly string[],
+  curva: readonly DiaAcumulado[],
+  queda: MaiorQueda | null,
+  desdeOComeco = false,
+): CurvaNoEixo {
+  const acumulado: Array<number | null> = [];
+  const noDia: Array<number | null> = [];
+  const posicao: number[] = [];
+  let j = 0;
+  eixo.forEach((dia, i) => {
+    if (j < curva.length && curva[j].dia === dia) {
+      acumulado.push(curva[j].acumulado);
+      noDia.push(curva[j].valor);
+      posicao.push(i);
+      j += 1;
+    } else {
+      acumulado.push(j > 0 ? curva[j - 1].acumulado : desdeOComeco && curva.length > 0 ? 0 : null);
+      noDia.push(null);
+    }
+  });
+  if (!queda || posicao[queda.iFundo] === undefined) return { acumulado, noDia, queda: null };
+  // o pico da queda: o pregão dele; ou, quando a queda vem da partida, o ponto em zero logo antes do primeiro
+  // pregão (se a linha parte do começo do eixo) ou o próprio primeiro pregão
+  const iInicio = queda.iInicio >= 0 ? posicao[queda.iInicio] : desdeOComeco && posicao[0] > 0 ? posicao[0] - 1 : posicao[0];
+  return { acumulado, noDia, queda: { iInicio, iFundo: posicao[queda.iFundo], valor: queda.valor } };
 }

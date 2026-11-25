@@ -8,7 +8,7 @@ import { LINK_DO_PAINEL } from "@/components/sistema/Painel";
 import { linkSimulador } from "@/components/simulador/simulador-url";
 import { buttonVariants } from "@/components/ui/button";
 import { useAgora } from "@/hooks/useAgora";
-import { formatarData, formatarNumero, haQuanto } from "@/lib/formato";
+import { formatarBRL, formatarData, formatarNumero } from "@/lib/formato";
 import { normalizarHora, pregaoAberto } from "@/lib/stats/pregao";
 import { statusAoVivo } from "@/lib/stats/status-robo";
 import { useRobo } from "./RoboAoVivoProvider";
@@ -16,17 +16,26 @@ import { useRobo } from "./RoboAoVivoProvider";
 interface Props {
   /** para onde vai o botão "Quero esse robô" (o WhatsApp da equipe); sem ele, os passos de Como funciona */
   linkQuero?: string;
+  /** o capital mínimo do robô (capitalDoRobo, o mesmo número de todas as telas); nulo sem margem cadastrada */
+  capitalMinimo: number | null;
+  /** o máximo de entradas que o robô já teve abertas ao mesmo tempo; nulo quando não há medição */
+  entradas: number | null;
 }
 
 /**
- * Cabeçalho da página do robô (spec §8.2; ficha Mesa, 25/11/2026, segunda passada): o caminho de volta, o
- * nome, o que o robô fez hoje em palavras comuns (ao vivo), a descrição, uma linha com os dados de cadastro
- * e as ações à direita. Sem selo, sem etiqueta, sem caixa alta.
+ * Cabeçalho da página do robô (spec §8.2; ficha Mesa, 25/11/2026): o caminho de volta, o nome, o que o robô
+ * fez hoje em palavras comuns (ao vivo), a descrição, uma linha com os dados de quem vai ligar o robô e as
+ * ações à direita. Sem selo, sem etiqueta, sem caixa alta.
  *
- * O botão principal da página é "Quero esse robô" (era um bloco à parte no pé da visão geral). "Simular com
- * meu capital" e "Tela ao vivo" são caminhos secundários, em texto.
+ * Revisão de 25/11/2026 (DESIGN.md, seção 9): saíram "Contratos por operação" (era sempre 1, a premissa do
+ * site), "Versão" e "Última operação" (a frase de hoje ao lado do nome já diz o que ele fez). Entraram os dois
+ * números que mudam a decisão: o capital mínimo e quantas entradas o robô chega a ter abertas ao mesmo tempo
+ * ("1 contrato" é por entrada). Os dois vêm do layout, de capitalDoRobo, para serem os mesmos de todas as telas.
+ *
+ * O botão principal da página é "Quero esse robô". "Simular com meu capital" é o caminho secundário, em texto.
+ * A tela ao vivo deixou de ser atalho daqui: é a aba Ao vivo, que leva à tela cheia.
  */
-export function CabecalhoRobo({ linkQuero }: Props) {
+export function CabecalhoRobo({ linkQuero, capitalMinimo, entradas }: Props) {
   const { robo, estado, pregao, feriados } = useRobo();
   const agora = useAgora(5000);
 
@@ -44,7 +53,6 @@ export function CabecalhoRobo({ linkQuero }: Props) {
 
   const ops = estado.operacoes;
   const hojeLiquido = ops.reduce((s, o) => s + o.resultado_brl_por_contrato - o.custos_brl_por_contrato, 0);
-  const ultimaOperacaoEm = ops.length > 0 ? ops[ops.length - 1].fechamento_em : robo.ultima_operacao_em;
   const emBreve = robo.status === "em_breve";
 
   return (
@@ -82,13 +90,8 @@ export function CabecalhoRobo({ linkQuero }: Props) {
         </div>
 
         {emBreve ? null : (
-          // no celular: o botão primeiro e os dois atalhos com o nome curto, tudo numa linha só
+          // no celular: o botão primeiro e o atalho com o nome curto, na mesma linha
           <div className="flex min-w-0 flex-wrap items-center gap-x-5 gap-y-3 text-sm max-md:flex-row-reverse max-md:justify-end md:gap-x-6 md:shrink-0">
-            {/* a tela cheia do dia é rara: sem prefetch */}
-            <Link href={`/robos/${robo.slug}/ao-vivo`} prefetch={false} className={LINK_DO_PAINEL}>
-              <span className="sm:hidden">Ao vivo</span>
-              <span className="max-sm:hidden">Tela ao vivo</span>
-            </Link>
             <Link href={linkSimulador(robo.slug)} className={LINK_DO_PAINEL}>
               <span className="sm:hidden">Simular</span>
               <span className="max-sm:hidden">Simular com meu capital</span>
@@ -106,7 +109,7 @@ export function CabecalhoRobo({ linkQuero }: Props) {
         )}
       </div>
 
-      {/* no celular, uma linha corrida de texto pequeno em vez de uma grade de cinco blocos */}
+      {/* no celular, uma linha corrida de texto pequeno em vez de uma grade de blocos */}
       <dl className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-[0.8125rem] sm:mt-5 sm:gap-x-8 sm:gap-y-2 sm:text-sm">
         {robo.horario_inicio && robo.horario_fim ? (
           <div className="flex gap-1.5">
@@ -116,26 +119,30 @@ export function CabecalhoRobo({ linkQuero }: Props) {
             </dd>
           </div>
         ) : null}
-        <div className="flex gap-1.5">
-          <dt className="text-sutil">
-            <RotuloComInfo chave="contratosPadrao">Contratos por operação</RotuloComInfo>
-          </dt>
-          <dd>{formatarNumero(robo.contratos_padrao)}</dd>
-        </div>
         {robo.conta_real_desde ? (
           <div className="flex gap-1.5">
             <dt className="text-sutil">No ar desde</dt>
             <dd>{formatarData(robo.conta_real_desde)}</dd>
           </div>
         ) : null}
-        <div className="flex gap-1.5">
-          <dt className="text-sutil">Última operação</dt>
-          <dd>{ultimaOperacaoEm && agora ? haQuanto(ultimaOperacaoEm, agora) : "–"}</dd>
-        </div>
-        {robo.versao_atual ? (
+        {!emBreve && capitalMinimo !== null ? (
           <div className="flex gap-1.5">
-            <dt className="text-sutil">Versão</dt>
-            <dd>{robo.versao_atual}</dd>
+            <dt className="text-sutil">
+              <RotuloComInfo chave="capitalMinimo">Capital mínimo</RotuloComInfo>
+            </dt>
+            <dd>{formatarBRL(capitalMinimo, { inteiro: true })}</dd>
+          </div>
+        ) : null}
+        {!emBreve && entradas !== null ? (
+          // lê-se "Até 36 entradas abertas ao mesmo tempo": o número no meio da frase, e o termo abre a explicação
+          <div className="flex gap-1.5">
+            <dt className="text-sutil">Até</dt>
+            <dd>
+              {formatarNumero(entradas)}{" "}
+              <RotuloComInfo chave="entradasAbertas" className="text-sutil">
+                {entradas === 1 ? "entrada aberta por vez" : "entradas abertas ao mesmo tempo"}
+              </RotuloComInfo>
+            </dd>
           </div>
         ) : null}
         {robo.conta_tipo === "demo" ? (

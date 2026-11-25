@@ -8,7 +8,7 @@ import { curvaAcumulada, drawdownMaximo } from "@/lib/stats/serie";
 import type { EstatisticaPublica, MercadoPublico, RoboPublico } from "@/lib/tipos";
 
 export interface CapitalDoRobo {
-  /** capital mínimo publicado, inteiro em R$; nulo quando o ativo não tem margem cadastrada */
+  /** capital mínimo publicado, inteiro em R$; nulo quando o ativo não tem margem cadastrada ou a leitura das entradas falhou */
   capitalMinimo: number | null;
   /** margem (garantia) por contrato do ativo, em R$; nula se não cadastrada */
   margem: number | null;
@@ -28,7 +28,8 @@ function montarCapital(
   linhas: readonly EstatisticaPublica[],
   mercado: readonly MercadoPublico[],
   fator: number,
-  pico: PicoDoRobo,
+  /** nulo quando a leitura das entradas falhou: aí o capital fica desconhecido em vez de contar 1 entrada */
+  pico: PicoDoRobo | null,
   hoje: string,
 ): CapitalDoRobo {
   const curva = curvaAcumulada(
@@ -37,12 +38,12 @@ function montarCapital(
   );
   const maiorQueda = drawdownMaximo(curva).valor;
   const margem = mercado.find((m) => m.prefixo_simbolo === robo.ativo)?.margem_referencia ?? null;
-  const entradas = Math.max(1, pico.maximo);
+  const entradas = Math.max(1, pico?.maximo ?? 0);
   return {
-    capitalMinimo: margem === null ? null : Math.round(capitalMinimoRecomendado(margem, maiorQueda, fator, entradas)),
+    capitalMinimo: margem === null || pico === null ? null : Math.round(capitalMinimoRecomendado(margem, maiorQueda, fator, entradas)),
     margem,
     entradas,
-    entradasEm: pico.maximo > 0 ? pico.quando : null,
+    entradasEm: pico && pico.maximo > 0 ? pico.quando : null,
     maiorQueda,
     fator,
   };

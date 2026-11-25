@@ -48,3 +48,9 @@ export interface InicialCasa {
 }
 
 export type PregaoPorAtivo = Record<string, HorarioPregao>;
+
+/**
+ * O capital mínimo de cada robô na lista da página inicial, pelo slug: R$ inteiro, com 1 contrato por entrada
+ * (de capitaisDaCasa, o mesmo número das outras telas). Nulo quando o ativo não tem a garantia cadastrada.
+ */
+export type CapitalMinimoPorRobo = Record<string, number | null>;

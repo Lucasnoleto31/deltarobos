@@ -30,6 +30,10 @@ function celula(v: string | number | null): string {
  * Ficha Mesa (25/11/2026): era um botão com borda e ícone no topo da aba; agora é um link de texto no pé
  * da tabela, ao lado da paginação. O texto diz que o arquivo traz todas as operações do filtro, não só as
  * 50 da página. É o arquivo que guarda o que saiu da tabela: símbolo, resultado antes dos custos e custos.
+ *
+ * Revisão de 25/11/2026: o texto diz "planilha", a mesma palavra dos arquivos de cada mês no pé da aba (o
+ * "(CSV)" saiu do rótulo; o formato continua o mesmo). Este é o arquivo do que está filtrado; os de cada
+ * mês, com o relatório em PDF, vêm na linha de baixo (ArquivosPorMes).
  */
 export function BotaoCsv({ slug, filtros, total, className }: Props) {
   const [ocupado, setOcupado] = useState(false);
@@ -107,10 +111,10 @@ export function BotaoCsv({ slug, filtros, total, className }: Props) {
 
   const rotulo =
     total > LIMITE
-      ? `Baixar as ${formatarNumero(LIMITE)} mais recentes em planilha (CSV)`
+      ? `Baixar as ${formatarNumero(LIMITE)} mais recentes em planilha`
       : total === 1
-        ? "Baixar em planilha (CSV)"
-        : "Baixar todas em planilha (CSV)";
+        ? "Baixar em planilha"
+        : "Baixar todas em planilha";
 
   return (
     <div className={cn("relative flex flex-col items-end", className)}>

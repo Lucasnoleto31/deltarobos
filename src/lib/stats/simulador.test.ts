@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { formatarBRL } from "@/lib/formato";
 import { calcularKpis, capitalMinimoRecomendado } from "./kpis";
 import { filtrarPeriodo, somarDias } from "./periodos";
-import { drawdownMaximo } from "./serie";
+import { curvaAcumulada, drawdownMaximo, ordenarPorDia, valorDia } from "./serie";
 import {
   LIMITE_APERTADO,
   MAX_CONTRATOS,
@@ -13,6 +13,7 @@ import {
   capitalMinimoDoRobo,
   curvaSimulada,
   ehPeriodoSimulador,
+  paresQueAndamJuntos,
   semaforoDe,
   simular,
   somarCarteira,
@@ -24,7 +25,12 @@ import type { LinhaDiaria } from "./tipos";
 const HOJE = "2026-09-23";
 const OPCOES = { base: "liquido", unidade: "brl", valorPonto: 0.2 } as const;
 
-function robo(slug: string, dias: DiaLiquido[], capitalMinimoPorContrato: number | null = 1000): RoboSimulador {
+function robo(
+  slug: string,
+  dias: DiaLiquido[],
+  capitalMinimoPorContrato: number | null = 1000,
+  entradasAbertas = 1,
+): RoboSimulador {
   return {
     slug,
     nome: slug[0].toUpperCase() + slug.slice(1),
@@ -33,6 +39,8 @@ function robo(slug: string, dias: DiaLiquido[], capitalMinimoPorContrato: number
     contaTipo: "demo",
     dias,
     capitalMinimoPorContrato,
+    entradasAbertas,
+    entradasMedidas: entradasAbertas > 1,
   };
 }
 
@@ -230,6 +238,41 @@ describe("capitalMinimoDoRobo", () => {
   it("série vazia = só a margem", () => {
     expect(capitalMinimoDoRobo([], 1500, 1.5)).toBe(1500);
   });
+
+  // 25/11/2026 (decisão do Lucas): a margem é por contrato e o robô acumula entradas
+  it("a margem multiplica pelo máximo de entradas abertas ao mesmo tempo; a parcela da maior queda não muda", () => {
+    // maior queda de 300 em todo o histórico, margem de R$ 150 por contrato
+    expect(capitalMinimoDoRobo(APOLLO, 150, 1.5)).toBe(150 + 450);
+    expect(capitalMinimoDoRobo(APOLLO, 150, 1.5, 1)).toBe(150 + 450);
+    expect(capitalMinimoDoRobo(APOLLO, 150, 1.5, 36)).toBe(150 * 36 + 450);
+    expect(capitalMinimoDoRobo(APOLLO, 150, 1.5, 36)).toBe(5850);
+    // sem margem cadastrada continua sem número, com quantas entradas for
+    expect(capitalMinimoDoRobo(APOLLO, null, 1.5, 36)).toBeNull();
+  });
+
+  it("sem medição de entradas (zero), valor inválido ou negativo conta 1; entrada quebrada não existe", () => {
+    for (const entradas of [0, -3, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(capitalMinimoDoRobo(APOLLO, 150, 1.5, entradas)).toBe(600);
+    }
+    expect(capitalMinimoDoRobo(APOLLO, 150, 1.5, 2.9)).toBe(150 * 2 + 450);
+  });
+
+  it("é a conta de lib/consultas/capital.ts sobre a mesma série: o robô sozinho, com 1 contrato, tem o número publicado", () => {
+    // capitaisDaCasa: curvaAcumulada das linhas (R$ líquido) → maior queda → capitalMinimoRecomendado com as
+    // entradas abertas, arredondado. A página do simulador monta os dias com valorDia sobre as mesmas linhas.
+    const linhas = [...APOLLO].reverse().map(([dia, liquido]) => linha(dia, liquido));
+    const publicado = Math.round(capitalMinimoRecomendado(150, drawdownMaximo(curvaAcumulada(linhas, OPCOES)).valor, 1.5, 36));
+    const dias = ordenarPorDia(linhas).map((l): DiaLiquido => [l.dia, valorDia(l, OPCOES)]);
+    expect(capitalMinimoDoRobo(dias, 150, 1.5, 36)).toBe(publicado);
+
+    const sozinho = robo("apollo", dias, publicado, 36);
+    expect(capitalMinimoDaCarteira([sozinho], { apollo: 1 }).total).toBe(publicado);
+    const r = simular({ capital: publicado, robos: [sozinho], contratos: { apollo: 1 }, periodo: "tudo", hoje: HOJE });
+    expect(r.capitalMinimo).toBe(publicado);
+    expect(r.capitalQueFalta).toBe(0);
+    // e quem digita exatamente o publicado não lê "não cabe"
+    expect(r.semaforo).not.toBe("nao_cabe");
+  });
 });
 
 describe("capitalMinimoDaCarteira", () => {
@@ -239,8 +282,8 @@ describe("capitalMinimoDaCarteira", () => {
     expect(r.conhecido).toBe(13000);
     expect(r.semMinimo).toEqual([]);
     expect(r.porRobo).toEqual([
-      { slug: "apollo", contratos: 2, porContrato: 5000, total: 10000 },
-      { slug: "orion", contratos: 1, porContrato: 3000, total: 3000 },
+      { slug: "apollo", contratos: 2, porContrato: 5000, total: 10000, entradas: 1, contratosAbertos: 2 },
+      { slug: "orion", contratos: 1, porContrato: 3000, total: 3000, entradas: 1, contratosAbertos: 1 },
     ]);
   });
 
@@ -256,7 +299,7 @@ describe("capitalMinimoDaCarteira", () => {
     expect(r.total).toBeNull();
     expect(r.conhecido).toBe(5000);
     expect(r.semMinimo).toEqual(["alaska"]);
-    expect(r.porRobo[1]).toEqual({ slug: "alaska", contratos: 1, porContrato: null, total: null });
+    expect(r.porRobo[1]).toEqual({ slug: "alaska", contratos: 1, porContrato: null, total: null, entradas: 1, contratosAbertos: 1 });
     // desmarcado, o robô sem margem não atrapalha
     expect(capitalMinimoDaCarteira([apollo, semMargem], { apollo: 1, alaska: 0 }).total).toBe(5000);
     // só robôs sem margem: nada conhecido
@@ -265,6 +308,90 @@ describe("capitalMinimoDaCarteira", () => {
 
   it("carteira vazia soma zero", () => {
     expect(capitalMinimoDaCarteira([apollo, orion], {})).toEqual({ total: 0, conhecido: 0, porRobo: [], semMinimo: [] });
+  });
+
+  it("a margem vale para entradas × contratos de cada robô, e a parcela da queda cresce com os contratos", () => {
+    // Apollo: maior queda de 300 e até 36 entradas abertas; Orion: maior queda de 80 e até 4
+    const a = robo("apollo", APOLLO, capitalMinimoDoRobo(APOLLO, 150, 1.5, 36), 36);
+    const o = robo("orion", ORION, capitalMinimoDoRobo(ORION, 150, 1.5, 4), 4);
+    expect(a.capitalMinimoPorContrato).toBe(150 * 36 + 300 * 1.5);
+    expect(o.capitalMinimoPorContrato).toBe(150 * 4 + 80 * 1.5);
+
+    const r = capitalMinimoDaCarteira([a, o], { apollo: 2, orion: 3 });
+    // 150 × (36 × 2) + (300 × 2) × 1,5, mais 150 × (4 × 3) + (80 × 3) × 1,5
+    expect(r.total).toBe(150 * 72 + 600 * 1.5 + 150 * 12 + 240 * 1.5);
+    expect(r.total).toBe(13860);
+    expect(r.porRobo).toEqual([
+      { slug: "apollo", contratos: 2, porContrato: 5850, total: 11700, entradas: 36, contratosAbertos: 72 },
+      { slug: "orion", contratos: 3, porContrato: 720, total: 2160, entradas: 4, contratosAbertos: 12 },
+    ]);
+    // com 1 contrato cada, é a soma dos dois números publicados
+    expect(capitalMinimoDaCarteira([a, o], { apollo: 1, orion: 1 }).total).toBe(5850 + 720);
+  });
+
+  it("entradas sem medição ou inválidas contam 1 nos contratos abertos", () => {
+    const semMedicao = { ...robo("x", APOLLO, 600), entradasAbertas: 0 };
+    const quebrada = { ...robo("y", APOLLO, 750), entradasAbertas: 2.9 };
+    const invalida = { ...robo("z", APOLLO, 600), entradasAbertas: Number.NaN };
+    const r = capitalMinimoDaCarteira([semMedicao, quebrada, invalida], { x: 3, y: 2, z: 1 });
+    expect(r.porRobo.map((p) => [p.entradas, p.contratosAbertos])).toEqual([
+      [1, 3],
+      [2, 4],
+      [1, 1],
+    ]);
+  });
+});
+
+describe("paresQueAndamJuntos", () => {
+  const diasDe = (n: number, valor: (i: number) => number): DiaLiquido[] =>
+    Array.from({ length: n }, (_, i): DiaLiquido => [somarDias("2026-01-05", i), valor(i)]);
+  // A ganha nos dias pares e perde nos ímpares
+  const a = robo("a", diasDe(40, (i) => (i % 2 === 0 ? 100 : -80)));
+  // B acompanha A, menos em 4 dos 40 pregões: mesmo sentido em 36 (90%)
+  const b = robo("b", diasDe(40, (i) => (i % 10 === 9 ? 50 : i % 2 === 0 ? 30 : -20)));
+  // C acompanha A em metade dos pregões: não anda junto
+  const c = robo("c", diasDe(40, (i) => ((i % 4 < 2) === (i % 2 === 0) ? 10 : -10)));
+  // D é o próprio A com outro tamanho: 40 de 40
+  const d = robo("d", diasDe(40, (i) => (i % 2 === 0 ? 7 : -3)));
+
+  it("par escolhido que ganha e perde nos mesmos dias aparece, com os números da frase", () => {
+    expect(paresQueAndamJuntos([a, b], { a: 1, b: 1 })).toEqual([{ a: "a", b: "b", diasEmComum: 40, mesmoSentido: 36 }]);
+  });
+
+  it("sem os dois escolhidos, nada", () => {
+    expect(paresQueAndamJuntos([a, b], { a: 1, b: 0 })).toEqual([]);
+    expect(paresQueAndamJuntos([a, b], { b: 1 })).toEqual([]);
+    expect(paresQueAndamJuntos([a, b], {})).toEqual([]);
+    expect(paresQueAndamJuntos([a], { a: 1 })).toEqual([]);
+  });
+
+  it("os contratos não mudam a conta: o sentido do dia é o mesmo com 1 ou com 10", () => {
+    expect(paresQueAndamJuntos([a, b], { a: 10, b: 3 })).toEqual(paresQueAndamJuntos([a, b], { a: 1, b: 1 }));
+  });
+
+  it("par que não anda junto fica de fora; os outros vêm do que mais anda junto para o que menos", () => {
+    expect(paresQueAndamJuntos([a, c], { a: 1, c: 1 })).toEqual([]);
+    expect(paresQueAndamJuntos([a, b, c, d], { a: 1, b: 1, c: 1, d: 1 })).toEqual([
+      { a: "a", b: "d", diasEmComum: 40, mesmoSentido: 40 },
+      { a: "a", b: "b", diasEmComum: 40, mesmoSentido: 36 },
+      { a: "b", b: "d", diasEmComum: 40, mesmoSentido: 36 },
+    ]);
+  });
+
+  it("com poucos pregões em comum não afirma nada, mesmo andando sempre juntos", () => {
+    const curtoA = robo("a", diasDe(29, (i) => (i % 2 === 0 ? 100 : -80)));
+    const curtoD = robo("d", diasDe(29, (i) => (i % 2 === 0 ? 7 : -3)));
+    expect(paresQueAndamJuntos([curtoA, curtoD], { a: 1, d: 1 })).toEqual([]);
+    // os pregões em comum é que contam: A com 40 dias e D com 29 têm 29 em comum
+    expect(paresQueAndamJuntos([a, curtoD], { a: 1, d: 1 })).toEqual([]);
+    const trinta = robo("d", diasDe(30, (i) => (i % 2 === 0 ? 7 : -3)));
+    expect(paresQueAndamJuntos([a, trinta], { a: 1, d: 1 })).toEqual([{ a: "a", b: "d", diasEmComum: 30, mesmoSentido: 30 }]);
+  });
+
+  it("não altera as séries dos robôs", () => {
+    const antes = a.dias.map((x) => [...x]);
+    paresQueAndamJuntos([a, b], { a: 1, b: 1 });
+    expect(a.dias.map((x) => [...x])).toEqual(antes);
   });
 });
 
@@ -325,13 +452,15 @@ describe("simular", () => {
     expect(r.capitalMinimoConhecido).toBe(5000);
   });
 
-  it("carteira com pesos: resultado, % sobre o capital inicial e patrimônio", () => {
+  it("carteira com pesos: resultado em R$ e patrimônio; o resultado em % do capital não existe mais", () => {
     const r = simular(entrada);
     expect(r.nDias).toBe(9);
     expect(r.serie.map((p) => p.valor)).toEqual([200, -600, 450, -70, -40, 0, -20, 300, -80]);
     expect(r.resultado).toBe(140);
-    expect(r.resultadoPct).toBeCloseTo(0.014);
     expect(r.serie[r.serie.length - 1].patrimonio).toBe(10140);
+    // DESIGN.md, seção 9: percentual de retorno não entra em tela nenhuma; só a queda em % do capital fica
+    expect(r).not.toHaveProperty("resultadoPct");
+    expect(r.ddMaxPct).toBeCloseTo(0.06);
   });
 
   it("drawdown máximo em R$ e em % do capital inicial, com início, fundo e recuperação", () => {
@@ -370,6 +499,40 @@ describe("simular", () => {
     const base = { ...entrada, robos: [cortado], contratos: { c: 1 } };
     expect(simular({ ...base, periodo: "tudo" }).piorMes).toEqual({ mes: "2026-07", valor: -450, nDias: 1 });
     expect(simular({ ...base, periodo: "3m" }).piorMes).toEqual({ mes: "2026-06", valor: -500, nDias: 5 });
+  });
+
+  it("meses com ganho: quantos meses com pregão fecharam acima de zero, com os das pontas contando", () => {
+    const r = simular(entrada);
+    // dez/2025 +200 · mai/2026 -600 · ago/2026 +450 · set/2026 -70 -40 +0 -20 +300 -80 = +90
+    expect(r.meses).toBe(4);
+    expect(r.mesesComGanho).toBe(3);
+    // em 3 meses (de 23/06 em diante) ficam agosto e setembro
+    const tres = simular({ ...entrada, periodo: "3m" });
+    expect(tres.meses).toBe(2);
+    expect(tres.mesesComGanho).toBe(2);
+  });
+
+  it("mês que soma zero não conta como mês com ganho, mesmo com a sobra do ponto flutuante", () => {
+    // 0,1 + 0,2 - 0,3 dá 5,5e-17 em ponto flutuante
+    const zerado = robo("z", [
+      ["2026-09-01", 0.1],
+      ["2026-09-02", 0.2],
+      ["2026-09-03", -0.3],
+    ]);
+    const r = simular({ ...entrada, robos: [zerado], contratos: { z: 1 } });
+    expect(r.meses).toBe(1);
+    expect(r.mesesComGanho).toBe(0);
+    expect(r.piorMes).toEqual({ mes: "2026-09", valor: 0, nDias: 3 });
+  });
+
+  it("quanto falta para o capital mínimo: zero quando cobre; sem o total, falta para o piso conhecido", () => {
+    expect(simular({ ...entrada, capital: 10000 }).capitalQueFalta).toBe(3000);
+    expect(simular({ ...entrada, capital: 13000 }).capitalQueFalta).toBe(0);
+    expect(simular({ ...entrada, capital: 50000 }).capitalQueFalta).toBe(0);
+    const semMargem = robo("alaska", [["2026-05-05", -100]], null);
+    const base = { ...entrada, robos: [apollo, semMargem], contratos: { apollo: 1, alaska: 1 } };
+    expect(simular({ ...base, capital: 1000 }).capitalQueFalta).toBe(4000);
+    expect(simular({ ...base, capital: 5000 }).capitalQueFalta).toBe(0);
   });
 
   it("maior sequência negativa (dia zerado interrompe) e dias negativos", () => {
@@ -511,15 +674,17 @@ describe("simular", () => {
       serie: [],
       nDias: 0,
       resultado: 0,
-      resultadoPct: 0,
       ddMax: 0,
       ddMaxPct: 0,
       piorMes: null,
+      meses: 0,
+      mesesComGanho: 0,
       piorDia: null,
       maiorSequenciaNegativa: 0,
       diasNegativos: 0,
       capitalMinimo: 0,
       capitalMinimoConhecido: 0,
+      capitalQueFalta: 0,
       capitalMinimoPorRobo: [],
       robosSemCapitalMinimo: [],
       semaforo: "cabe",
@@ -542,7 +707,6 @@ describe("simular", () => {
     for (const capital of [0, -5, Number.NaN, Number.POSITIVE_INFINITY]) {
       const r = simular({ ...entrada, capital });
       expect(r.resultado).toBe(140);
-      expect(r.resultadoPct).toBe(0);
       expect(r.ddMaxPct).toBe(0);
       expect(Number.isFinite(r.serie[0].patrimonio)).toBe(true);
     }

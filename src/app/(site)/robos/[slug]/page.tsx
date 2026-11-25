@@ -1,17 +1,22 @@
 import Link from "next/link";
+import { GraficoBarras } from "@/components/desempenho/GraficoBarras";
 import { PONTOS_LEVE, seriePorOperacaoCompacta, type SerieCompacta } from "@/components/graficos/series-da-curva";
+import { ComoEleOpera } from "@/components/robo/ComoEleOpera";
 import { opcoesDaCurva, recorteDoPeriodo } from "@/components/robo/curva-por-periodo";
-import { KpisRobo } from "@/components/robo/KpisRobo";
 import { PainelResultado } from "@/components/robo/PainelResultado";
-import { PERIODOS_FECHADOS, type PeriodoFechado } from "@/components/robo/periodos-resumo";
+import { PERIODOS_FECHADOS, VAZIO_DO_PERIODO, type PeriodoFechado } from "@/components/robo/periodos-resumo";
 import { Transparencia } from "@/components/robo/Transparencia";
-import { UltimasOperacoes } from "@/components/robo/UltimasOperacoes";
 import { Grade } from "@/components/sistema/Pagina";
 import { LINK_DO_PAINEL, Painel } from "@/components/sistema/Painel";
+import { capitalDoRobo } from "@/lib/consultas/capital";
 import { listarOperacoesCompactas } from "@/lib/consultas/operacoes";
-import { buscarRobo, listarEstatisticas, listarUltimasOperacoes } from "@/lib/consultas/publico";
-import { formatarData } from "@/lib/formato";
+import { buscarRobo, listarEstatisticas, listarFeriados } from "@/lib/consultas/publico";
+import { formatarData, formatarMesAno, formatarNumero } from "@/lib/formato";
+import { comoOpera, duracaoTipica, pregoesOperados } from "@/lib/stats/como-opera";
+import { resultadoPorMes, tempoEmPalavras } from "@/lib/stats/indicadores-robo";
+import { duracao } from "@/lib/stats/operacoes";
 import { hojeSP } from "@/lib/stats/periodos";
+import { ordenarPorDia, valorDia } from "@/lib/stats/serie";
 import type { LinhaDiaria } from "@/lib/stats/tipos";
 
 export const revalidate = 60;
@@ -21,22 +26,51 @@ interface Props {
 }
 
 /**
- * Aba "Visão geral" do robô (ficha Mesa, 25/11/2026, segunda passada). É a página inicial filtrada para um
- * robô: o resultado do período em número grande (hoje ao vivo, semana, mês, ano, tudo), os fatos ao lado e
- * a curva; embaixo, as últimas operações e "mais números", lado a lado; por fim, de onde vêm os números.
- * Sem caixas. O botão "Quero esse robô" está no cabeçalho, que é do layout.
+ * Aba "Resumo" do robô (revisão de 25/11/2026, DESIGN.md seção 9). Responde a uma pergunta: este robô vale a
+ * pena? Quanto ganhou e quanto caiu no caminho? De cima para baixo, sem caixas:
+ *
+ * - o resultado desde o início em número grande, com a premissa e o tamanho do histórico, os fatos ao lado
+ *   (maior queda e se já recuperou, ganho para cada R$ 1 da maior queda, capital mínimo, meses e dias com
+ *   ganho) e a curva com a maior queda em vermelho (PainelResultado);
+ * - o resultado de cada mês, em barras;
+ * - "Como ele opera", em lista, ao lado de "De onde vêm os números".
+ *
+ * O que saiu: o período "Hoje" (é a aba Ao vivo), "Últimas operações" (é a aba Operações), "Mais números" e o
+ * link para a aba Desempenho, que deixou de existir. As contas estão em lib/stats/como-opera e
+ * lib/stats/indicadores-robo; o capital mínimo vem de capitalDoRobo, o mesmo número do cabeçalho. O botão
+ * "Quero esse robô" está no cabeçalho, que é do layout.
  */
 export default async function PaginaRobo({ params }: Props) {
   const { slug } = await params;
   const hoje = hojeSP();
-  const [robo, linhas, ultimas, ops] = await Promise.all([
+  const [robo, todas, ops, feriados, capital] = await Promise.all([
     buscarRobo(slug),
     listarEstatisticas(slug),
-    listarUltimasOperacoes(slug, 12),
-    // a mesma consulta que a aba Desempenho já faz; aqui ela fica no servidor (ver abaixo)
+    // as operações ficam no servidor: daqui saem a curva por operação de cada período e a duração típica
     listarOperacoesCompactas(slug),
+    listarFeriados(),
+    capitalDoRobo(slug),
   ]);
   if (!robo) return null; // o layout já tratou o 404
+
+  if (robo.status === "em_breve") {
+    return (
+      <>
+        <p className="py-10 text-sm text-muted-foreground">Este robô ainda não começou a operar em conta real.</p>
+        <Transparencia robo={robo} />
+      </>
+    );
+  }
+
+  const linhas = ordenarPorDia(todas.filter((l) => l.dia <= hoje));
+  if (linhas.length === 0) {
+    return (
+      <>
+        <p className="py-10 text-sm text-muted-foreground">{VAZIO_DO_PERIODO.tudo}</p>
+        <Transparencia robo={robo} />
+      </>
+    );
+  }
 
   // Curva "por operação": as operações (dezenas de milhares) não vão para o navegador. A série de
   // cada período é montada aqui na versão leve (PONTOS_LEVE pontos), para pintar na hora, e só os
@@ -50,7 +84,7 @@ export default async function PaginaRobo({ params }: Props) {
   const jaMontadas = new Map<string, SerieCompacta>();
   const pontosPorOperacao = Object.fromEntries(
     PERIODOS_FECHADOS.map((periodo) => {
-      const { ops: opsDoPeriodo, dias } = recorteDoPeriodo(ops, linhas, periodo, hoje, opcoes);
+      const { ops: opsDoPeriodo, dias } = recorteDoPeriodo(ops, todas, periodo, hoje, opcoes);
       const chave = `${opsDoPeriodo.length}:${dias.length}`;
       const serie = jaMontadas.get(chave) ?? seriePorOperacaoCompacta(opsDoPeriodo, opcoes, dias, { maxPontos: PONTOS_LEVE });
       jaMontadas.set(chave, serie);
@@ -75,42 +109,19 @@ export default async function PaginaRobo({ params }: Props) {
     }),
   );
 
-  const primeiroDia = linhas.reduce<string | null>((m, l) => (m === null || l.dia < m ? l.dia : m), null);
+  const primeiroDia = linhas[0].dia;
+  const ultimoDia = linhas[linhas.length - 1].dia;
 
-  if (robo.status === "em_breve") {
-    return (
-      <>
-        <p className="py-10 text-sm text-muted-foreground">Este robô ainda não começou a operar em conta real.</p>
-        <Transparencia robo={robo} />
-      </>
-    );
-  }
+  // as barras são do histórico inteiro, um mês por barra; com um mês só, a barra única repetiria o número grande
+  const meses = resultadoPorMes(linhas.map((l) => ({ dia: l.dia, valor: valorDia(l, opcoes) })));
+  const barras = meses.map((m) => ({ rotulo: formatarMesAno(`${m.mes}-01`), valor: m.valor, n: m.nDias }));
 
-  // Num dia de muitas operações, as últimas são todas de hoje, e a lista só repetiria as "operações de hoje"
-  // logo acima. Ela aparece quando traz alguma coisa de outro dia (17/09/2026).
-  const ultimasSoDeHoje = ultimas.length > 0 && ultimas.every((o) => o.dia_pregao === hoje);
-
-  const maisNumeros = (
-    <Painel
-      id="mais-numeros"
-      titulo="Mais números"
-      apoio={primeiroDia ? `desde ${formatarData(primeiroDia)}` : undefined}
-      corpo=""
-      className={ultimasSoDeHoje ? undefined : "xl:col-span-5"}
-      acao={
-        <Link href={`/robos/${slug}/desempenho`} className={LINK_DO_PAINEL}>
-          Desempenho completo
-        </Link>
-      }
-    >
-      <KpisRobo
-        linhas={linhas}
-        valorPonto={robo.valor_ponto_brl}
-        capitalReferencia={robo.capital_referencia}
-        hoje={hoje}
-        className={ultimasSoDeHoje ? undefined : "lg:grid-cols-1"}
-      />
-    </Painel>
+  const como = comoOpera(linhas);
+  // as operações mais recentes (até o teto da consulta) bastam para dizer quanto dura uma operação
+  const duracaoSeg = duracaoTipica(ops.map(duracao));
+  const pregoes = pregoesOperados(
+    linhas.filter((l) => l.n_operacoes > 0).map((l) => l.dia),
+    feriados,
   );
 
   return (
@@ -119,31 +130,48 @@ export default async function PaginaRobo({ params }: Props) {
         linhas={linhasDoPainel}
         pontosPorOperacao={pontosPorOperacao}
         valorPonto={robo.valor_ponto_brl}
-        capitalReferencia={robo.capital_referencia}
+        capitalMinimo={capital?.capitalMinimo ?? null}
       />
 
-      {ultimasSoDeHoje ? (
-        maisNumeros
-      ) : (
-        <Grade>
-          <Painel
-            id="ultimas"
-            titulo="Últimas operações"
-            corpo=""
-            className="xl:col-span-7"
-            acao={
-              <Link href={`/robos/${slug}/operacoes`} className={LINK_DO_PAINEL}>
-                Lista completa
-              </Link>
-            }
-          >
-            <UltimasOperacoes operacoes={ultimas} />
-          </Painel>
-          {maisNumeros}
-        </Grade>
-      )}
+      {barras.length > 1 ? (
+        <Painel
+          id="por-mes"
+          titulo="Resultado por mês"
+          apoio={`desde ${formatarData(primeiroDia)}`}
+          fio={false}
+          acao={
+            <Link href={`/robos/${slug}/calendario`} className={LINK_DO_PAINEL}>
+              Ver dia a dia
+            </Link>
+          }
+        >
+          <GraficoBarras dados={barras} unidade="brl" altura={220} rotuloN="Pregões" />
+        </Painel>
+      ) : null}
 
-      <Transparencia robo={robo} />
+      <Grade>
+        <Painel
+          id="como-opera"
+          titulo="Como ele opera"
+          // o tamanho da amostra vai escrito: indicador de histórico curto não se lê como o de anos
+          apoio={`em ${tempoEmPalavras(primeiroDia, ultimoDia)} de histórico, ${formatarNumero(como.operacoes)} ${como.operacoes === 1 ? "operação" : "operações"}`}
+          corpo=""
+          className="xl:col-span-7"
+          acao={
+            <Link href={`/robos/${slug}/operacoes`} className={LINK_DO_PAINEL}>
+              Ver as operações
+            </Link>
+          }
+        >
+          <ComoEleOpera
+            como={como}
+            duracaoSeg={duracaoSeg}
+            pregoes={pregoes}
+            entradas={capital && capital.entradasEm !== null ? { maximo: capital.entradas, em: capital.entradasEm } : null}
+          />
+        </Painel>
+        <Transparencia robo={robo} className="xl:col-span-5" />
+      </Grade>
     </>
   );
 }

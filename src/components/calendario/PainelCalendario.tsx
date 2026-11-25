@@ -2,23 +2,27 @@
 
 import { cn } from "cn";
 import { useMemo, useRef, useState } from "react";
+import { GLOSSARIO } from "@/components/compartilhados/glossario";
 import { desempacotar, type OpsEmpacotadas } from "@/components/compartilhados/ops-codec";
 import { Valor } from "@/components/compartilhados/Valor";
-import { Heatmap } from "@/components/desempenho/Heatmap";
 import { escalaDeForca } from "@/components/graficos/base";
+import { Fato, Fatos, NumeroGrande } from "@/components/sistema/Numero";
 import { Grade } from "@/components/sistema/Pagina";
-import { LINK_DO_PAINEL, Painel } from "@/components/sistema/Painel";
-import { formatarBRL, formatarDataCurta, formatarNumero } from "@/lib/formato";
-import { gradeMes, heatmapAnoMes, mesesComDados } from "@/lib/stats/calendario";
+import { LINK_DO_PAINEL } from "@/components/sistema/Painel";
+import { formatarData, formatarDataCurta, formatarNumero } from "@/lib/formato";
+import { anosDoHistorico, gradeMes, historicoCurto, janelaConhecida, mesesComDados, resumirPeriodo } from "@/lib/stats/calendario";
 import type { ExposicaoDoDia } from "@/lib/stats/exposicao";
+import { tempoEmPalavras } from "@/lib/stats/indicadores-robo";
 import { dia as diaOp } from "@/lib/stats/operacoes";
 import { mesDe, somarMeses } from "@/lib/stats/periodos";
 import type { HorarioPregao } from "@/lib/stats/pregao";
 import { valorDia } from "@/lib/stats/serie";
-import { resumirDias, type DiaResultado } from "@/lib/stats/serie-casa";
+import type { DiaResultado } from "@/lib/stats/serie-casa";
 import type { LinhaDiaria, OpcoesSerie } from "@/lib/stats/tipos";
+import { mesComAno } from "./ArquivosDoMes";
 import { DiaEscolhido } from "./DiaEscolhido";
 import { ListaDeDias } from "./ListaDeDias";
+import { MesAMes } from "./MesAMes";
 import { MesEmGrade } from "./MesEmGrade";
 import { useSaldoDoDia } from "./useSaldoDoDia";
 
@@ -41,48 +45,49 @@ interface Props {
   contaDemo: boolean;
   /** false = só histórico importado: não há série do EA a pedir */
   temColetor: boolean;
+  /**
+   * O robô é acompanhado dia a dia (tem coletor e está ativo): aí um pregão sem operação até ontem é "não
+   * operou". No robô que só tem histórico, o site não sabe o que houve depois do último dia importado.
+   */
+  acompanhado: boolean;
   /** o horário que dimensiona o eixo do tempo da série: o do robô, ou o do pregão do ativo */
   horario: HorarioPregao;
 }
 
-const fmtMesLongo = new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric", timeZone: "UTC" });
-
 /** "Novembro de 2026", por extenso: é o título da tela. */
-function nomeDoMes(mes: string): string {
-  const texto = fmtMesLongo.format(new Date(`${mes}-01T12:00:00Z`));
+function tituloDoMes(mes: string): string {
+  const texto = mesComAno(mes);
   return texto.charAt(0).toUpperCase() + texto.slice(1);
-}
-
-/** "+R$" e os algarismos separados, para o número grande levar o sinal e a moeda mais leves (como na página inicial). */
-function partesDoValor(v: number): [string, string] {
-  const texto = formatarBRL(v, { sinal: true, inteiro: true });
-  const corte = texto.search(/\d/);
-  return corte < 0 ? ["", texto] : [texto.slice(0, corte).trim(), texto.slice(corte)];
 }
 
 // Anterior, próximo, hoje: texto com fio embaixo, o mesmo desenho do "Ver os 10" das listas desta tela (toda
 // ação em texto leva o fio; eram dois botões de seta e um "Hoje" com borda). Sem para onde ir, o fio some.
+// O ::after dá ao texto pequeno um alvo de toque de 40 px sem mexer no desenho.
 const NAVEGAR = cn(
   LINK_DO_PAINEL,
-  "outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:border-transparent disabled:text-sutil/60",
+  "relative outline-none after:absolute after:-inset-x-2 after:-inset-y-2.5 focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:border-transparent disabled:text-sutil/60",
 );
 
 /**
- * A aba "Dia a dia" do robô (ficha Mesa, 25/11/2026). A pergunta da tela: como foi cada dia, e quais foram
- * os dias bons e os ruins? A resposta, na ordem: o resultado do mês em vista em número grande, com os dias
- * com ganho, o melhor e o pior dia ao lado; o mês em casas, um dia por casa; do lado direito, o dia escolhido
- * por dentro. Depois, os melhores e os piores dias do histórico e o mapa de todos os meses.
+ * A aba "Dia a dia" do robô. A pergunta da tela: como foi cada dia e cada mês? A resposta, na ordem: o
+ * resultado do mês em vista em número grande, com os dias com ganho, o pior dia e a maior queda do mês ao
+ * lado; o mês em casas, um dia por casa; do lado direito, o dia escolhido por dentro. Depois a lista
+ * "Mês a mês", com os arquivos de cada mês, e por fim os melhores e os piores dias do histórico.
  *
- * O que saiu, porque o Lucas mandou tirar o que não era necessário ("a estrutura da página está ok, mas a
- * página não está legal"):
- * - os cartões com borda e as fileiras de números centralizados, com o rótulo embaixo;
- * - a linha de fatos do histórico no alto (melhor e pior dia de sempre): são a primeira linha das listas;
- * - o "% do capital" debaixo do resultado do mês: pedia explicar capital de referência a quem veio ver os dias;
- * - o fundo colorido de cada dia e o "N op" dentro da casa (ver MesEmGrade);
- * - "Por hora de entrada", do dia, e "Por dia da semana", do histórico: a curva do dia já mostra as horas, e
- *   o resultado por dia da semana e por horário continua na aba Desempenho, para o período que se escolher;
- * - as barras debaixo de cada melhor e pior dia.
- * Os números são os mesmos, das mesmas funções; o resumo do mês passou a vir de resumirDias (serie-casa).
+ * Revisão de 25/11/2026 (DESIGN.md, seção 9; Lucas: "informações que não são importantes vamos tirar,
+ * coloque indicadores que fazem sentido para o trader"):
+ * - "Melhor dia" saiu dos fatos do mês: não é indicador de destaque e continua na lista "Melhores dias".
+ *   No lugar entrou a maior queda de dentro do mês: número de ganho não aparece sem a queda ao lado;
+ * - o pregão em que a bolsa abriu e o robô não fechou operação aparece escrito "não operou" na casa do dia
+ *   (era uma casa vazia, igual à de um dia que ainda não chegou), e, quando houve algum no mês, os fatos
+ *   dizem em quantos pregões ele operou. O motivo o sistema não sabe, e a tela não inventa;
+ * - o mapa colorido de meses deu lugar à lista "Mês a mês", que traz os arquivos da antiga aba Relatórios
+ *   e leva o calendário até o mês escolhido (ver MesAMes);
+ * - as listas de melhores e piores dias dizem o tamanho do histórico quando ele é curto.
+ *
+ * Da ficha Mesa (25/11/2026) continua valendo: sem cartões, sem "% do capital", sem fundo colorido nas
+ * casas, sem "por hora de entrada" e "por dia da semana" (isso mora na aba Melhores horários). Os números
+ * vêm de lib/stats (gradeMes, resumirPeriodo, anosDoHistorico): aqui não se faz conta.
  *
  * O que continua valendo das passadas anteriores:
  * - 17/09/2026: o calendário abre com o último pregão do mês já escolhido, e do tablet para baixo, onde o dia
@@ -90,7 +95,21 @@ const NAVEGAR = cn(
  * - 19/09/2026 (Artur: "muito esticada e tem um monte de espaço vazio"): as casas do mês têm altura fixa e
  *   baixa. A curva do dia deixou de esticar para fechar a coluna: sem cartão, não há borda para alinhar.
  */
-export function PainelCalendario({ linhas, pacote, exposicao, feriados, hoje, valorPonto, custoPorContrato, slug, nomeRobo, contaDemo, temColetor, horario }: Props) {
+export function PainelCalendario({
+  linhas,
+  pacote,
+  exposicao,
+  feriados,
+  hoje,
+  valorPonto,
+  custoPorContrato,
+  slug,
+  nomeRobo,
+  contaDemo,
+  temColetor,
+  acompanhado,
+  horario,
+}: Props) {
   const ops = useMemo(() => desempacotar(pacote), [pacote]);
   const exposicaoPorDia = useMemo(() => new Map(exposicao.map((e) => [e.dia, e])), [exposicao]);
   const opcoes = useMemo<OpcoesSerie>(() => ({ base: "liquido", unidade: "brl", valorPonto }), [valorPonto]);
@@ -115,6 +134,13 @@ export function PainelCalendario({ linhas, pacote, exposicao, feriados, hoje, va
     setDiaSel(ultimoDiaDe(m));
   };
 
+  /** leva a página até o número do mês (quem escolhe nas listas lá de baixo precisa subir) */
+  const subirAoMes = () => {
+    if (typeof window === "undefined") return;
+    const suave = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    requestAnimationFrame(() => topoRef.current?.scrollIntoView({ behavior: suave ? "smooth" : "auto", block: "start" }));
+  };
+
   const escolherDia = (d: string, vindoDaLista = false) => {
     setDiaSel(d);
     if (typeof window === "undefined") return;
@@ -131,7 +157,17 @@ export function PainelCalendario({ linhas, pacote, exposicao, feriados, hoje, va
     });
   };
 
-  const grade = useMemo(() => gradeMes(linhas, mes, opcoes, feriados), [linhas, mes, opcoes, feriados]);
+  // de quando até quando o site sabe dizer se o robô operou: fora disso, dia sem operação não é "não operou"
+  const janela = useMemo(
+    () =>
+      janelaConhecida(
+        linhas.map((l) => l.dia),
+        hoje,
+        acompanhado,
+      ),
+    [linhas, hoje, acompanhado],
+  );
+  const grade = useMemo(() => gradeMes(linhas, mes, opcoes, feriados, janela), [linhas, mes, opcoes, feriados, janela]);
   // de segunda a sexta; a semana que só tem sábado ou domingo no mês (mês que começa num sábado, ou que
   // termina num domingo) virava uma fileira inteira vazia
   const semanasUteis = useMemo(
@@ -139,18 +175,18 @@ export function PainelCalendario({ linhas, pacote, exposicao, feriados, hoje, va
     [grade],
   );
 
-  // cada pregão do histórico: o resultado (1 contrato, já descontados os custos), as operações e as com ganho
+  // cada pregão do histórico: o resultado (1 contrato por entrada, já descontados os custos), as operações e as com ganho
   const dias = useMemo<DiaResultado[]>(
     () => linhas.map((l) => ({ dia: l.dia, valor: valorDia(l, opcoes), n: l.n_operacoes, g: l.n_gain })),
     [linhas, opcoes],
   );
-  // o mês em vista em números: total, dias com ganho, melhor e pior dia
-  const resumo = useMemo(() => resumirDias(dias.filter((d) => mesDe(d.dia) === mes)), [dias, mes]);
+  // o mês em vista em números: total, dias com ganho, pior dia e a maior queda de dentro dele
+  const resumo = useMemo(() => resumirPeriodo(dias.filter((d) => mesDe(d.dia) === mes)), [dias, mes]);
   // a régua da barra de cada dia é o histórico inteiro, para um mês poder ser comparado com outro
   const forca = useMemo(() => escalaDeForca(dias.map((d) => d.valor)), [dias]);
   const melhores = useMemo(() => [...dias].sort((a, b) => b.valor - a.valor).slice(0, 10), [dias]);
   const piores = useMemo(() => [...dias].sort((a, b) => a.valor - b.valor).slice(0, 10), [dias]);
-  const heatmap = useMemo(() => heatmapAnoMes(linhas, opcoes), [linhas, opcoes]);
+  const anos = useMemo(() => anosDoHistorico(dias), [dias]);
 
   const opsDia = useMemo(() => (diaSel ? ops.filter((op) => diaOp(op) === diaSel) : []), [ops, diaSel]);
   const { saldo, carregando, tentarDeNovo } = useSaldoDoDia(slug, diaSel, temColetor);
@@ -165,16 +201,69 @@ export function PainelCalendario({ linhas, pacote, exposicao, feriados, hoje, va
     setDiaSel(linhas.some((l) => l.dia === hoje) ? hoje : ultimoDiaDe(mesAtual));
   };
 
-  if (linhas.length === 0) {
+  if (linhas.length === 0 || !janela) {
     return <p className="py-12 text-sm text-muted-foreground">Este robô ainda não tem operação fechada.</p>;
   }
 
-  const titulo = nomeDoMes(mes);
-  const [prefixo, algarismos] = partesDoValor(resumo.total);
+  const titulo = tituloDoMes(mes);
+  // a mesma regra do bloco "De onde vêm os números": robô sem custo cadastrado mostra o valor antes dos custos
+  const premissa = `com 1 contrato por entrada, ${custoPorContrato > 0 ? "já descontados os custos" : "antes dos custos"}`;
+  // de quanto histórico saem as listas de melhores e piores dias: histórico curto diz o tamanho
+  const ultimoDia = linhas.reduce((a, l) => (l.dia > a ? l.dia : a), janela.de);
+  const deQuanto = historicoCurto(janela.de, ultimoDia)
+    ? `em ${tempoEmPalavras(janela.de, ultimoDia)} de histórico, ${formatarNumero(dias.length)} ${dias.length === 1 ? "pregão" : "pregões"}`
+    : "desde o início";
+
   const abrirDaLista = (d: string) => {
     trocarMes(mesDe(d));
     escolherDia(d, true);
   };
+  const abrirMes = (m: string) => {
+    trocarMes(m);
+    subirAoMes();
+  };
+
+  // "Pregões em que operou" só aparece no mês em que houve pregão sem operação. No mês que ainda corre (ou
+  // no último do histórico importado) a conta vai até o último dia de que o site tem registro, e o texto diz.
+  const pregoesDoMes = grade.nDias + grade.nNaoOperou;
+  const explicaPregoes =
+    mesDe(janela.ate) === mes
+      ? `Em quantos pregões deste mês o robô fechou ao menos uma operação, contra quantos pregões a bolsa teve até ${formatarData(janela.ate)}. O site não sabe o motivo de um pregão sem operação.`
+      : `${GLOSSARIO.pregoesOperados.texto} O site não sabe o motivo de um pregão sem operação.`;
+
+  const fatos =
+    resumo.dias > 0 ? (
+      <Fatos>
+        <Fato rotulo="Dias com ganho">
+          <span className="font-medium">{formatarNumero(resumo.comGanho)}</span>
+          <span className="text-muted-foreground"> de {formatarNumero(resumo.dias)}</span>
+        </Fato>
+        {/* tela que mostra ganho mostra o pior caso: as duas linhas ficam mesmo sem dia de perda no mês */}
+        <Fato rotulo="Pior dia">
+          {resumo.pior ? (
+            <>
+              <span className="mr-3 text-sutil">{formatarDataCurta(resumo.pior.dia)}</span>
+              <Valor valor={resumo.pior.valor} inteiro={Math.abs(resumo.pior.valor) >= 1000} className="font-medium" />
+            </>
+          ) : (
+            <span className="text-sutil">nenhum com perda</span>
+          )}
+        </Fato>
+        <Fato rotulo="Maior queda no mês">
+          {resumo.maiorQueda > 0 ? (
+            <Valor valor={-resumo.maiorQueda} inteiro={resumo.maiorQueda >= 1000} className="font-medium" />
+          ) : (
+            <span className="text-sutil">nenhuma</span>
+          )}
+        </Fato>
+        {grade.nNaoOperou > 0 ? (
+          <Fato rotulo={GLOSSARIO.pregoesOperados.nome} info="pregoesOperados" infoTexto={explicaPregoes}>
+            <span className="font-medium">{formatarNumero(grade.nDias)}</span>
+            <span className="text-muted-foreground"> de {formatarNumero(pregoesDoMes)}</span>
+          </Fato>
+        ) : null}
+      </Fatos>
+    ) : null;
 
   return (
     <>
@@ -190,7 +279,7 @@ export function PainelCalendario({ linhas, pacote, exposicao, feriados, hoje, va
         <Grade>
           <div className={cn("min-w-0", diaSel ? "xl:col-span-7" : "xl:col-span-12")}>
             {/* o que é o número, e a troca de mês alinhada à borda direita do calendário */}
-            <div className="flex min-h-7 flex-wrap items-center justify-between gap-x-8 gap-y-2">
+            <div className="flex min-h-7 flex-wrap items-center justify-between gap-x-8 gap-y-3">
               <h2 className="text-[0.9375rem] font-normal text-muted-foreground" aria-live="polite">
                 <span className="font-medium text-foreground">{titulo}</span> · resultado do mês
               </h2>
@@ -207,59 +296,30 @@ export function PainelCalendario({ linhas, pacote, exposicao, feriados, hoje, va
               </div>
             </div>
 
-            {resumo.pregoes > 0 ? (
+            {resumo.dias > 0 ? (
               <div className="mt-3 grid gap-x-10 gap-y-6 lg:grid-cols-[minmax(0,auto)_minmax(0,20rem)] lg:items-end lg:justify-start">
                 <div className="min-w-0">
-                  <p className={cn("numero-grande", resumo.total < 0 && "text-negativo")}>
-                    <span className={cn("mr-[0.18em] font-normal", resumo.total >= 0 && "text-muted-foreground")}>{prefixo}</span>
-                    {algarismos}
-                  </p>
+                  <NumeroGrande valor={resumo.total} />
                   <p className="mt-3 text-sm text-pretty text-muted-foreground">
-                    com 1 contrato, já descontados os custos{mes === mesAtual ? " · mês em andamento" : ""}
+                    {premissa}
+                    {mes === mesAtual ? " · mês em andamento" : ""}
                   </p>
                 </div>
-
-                <dl className="text-sm lg:pb-0.5">
-                  <div className="flex items-baseline justify-between gap-4 leading-7">
-                    <dt className="text-muted-foreground">Dias com ganho</dt>
-                    <dd className="whitespace-nowrap">
-                      <span className="font-medium">{formatarNumero(resumo.comGanho)}</span>
-                      <span className="text-muted-foreground"> de {formatarNumero(resumo.pregoes)}</span>
-                    </dd>
-                  </div>
-                  {resumo.melhor && resumo.melhor.valor > 0 ? (
-                    <div className="flex items-baseline justify-between gap-4 leading-7">
-                      <dt className="text-muted-foreground">Melhor dia</dt>
-                      <dd className="whitespace-nowrap">
-                        <span className="mr-3 text-sutil">{formatarDataCurta(resumo.melhor.dia)}</span>
-                        <Valor valor={resumo.melhor.valor} inteiro={Math.abs(resumo.melhor.valor) >= 1000} className="font-medium" />
-                      </dd>
-                    </div>
-                  ) : null}
-                  {/* tela que mostra ganho mostra o pior caso: a linha fica mesmo sem dia de perda no mês */}
-                  <div className="flex items-baseline justify-between gap-4 leading-7">
-                    <dt className="text-muted-foreground">Pior dia</dt>
-                    <dd className="whitespace-nowrap">
-                      {resumo.pior && resumo.pior.valor < 0 ? (
-                        <>
-                          <span className="mr-3 text-sutil">{formatarDataCurta(resumo.pior.dia)}</span>
-                          <Valor valor={resumo.pior.valor} inteiro={Math.abs(resumo.pior.valor) >= 1000} className="font-medium" />
-                        </>
-                      ) : (
-                        <span className="text-sutil">nenhum com perda</span>
-                      )}
-                    </dd>
-                  </div>
-                </dl>
+                {/* no computador os fatos ficam colados no número; no celular descem para depois do mês em casas */}
+                <div className="hidden lg:block lg:pb-0.5">{fatos}</div>
               </div>
             ) : (
               // mês sem operação: uma frase, não uma fileira de zeros
-              <p className="mt-3 text-sm text-muted-foreground">O robô não operou neste mês.</p>
+              <p className="mt-3 text-sm text-muted-foreground">
+                {mes === mesAtual ? "Ainda sem operação fechada neste mês." : "Nenhuma operação fechada neste mês."}
+              </p>
             )}
 
             <div className="mt-8">
               <MesEmGrade semanas={semanasUteis} nomeDoMes={titulo} escolhido={diaSel} hoje={hoje} forca={forca} aoEscolher={escolherDia} />
             </div>
+
+            {fatos ? <div className="mt-6 lg:hidden">{fatos}</div> : null}
           </div>
 
           {diaSel ? (
@@ -284,16 +344,14 @@ export function PainelCalendario({ linhas, pacote, exposicao, feriados, hoje, va
         </Grade>
       </div>
 
+      {/* cada mês, com os arquivos dele; escolher um leva o calendário até ele */}
+      <MesAMes anos={anos} slug={slug} mesEmVista={mes} mesAtual={mesAtual} aoEscolher={abrirMes} className="scroll-mt-12" />
+
       {/* os dias bons e os ruins do histórico inteiro: escolher um leva o calendário até ele */}
       <div className="grid gap-x-12 gap-y-10 md:grid-cols-2">
-        <ListaDeDias id="melhores-dias" titulo="Melhores dias" itens={melhores} aoEscolher={abrirDaLista} />
-        <ListaDeDias id="piores-dias" titulo="Piores dias" itens={piores} aoEscolher={abrirDaLista} />
+        <ListaDeDias id="melhores-dias" titulo="Melhores dias" apoio={deQuanto} itens={melhores} aoEscolher={abrirDaLista} />
+        <ListaDeDias id="piores-dias" titulo="Piores dias" apoio={deQuanto} itens={piores} aoEscolher={abrirDaLista} />
       </div>
-
-      {/* o mapa de todos os meses mora nesta aba desde 19/09/2026, quando saiu do Desempenho */}
-      <Painel id="mes-a-mes" titulo="Mês a mês">
-        <Heatmap linhas={heatmap} unidade="brl" />
-      </Painel>
     </>
   );
 }

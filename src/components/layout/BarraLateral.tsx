@@ -10,10 +10,11 @@ import { buttonVariants } from "@/components/ui/button";
 import type { Links } from "@/lib/tipos";
 import { AlternadorTema } from "./AlternadorTema";
 
-// Como funciona é leitura rara: sem prefetch, busca no clique em vez de em toda página (18/09/2026)
+// As áreas do site (DESIGN.md, seção 9). "Comparar robôs" deixou de ser página em 25/11/2026: a comparação é
+// a lista da Visão geral. Como funciona é leitura rara: sem prefetch, busca no clique em vez de em toda
+// página (18/09/2026).
 const AREAS: { href: string; rotulo: string; exato?: boolean; prefetch?: false }[] = [
   { href: "/", rotulo: "Visão geral", exato: true },
-  { href: "/comparativo", rotulo: "Comparar robôs" },
   { href: "/simulador", rotulo: "Simular meu capital" },
   { href: "/metodologia", rotulo: "Como funciona", prefetch: false },
 ];
@@ -111,7 +112,7 @@ export function ConteudoLateral({ robos, links, aoNavegar }: Props) {
       </nav>
 
       <div className="shrink-0 space-y-3.5 px-5 pb-5">
-        <p className="text-xs leading-relaxed text-pretty text-sutil">Todos os valores são para 1 contrato, já descontados os custos.</p>
+        <p className="text-xs leading-relaxed text-pretty text-sutil">Todos os valores são para 1 contrato por entrada, já descontados os custos.</p>
         <div className="flex items-center gap-2">
           {links.whatsapp ? (
             <a href={links.whatsapp} target="_blank" rel="noopener noreferrer" className={buttonVariants({ className: "h-9 flex-1" })}>
