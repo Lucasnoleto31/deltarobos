@@ -33,7 +33,8 @@ O dono do produto (Lucas) recusou quatro desenhos antes deste. As frases dele s�
    da maior queda (do ponto mais alto ao mais baixo que veio depois), com o valor escrito ao lado. Verde não
    entra em gráfico de curva: verde e vermelho são de número de ganho e de perda.
 5. **Palavras de leigo.** "Maior queda", não drawdown. A premissa do número vem escrita junto dele ("com 1
-   contrato por entrada, já descontados os custos"). Nenhuma tela depende de instrução para ser usada.
+   contrato por entrada, já descontados os custos", ou "antes dos custos" no robô sem custo cadastrado; a
+   regra está na seção 7). Nenhuma tela depende de instrução para ser usada.
 
 ## 3. Estrutura
 
@@ -64,7 +65,8 @@ Os nomes e os números do desenho são de exemplo: os robôs, a ordem e os valor
   assina o ao vivo uma vez. A barra lateral tem três áreas: Visão geral, Simular meu capital e Como funciona
   ("Comparar" deixou de existir em 25/11/2026: a comparação é a lista da Visão geral). Embaixo delas, os robôs
   com o que cada um fez hoje, a nota "Todos os valores são para 1 contrato por entrada, já descontados os
-  custos" e o botão "Como começar".
+  custos" (com os custos da soma dos robôs, `custosDaSoma`: o robô sem custo cadastrado entra como ressalva,
+  pelo nome) e o botão "Como começar".
 - Na Visão geral, a linha de título leva dois seletores alinhados à borda da curva: "Somados · Lado a lado"
   (só quando há dois robôs ou mais com histórico) e o período, "12 meses · Desde o início · 30 pregões". A
   lista "Por robô" tem quatro números por robô: o resultado no período (o rótulo da coluna diz qual: "Em 12
@@ -150,8 +152,7 @@ Em `src/app/globals.css`. Não se cria cor nem medida na tela: usa-se o token.
 | `CorpoPagina`, `CabecalhoPagina`, `Grade`, `Frase` | `components/sistema/Pagina.tsx` | Esqueleto de toda tela |
 | `Painel` (+ `LINK_DO_PAINEL`) | `components/sistema/Painel.tsx` | Uma **seção sem caixa**: título, apoio, ação à direita, fio embaixo do título e o conteúdo. O nome é histórico |
 | `NumeroGrande`, `Fatos`, `Fato` | `components/sistema/Numero.tsx` | O número principal da tela (um por tela, com o "+R$" mais leve) e os três ou quatro fatos que ficam colados nele |
-| `Indicadores` + `Indicador`, `CardsKpi` | `components/sistema/Indicadores.tsx`, `components/desempenho/CardsKpi.tsx` | Números lado a lado com um fio em cima, sem caixa. No máximo 6, e só os que a tela precisa |
-| `ListaKpi` | `components/desempenho/CardsKpi.tsx` | "Mais números": rótulo à esquerda, valor à direita, uma linha por número |
+| `ListaKpi` | `components/desempenho/CardsKpi.tsx` | Números em lista: rótulo e apoio à esquerda, valor à direita, uma linha por número com fio entre elas, em duas colunas a partir de `lg`. É o "Como ele opera" do Resumo e as listas de Quedas e risco e de Melhores horários. A faixa de números lado a lado (`Indicadores`, `CardsKpi`) saiu em 25/11/2026 com as telas que a usavam |
 | `GraficoResultado` | `components/graficos/GraficoResultado.tsx` | A curva com a maior queda em vermelho e a mira; `barras` liga o resultado de cada dia embaixo (só em período curto). Exporta `escalaJusta` e `noEixo` para outras curvas |
 | `GraficoComparativo` | `components/comparativo/GraficoComparativo.tsx` | O "Lado a lado" da Visão geral: a curva de cada robô no mesmo eixo de tempo, cada uma num tom do texto (do mais forte ao mais leve, na ordem da lista) com o nome na ponta e a maior queda de cada uma em vermelho; o robô apontado fica em destaque e os outros apagam |
 | `CurvaCapital`, `DesenhoDaCurva` | `components/graficos/` | A curva detalhada do robô (por dia e por operação), no mesmo traço; também leem `--alt-curva` |
@@ -184,8 +185,9 @@ Regras das peças:
    fatos em lista (um deles sempre a maior queda ou o pior caso: tela que mostra ganho mostra o risco).
 4. **O gráfico**, na largura toda, e uma linha de legenda só se algo nele precisa de explicação.
 5. **A lista ou a tabela.** Em linhas com fio. Colunas alinhadas à borda direita do gráfico.
-6. **Mais números**, se a tela for de análise: uma `ListaKpi` no fim, cada número com a linha de apoio em
-   português simples. Fora isso, mais nada.
+6. **A lista dos outros números**, se a tela for de análise ("Como ele opera" no Resumo, "Mais números" em
+   Quedas e risco): uma `ListaKpi` no fim, cada número com a linha de apoio em português simples. Fora isso,
+   mais nada.
 
 Antes de acrescentar um bloco, pergunte: o leitor sentiria falta? Se não, não entra.
 
@@ -207,7 +209,7 @@ Em 375 px tudo vira uma coluna, tabela rola dentro do próprio bloco e nada esto
 | Payoff | Não aparece como razão. Em "Como ele opera", ganho típico e perda típica, cada um em R$ |
 | Fator de lucro | Fator de lucro, com apoio: "ganhou R$ 1,13 para cada R$ 1 perdido" |
 | Acumulado | Desde o início / Resultado no período |
-| Líquido | "já descontados os custos": os valores da tela são sempre líquidos, sem opção de ver antes dos custos (esse valor fica só nas planilhas). O robô cujo histórico não tem custo cadastrado diz isso no lugar ("com 1 contrato por entrada, antes dos custos"; "este histórico não tem custo nenhum descontado") |
+| Líquido | "já descontados os custos": os valores da tela são sempre líquidos, sem opção de ver antes dos custos (esse valor fica só nas planilhas). O robô cujo histórico não tem custo cadastrado diz isso no lugar ("com 1 contrato por entrada, antes dos custos"; "este histórico não tem custo nenhum descontado"). A frase sai sempre de `src/lib/premissa.ts` (regra abaixo) |
 | Por contrato | "com 1 contrato por entrada" (escrito junto do número principal, não em todo número: o robô pode ter várias entradas abertas ao mesmo tempo, cada uma com 1 contrato) |
 | Operando, Posicionado, Histórico | "hoje ainda sem operação", "em operação agora", "sem acompanhamento ao vivo · dados até 24/11" |
 | MEP / MEN, MFE / MAE | Melhor momento / pior momento (do dia, da operação) |
@@ -219,6 +221,19 @@ Em 375 px tudo vira uma coluna, tabela rola dentro do próprio bloco e nada esto
 | WIN, WDO | Mini Índice, Mini Dólar |
 | Trade | Operação |
 
+- **A premissa dos custos mora em `src/lib/premissa.ts`** (revisão de 25/11/2026: o robô sem custo cadastrado
+  aparecia "já descontados os custos" em umas telas e "antes dos custos" em outras). Toda premissa de custos do
+  site, do PDF, das imagens, do widget e da legenda de compartilhar sai de lá; nenhum "já descontados os
+  custos" fica escrito à mão no código.
+  - `temCusto(custo)`: o robô tem custo cadastrado (maior que zero)?
+  - `custosDoRobo(custo)`: "já descontados os custos" ou "antes dos custos".
+  - `premissaDoRobo(custo)`: "com 1 contrato por entrada, já descontados os custos" (ou "antes dos custos").
+  - `custosDaSoma(robôs)`, para soma de robôs (Visão geral, simulador, prévia da casa, nota da barra lateral):
+    todos com custo, "já descontados os custos"; nenhum, "antes dos custos"; parte, "já descontados os custos,
+    menos no X, que não tem custo no histórico", com os nomes vindos do banco.
+  - Os textos do glossário (`components/compartilhados/glossario.ts`) não trazem a premissa dos custos (o teste
+    do glossário confere): a tela que precisa dela dentro do balão passa o texto próprio, montado com essas
+    funções.
 - Frase curta, com sujeito e número. Valores com sinal e unidade: `+R$ 2.514`, `−R$ 800`, `83%`.
 - Média por dia ou por mês e percentual de retorno não entram em tela nenhuma (o iniciante multiplica a média
   do dia por 22 e lê como salário).
@@ -294,17 +309,17 @@ Ficam, porque respondem ao que o trader precisa para decidir:
 
 | Indicador (como aparece) | Onde | O que diz |
 |---|---|---|
-| Resultado no período | Visão geral, Resumo, Simulador | Ganhou? Com a premissa escrita junto ("com 1 contrato por entrada, já descontados os custos") e o tamanho do histórico ("em 9 meses, 172 pregões") |
+| Resultado no período | Visão geral, Resumo, Simulador | Ganhou? Com a premissa escrita junto ("com 1 contrato por entrada, já descontados os custos", ou "antes dos custos" no robô sem custo cadastrado, de `src/lib/premissa.ts`) e o tamanho do histórico ("em 9 meses, 172 pregões") |
 | Maior queda, e se já recuperou | Ao lado de todo resultado; por dentro em Quedas e risco | Quanto já caiu do ponto mais alto ao mais baixo; "ainda não recuperou" ou "recuperou em N dias" |
 | Ganho para cada R$ 1 da maior queda | Lista da Visão geral, Resumo, Quedas e risco | Resultado dividido pela maior queda: "ganhou R$ 1,10 para cada R$ 1 que já chegou a cair". É o que ordena a lista de robôs |
-| Capital mínimo | Lista da Visão geral, cabeçalho do robô, Resumo, Quedas e risco, Simulador | Margem por contrato × o máximo de entradas que o robô já teve abertas + maior queda × fator. A conta aparece por extenso em Quedas e risco |
+| Capital mínimo | Lista da Visão geral, cabeçalho do robô, Resumo, Quedas e risco, Simulador | Margem por contrato × o máximo de entradas que o robô já teve abertas + maior queda × fator. A conta aparece por extenso em Quedas e risco. Sem garantia cadastrada, sem a leitura das entradas abertas ou sem histórico, o robô fica com um traço no lugar do número |
 | Entradas abertas ao mesmo tempo | Cabeçalho do robô, Resumo ("Como ele opera"), Quedas e risco, Simulador | "Já teve até 36 entradas abertas ao mesmo tempo": "1 contrato" é por entrada |
 | Abaixo do topo hoje | Resumo, Quedas e risco | Quanto falta para voltar ao ponto mais alto |
 | Meses com ganho e pior mês | Resumo, junto das barras por mês | Consistência: "8 de 10 meses; o pior foi julho, −R$ 18.897" |
 | Dias com ganho; pior dia | Visão geral, Resumo, Dia a dia, Quedas e risco | "122 de 172"; o pior dia com a data |
 | Um dia ruim típico | Quedas e risco | "Em 1 de cada 20 pregões perdeu R$ X ou mais" |
 | Maior sequência de dias com perda | Quedas e risco | Quanto tempo seguido de perda já houve |
-| Acertos, com o necessário para empatar | Resumo ("Como ele opera"), nunca sozinho | "Acerta 83 de cada 100; precisa de 81 só para empatar" |
+| Acertos, com o necessário para empatar | Resumo ("Como ele opera"), Melhores horários (o fato do dia e horário e a coluna "Para empatar" da tabela), nunca sozinho | "Acerta 83 de cada 100; precisa de 81 só para empatar" |
 | Ganho típico, perda típica e maior perda numa operação | Resumo ("Como ele opera") | Em R$: o tamanho de um ganho e de uma perda |
 | Resultado médio por operação | Resumo ("Como ele opera"), Quedas e risco | "R$ 2,36 por operação; o custo considerado é R$ 0,25": mostra a folga contra custo e execução |
 | Fator de lucro | Resumo ("Como ele opera"), em frase | "Ganhou R$ 1,13 para cada R$ 1 perdido" |
@@ -313,7 +328,7 @@ Ficam, porque respondem ao que o trader precisa para decidir:
 | Tempo caindo, tempo até recuperar, dias abaixo do topo, outras quedas | Quedas e risco | A queda por dentro |
 | Melhor e pior momento do dia | Ao vivo, dia escolhido em Dia a dia | Até onde o dia foi, com a operação aberta |
 | Resultado de hoje, operação aberta | Ao vivo; frase no cabeçalho e na barra lateral | O que o robô faz agora |
-| Cabe, apertado ou não cabe | Simulador | A resposta para o capital digitado |
+| Cabe, apertado ou não cabe | Simulador | A resposta para o capital digitado; "Não dá para avaliar se cabe" quando algum robô escolhido está sem capital mínimo (ele aparece com um traço) |
 | Os robôs andam juntos? | Simulador, quando dois robôs escolhidos ganham e perdem nos mesmos dias | "Ganharam ou perderam juntos em 114 de 131 pregões": juntar os dois soma o risco |
 
 Saíram, porque parecem promessa, repetem outro número ou não dizem nada a quem vai operar: Calmar, índice de

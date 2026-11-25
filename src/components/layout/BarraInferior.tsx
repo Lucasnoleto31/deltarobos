@@ -15,6 +15,8 @@ import { AlternadorTema } from "./AlternadorTema";
 interface Props {
   robos: RoboBase[];
   links: Links;
+  /** os custos dos robôs com números no site, de custosDaSoma (lib/premissa), para a nota da folha de robôs */
+  custos: string;
 }
 
 type Folha = "robos" | "mais";
@@ -38,7 +40,7 @@ const LINHA = "linha-interativa flex min-h-13 items-center justify-between gap-4
  * Só texto, como a barra lateral; o item atual leva um fio em cima. A folha guarda em que página foi aberta:
  * navegar (por ela ou pelo voltar do navegador) a fecha. Some a partir de lg, onde a barra lateral existe.
  */
-export function BarraInferior({ robos, links }: Props) {
+export function BarraInferior({ robos, links, custos }: Props) {
   const pathname = usePathname();
   // a home pelo segmento de rota, não por pathname === "/": no HTML estático dela o servidor não enxerga "/"
   // (erro de hidratação #418; ver BarraLateral)
@@ -108,7 +110,7 @@ export function BarraInferior({ robos, links }: Props) {
               })}
             </ul>
           )}
-          <p className="border-t px-5 py-3 text-xs text-sutil">Todos os valores são para 1 contrato por entrada, já descontados os custos.</p>
+          <p className="border-t px-5 py-3 text-xs text-pretty text-sutil">Todos os valores são para 1 contrato por entrada, {custos}.</p>
         </SheetContent>
       </Sheet>
 

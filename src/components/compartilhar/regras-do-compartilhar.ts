@@ -5,6 +5,7 @@
  * do mesmo jeito. Sem "use client": nada aqui depende de React.
  */
 import { formatarDataLonga } from "@/lib/formato";
+import { premissaDoRobo } from "@/lib/premissa";
 import { epochBrasilia, FOLGA_DO_EIXO_SEG } from "@/lib/stats/saldo-dia";
 import { DIMENSOES_CARD, versaoDoCard, type FormatoCard } from "@/components/compartilhar/url-do-card";
 
@@ -63,29 +64,44 @@ export function rotuloAcessivelDoBotao(nomeRobo: string, dia: string): string {
 
 /**
  * o alt da prévia: diz o que a imagem traz, sem repetir os números (eles mudam; o alt é da prévia). Nas palavras
- * da imagem desde 25/11/2026 (ficha Mesa): "com 1 contrato" no lugar de "por contrato" e "o melhor e o pior
- * momento do dia" no de "o MEP, o MEN".
+ * da imagem desde 25/11/2026 (ficha Mesa): "com 1 contrato por entrada" no lugar de "por contrato" e "o melhor e
+ * o pior momento do dia" no de "o MEP, o MEN". Na revisão do mesmo dia saiu "quantas tiveram ganho", que saiu da
+ * imagem (acertos sem o necessário para empatar).
  */
 export function textoAlternativoDoCard(nomeRobo: string, dia: string, formato: FormatoCard): string {
-  return `Imagem do dia do ${nomeRobo}, ${formatarDataLonga(dia)}, formato ${formato === "story" ? "story (vertical)" : "quadrado"}: o resultado com 1 contrato, as operações e quantas tiveram ganho, o melhor e o pior momento do dia e a curva do dia.`;
+  return `Imagem do dia do ${nomeRobo}, ${formatarDataLonga(dia)}, formato ${formato === "story" ? "story (vertical)" : "quadrado"}: o resultado com 1 contrato por entrada, as operações, o melhor e o pior momento do dia e a curva do dia.`;
+}
+
+export interface OpcoesDoCompartilhamento {
+  /** robô em conta demo: a legenda diz "Conta demo." */
+  contaDemo?: boolean;
+  /**
+   * robos.custo_por_contrato: a premissa sai de src/lib/premissa ("já descontados os custos" ou "antes dos
+   * custos"). Sem ele (quem chama não informou) a legenda diz só "com 1 contrato por entrada", sem afirmar nada
+   * sobre os custos.
+   */
+  custoPorContrato?: number | null;
 }
 
 /**
  * título e texto que vão junto com o arquivo no compartilhamento do celular (o texto vira a legenda). Robô
  * em conta demo diz isso na legenda também (revisão de 24/09/2026): a legenda pode ser encaminhada sem a
- * imagem, e o site nunca esconde que é demo. A premissa vai como o site a escreve ("com 1 contrato, já
- * descontados os custos"); até 25/11/2026 era "por 1 contrato, líquido de custos".
+ * imagem, e o site nunca esconde que é demo. A premissa vai como o site a escreve, pelo custo cadastrado do
+ * robô ("com 1 contrato por entrada, já descontados os custos", ou "antes dos custos" no robô sem custo); até
+ * 25/11/2026 era "por 1 contrato, líquido de custos", e depois "com 1 contrato, já descontados os custos" para
+ * todos os robôs.
  */
 export function textosDoCompartilhamento(
   nomeRobo: string,
   dia: string,
   link: string,
-  contaDemo = false,
+  { contaDemo = false, custoPorContrato }: OpcoesDoCompartilhamento = {},
 ): { title: string; text: string } {
   const data = formatarDataLonga(dia);
+  const premissa = custoPorContrato === undefined ? "com 1 contrato por entrada" : premissaDoRobo(custoPorContrato);
   return {
     title: `${nomeRobo} · ${data}`,
-    text: `O dia do ${nomeRobo} em ${data}, com 1 contrato, já descontados os custos.${contaDemo ? " Conta demo." : ""} ${link}`,
+    text: `O dia do ${nomeRobo} em ${data}, ${premissa}.${contaDemo ? " Conta demo." : ""} ${link}`,
   };
 }
 

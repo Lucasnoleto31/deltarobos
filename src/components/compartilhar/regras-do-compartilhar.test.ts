@@ -88,27 +88,40 @@ describe("textos do diálogo", () => {
 
   it("alt da prévia nas palavras da imagem, sem as siglas (ficha Mesa, 25/11/2026)", () => {
     expect(textoAlternativoDoCard("Apollo", "2026-09-23", "quadrado")).toBe(
-      "Imagem do dia do Apollo, 23 de setembro de 2026, formato quadrado: o resultado com 1 contrato, as operações e quantas tiveram ganho, o melhor e o pior momento do dia e a curva do dia.",
+      "Imagem do dia do Apollo, 23 de setembro de 2026, formato quadrado: o resultado com 1 contrato por entrada, as operações, o melhor e o pior momento do dia e a curva do dia.",
     );
     for (const formato of ["quadrado", "story"] as const) {
-      expect(textoAlternativoDoCard("Apollo", "2026-09-23", formato)).not.toMatch(/\bMEP\b|\bMEN\b|por contrato|líquido|acerto|gain/i);
+      expect(textoAlternativoDoCard("Apollo", "2026-09-23", formato)).not.toMatch(/\bMEP\b|\bMEN\b|por contrato|líquido|acerto|gain|com ganho/i);
     }
   });
 
-  it("título e texto do compartilhamento levam o link e o 'com 1 contrato, já descontados os custos'", () => {
-    const t = textosDoCompartilhamento("Apollo", "2026-09-23", "https://www.quantsrobos.com/robos/apollo");
+  it("título e texto do compartilhamento levam o link e a premissa pelo custo do robô (src/lib/premissa)", () => {
+    const t = textosDoCompartilhamento("Apollo", "2026-09-23", "https://www.quantsrobos.com/robos/apollo", { custoPorContrato: 0.25 });
     expect(t.title).toBe("Apollo · 23 de setembro de 2026");
     expect(t.text).toBe(
-      "O dia do Apollo em 23 de setembro de 2026, com 1 contrato, já descontados os custos. https://www.quantsrobos.com/robos/apollo",
+      "O dia do Apollo em 23 de setembro de 2026, com 1 contrato por entrada, já descontados os custos. https://www.quantsrobos.com/robos/apollo",
     );
   });
 
+  it("robô sem custo cadastrado: a legenda diz 'antes dos custos'", () => {
+    for (const custoPorContrato of [0, null]) {
+      const t = textosDoCompartilhamento("Robô Teste", "2026-09-23", "x", { custoPorContrato });
+      expect(t.text).toBe("O dia do Robô Teste em 23 de setembro de 2026, com 1 contrato por entrada, antes dos custos. x");
+    }
+  });
+
+  it("quem chama sem o custo: a legenda não afirma nada sobre os custos", () => {
+    const t = textosDoCompartilhamento("Apollo", "2026-09-23", "x");
+    expect(t.text).toBe("O dia do Apollo em 23 de setembro de 2026, com 1 contrato por entrada. x");
+    expect(t.text).not.toMatch(/custos/);
+  });
+
   it("robô em conta demo: a legenda diz 'Conta demo.' antes do link", () => {
-    const t = textosDoCompartilhamento("Orion", "2026-09-23", "https://www.quantsrobos.com/robos/orion", true);
+    const t = textosDoCompartilhamento("Orion", "2026-09-23", "https://www.quantsrobos.com/robos/orion", { contaDemo: true, custoPorContrato: 0.25 });
     expect(t.text).toBe(
-      "O dia do Orion em 23 de setembro de 2026, com 1 contrato, já descontados os custos. Conta demo. https://www.quantsrobos.com/robos/orion",
+      "O dia do Orion em 23 de setembro de 2026, com 1 contrato por entrada, já descontados os custos. Conta demo. https://www.quantsrobos.com/robos/orion",
     );
-    expect(textosDoCompartilhamento("Orion", "2026-09-23", "x", false).text).not.toContain("demo");
+    expect(textosDoCompartilhamento("Orion", "2026-09-23", "x", { contaDemo: false }).text).not.toContain("demo");
   });
 
   it("erro da prévia: 404 é dia sem operação, o resto é falha", () => {

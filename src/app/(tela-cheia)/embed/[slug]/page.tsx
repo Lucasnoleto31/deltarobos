@@ -32,14 +32,27 @@ export default async function PaginaEmbed({ params, searchParams }: Props) {
 
   const hoje = hojeSP();
   const linhas = await listarEstatisticas(slug);
-  const resumo = resumirCardRobo(linhas, { base: "liquido", unidade: "brl", valorPonto: robo.valor_ponto_brl }, hoje);
+  const opcoes = { base: "liquido" as const, unidade: "brl" as const, valorPonto: robo.valor_ponto_brl };
+  // A mesma regra da aba Dia a dia: só o robô com coletor e ativo é acompanhado dia a dia. Nos outros o site só sabe
+  // até o último dia com operação, e os "30 dias" do widget terminam nele, não hoje (revisão de 25/11/2026: o robô
+  // de histórico importado aparecia com "Hoje: sem operação" e com a data de hoje em dados que terminavam antes).
+  const acompanhado = robo.tem_coletor && robo.status === "ativo";
+  const ateHoje = resumirCardRobo(linhas, opcoes, hoje);
+  const resumo = !acompanhado && ateHoje.ultimoDia ? resumirCardRobo(linhas, opcoes, ateHoje.ultimoDia) : ateHoje;
   const tema = (Array.isArray(sp.tema) ? sp.tema[0] : sp.tema) === "claro" ? "claro" : "escuro";
   const site = process.env.NEXT_PUBLIC_SITE_URL ?? "";
 
   return (
     <div className="p-4">
       <ForcarTema tema={tema} />
-      <CardEmbed robo={robo} resumo={resumo} hoje={hoje} linkSite={`${site}/robos/${slug}`} historico={tempoDeHistorico(linhas, hoje)?.texto ?? null} />
+      <CardEmbed
+        robo={robo}
+        resumo={resumo}
+        hoje={hoje}
+        acompanhado={acompanhado}
+        linkSite={`${site}/robos/${slug}`}
+        historico={tempoDeHistorico(linhas, hoje)?.texto ?? null}
+      />
     </div>
   );
 }

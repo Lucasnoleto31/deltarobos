@@ -3,8 +3,10 @@ import { ACENTO, FIO, FUNDO, MUDO, NEGATIVO, SUTIL, TEXTO, corDoResultado as cor
 import { SIMBOLO_CAMINHOS, SIMBOLO_VIEWBOX } from "@/components/marca/Simbolo";
 import { listarEstatisticas, listarRobos, resumoCasaHoje } from "@/lib/consultas/publico";
 import { formatarBRL, formatarDataLonga, formatarHora } from "@/lib/formato";
+import { custosDaSoma, type RoboDaSoma } from "@/lib/premissa";
 import { hojeSP } from "@/lib/stats/periodos";
 import { valorDia } from "@/lib/stats/serie";
+import type { RoboPublico } from "@/lib/tipos";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,10 +20,11 @@ function brl(v: number): string {
 
 /**
  * O último pregão com operação, robô a robô, somado por contrato (mesma conta da home).
- * Só é buscado quando o dia de hoje está vazio, para a imagem não ficar de graça no fim de semana.
+ * Só é buscado quando o dia de hoje está vazio, para a imagem não ficar de graça no fim de semana. Os robôs
+ * chegam de quem chama, que já os leu para os custos da soma.
  */
-async function ultimoPregaoDeTodos(hoje: string) {
-  const [robos, estatisticas] = await Promise.all([listarRobos(), listarEstatisticas()]);
+async function ultimoPregaoDeTodos(hoje: string, robos: readonly RoboPublico[]) {
+  const estatisticas = await listarEstatisticas();
   const porRobo = new Map(robos.filter((r) => r.status !== "arquivado").map((r) => [r.slug, r]));
 
   let dia: string | null = null;
@@ -35,7 +38,7 @@ async function ultimoPregaoDeTodos(hoje: string) {
     .map((e) => {
       const robo = porRobo.get(e.slug)!;
       const o = { base: "liquido" as const, unidade: "brl" as const, valorPonto: robo.valor_ponto_brl };
-      return { slug: e.slug, nome: robo.nome, valor: valorDia(e, o), operou: e.n_operacoes > 0 };
+      return { slug: e.slug, nome: robo.nome, valor: valorDia(e, o), operou: e.n_operacoes > 0, semAoVivo: false };
     })
     .sort((a, b) => b.valor - a.valor);
 
@@ -52,22 +55,40 @@ async function ultimoPregaoDeTodos(hoje: string) {
  * robô", porque um robô pode ter várias entradas abertas ao mesmo tempo. A imagem continua sendo só o dia (o
  * de hoje ou o último pregão): não resume um período, não traz percentual nem média, e por isso não ganhou
  * outros números. O robô que ainda não operou no dia aparece por último, com "sem operação" escrito no lugar
- * de um "R$ 0,00" (DESIGN.md, seção 8: nada de fileira de zeros).
+ * de um "R$ 0,00" (DESIGN.md, seção 8: nada de fileira de zeros). O robô sem coletor não tem como dizer o que fez
+ * hoje: no lugar do "sem operação", que o site não sabe, vem "sem acompanhamento ao vivo", como na barra lateral.
+ *
+ * Os custos da soma (revisão de 25/11/2026) vêm de custosDaSoma (src/lib/premissa), com os robôs que entraram no
+ * número: todos com custo cadastrado, "já descontados os custos"; nenhum, "antes dos custos"; parte, "já
+ * descontados os custos, menos no X, que não tem custo no histórico". Dizia "já descontados os custos" sempre.
  */
 export async function GET() {
   const hoje = hojeSP();
-  const resumo = await resumoCasaHoje();
+  const [resumo, cadastro] = await Promise.all([resumoCasaHoje(), listarRobos()]);
+  const custoPorSlug = new Map(cadastro.map((r) => [r.slug, r.custo_por_contrato]));
+  const semColetor = new Set(cadastro.filter((r) => !r.tem_coletor).map((r) => r.slug));
   const vivos = (resumo?.robos ?? [])
     .filter((r) => r.status === "ativo" || r.n_operacoes > 0)
-    .map((r) => ({ slug: r.slug, nome: r.nome, valor: r.resultado_liquido_por_contrato, operou: r.n_operacoes > 0 }))
+    .map((r) => ({
+      slug: r.slug,
+      nome: r.nome,
+      valor: r.resultado_liquido_por_contrato,
+      operou: r.n_operacoes > 0,
+      semAoVivo: r.n_operacoes === 0 && semColetor.has(r.slug),
+    }))
     // quem operou vem primeiro, do melhor para o pior; quem ainda não operou fica no fim (e sai antes, se passar de 4)
     .sort((a, b) => Number(b.operou) - Number(a.operou) || b.valor - a.valor);
 
   // Sem operação hoje (fim de semana, feriado, antes da abertura) a imagem mostra o último pregão com a
   // data, como a home desde 19/09/2026: um "R$ 0,00" compartilhado no sábado não diz nada.
-  const passado = (resumo?.n_operacoes ?? 0) > 0 ? null : await ultimoPregaoDeTodos(hoje);
-  const robos = (passado ? passado.robos : vivos).slice(0, 4);
+  const passado = (resumo?.n_operacoes ?? 0) > 0 ? null : await ultimoPregaoDeTodos(hoje, cadastro);
+  const todos = passado ? passado.robos : vivos;
+  const robos = todos.slice(0, 4);
   const total = passado ? passado.total : (resumo?.resultado_liquido_por_contrato ?? 0);
+  // os custos de quem entrou no número (mesmo os que não couberam na linha de baixo); quem não operou no dia não
+  // soma nada, e só conta se ninguém operou
+  const operaram = todos.filter((r) => r.operou);
+  const daSoma: RoboDaSoma[] = (operaram.length > 0 ? operaram : todos).map((r) => ({ nome: r.nome, custoPorContrato: custoPorSlug.get(r.slug) }));
   const rotulo = passado ? "Resultado do último pregão, robôs somados" : "Resultado de hoje, robôs somados";
   const [prefixo, algarismos] = partesDoValor(robos.length > 0 ? brl(total) : "Em breve");
   const negativo = robos.length > 0 && total < 0;
@@ -111,7 +132,8 @@ export async function GET() {
             <span style={{ fontSize: 120, lineHeight: 1, letterSpacing: -4, color: negativo ? NEGATIVO : TEXTO }}>{algarismos}</span>
           </div>
           {robos.length > 0 ? (
-            <span style={{ fontSize: 24, color: MUDO, marginTop: 18 }}>com 1 contrato por entrada em cada robô, já descontados os custos</span>
+            // com robô sem custo na soma a frase passa de uma linha e quebra (cabem duas antes do fio de baixo)
+            <span style={{ fontSize: 24, lineHeight: 1.25, color: MUDO, marginTop: 18 }}>{`com 1 contrato por entrada em cada robô, ${custosDaSoma(daSoma)}`}</span>
           ) : null}
         </div>
 
@@ -130,7 +152,13 @@ export async function GET() {
             {robos.map((r) => (
               <div key={r.slug} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 <span style={{ fontSize: 22, color: MUDO }}>{r.nome}</span>
-                <span style={{ fontSize: 36, color: r.operou ? cor(r.valor) : MUDO, whiteSpace: "nowrap" }}>{r.operou ? brl(r.valor) : "sem operação"}</span>
+                {r.semAoVivo ? (
+                  // numa linha e menor que o valor: no tamanho dele a frase empurrava os outros robôs para fora. Com
+                  // quatro robôs e três valores de dez caracteres a linha ainda cabe (uns 1.060 dos 1.072 px)
+                  <span style={{ fontSize: 24, lineHeight: 1.2, color: MUDO, whiteSpace: "nowrap", paddingTop: 10 }}>sem acompanhamento ao vivo</span>
+                ) : (
+                  <span style={{ fontSize: 36, color: r.operou ? cor(r.valor) : MUDO, whiteSpace: "nowrap" }}>{r.operou ? brl(r.valor) : "sem operação"}</span>
+                )}
               </div>
             ))}
           </div>

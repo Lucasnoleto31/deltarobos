@@ -21,7 +21,6 @@ export type RoboBase = Pick<
   | "ultimoHeartbeatEm"
   | "temColetor"
   | "hoje"
-  | "mes"
 > & { acumulado?: number };
 
 export type RoboAoVivo<T extends RoboBase> = T & {
@@ -41,9 +40,10 @@ export type RoboAoVivo<T extends RoboBase> = T & {
  * a GradeRobos fazia sozinha; saiu para cá em 25/11/2026 porque a barra lateral do sistema mostra os
  * mesmos robôs em toda página e os dois precisam dizer a mesma coisa.
  *
- * Mês e acumulado do servidor já trazem o `hoje` do servidor; entra só o que o resumo tem além dele. Se o
- * resumo já é de outro dia (página montada ontem, lida hoje), o dia do servidor fica onde está e o resumo
- * entra inteiro (19/09/2026).
+ * O acumulado do servidor já traz o `hoje` do servidor; entra só o que o resumo tem além dele. Se o resumo
+ * já é de outro dia (página montada ontem, lida hoje), o dia do servidor fica onde está e o resumo entra
+ * inteiro (19/09/2026). O resultado do mês saiu em 25/11/2026: nenhuma tela o mostrava mais (a folha de
+ * robôs do celular deixou de trazê-lo, por ser um ganho sem a maior queda ao lado).
  */
 export function useRobosAoVivo<T extends RoboBase>(robos: readonly T[]): RoboAoVivo<T>[] {
   const { estado, feriados, pregaoPorAtivo, pregaoGeral, pregaoAbertoNoServidor, hoje: hojeDaCasa } = useCasa();
@@ -67,7 +67,6 @@ export function useRobosAoVivo<T extends RoboBase>(robos: readonly T[]): RoboAoV
         hoje,
         hojeOperacoes,
         hojeGains: vivo?.n_gain,
-        mes: robo.mes + delta,
         acumulado: robo.acumulado === undefined ? undefined : robo.acumulado + delta,
         posicionado,
         // mapa de coleta (fresco), resumo, snapshot do servidor, nesta ordem (21/09/2026)

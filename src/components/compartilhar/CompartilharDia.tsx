@@ -39,6 +39,11 @@ export interface PropsCompartilharDia {
   className?: string;
   /** robô em conta demo: a legenda do compartilhamento diz "Conta demo." (a imagem já traz o selo); 24/09/2026 */
   contaDemo?: boolean;
+  /**
+   * robos.custo_por_contrato: a legenda do compartilhamento escreve a premissa de src/lib/premissa ("já
+   * descontados os custos" ou "antes dos custos"), como a imagem. Sem ele a legenda não fala dos custos.
+   */
+  custoPorContrato?: number | null;
 }
 
 /**
@@ -67,6 +72,7 @@ export function CompartilharDia({
   caminhoDoLink,
   className,
   contaDemo = false,
+  custoPorContrato,
 }: PropsCompartilharDia) {
   const [aberto, setAberto] = useState(false);
   const [versaoAberta, setVersaoAberta] = useState(versao);
@@ -119,6 +125,7 @@ export function CompartilharDia({
           versao={versaoAberta}
           caminhoDoLink={caminho}
           contaDemo={contaDemo}
+          custoPorContrato={custoPorContrato}
         />
       </SheetContent>
     </Sheet>
@@ -133,6 +140,7 @@ interface PropsPrevia {
   versao: string;
   caminhoDoLink: string;
   contaDemo: boolean;
+  custoPorContrato: number | null | undefined;
 }
 
 type Resultado =
@@ -155,7 +163,7 @@ class FalhaDaImagem extends Error {
  * ativação do usuário ainda valendo. O setState só acontece na resposta, nunca no corpo do efeito (o padrão
  * do PainelCalendario).
  */
-function PreviaDoCard({ slug, nomeRobo, dia, formato, versao, caminhoDoLink, contaDemo }: PropsPrevia) {
+function PreviaDoCard({ slug, nomeRobo, dia, formato, versao, caminhoDoLink, contaDemo, custoPorContrato }: PropsPrevia) {
   const url = urlDoCard(slug, dia, formato, versao);
   const nome = nomeDoArquivo(slug, dia, formato);
   const [tentativa, setTentativa] = useState(0);
@@ -218,7 +226,7 @@ function PreviaDoCard({ slug, nomeRobo, dia, formato, versao, caminhoDoLink, con
   // nada de await antes do share: o Safari exige a ativação do usuário (o arquivo já está pronto)
   const compartilhar = async () => {
     if (!pronta) return;
-    const dados: ShareData = { files: [pronta.arquivo], ...textosDoCompartilhamento(nomeRobo, dia, linkAbsoluto(), contaDemo) };
+    const dados: ShareData = { files: [pronta.arquivo], ...textosDoCompartilhamento(nomeRobo, dia, linkAbsoluto(), { contaDemo, custoPorContrato }) };
     let aceita = false;
     try {
       aceita = navigator.canShare(dados);

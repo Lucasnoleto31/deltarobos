@@ -28,8 +28,13 @@ import { caminhosDaCurva, tamanhoParaCaber, type DadosCardDoDia, type NumeroDoCa
  *
  * Ajuste do render de verificação (24/09/2026): no quadrado, um MEP de 10 caracteres ("+R$ 344,00") ocupava 218 dos
  * 222 px da célula, e um valor um pouco mais largo quebraria em duas linhas. Os valores da linha de números não
- * quebram (nowrap) e têm um tamanho só, o maior que deixa os quatro caberem (tamanhoParaCaber, até 40 px, no mínimo
+ * quebram (nowrap) e têm um tamanho só, o maior que deixa todos caberem (tamanhoParaCaber, até 40 px, no mínimo
  * 30); os rótulos, idem (até 22 px, no mínimo 18). No caso comum nada muda: 40 e 22 px.
+ *
+ * Revisão de 25/11/2026: a linha de números tem três, como o dia escolhido em Dia a dia (operações, melhor e pior
+ * momento). Saiu "Com ganho", acertos sem o necessário para empatar. No quadrado os três ficam numa fileira, em
+ * células de 301 px; no story, as operações numa linha e o melhor e o pior momento na outra, com as células de
+ * 460 px de antes (a altura do bloco não muda).
  *
  * Ajustes da revisão (24/09/2026), dentro dos 15% previstos no contrato:
  * - A frase legal é o único aviso de risco da peça que sai do site, e era o menor texto da imagem (18 px no quadrado,
@@ -59,8 +64,8 @@ const MEDIDAS = {
     numeroMinimo: 30,
     rotuloNumero: 22,
     rotuloNumeroMinimo: 18,
-    /** (936 − 3 × 16) / 4: quatro células numa linha */
-    celula: 222,
+    /** (936 − 2 × 16) / 3: três células numa linha */
+    celula: 301,
     /** o respiro entre o fio e o que vem debaixo dele */
     depoisDoFio: 20,
     nota: 20,
@@ -90,7 +95,7 @@ const MEDIDAS = {
     numeroMinimo: 40,
     rotuloNumero: 26,
     rotuloNumeroMinimo: 20,
-    /** (936 − 16) / 2: grade 2 × 2 */
+    /** (936 − 16) / 2: as operações numa linha, o melhor e o pior momento na outra */
     celula: 460,
     depoisDoFio: 32,
     nota: 24,
@@ -233,7 +238,7 @@ export function CardDoDia({ dados, formato }: PropsCardDoDia) {
   const m = MEDIDAS[formato];
   const quadrado = formato === "quadrado";
   const temAviso = dados.parcial !== null || dados.contaDemo;
-  const [nNumero, nAcerto, nMep, nMen] = dados.numeros;
+  const [nOperacoes, nMep, nMen] = dados.numeros;
   const tamanhoValor = tamanhoComum(
     dados.numeros.map((n) => n.valor),
     m.celula,
@@ -330,21 +335,18 @@ export function CardDoDia({ dados, formato }: PropsCardDoDia) {
         )}
       </div>
 
-      {/* operações, acerto, MEP e MEN, com a fonte do MEP/MEN; um fio em cima, sem caixa em volta de cada número */}
+      {/* operações, melhor e pior momento, com a fonte do melhor e do pior; um fio em cima, sem caixa em volta de cada número */}
       <div style={{ display: "flex", flexDirection: "column", marginTop: m.entreBlocos, borderTop: `1px solid ${FIO}`, paddingTop: m.depoisDoFio }}>
         {quadrado ? (
           <div style={{ display: "flex", gap: 16 }}>
-            {numero(nNumero)}
-            {numero(nAcerto)}
+            {numero(nOperacoes)}
             {numero(nMep)}
             {numero(nMen)}
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
-            <div style={{ display: "flex", gap: 16 }}>
-              {numero(nNumero)}
-              {numero(nAcerto)}
-            </div>
+            {/* a célula das operações fica com a largura de meia linha, alinhada às de baixo */}
+            <div style={{ display: "flex", width: m.celula }}>{numero(nOperacoes)}</div>
             <div style={{ display: "flex", gap: 16 }}>
               {numero(nMep)}
               {numero(nMen)}

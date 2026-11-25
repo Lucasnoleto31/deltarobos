@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { formatarBRL } from "@/lib/formato";
 import { classificarFaixa, DESCRICAO_CLASSE, drawdownPorOperacao, PARAMETROS_FAIXAS_PADRAO, rotuloFaixa, validarFaixas } from "./faixas";
+import { acertoParaEmpatar } from "./indicadores-robo";
 import type { OperacaoCompacta } from "./operacoes";
 
 // [dia, hora, diaSemana, pontos, brl, custos, duracao, lado, simbolo]
@@ -140,6 +141,32 @@ describe("validarFaixas", () => {
     expect(f(1, 9).motivo).toBe("todas as operações terminaram com ganho e não houve queda no caminho");
     expect(f(3, 11).motivo).toBe("50% das operações terminaram com ganho e o resultado é 6,3 vezes a maior queda; para Ligar faltou chegar a 58% das operações com ganho");
     expect(f(5, 17).motivo).toBe("nenhuma operação neste dia e horário");
+  });
+
+  // revisão de 25/11/2026: os acertos de cada dia e horário vêm com o necessário para empatar (DESIGN.md, seção 9)
+  it("acertos com o necessário para empatar, pelo ganho e pela perda típicos do dia e horário", () => {
+    // quarta 11h: 25 ganhos de +10 e 25 perdas de −8 → precisa de 8 ÷ 18 com ganho só para empatar
+    expect(f(3, 11)).toMatchObject({ ganhoTipico: 10, perdaTipica: -8 });
+    expect(f(3, 11).paraEmpatar).toBeCloseTo(8 / 18);
+    // a mesma conta do Resumo
+    expect(f(3, 11).paraEmpatar).toBe(acertoParaEmpatar(10, -8));
+    // só ganho (segunda 9h) ou só perda (terça 10h): sem o outro lado não há número de empate, e nada se inventa
+    expect(f(1, 9)).toMatchObject({ ganhoTipico: 30, perdaTipica: null, paraEmpatar: null });
+    expect(f(2, 10)).toMatchObject({ ganhoTipico: null, perdaTipica: -50, paraEmpatar: null });
+    // sem operação nenhuma
+    expect(f(5, 17)).toMatchObject({ ganhoTipico: null, perdaTipica: null, paraEmpatar: null });
+  });
+
+  it("operação que fecha em zero não entra no ganho nem na perda típicos", () => {
+    // 30 ganhos de +24, 10 perdas de −105 e 5 em zero: precisa de 105 ÷ 129 (81%) só para empatar
+    const v = validarFaixas(serie(2, 14, [...Array(30).fill(24), ...Array(10).fill(-105), ...Array(5).fill(0)]));
+    const x = v.faixas.find((y) => y.diaSemana === 2 && y.hora === 14)!;
+    expect(x).toMatchObject({ n: 45, nGain: 30, ganhoTipico: 24, perdaTipica: -105 });
+    expect(x.acerto).toBeCloseTo(30 / 45);
+    expect(x.paraEmpatar).toBeCloseTo(105 / 129);
+    // só zeros: nem ganho nem perda
+    const zeros = validarFaixas(serie(2, 15, Array(40).fill(0))).faixas.find((y) => y.diaSemana === 2 && y.hora === 15)!;
+    expect(zeros).toMatchObject({ n: 40, nGain: 0, ganhoTipico: null, perdaTipica: null, paraEmpatar: null });
   });
 
   it("contagem, melhores e insights", () => {

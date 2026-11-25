@@ -31,5 +31,5 @@ export default async function PaginaFaixas({ params }: Props) {
   // 18/09/2026: a validação dos três períodos sai pronta daqui; as ~15 mil operações (~700 KB
   // no HTML) não vão mais ao navegador só para o painel refazer a conta a cada troca de período
   const resultados = calcularPorPeriodo(ops, hojeSP(), (opsP) => validarFaixas(opsP, parametros.faixas));
-  return <PainelFaixas resultados={resultados} />;
+  return <PainelFaixas resultados={resultados} custoPorContrato={robo.custo_por_contrato} />;
 }

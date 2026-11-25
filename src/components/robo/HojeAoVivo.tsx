@@ -12,6 +12,7 @@ import { versaoDoCard } from "@/components/compartilhar/url-do-card";
 import { Fato, Fatos, NumeroGrande } from "@/components/sistema/Numero";
 import { LINK_DO_PAINEL } from "@/components/sistema/Painel";
 import { formatarDataLonga, formatarHora, formatarNumero, formatarPreco, rotuloLado } from "@/lib/formato";
+import { premissaDoRobo } from "@/lib/premissa";
 import { fimDoDia } from "@/lib/stats/card-do-dia";
 import { mepMenDoDia, type ExposicaoHoje } from "@/lib/stats/exposicao";
 import { excursao } from "@/lib/stats/operacoes";
@@ -45,12 +46,17 @@ const VISIVEIS = 6;
 const SEM_POSICOES: PosicaoPublica[] = [];
 
 // o "o que é" do melhor e do pior momento medidos no MetaTrader 5 (22/09/2026); o texto padrão do glossário
-// fala das duas fontes, e aqui a fonte é uma só. "Parcial" explica o que falta
+// fala das duas fontes, e aqui a fonte é uma só. "Parcial" explica o que falta. A premissa dos custos é a do
+// robô (lib/premissa, revisão de 25/11/2026): "antes dos custos" no robô sem custo cadastrado
 const PARCIAL = " Parcial: a medição começou com o dia em andamento e pode ter perdido um ponto anterior.";
-const TEXTO_MEP_EA = (parcial: boolean) =>
-  `O ponto mais alto que o saldo do dia alcançou, com 1 contrato por entrada e já com custos, medido no MetaTrader 5 a cada movimento do preço, com a posição aberta: o mesmo número do Profit (MEP).${parcial ? PARCIAL : ""}`;
-const TEXTO_MEN_EA = (parcial: boolean) =>
-  `O ponto mais baixo que o saldo do dia alcançou, com 1 contrato por entrada e já com custos, medido no MetaTrader 5 a cada movimento do preço, com a posição aberta: o quanto o dia chegou a ficar no prejuízo (MEN).${parcial ? PARCIAL : ""}`;
+const TEXTO_MEP_EA = (parcial: boolean, custo: number) =>
+  `O ponto mais alto que o saldo do dia alcançou, ${premissaDoRobo(custo)}, medido no MetaTrader 5 a cada movimento do preço, com a posição aberta: o mesmo número do Profit (MEP).${parcial ? PARCIAL : ""}`;
+const TEXTO_MEN_EA = (parcial: boolean, custo: number) =>
+  `O ponto mais baixo que o saldo do dia alcançou, ${premissaDoRobo(custo)}, medido no MetaTrader 5 a cada movimento do preço, com a posição aberta: o quanto o dia chegou a ficar no prejuízo (MEN).${parcial ? PARCIAL : ""}`;
+
+// Ação em texto pequeno: o alvo de toque cresce pelo ::after até 36 px ou mais, sem o fio descer do texto
+// (DESIGN.md, seção 3; o mesmo recurso dos links de Dia a dia e de Operações)
+const ALVO_AMPLIADO = "relative after:absolute after:-inset-x-2 after:-inset-y-2.5";
 
 const fmtDiaComSemana = new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
 /** "segunda-feira, 23 de novembro de 2026" */
@@ -125,7 +131,7 @@ export function HojeAoVivo({ ultimoPregao }: Props) {
 
   const liquidos = useMemo(() => ops.map((o) => o.resultado_brl_por_contrato - o.custos_brl_por_contrato), [ops]);
   const liquido = liquidos.reduce((s, v) => s + v, 0);
-  // O melhor e o pior momento do dia, já descontados os custos como o número grande: os medidos no MetaTrader 5
+  // O melhor e o pior momento do dia, com os custos do robô como o número grande: os medidos no MetaTrader 5
   // a cada movimento do preço (22/09/2026), com a hora; sem medição, os de fechamento em fechamento, a mesma
   // reserva da tela cheia e da imagem do dia
   const momentos = useMemo(() => {
@@ -141,7 +147,7 @@ export function HojeAoVivo({ ultimoPregao }: Props) {
   const temSerie = saldo !== null && saldo.carregado && saldo.baldes.length > 0;
 
   const telaCheia = (
-    <Link href={`/robos/${robo.slug}/ao-vivo`} prefetch={false} className={cn(LINK_DO_PAINEL, "text-[0.8125rem]")}>
+    <Link href={`/robos/${robo.slug}/ao-vivo`} prefetch={false} className={cn(LINK_DO_PAINEL, ALVO_AMPLIADO, "text-[0.8125rem]")}>
       Abrir em tela cheia
     </Link>
   );
@@ -212,7 +218,7 @@ export function HojeAoVivo({ ultimoPregao }: Props) {
         <div className="min-w-0">
           <NumeroGrande valor={liquido} centavos={Math.abs(liquido) < 1000} />
           <p className="mt-3 text-sm text-pretty text-muted-foreground">
-            com 1 contrato por entrada, já descontados os custos ·{" "}
+            {premissaDoRobo(robo.custo_por_contrato)} ·{" "}
             {ops.length > 0 ? `${formatarNumero(ops.length)} ${ops.length === 1 ? "operação" : "operações"}` : "nenhuma operação fechada ainda"}
           </p>
           {/* a imagem do dia para a live, o WhatsApp e o Instagram (24/09/2026): só com operação, porque sem ela
@@ -236,12 +242,12 @@ export function HojeAoVivo({ ultimoPregao }: Props) {
           <Fatos>
             {momentos ? (
               <>
-                <Fato rotulo="Melhor momento do dia" info="mep" infoTexto={momentos.medido ? TEXTO_MEP_EA(momentos.parcial) : undefined}>
+                <Fato rotulo="Melhor momento do dia" info="mep" infoTexto={momentos.medido ? TEXTO_MEP_EA(momentos.parcial, robo.custo_por_contrato) : undefined}>
                   {momentos.melhorEm ? <span className="mr-3 text-sutil">{formatarHora(momentos.melhorEm)}</span> : null}
                   {/* o dia que nunca passou de zero não ganha um "R$ 0,00": diz isso em palavras */}
                   {momentos.melhor > 0 ? <Valor valor={momentos.melhor} className="font-medium" /> : <span className="text-muted-foreground">não ficou positivo</span>}
                 </Fato>
-                <Fato rotulo="Pior momento do dia" info="men" infoTexto={momentos.medido ? TEXTO_MEN_EA(momentos.parcial) : undefined}>
+                <Fato rotulo="Pior momento do dia" info="men" infoTexto={momentos.medido ? TEXTO_MEN_EA(momentos.parcial, robo.custo_por_contrato) : undefined}>
                   {momentos.piorEm ? <span className="mr-3 text-sutil">{formatarHora(momentos.piorEm)}</span> : null}
                   {momentos.pior < 0 ? <Valor valor={momentos.pior} className="font-medium" /> : <span className="text-muted-foreground">não ficou negativo</span>}
                 </Fato>
@@ -311,7 +317,10 @@ export function HojeAoVivo({ ultimoPregao }: Props) {
               type="button"
               onClick={() => setTodas((v) => !v)}
               aria-expanded={todas}
-              className="mt-3 border-b border-(--painel-fio-forte) py-1 text-sm text-muted-foreground transition-colors outline-none hover:border-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+              className={cn(
+                "mt-3 border-b border-(--painel-fio-forte) text-sm text-muted-foreground transition-colors outline-none hover:border-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50",
+                ALVO_AMPLIADO,
+              )}
             >
               {todas ? "Mostrar só as últimas" : `Mostrar as outras ${formatarNumero(escondidas)}`}
             </button>

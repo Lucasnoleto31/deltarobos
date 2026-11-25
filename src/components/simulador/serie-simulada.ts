@@ -15,7 +15,8 @@
 // resposta diz que não dá para avaliar, com o motivo.
 
 import type { QuedaDoGrafico } from "@/components/graficos/GraficoResultado";
-import { formatarBRL, formatarData, formatarDataCurta, formatarDataLonga, formatarNumero, formatarPct } from "@/lib/formato";
+import { formatarBRL, formatarData, formatarDataCurta, formatarDataLonga, formatarMultiplo, formatarNumero, formatarPct } from "@/lib/formato";
+import { custosDaSoma, type RoboDaSoma } from "@/lib/premissa";
 import { tempoEmPalavras } from "@/lib/stats/indicadores-robo";
 import { inicioPeriodo, somarDias, somarMeses } from "@/lib/stats/periodos";
 import { LIMITE_APERTADO, consumiriaOCapital, type PeriodoSimulador, type PontoSimulado, type Semaforo } from "@/lib/stats/simulador";
@@ -134,6 +135,32 @@ export function minimoSemCapital(
   if (total !== null) return `O capital mínimo para estes robôs e contratos é ${brl(total)}.`;
   const outros = conhecido > 0 ? ` Os outros robôs escolhidos pedem ${brl(conhecido)}.` : "";
   return `${faltaDoMinimo(sem)}${outros} Sem ele, não dá para dizer se um capital cabe.`;
+}
+
+/**
+ * O que é o capital mínimo da escolha, no balão que o termo abre (revisão de 25/11/2026). Usa as palavras do
+ * glossário ("o máximo de entradas que ele já teve abertas ao mesmo tempo", um dado do histórico, não um
+ * limite do robô) e diz que os contratos por entrada multiplicam a conta inteira, a garantia e a queda, como
+ * capitalMinimoDaCarteira faz. O "o que é" do glossário fala de 1 robô com 1 contrato; aqui é a soma.
+ */
+export function oQueEOCapitalMinimoDaEscolha(fatorSeguranca: number): string {
+  return (
+    "A soma dos robôs escolhidos. Para cada um, com 1 contrato por entrada: a garantia da corretora por contrato " +
+    "(a margem), vezes o máximo de entradas que ele já teve abertas ao mesmo tempo, mais a maior queda de todo o " +
+    `histórico dele vezes ${formatarMultiplo(fatorSeguranca, 1)}. Esse valor é multiplicado pelos contratos por ` +
+    "entrada escolhidos para ele. Quedas futuras podem ser maiores."
+  );
+}
+
+/**
+ * A premissa do resultado simulado, debaixo do número grande: os contratos escolhidos em palavras
+ * (contratosEmPalavras), os custos da soma (lib/premissa, custosDaSoma: o robô sem custo cadastrado é dito
+ * pelo nome, e a escolha só dele fica "antes dos custos") e o período com o tamanho do histórico
+ * (historicoEmPalavras). "com 1 contrato por entrada em cada um dos 3 robôs, já descontados os custos, menos
+ * no X, que não tem custo no histórico · desde 3 de janeiro de 2018 (8 anos e 10 meses, 1.995 pregões)".
+ */
+export function premissaDoResultado(escolha: string, escolhidos: readonly RoboDaSoma[], historico: string): string {
+  return `com ${escolha}, ${custosDaSoma(escolhidos)}${historico ? ` · ${historico}` : ""}`;
 }
 
 export interface DadosDaResposta {

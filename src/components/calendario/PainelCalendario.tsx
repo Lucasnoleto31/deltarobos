@@ -10,6 +10,7 @@ import { Fato, Fatos, NumeroGrande } from "@/components/sistema/Numero";
 import { Grade } from "@/components/sistema/Pagina";
 import { LINK_DO_PAINEL } from "@/components/sistema/Painel";
 import { formatarData, formatarDataCurta, formatarNumero } from "@/lib/formato";
+import { premissaDoRobo } from "@/lib/premissa";
 import { anosDoHistorico, gradeMes, historicoCurto, janelaConhecida, mesesComDados, resumirPeriodo } from "@/lib/stats/calendario";
 import type { ExposicaoDoDia } from "@/lib/stats/exposicao";
 import { tempoEmPalavras } from "@/lib/stats/indicadores-robo";
@@ -206,8 +207,8 @@ export function PainelCalendario({
   }
 
   const titulo = tituloDoMes(mes);
-  // a mesma regra do bloco "De onde vêm os números": robô sem custo cadastrado mostra o valor antes dos custos
-  const premissa = `com 1 contrato por entrada, ${custoPorContrato > 0 ? "já descontados os custos" : "antes dos custos"}`;
+  // a regra única de lib/premissa: robô sem custo cadastrado mostra o valor antes dos custos
+  const premissa = premissaDoRobo(custoPorContrato);
   // de quanto histórico saem as listas de melhores e piores dias: histórico curto diz o tamanho
   const ultimoDia = linhas.reduce((a, l) => (l.dia > a ? l.dia : a), janela.de);
   const deQuanto = historicoCurto(janela.de, ultimoDia)

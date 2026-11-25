@@ -76,14 +76,25 @@ function op(id: number, parcial: Partial<OperacaoPublica> = {}): OperacaoPublica
 
 const LINHAS = [pregao("2026-10-01", [24, 24, 24, 24], [-105]), pregao("2026-10-02", [24, 24], [-105, -105]), pregao("2026-10-05", [24, 24, 24, 24, 24, 24], [])];
 
-function relatorio(parcial: { linhas?: LinhaDiaria[]; capital?: CapitalDoRobo | null; ops?: OperacaoPublica[]; hoje?: string; robo?: RoboPublico } = {}) {
+function relatorio(
+  parcial: {
+    linhas?: LinhaDiaria[];
+    capital?: CapitalDoRobo | null;
+    ops?: OperacaoPublica[];
+    hoje?: string;
+    robo?: RoboPublico;
+    feriados?: string[];
+    acompanhado?: boolean;
+  } = {},
+) {
   const ops = parcial.ops ?? [op(1), op(2, { lado: "venda", resultado_brl_por_contrato: -104.75 })];
   const resumo = resumirMes({
     mes: "2026-10",
     linhas: parcial.linhas ?? LINHAS,
     hoje: parcial.hoje ?? "2026-11-25",
-    feriados: ["2026-10-12"],
+    feriados: parcial.feriados ?? ["2026-10-12"],
     duracoesSeg: ops.filter((o) => o.origem !== "manual").map((o) => o.duracao_seg),
+    acompanhado: parcial.acompanhado ?? true,
   });
   return frases(
     RelatorioMensal({
@@ -184,7 +195,51 @@ describe("RelatorioMensal: o que o PDF escreve", () => {
     expect(texto).toContain("Resultado do mês até 02/10");
     expect(texto).toContain("em 2 pregões com operação, de 01/10 a 02/10 (mês em andamento)");
     expect(texto).toContain("de 01/10 a 02/10; ainda não recuperou");
-    expect(texto[texto.indexOf("Operações") + 1]).toContain("operou em 2 de 2 pregões do mês até agora");
+    expect(texto[texto.indexOf("Operações") + 1]).toContain("operou em todos os pregões do mês até 02/10");
+  });
+
+  it("pregões como na aba Dia a dia: desde a estreia, até o último dia que o site conhece, e só em ano com feriados", () => {
+    const pregoesDoTexto = (texto: string[]) => semNbsp(texto[texto.indexOf("Operações") + 1]);
+    // estreou em 14/10: de 14 a 31 de outubro a bolsa teve 13 pregões (o feriado do dia 12 fica antes da estreia)
+    const estreia = [pregao("2026-10-14", [24], []), pregao("2026-10-15", [], [-105]), pregao("2026-10-19", [24], [])];
+    expect(pregoesDoTexto(relatorio({ linhas: estreia }))).toMatch(/; operou em 3 de 13 pregões desde a estreia, em 14\/10$/);
+    // robô que só tem histórico, que termina em 05/10: o site não sabe o que houve depois
+    expect(pregoesDoTexto(relatorio({ acompanhado: false }))).toMatch(/; operou em todos os pregões do mês até 05\/10$/);
+    // ano sem feriado cadastrado: a frase dos pregões não entra
+    expect(pregoesDoTexto(relatorio({ feriados: [] }))).not.toContain("operou em");
+  });
+
+  it("robô sem custo cadastrado: a premissa diz 'antes dos custos' e nada afirma que os custos foram descontados", () => {
+    const semCustos = LINHAS.map((l) => ({ ...l, resultado_brl_por_contrato: l.resultado_brl_por_contrato - l.custos_brl_por_contrato, custos_brl_por_contrato: 0 }));
+    const ops = [op(1, { custos_brl_por_contrato: 0 }), op(2, { lado: "venda", resultado_brl_por_contrato: -105, custos_brl_por_contrato: 0 })];
+    const texto = relatorio({ robo: { ...ROBO, custo_por_contrato: 0 }, linhas: semCustos, ops }).map(semNbsp);
+    expect(texto).toContain("com 1 contrato por entrada, antes dos custos");
+    expect(texto.some((t) => t.includes("Todos os valores são para 1 contrato por entrada, antes dos custos: este histórico não tem custo nenhum descontado."))).toBe(true);
+    expect(texto[texto.indexOf("Resultado médio por operação") + 1]).toBe(
+      "Antes dos custos: este histórico não tem custo nenhum descontado, e o custo de cada operação sai deste valor.",
+    );
+    for (const frase of texto) {
+      expect(frase).not.toContain("já descontados os custos");
+      expect(frase).not.toContain("depois de descontado o custo dela");
+      expect(frase).not.toContain("o resultado antes dos custos e os custos");
+    }
+    // o mesmo resultado do mês: o custo zero não muda a conta
+    expect(texto).toContain("-R$ 27,00");
+
+    // com custo, a nota diz o custo e como ele entra na conta
+    const comCusto = relatorio().map(semNbsp);
+    expect(comCusto.some((t) => t.startsWith("Todos os valores são para 1 contrato por entrada, já descontados os custos (R$ 0,25 por operação)."))).toBe(true);
+    expect(comCusto.some((t) => t.includes("Uma operação conta como ganho ou como perda depois de descontado o custo dela."))).toBe(true);
+  });
+
+  it("a tabela do dia a dia tem dia, operações, resultado e o somado do mês, sem as operações com ganho e com perda", () => {
+    const texto = relatorio().map(semNbsp);
+    const i = texto.indexOf("Dia a dia");
+    expect(i).toBeGreaterThan(-1);
+    expect(texto.slice(i + 1, i + 5)).toEqual(["Dia", "Operações", "Resultado", "Somado no mês"]);
+    expect(texto.slice(i + 5, i + 9)).toEqual(["01/10/2026", "5", "-R$ 9,00", "-R$ 9,00"]);
+    expect(texto).not.toContain("Com ganho");
+    expect(texto).not.toContain("Com perda");
   });
 
   it("a tabela de operações só tem as colunas que o mês preenche, com os nomes da aba Operações", () => {

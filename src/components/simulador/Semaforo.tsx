@@ -1,8 +1,7 @@
 import { cn } from "cn";
 import { RotuloComInfo } from "@/components/compartilhados/InfoIndicador";
-import { formatarMultiplo } from "@/lib/formato";
 import type { ResultadoSimulacao, RoboSimulador } from "@/lib/stats/simulador";
-import { respostaDoSimulador, type RespostaDoSimulador } from "./serie-simulada";
+import { oQueEOCapitalMinimoDaEscolha, respostaDoSimulador, type RespostaDoSimulador } from "./serie-simulada";
 
 /**
  * O texto fixo de compliance do simulador. Vai uma vez, debaixo do título da página, onde aparece com ou
@@ -69,7 +68,7 @@ export function Semaforo({ resultado, capital, digitado, escolha, robos, fatorSe
   });
 
   // o "o que é" do glossário fala de 1 robô com 1 contrato; aqui é a soma da escolha
-  const oQueE = `A soma dos robôs escolhidos. Para cada um: a garantia da corretora por contrato (a margem), vezes os contratos que ele pode ter abertos ao mesmo tempo, mais a maior queda de todo o histórico dele vezes ${formatarMultiplo(fatorSeguranca, 1)}. Quedas futuras podem ser maiores.`;
+  const oQueE = oQueEOCapitalMinimoDaEscolha(fatorSeguranca);
   // o termo aparece uma vez, no título (sem capital digitado) ou na frase, e é ele que abre a explicação
   const comOQueE = (texto: string) => {
     const achado = TERMO.exec(texto);

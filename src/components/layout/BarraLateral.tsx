@@ -22,6 +22,11 @@ const AREAS: { href: string; rotulo: string; exato?: boolean; prefetch?: false }
 interface Props {
   robos: RoboBase[];
   links: Links;
+  /**
+   * Os custos dos robôs com números no site, de custosDaSoma (lib/premissa), para a nota do pé: "já descontados
+   * os custos", ou com a ressalva do robô cujo histórico não tem custo cadastrado
+   */
+  custos: string;
   /** na gaveta do celular, fechar ao escolher um destino */
   aoNavegar?: () => void;
 }
@@ -35,7 +40,7 @@ interface Props {
  * operações", "hoje ainda sem operação", "em operação agora"): é onde o "ao vivo" aparece por robô em toda
  * página. Os robôs vêm do banco (nunca fixos no código), sem os arquivados.
  */
-export function ConteudoLateral({ robos, links, aoNavegar }: Props) {
+export function ConteudoLateral({ robos, links, custos, aoNavegar }: Props) {
   const pathname = usePathname();
   // A página inicial se reconhece pelo segmento de rota, não por pathname === "/": no HTML estático da home o
   // servidor não enxerga "/" no usePathname, e o item atual só aparecia no navegador, com erro de hidratação
@@ -112,7 +117,7 @@ export function ConteudoLateral({ robos, links, aoNavegar }: Props) {
       </nav>
 
       <div className="shrink-0 space-y-3.5 px-5 pb-5">
-        <p className="text-xs leading-relaxed text-pretty text-sutil">Todos os valores são para 1 contrato por entrada, já descontados os custos.</p>
+        <p className="text-xs leading-relaxed text-pretty text-sutil">Todos os valores são para 1 contrato por entrada, {custos}.</p>
         <div className="flex items-center gap-2">
           {links.whatsapp ? (
             <a href={links.whatsapp} target="_blank" rel="noopener noreferrer" className={buttonVariants({ className: "h-9 flex-1" })}>

@@ -4,6 +4,7 @@ import { ACENTO, ALERTA, FIO, FUNDO, MUDO, NEGATIVO, TEXTO, corDoResultado as co
 import { SIMBOLO_CAMINHOS, SIMBOLO_VIEWBOX } from "@/components/marca/Simbolo";
 import { buscarRobo, listarEstatisticas } from "@/lib/consultas/publico";
 import { formatarBRL, formatarHora, formatarNumero } from "@/lib/formato";
+import { premissaDoRobo } from "@/lib/premissa";
 import { comoOperou, tamanhoParaCaber, tempoDeHistorico } from "@/lib/stats/card-do-dia";
 import { casasDosAcertos } from "@/lib/stats/como-opera";
 import { hojeSP } from "@/lib/stats/periodos";
@@ -66,7 +67,9 @@ interface FatoDaImagem {
  * tamanho do histórico ("em 9 meses") e com a maior queda ao lado, que diz se já recuperou. Os acertos vêm com
  * o necessário para empatar ("83 de cada 100" e, embaixo, "precisa de 81 para empatar"); sem ganho ou sem
  * perda para comparar, não aparecem. Saiu o total de operações, que não ajuda a decidir, e o código do ativo
- * ("WIN"), que fica só pelo nome.
+ * ("WIN"), que fica só pelo nome. Os custos vêm de src/lib/premissa: o robô sem custo cadastrado diz "antes dos
+ * custos" (dizia "já descontados os custos"). A origem, "direto do MetaTrader 5", fica como está, por decisão do
+ * Lucas: o histórico continua descrito como hoje.
  */
 export async function GET(_req: Request, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -173,7 +176,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug: s
           <span style={{ fontSize: 24, color: MUDO, marginTop: 18 }}>
             {emBreve
               ? "Os números aparecem assim que a primeira operação fechar."
-              : "com 1 contrato por entrada, já descontados os custos · direto do MetaTrader 5"}
+              : `${premissaDoRobo(robo.custo_por_contrato)} · direto do MetaTrader 5`}
           </span>
         </div>
 

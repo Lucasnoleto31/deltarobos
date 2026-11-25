@@ -17,8 +17,12 @@ export interface DadosCardRobo {
   nPosicoesAbertas?: number;
   ultimoHeartbeatEm: string | null;
   temColetor: boolean;
+  /**
+   * robo.custo_por_contrato. Só para a premissa do resultado (lib/premissa): sem custo cadastrado o histórico do
+   * robô está antes dos custos, e a soma da Visão geral diz isso no lugar de "já descontados os custos"
+   */
+  custoPorContrato: number;
   hoje: number;
-  mes: number;
   acumulado: number;
   drawdownMaximo: number;
   sparkline: number[];

@@ -93,6 +93,8 @@ export default async function PaginaSimulador() {
         entradasAbertas: capital?.entradas ?? 1,
         // sem operação acompanhada ao vivo não há o que medir: a tela diz isso em vez de afirmar "1 entrada"
         entradasMedidas: capital ? capital.entradasEm !== null : false,
+        // o custo cadastrado decide a premissa do resultado: sem ele, a série está antes dos custos
+        custoPorContrato: r.custo_por_contrato,
       };
     })
     .filter((r) => r.dias.length > 0);

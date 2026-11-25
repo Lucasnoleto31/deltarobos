@@ -19,8 +19,8 @@
 // e os nomes dos campos (fonteMepMen, notaMepMen, valores.mep...) são os mesmos.
 //
 // A premissa aparece uma vez na imagem, em duas partes: "com 1 contrato por entrada" no rótulo do resultado e "Já
-// descontados os custos" no rodapé. O rodapé com a frase inteira ("Com 1 contrato, já descontados os custos ·
-// endereço") não cabe: medido na Geist, com quantsrobos.com/robos/alaska-square, dá 997 px a 26 px (story) numa
+// descontados os custos" (ou "Antes dos custos", no robô sem custo cadastrado) no rodapé. O rodapé com a frase
+// inteira ("Com 1 contrato, já descontados os custos · endereço") não cabe: medido na Geist, com quantsrobos.com/robos/alaska-square, dá 997 px a 26 px (story) numa
 // linha de 936, e a segunda linha encosta o rodapé no eixo da curva. Do jeito que ficou são 811 px; o antigo ("Por
 // 1 contrato, líquido de custos · ...") tinha 879. As notas e a legenda cabem numa linha nos dois formatos (a mais
 // comprida, a legenda com "aproximado" e "desde HH:MM", mede 759 px a 24 px).
@@ -28,19 +28,27 @@
 // Revisão dos indicadores (25/11/2026, DESIGN.md seção 9; Lucas: "informações que não são importantes vamos tirar,
 // coloque indicadores que fazem sentido para o trader quando o assunto é robô"): a premissa passou a dizer "com 1
 // contrato por entrada", porque o robô pode ter várias entradas abertas ao mesmo tempo e cada uma usa 1 contrato.
-// A imagem do dia continua com o que as telas do dia mostram (operações, quantas com ganho, melhor e pior
-// momento). No fim deste arquivo ficam as contas do resto do que sai do site: a prévia do robô, o widget e o
-// relatório do mês em PDF (comoOperou, tempoDeHistorico e resumirMes), para as três peças usarem as mesmas regras
-// das telas: acertos sempre com o necessário para empatar, resultado sempre com a maior queda do mesmo período.
+// A imagem do dia mostra o que as telas do dia mostram: as operações, o melhor e o pior momento. A contagem de
+// operações com ganho saiu da imagem como saiu do dia escolhido em Dia a dia e da tela cheia: acertos não aparecem
+// sem o necessário para empatar, e num dia só essa conta não diz nada. No fim deste arquivo ficam as contas do
+// resto do que sai do site: a prévia do robô, o widget e o relatório do mês em PDF (comoOperou, tempoDeHistorico e
+// resumirMes), para as três peças usarem as mesmas regras das telas: acertos sempre com o necessário para empatar,
+// resultado sempre com a maior queda do mesmo período.
+//
+// Os custos (revisão de 25/11/2026): o rodapé diz "Já descontados os custos" ou "Antes dos custos" pelo custo
+// cadastrado do robô (src/lib/premissa, a mesma regra das telas). O robô cujo histórico não tem custo dizia "Já
+// descontados os custos" na imagem.
 
 import { formatarBRL, formatarDataLonga, formatarHora, formatarNumero, formatarPontos } from "@/lib/formato";
+import { custosDoRobo } from "@/lib/premissa";
 import type { BaldeCompacto, FechamentoCompacto, OperacaoPublica, RoboPublico } from "@/lib/tipos";
+import { anosComFeriados, ehPregaoSemOperacao, janelaConhecida } from "./calendario";
 import { duracaoTipica } from "./como-opera";
 import { mepMenDoDia, type ExposicaoHoje } from "./exposicao";
-import { acertoParaEmpatar, contarPregoes, tempoEmPalavras } from "./indicadores-robo";
+import { acertoParaEmpatar, tempoEmPalavras } from "./indicadores-robo";
 import { excursao } from "./operacoes";
-import { agoraSP, mesDe, somarMeses } from "./periodos";
-import { normalizarHora, type HorarioPregao } from "./pregao";
+import { agoraSP, mesDe, somarDias, somarMeses } from "./periodos";
+import { ehDiaPregao, normalizarHora, type HorarioPregao } from "./pregao";
 import {
   baldesDoPregao,
   fechamentosDasOperacoes,
@@ -173,16 +181,24 @@ export interface DadosCardDoDia {
   tomResultado: TomCard;
   /** `${formatarPontos(p, true)} pts` */
   pontos: string;
-  /** operações, quantas terminaram com ganho, melhor momento e pior momento do dia (os dois últimos, o MEP e o MEN) */
-  numeros: readonly [NumeroDoCard, NumeroDoCard, NumeroDoCard, NumeroDoCard];
+  /** operações, melhor momento e pior momento do dia (os dois últimos, o MEP e o MEN) */
+  numeros: readonly [NumeroDoCard, NumeroDoCard, NumeroDoCard];
   fonteMepMen: "mt5" | "fechamento";
   notaMepMen: string;
   curva: CurvaDoCard;
-  /** "Já descontados os custos · quantsrobos.com/robos/apollo" (o "com 1 contrato por entrada" está em rotuloResultado) */
+  /**
+   * "Já descontados os custos · quantsrobos.com/robos/apollo", ou "Antes dos custos · ..." no robô sem custo
+   * cadastrado (o "com 1 contrato por entrada" está em rotuloResultado)
+   */
   rodape: string;
   legal: string;
-  /** números crus, para os testes e o alt */
-  valores: { resultado: number; pontos: number; nOperacoes: number; nGains: number; mep: number; men: number; ultimoDadoT: number };
+  /** números crus, para os testes */
+  valores: { resultado: number; pontos: number; nOperacoes: number; mep: number; men: number; ultimoDadoT: number };
+}
+
+/** "antes dos custos" -> "Antes dos custos": o rodapé começa a frase */
+function comMaiuscula(texto: string): string {
+  return texto.charAt(0).toUpperCase() + texto.slice(1);
 }
 
 /** R$ curto dos números pequenos da imagem: inteiro a partir de mil, como a prévia OG e o eixo da curva */
@@ -268,15 +284,13 @@ export function montarCardDoDia(entrada: EntradaCardDoDia): DadosCardDoDia | nul
   const ops = [...entrada.operacoes].sort((a, b) => Date.parse(a.fechamento_em) - Date.parse(b.fechamento_em) || 0);
   const n = ops.length;
 
-  // líquido de cada operação e os totais, pela mesma regra do Hoje ao vivo e da tela cheia (gain = líquido > 0)
+  // líquido de cada operação e os totais, pela mesma regra do Hoje ao vivo e da tela cheia
   const liquidos = ops.map((o) => o.resultado_brl_por_contrato - o.custos_brl_por_contrato);
   let resultado = 0;
   let pontos = 0;
-  let nGains = 0;
   for (let i = 0; i < n; i++) {
     resultado += liquidos[i];
     pontos += ops[i].pontos_por_contrato;
-    if (liquidos[i] > 0) nGains += 1;
   }
 
   const horario = horarioDaJanela(robo, pregao);
@@ -380,20 +394,22 @@ export function montarCardDoDia(entrada: EntradaCardDoDia): DadosCardDoDia | nul
     tomResultado: tomDoValor(resultado),
     pontos: `${formatarPontos(pontos, true)} pts`,
     numeros: [
-      // Lidos em sequência: "55 operações, 36 com ganho" (a segunda célula era "65%", com o rótulo "acerto · 36
-      // gains"). Os quatro rótulos cabem na célula de 222 px do quadrado no tamanho cheio, 22 px: o mais comprido,
-      // "Melhor momento", mede 175 px.
+      // Os mesmos três do dia escolhido em Dia a dia. Até 25/11/2026 a segunda célula era "Com ganho" (antes,
+      // "65% · acerto · 36 gains"): acertos sem o necessário para empatar, que as telas do dia já não mostram. Os
+      // três rótulos cabem na célula de 301 px do quadrado no tamanho cheio, 22 px: o mais comprido, "Melhor
+      // momento", mede 175 px.
       { rotulo: n === 1 ? "Operação" : "Operações", valor: formatarNumero(n), tom: null },
-      { rotulo: "Com ganho", valor: formatarNumero(nGains), tom: null },
       { rotulo: "Melhor momento", valor: brlCurto(mep), tom: tomDoValor(mep) },
       { rotulo: "Pior momento", valor: brlCurto(men), tom: tomDoValor(men) },
     ],
     fonteMepMen,
     notaMepMen,
     curva,
-    rodape: `Já descontados os custos · ${enderecoCurto(site)}/robos/${robo.slug}`,
+    // os custos pela regra das telas: o robô sem custo cadastrado diz "Antes dos custos" (o mais comprido dos dois
+    // rodapés é o com custo, que já cabia numa linha)
+    rodape: `${comMaiuscula(custosDoRobo(robo.custo_por_contrato))} · ${enderecoCurto(site)}/robos/${robo.slug}`,
     legal: fraseLegalCurta(disclaimer),
-    valores: { resultado, pontos, nOperacoes: n, nGains, mep, men, ultimoDadoT },
+    valores: { resultado, pontos, nOperacoes: n, mep, men, ultimoDadoT },
   };
 }
 
@@ -536,9 +552,10 @@ export function caminhosDaCurva(curva: CurvaDoCard, caixa: CaixaDaCurva): Caminh
 // tamanho que tem. Saíram delas o que saiu do site: ganho médio contra perda média como razão (o payoff), a
 // maior queda em % do capital de referência, o resultado antes dos custos como número de destaque e os
 // recortes por dia da semana, por hora e por código de contrato. Aqui ficam só as contas, em R$ para 1 contrato
-// por entrada e já descontados os custos; quem escreve as frases é quem desenha.
+// por entrada, descontado o custo cadastrado de cada operação (zero no robô sem custo); quem escreve as frases é
+// quem desenha, com a premissa de src/lib/premissa.
 
-/** A série diária em R$, já descontados os custos (o valor do ponto só entra na conta em pontos). */
+/** A série diária em R$, descontado o custo cadastrado (o valor do ponto só entra na conta em pontos). */
 const EM_REAIS: OpcoesSerie = { base: "liquido", unidade: "brl", valorPonto: 0 };
 
 /** O que a conta de como o robô operou lê de cada pregão (estatisticas_publico). */
@@ -652,16 +669,32 @@ export interface EntradaResumoDoMes {
   feriados: readonly string[];
   /** a duração, em segundos, de cada operação do mês que tem horário de entrada (as importadas não têm) */
   duracoesSeg: readonly number[];
+  /**
+   * O robô é acompanhado dia a dia (tem coletor e está ativo), a mesma regra da aba Dia a dia: nele, um pregão
+   * sem operação até ontem é "não operou"; no robô que só tem histórico, o site só sabe até o último dia com
+   * operação (janelaConhecida).
+   */
+  acompanhado: boolean;
 }
 
 export interface DiaDoMes {
   dia: string;
   operacoes: number;
-  comGanho: number;
-  comPerda: number;
   resultado: number;
   /** o resultado somado do começo do mês até este dia */
   somado: number;
+}
+
+/** De quando a quando os pregões da bolsa foram contados no mês. */
+export interface PregoesContados {
+  /** o dia 1º, ou o primeiro dia com operação do robô, quando ele estreou no mês */
+  de: string;
+  /** o fim do mês, ou o último dia que o site conhece (ontem, no mês em andamento; o último com operação, no histórico) */
+  ate: string;
+  /** o robô estreou dentro do mês: a conta começa no primeiro dia dele */
+  estreouNoMes: boolean;
+  /** a conta vai até o último dia do mês */
+  ateOFimDoMes: boolean;
 }
 
 export interface QuedaDoMes {
@@ -681,8 +714,14 @@ export interface ResumoDoMes {
   resultado: number;
   /** pregões com operação no mês */
   pregoes: number;
-  /** pregões que a bolsa teve no mês (até hoje, no mês em andamento); nulo quando não fecha com os dias operados */
+  /**
+   * Os pregões que a bolsa teve no mês, contados como na aba Dia a dia: os com operação mais os em que o robô não
+   * operou, só dentro do que o site conhece (de `pregoesContados.de` a `pregoesContados.ate`). Nulo quando o site
+   * não sabe: ano sem feriado cadastrado, mês sem operação ou operação gravada em dia que não foi pregão.
+   */
   pregoesDaBolsa: number | null;
+  /** de quando a quando os pregões da bolsa foram contados; nulo junto com pregoesDaBolsa */
+  pregoesContados: PregoesContados | null;
   ultimoDia: string | null;
   /** a maior queda dentro do mês: do ponto mais alto ao mais baixo que veio depois, partindo do zero no dia 1º */
   maiorQueda: QuedaDoMes;
@@ -703,8 +742,14 @@ export interface ResumoDoMes {
  * Os números do relatório do mês (o PDF de /api/relatorios/[slug]/[mes]/pdf). O resultado do mês vem com a
  * maior queda de dentro do mês, os dias com ganho e o pior dia; os acertos, com o necessário para empatar. A
  * curva do mês parte do zero no dia 1º: um mês que só cai tem como maior queda o que perdeu.
+ *
+ * Os pregões da bolsa no mês seguem a regra da aba Dia a dia (revisão de 25/11/2026): só contam dentro da janela
+ * que o site conhece (janelaConhecida: da estreia do robô até ontem, no robô acompanhado, ou até o último dia
+ * com operação, no que só tem histórico) e só num ano com feriados cadastrados (anosComFeriados). Antes a conta
+ * ia do dia 1º até hoje com os feriados que houvesse: o PDF dizia que o robô deixou de operar em pregões de antes
+ * da estreia dele e em feriados de anos sem calendário, e contradizia o Dia a dia do mesmo mês.
  */
-export function resumirMes({ mes, linhas, hoje, feriados, duracoesSeg }: EntradaResumoDoMes): ResumoDoMes {
+export function resumirMes({ mes, linhas, hoje, feriados, duracoesSeg, acompanhado }: EntradaResumoDoMes): ResumoDoMes {
   // curvaAcumulada ordena por dia e devolve um ponto por linha, na mesma ordem
   const ordenadas = linhas.filter((l) => mesDe(l.dia) === mes && l.dia <= hoje).sort((a, b) => (a.dia < b.dia ? -1 : a.dia > b.dia ? 1 : 0));
   const curva = curvaAcumulada(ordenadas, EM_REAIS);
@@ -718,13 +763,12 @@ export function resumirMes({ mes, linhas, hoje, feriados, duracoesSeg }: Entrada
     const l = ordenadas[i];
     if (p.valor > 0) diasComGanho += 1;
     if (piorDia === null || p.valor < piorDia.valor) piorDia = { dia: p.dia, valor: p.valor };
-    dias.push({ dia: p.dia, operacoes: l.n_operacoes, comGanho: l.n_gain, comPerda: l.n_loss, resultado: p.valor, somado: p.acumulado });
+    dias.push({ dia: p.dia, operacoes: l.n_operacoes, resultado: p.valor, somado: p.acumulado });
   }
 
-  const pregoes = new Set(dias.map((d) => d.dia)).size;
-  const [ano, m] = mes.split("-").map(Number);
-  const fimDoMes = `${mes}-${String(new Date(Date.UTC(ano, m, 0)).getUTCDate()).padStart(2, "0")}`;
-  const daBolsa = contarPregoes(`${mes}-01`, fimDoMes < hoje ? fimDoMes : hoje, feriados);
+  const operados = new Set(dias.map((d) => d.dia));
+  const pregoes = operados.size;
+  const contados = contarPregoesDoMes(mes, operados, linhas, hoje, feriados, acompanhado);
 
   const operou = comoOperou(ordenadas);
 
@@ -733,8 +777,8 @@ export function resumirMes({ mes, linhas, hoje, feriados, duracoesSeg }: Entrada
     emAndamento: mesDe(hoje) === mes,
     resultado: curva.length > 0 ? curva[curva.length - 1].acumulado : 0,
     pregoes,
-    // feriado que falta na lista ou operação gravada fora de dia útil: sem a conta fechar, o total não aparece
-    pregoesDaBolsa: daBolsa >= pregoes && daBolsa > 0 ? daBolsa : null,
+    pregoesDaBolsa: contados ? contados.total : null,
+    pregoesContados: contados ? contados.janela : null,
     ultimoDia: dias.length > 0 ? dias[dias.length - 1].dia : null,
     maiorQueda: { valor: queda.valor, inicio: queda.inicio, fundo: queda.fundo, recuperouEm: queda.recuperacao },
     diasComGanho,
@@ -744,5 +788,52 @@ export function resumirMes({ mes, linhas, hoje, feriados, duracoesSeg }: Entrada
     // a mediana, como na aba Resumo: uma operação que atravessa a tarde não muda o que é o normal
     duracaoTipicaSeg: duracaoTipica(duracoesSeg),
     dias,
+  };
+}
+
+/**
+ * Os pregões da bolsa no mês, pela conta da aba Dia a dia (gradeMes): os dias com operação mais os pregões sem
+ * operação dentro da janela conhecida do robô (ehPregaoSemOperacao). Nulo quando o site não sabe dizer: mês sem
+ * operação, ano sem feriado cadastrado (um dia útil sem operação tanto pode ser pregão quanto feriado que ninguém
+ * cadastrou) ou operação gravada num dia que não foi pregão (feriado na lista ou fim de semana: a conta não fecha).
+ */
+function contarPregoesDoMes(
+  mes: string,
+  operados: ReadonlySet<string>,
+  linhas: readonly LinhaDiaria[],
+  hoje: string,
+  feriados: readonly string[],
+  acompanhado: boolean,
+): { total: number; janela: PregoesContados } | null {
+  if (operados.size === 0) return null;
+  const anos = anosComFeriados(feriados);
+  if (!anos.has(mes.slice(0, 4))) return null;
+  // a janela vem do histórico inteiro, como na aba Dia a dia: a estreia do robô pode ser num mês anterior
+  const janela = janelaConhecida(
+    linhas.filter((l) => l.dia <= hoje).map((l) => l.dia),
+    hoje,
+    acompanhado,
+  );
+  if (!janela) return null;
+
+  const [ano, m] = mes.split("-").map(Number);
+  const inicioDoMes = `${mes}-01`;
+  const fimDoMes = `${mes}-${String(new Date(Date.UTC(ano, m, 0)).getUTCDate()).padStart(2, "0")}`;
+  const de = janela.de > inicioDoMes ? janela.de : inicioDoMes;
+  const ate = janela.ate < fimDoMes ? janela.ate : fimDoMes;
+  if (de > ate) return null;
+
+  // os dias com operação do mês ficam todos dentro de [de, ate]: a janela vai do primeiro ao último dia com operação, no mínimo
+  let semOperacao = 0;
+  for (let dia = de; dia <= ate; dia = somarDias(dia, 1)) {
+    if (operados.has(dia)) {
+      if (!ehDiaPregao(dia, feriados)) return null;
+    } else if (ehPregaoSemOperacao(dia, feriados, anos, janela)) {
+      semOperacao += 1;
+    }
+  }
+  return {
+    total: operados.size + semOperacao,
+    janela: { de, ate, estreouNoMes: janela.de > inicioDoMes, ateOFimDoMes: ate === fimDoMes },
   };
 }

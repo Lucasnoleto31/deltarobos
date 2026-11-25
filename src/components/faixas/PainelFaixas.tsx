@@ -11,11 +11,15 @@ import { VAZIO_DO_PERIODO } from "@/components/robo/periodos-resumo";
 import { Fato, Fatos } from "@/components/sistema/Numero";
 import { LINK_DO_PAINEL, Painel } from "@/components/sistema/Painel";
 import { formatarBRL, formatarNumero, formatarPct } from "@/lib/formato";
+import { premissaDoRobo } from "@/lib/premissa";
+import { casasDosAcertos } from "@/lib/stats/como-opera";
 import { DIAS_UTEIS, HORAS, LOTE_POR_CLASSE, ROTULO_CLASSE, type ClasseFaixa, type Faixa, type ResultadoFaixas } from "@/lib/stats/faixas";
 
 interface Props {
   /** validarFaixas de cada período, calculado na página (18/09/2026: as operações não vêm mais) */
   resultados: Record<PeriodoPainel, ResultadoFaixas>;
+  /** robos.custo_por_contrato: a premissa diz se os valores estão depois ou antes dos custos (lib/premissa) */
+  custoPorContrato: number;
 }
 
 type Filtro = "todos" | ClasseFaixa;
@@ -67,12 +71,56 @@ const pct = (v: number) => formatarPct(v, 0);
 const vezes = (v: number) => `${formatarNumero(v, Number.isInteger(v) ? 0 : 1)} ${v < 2 ? "vez" : "vezes"}`;
 
 /**
+ * Os acertos do dia e horário e o necessário para empatar, com as mesmas casas (casasDosAcertos): "89%" e "81%",
+ * ou "80,6%" e "80,9%" quando os dois arredondariam para o mesmo número. Sem ganho ou sem perda no dia e horário
+ * não há número de empate: no lugar dele vai o porquê, sem inventar (DESIGN.md, seção 9), em frase (o fato do
+ * alto) e curto (a célula da tabela).
+ */
+function acertosDe(f: Pick<Faixa, "acerto" | "paraEmpatar" | "ganhoTipico" | "perdaTipica">) {
+  const casas = casasDosAcertos(f.acerto, f.paraEmpatar);
+  const falta = f.ganhoTipico === null && f.perdaTipica === null ? "ganho nem perda" : f.perdaTipica === null ? "perda" : "ganho";
+  return {
+    acertos: formatarPct(f.acerto, casas),
+    paraEmpatar: f.paraEmpatar === null ? null : formatarPct(f.paraEmpatar, casas),
+    semEmpate: {
+      frase: falta === "ganho nem perda" ? "nenhuma operação terminou com ganho nem com perda" : `nenhuma operação terminou com ${falta}`,
+      curta: `sem ${falta}`,
+    },
+  };
+}
+
+/**
+ * O fato dos acertos ao lado do dia e horário: "Operações com ganho · 89% de 417", com a segunda metade da frase
+ * embaixo do rótulo, como as notas dos fatos do Resumo ("precisa de 81% só para empatar"). Até 25/11/2026 era
+ * "Operações · 417 · 89% com ganho", sem o empate, contra a regra da seção 9 do DESIGN.md.
+ */
+function FatoDosAcertos({ faixa }: { faixa: Faixa }) {
+  const a = acertosDe(faixa);
+  return (
+    <Fato
+      rotulo={
+        <>
+          Operações com ganho
+          <span className="-mt-1 block pb-1 text-[0.8125rem] leading-5 text-pretty text-sutil">
+            {a.paraEmpatar !== null ? `precisa de ${a.paraEmpatar} só para empatar` : a.semEmpate.frase}
+          </span>
+        </>
+      }
+    >
+      <span className="font-medium">{a.acertos}</span>
+      <span className="text-muted-foreground"> de {formatarNumero(faixa.n)}</span>
+    </Fato>
+  );
+}
+
+/**
  * Aba "Melhores horários" (ficha Mesa, 25/11/2026). Responde a uma pergunta: em que dia da semana e em que
  * horário o robô vai melhor, e quando é melhor não operar.
  *
  * - A resposta vem em palavras, no lugar do número grande: "Quinta às 9h", o dia e horário de entrada com a
- *   maior nota entre os classificados como Ligar. Embaixo, a classe dele e a premissa; ao lado, os fatos
- *   (operações e acertos, resultado, maior queda e o tamanho sugerido da posição).
+ *   maior nota entre os classificados como Ligar. Embaixo, a classe dele e a premissa (premissaDoRobo, de
+ *   lib/premissa: "antes dos custos" no robô sem custo cadastrado); ao lado, os fatos (as operações com ganho e
+ *   o necessário para empatar, resultado, maior queda e o tamanho sugerido da posição).
  * - O mapa de dia da semana por hora de entrada é o gráfico da tela, na largura toda: um quadro por dia e
  *   horário, chapado na cor da classe, com a classe escrita. O mapa é o controle: passar o ponteiro, focar
  *   ou tocar num quadro troca as palavras e os fatos de cima pelos dele; tocar de novo volta ao melhor.
@@ -88,8 +136,12 @@ const vezes = (v: number) => `${formatarNumero(v, Number.isInteger(v) ? 0 : 1)} 
  * horário", "score" é "nota", "lote sugerido" é "tamanho sugerido da posição" e "drawdown" é "maior queda".
  *
  * Os números continuam vindo de validarFaixas, calculados na página para os três períodos.
+ *
+ * Revisão de 25/11/2026: os acertos de cada dia e horário (no fato do alto e na coluna da tabela) vêm sempre com
+ * o necessário para empatar, pelo ganho e pela perda típicos daquele dia e horário (DESIGN.md, seção 9: "acertos
+ * nunca aparecem sem o necessário para empatar"); sem ganho ou sem perda, a tela diz isso no lugar do número.
  */
-export function PainelFaixas({ resultados }: Props) {
+export function PainelFaixas({ resultados, custoPorContrato }: Props) {
   const [periodo, setPeriodo] = useState<PeriodoPainel>("tudo");
   const [filtro, setFiltro] = useState<Filtro>("todos");
   // 19/09/2026: o quadro escolhido fica guardado pelo dia e hora, não pelo objeto: ao trocar o período o
@@ -235,17 +287,15 @@ export function PainelFaixas({ resultados }: Props) {
                   )}
                 </p>
                 <p className="text-sm text-pretty text-sutil">
-                  pelo horário em que cada operação começou · {formatarNumero(r.nOperacoes)} operações {QUANDO[periodo]}, com 1 contrato, já
-                  descontados os custos
+                  pelo horário em que cada operação começou · {formatarNumero(r.nOperacoes)} operações {QUANDO[periodo]},{" "}
+                  {premissaDoRobo(custoPorContrato)}
                 </p>
               </div>
 
-              {/* a altura de quatro fatos fica reservada: quadro sem classe tem três, e o mapa não pula */}
-              <Fatos className="max-w-[24rem] xl:min-h-28 xl:pb-0.5">
-                <Fato rotulo="Operações">
-                  <span className="font-medium">{formatarNumero(mostrada.n)}</span>
-                  <span className="text-muted-foreground"> · {pct(mostrada.acerto)} com ganho</span>
-                </Fato>
+              {/* a altura de quatro fatos (um deles com a segunda linha do empate) fica reservada: quadro sem classe
+                  tem três, e o mapa não pula */}
+              <Fatos className="max-w-[24rem] xl:min-h-33 xl:pb-0.5">
+                <FatoDosAcertos faixa={mostrada} />
                 <Fato rotulo="Resultado">
                   <Valor valor={mostrada.total} inteiro={Math.abs(mostrada.total) >= 1000} className="font-medium" />
                 </Fato>
@@ -358,31 +408,43 @@ export function PainelFaixas({ resultados }: Props) {
                     <th>Classe</th>
                     <th className="num">Operações</th>
                     <th className="num">Acertos</th>
+                    {/* os acertos nunca aparecem sem o necessário para empatar (DESIGN.md, seção 9) */}
+                    <th className="num">Para empatar</th>
                     <th className="num">Resultado</th>
                     <th className="num">Maior queda</th>
                     <th className="num">Nota</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {visiveis.map((f) => (
-                    <tr key={chaveFaixa(f)}>
-                      <td className="font-medium whitespace-nowrap">{nomeDoHorario(f)}</td>
-                      <td className="whitespace-nowrap text-muted-foreground">{f.classe ? ROTULO_CLASSE[f.classe] : "–"}</td>
-                      <td className="num">{formatarNumero(f.n)}</td>
-                      <td className="num">{pct(f.acerto)}</td>
-                      {/* sem centavos nas duas colunas de dinheiro, para os valores alinharem */}
-                      <td className="num">
-                        <Valor valor={f.total} inteiro />
-                      </td>
-                      <td className="num text-muted-foreground">{f.dd > 0 ? formatarBRL(-f.dd, { sinal: true, inteiro: true }) : "nenhuma"}</td>
-                      <td className="num font-medium">{formatarNumero(f.score)}</td>
-                    </tr>
-                  ))}
+                  {visiveis.map((f) => {
+                    const a = acertosDe(f);
+                    return (
+                      <tr key={chaveFaixa(f)}>
+                        <td className="font-medium whitespace-nowrap">{nomeDoHorario(f)}</td>
+                        <td className="whitespace-nowrap text-muted-foreground">{f.classe ? ROTULO_CLASSE[f.classe] : "–"}</td>
+                        <td className="num">{formatarNumero(f.n)}</td>
+                        <td className="num">{a.acertos}</td>
+                        <td className="num whitespace-nowrap text-muted-foreground">{a.paraEmpatar ?? a.semEmpate.curta}</td>
+                        {/* sem centavos nas duas colunas de dinheiro, para os valores alinharem */}
+                        <td className="num">
+                          <Valor valor={f.total} inteiro />
+                        </td>
+                        <td className="num text-muted-foreground">{f.dd > 0 ? formatarBRL(-f.dd, { sinal: true, inteiro: true }) : "nenhuma"}</td>
+                        <td className="num font-medium">{formatarNumero(f.score)}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
             {linhas.length > LINHAS_DA_TABELA ? (
-              <button type="button" onClick={() => setVerTodos((v) => !v)} aria-expanded={verTodos} className={cn("mt-4 text-[0.8125rem]", LINK_DO_PAINEL)}>
+              // o alvo de toque cresce pelo ::after (36 px ou mais), sem o fio descer do texto (DESIGN.md, seção 3)
+              <button
+                type="button"
+                onClick={() => setVerTodos((v) => !v)}
+                aria-expanded={verTodos}
+                className={cn("relative mt-4 text-[0.8125rem] after:absolute after:-inset-x-2 after:-inset-y-2.5", LINK_DO_PAINEL)}
+              >
                 {verTodos ? `Ver só os ${LINHAS_DA_TABELA} primeiros` : `Ver os ${formatarNumero(linhas.length)} dias e horários`}
               </button>
             ) : null}

@@ -104,7 +104,8 @@ export default async function LayoutRobo({ children, params }: Props) {
           entradas={capital && capital.entradasEm !== null ? capital.entradas : null}
         />
         <AbasRobo slug={slug} temColetor={robo.tem_coletor} />
-        {/* a aba Ao vivo de um robô sem coletor responde 404 daqui, antes do esqueleto de carregamento */}
+        {/* a aba Ao vivo de um robô sem coletor responde 404 daqui, antes do esqueleto de carregamento; a tela é a
+            do 404 de /robos, que diz que o robô não tem acompanhamento ao vivo e leva ao Resumo dele */}
         <SoComColetor temColetor={robo.tem_coletor}>
           <CorpoPagina>{children}</CorpoPagina>
         </SoComColetor>

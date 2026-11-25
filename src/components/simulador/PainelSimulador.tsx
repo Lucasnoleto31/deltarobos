@@ -33,6 +33,7 @@ import {
   minimoEmPalavras,
   minimoSemCapital,
   pregoes,
+  premissaDoResultado,
 } from "./serie-simulada";
 import { inteiroDe, lerCapital, lerUrlSimulador, normalizarContratos, urlSimulador, type EstadoSimulador } from "./simulador-url";
 
@@ -110,7 +111,8 @@ function CampoInteiro({
  *    garantia da corretora é por contrato), o capital mínimo dele e, quando o histórico tem menos de 12
  *    meses, o tamanho do histórico. Quando dois robôs escolhidos ganham e perdem nos mesmos dias, a nota
  *    "robôs que andam juntos" diz em quantos pregões;
- * 4. o resultado simulado em número grande, com a premissa e o tamanho do histórico embaixo e, ao lado, a
+ * 4. o resultado simulado em número grande, com a premissa (os contratos e os custos, que vêm de lib/premissa:
+ *    o robô escolhido sem custo cadastrado é dito pelo nome) e o tamanho do histórico embaixo e, ao lado, a
  *    maior queda (em R$, em % do capital e se já voltou ao topo) e o pior dia; depois a curva, com a maior
  *    queda em vermelho. Passar o ponteiro na curva troca o número pelo acumulado até aquele pregão;
  * 5. "Mais números": meses com ganho, pior mês, dias com perda e quando foi a maior queda.
@@ -188,7 +190,12 @@ export function PainelSimulador({ robos, hoje, fatorSeguranca }: Props) {
 
   // o que a conta do capital mínimo considera para cada robô escolhido: contratos, entradas abertas e o mínimo dele
   const daSelecao = new Map(minimoDaSelecao.porRobo.map((p) => [p.slug, p]));
-  const escolhidos = minimoDaSelecao.porRobo.map((p) => ({ nome: nomeDe(p.slug), contratos: p.contratos }));
+  // o custo de cada robô escolhido vem do servidor: decide se a premissa diz "já descontados os custos"
+  const escolhidos = minimoDaSelecao.porRobo.map((p) => ({
+    nome: nomeDe(p.slug),
+    contratos: p.contratos,
+    custoPorContrato: robos.find((x) => x.slug === p.slug)?.custoPorContrato ?? null,
+  }));
   const semMinimo = minimoDaSelecao.semMinimo.map((slug) => ({
     nome: nomeDe(slug),
     porque: robos.find((x) => x.slug === slug)?.semMinimoPorque ?? "garantia",
@@ -333,13 +340,11 @@ export function PainelSimulador({ robos, hoje, fatorSeguranca }: Props) {
             <Resultado
               r={resultado}
               digitado={estado.capital !== null}
-              premissa={`com ${escolha}, já descontados os custos · ${historicoEmPalavras(
-                estado.periodo,
-                resultado.serie[0].dia,
-                resultado.serie[resultado.serie.length - 1].dia,
-                resultado.nDias,
-                hoje,
-              )}`}
+              premissa={premissaDoResultado(
+                escolha,
+                escolhidos,
+                historicoEmPalavras(estado.periodo, resultado.serie[0].dia, resultado.serie[resultado.serie.length - 1].dia, resultado.nDias, hoje),
+              )}
             />
           ) : null}
         </section>

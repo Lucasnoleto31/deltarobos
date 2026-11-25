@@ -2,12 +2,15 @@ import { RotuloComInfo } from "@/components/compartilhados/InfoIndicador";
 import { Valor } from "@/components/compartilhados/Valor";
 import { ListaKpi, type ItemKpi } from "@/components/desempenho/CardsKpi";
 import { formatarBRL, formatarData, formatarDuracao, formatarNumero } from "@/lib/formato";
+import { custosDoRobo, premissaDoRobo, temCusto } from "@/lib/premissa";
 import { casasDosAcertos, type ComoOpera, type PregoesOperados } from "@/lib/stats/como-opera";
 import { VAZIO_DO_PERIODO } from "./periodos-resumo";
 
 interface Props {
   /** as contas do histórico inteiro (comoOpera, em lib/stats/como-opera) */
   como: ComoOpera;
+  /** robos.custo_por_contrato: os balões que falam em custo dizem se os valores estão depois ou antes dos custos */
+  custoPorContrato: number;
   /** a duração típica de uma operação, em segundos; nula quando nenhuma foi medida (histórico importado) */
   duracaoSeg: number | null;
   /** em quantos pregões operou, contra os que a bolsa teve quando o calendário de feriados cobre o histórico */
@@ -20,6 +23,23 @@ interface Props {
 // A duração é a mediana das operações medidas (duracaoTipica): o texto do glossário fala em tempo médio
 const TEXTO_DA_DURACAO =
   "Quanto dura uma operação típica, da entrada à saída: metade das operações dura menos do que isso e metade dura mais. Mostra se o robô fica segundos, minutos ou horas com uma operação aberta.";
+
+/**
+ * Os balões que falam em custo, com a premissa do robô (revisão de 25/11/2026): o texto padrão do glossário diz
+ * "já descontados os custos" sempre, e o robô cujo histórico não tem custo cadastrado aparecia assim no Resumo,
+ * contra a premissa do número grande e a nota do resultado médio por operação. A premissa vem de lib/premissa.
+ */
+function textosDosCustos(custo: number) {
+  return {
+    taxaAcerto: `De cada 100 operações, quantas terminaram com ganho, ${custosDoRobo(custo)} (o mercado chama de taxa de acerto). Sozinho, não diz se o robô ganha dinheiro: veja ao lado quantos acertos ele precisa só para empatar.`,
+    ganhoMedio: `Quanto o robô ganha, em média, numa operação que termina com ganho, ${premissaDoRobo(custo)}.`,
+    perdaMedia: `Quanto o robô perde, em média, numa operação que termina com perda, ${premissaDoRobo(custo)}.`,
+    maiorPerda: `O resultado da operação que mais perdeu em todo o histórico, ${premissaDoRobo(custo)}. É o pior caso de uma operação só.`,
+    resultadoPorOperacao: temCusto(custo)
+      ? `O resultado dividido pelo número de operações, ${custosDoRobo(custo)}. É a folga do robô: se na sua conta cada operação custar mais ou sair a um preço pior, é daqui que sai.`
+      : `O resultado dividido pelo número de operações, ${custosDoRobo(custo)}. É a folga do robô: o custo de cada operação na sua conta, e um preço pior na execução, saem daqui.`,
+  };
+}
 
 /**
  * "Como ele opera", na aba Resumo do robô (revisão de 25/11/2026, DESIGN.md seção 9): o jeito do robô em uma
@@ -35,13 +55,15 @@ const TEXTO_DA_DURACAO =
  * Saíram, com a revisão: média por mês, retorno sobre o capital, a razão entre ganho médio e perda média, o
  * melhor dia e as sequências. O que o sistema não mediu não aparece: sem horário de entrada (histórico
  * importado) não há duração nem entradas abertas, e sem calendário de feriados do período não há comparação
- * com os pregões da bolsa. Tudo com 1 contrato por entrada e já descontados os custos.
+ * com os pregões da bolsa. Tudo com 1 contrato por entrada e com a premissa dos custos do robô (lib/premissa):
+ * os balões que falam em custo dizem "antes dos custos" no robô sem custo cadastrado.
  */
-export function ComoEleOpera({ como: c, duracaoSeg, pregoes, entradas, className }: Props) {
+export function ComoEleOpera({ como: c, custoPorContrato, duracaoSeg, pregoes, entradas, className }: Props) {
   if (c.operacoes === 0 || c.acertos === null) {
     return <p className="py-6 text-sm text-muted-foreground">{VAZIO_DO_PERIODO.tudo}</p>;
   }
 
+  const textos = textosDosCustos(custoPorContrato);
   // "83 de cada 100" e "81": inteiros, ou com uma casa quando os dois arredondariam para o mesmo número
   const casas = casasDosAcertos(c.acertos, c.paraEmpatar);
   const de100 = {
@@ -52,6 +74,7 @@ export function ComoEleOpera({ como: c, duracaoSeg, pregoes, entradas, className
     {
       rotulo: "Acertos",
       info: "taxaAcerto",
+      infoTexto: textos.taxaAcerto,
       valor: `${de100.acertos} de cada 100`,
       detalhe:
         de100.paraEmpatar !== null ? (
@@ -75,6 +98,7 @@ export function ComoEleOpera({ como: c, duracaoSeg, pregoes, entradas, className
     itens.push({
       rotulo: "Ganho típico",
       info: "ganhoMedio",
+      infoTexto: textos.ganhoMedio,
       valor: <Valor valor={c.ganhoTipico} />,
       detalhe: "o tamanho médio de uma operação que termina com ganho",
     });
@@ -83,6 +107,7 @@ export function ComoEleOpera({ como: c, duracaoSeg, pregoes, entradas, className
     itens.push({
       rotulo: "Perda típica",
       info: "perdaMedia",
+      infoTexto: textos.perdaMedia,
       valor: <Valor valor={c.perdaTipica} />,
       detalhe: "o tamanho médio de uma operação que termina com perda",
     });
@@ -91,6 +116,7 @@ export function ComoEleOpera({ como: c, duracaoSeg, pregoes, entradas, className
     itens.push({
       rotulo: "Maior perda numa operação",
       info: "maiorPerda",
+      infoTexto: textos.maiorPerda,
       valor: <Valor valor={c.maiorPerda.valor} inteiro={Math.abs(c.maiorPerda.valor) >= 1000} />,
       detalhe: `em ${formatarData(c.maiorPerda.dia)}`,
     });
@@ -99,6 +125,7 @@ export function ComoEleOpera({ como: c, duracaoSeg, pregoes, entradas, className
     itens.push({
       rotulo: "Resultado médio por operação",
       info: "resultadoPorOperacao",
+      infoTexto: textos.resultadoPorOperacao,
       valor: <Valor valor={c.porOperacao.resultado} />,
       detalhe:
         c.porOperacao.custo > 0

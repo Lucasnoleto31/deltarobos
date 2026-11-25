@@ -166,6 +166,7 @@ export default async function PaginaRobo({ params }: Props) {
         >
           <ComoEleOpera
             como={como}
+            custoPorContrato={robo.custo_por_contrato}
             duracaoSeg={duracaoSeg}
             pregoes={pregoes}
             entradas={capital && capital.entradasEm !== null ? { maximo: capital.entradas, em: capital.entradasEm } : null}

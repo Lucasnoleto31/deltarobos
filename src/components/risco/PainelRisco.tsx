@@ -9,6 +9,7 @@ import { Grade } from "@/components/sistema/Pagina";
 import { LINK_DO_PAINEL, Painel } from "@/components/sistema/Painel";
 import type { CapitalDoRobo } from "@/lib/consultas/capital";
 import { formatarBRL, formatarData, formatarDataCurta, formatarNumero, formatarPct } from "@/lib/formato";
+import { premissaDoRobo, temCusto } from "@/lib/premissa";
 import { tempoEmPalavras } from "@/lib/stats/indicadores-robo";
 import type { ContaDoCapital, EpisodioDrawdown, PiorMomento, ResultadoPorOperacao, RiscoDoRobo } from "@/lib/stats/risco";
 import { CurvaDaQueda } from "./CurvaDaQueda";
@@ -29,6 +30,8 @@ interface Props {
   /** o pior momento dentro de um pregão, só quando o coletor mediu */
   momento: PiorMomento | null;
   porOperacao: ResultadoPorOperacao | null;
+  /** robos.custo_por_contrato: a premissa diz se os valores estão depois ou antes dos custos (lib/premissa) */
+  custoPorContrato: number;
 }
 
 // quantas quedas a tabela lista, depois da maior: as pequenas não mudam a resposta da tela
@@ -77,14 +80,15 @@ const parte = (fracao: number) => formatarPct(fracao, fracao < 0.1 ? 1 : 0);
  * Aqui só se desenha: as contas vêm prontas de lib/stats/risco (riscoDoRobo, contaDoCapital,
  * piorMomentoMedido, resultadoPorOperacao) e de consultas/capital.
  */
-export function PainelRisco({ slug, dias, risco, capital, conta, limite, momento, porOperacao }: Props) {
+export function PainelRisco({ slug, dias, risco, capital, conta, limite, momento, porOperacao, custoPorContrato }: Props) {
   if (risco.pregoes === 0 || risco.primeiroDia === null || risco.ultimoDia === null) {
     return <p className="text-sm text-muted-foreground">Sem operações fechadas ainda.</p>;
   }
 
   const { maior, outras, atual } = risco;
-  const comCustos = (porOperacao?.custo ?? 0) > 0;
-  const premissa = `com 1 contrato por entrada, ${comCustos ? "já descontados os custos" : "antes dos custos"} · histórico de ${tempoEmPalavras(risco.primeiroDia, risco.ultimoDia)}`;
+  // a regra única de lib/premissa, pelo custo cadastrado do robô (o mesmo critério das outras abas)
+  const comCustos = temCusto(custoPorContrato);
+  const premissa = `${premissaDoRobo(custoPorContrato)} · histórico de ${tempoEmPalavras(risco.primeiroDia, risco.ultimoDia)}`;
 
   const fatos = maior ? (
     <Fatos className="max-w-[28rem] xl:pb-0.5">

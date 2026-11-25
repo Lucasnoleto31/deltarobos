@@ -24,8 +24,10 @@ const PREGAO_PADRAO: HorarioPregao = { inicio: "09:00", fim: "18:00" };
 /**
  * GET /api/og/[slug]/[dia] — a imagem do dia para compartilhar (24/09/2026, pedido do Lucas: "uma imagem pronta ao
  * fim de cada pregão ... é o que alimenta a live, o WhatsApp e o Instagram sem montar nada na mão"). PNG com a
- * marca, o robô, a data, o resultado do dia (com 1 contrato por entrada, já descontados os custos), as operações e
- * quantas com ganho, o melhor e o pior momento do dia e a curva real do dia (a mesma do Hoje ao vivo), em
+ * marca, o robô, a data, o resultado do dia (com 1 contrato por entrada; "já descontados os custos" ou "antes dos
+ * custos" pelo custo cadastrado do robô, src/lib/premissa), as operações, o melhor e o pior momento do dia (sem a
+ * contagem de operações com ganho desde 25/11/2026, como o dia escolhido em Dia a dia) e a curva real do dia (a
+ * mesma do Hoje ao vivo), em
  * ?formato=quadrado (1080×1080, o padrão) ou ?formato=story (1080×1920). Qualquer outro parâmetro, como o v= que
  * o botão põe para a prévia de hoje não vir velha, é ignorado aqui.
  *

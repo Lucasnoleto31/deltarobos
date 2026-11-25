@@ -1,3 +1,5 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { formatarPct } from "@/lib/formato";
 import { LIMITE_APERTADO } from "@/lib/stats/simulador";
@@ -5,6 +7,15 @@ import { GLOSSARIO, type ChaveIndicador } from "./glossario";
 
 // as regras mecânicas do texto do "o que é" (19/09/2026); o tom (leigo, sem marketing) se confere lendo
 const entradas = Object.entries(GLOSSARIO) as Array<[ChaveIndicador, (typeof GLOSSARIO)[ChaveIndicador]]>;
+
+/** o código de src, fora do próprio glossário e dos testes: onde uma chave precisa aparecer para continuar aqui */
+function codigoQueCitaOGlossario(): string {
+  const raiz = join(process.cwd(), "src");
+  const arquivos = readdirSync(raiz, { recursive: true, encoding: "utf-8" }).filter(
+    (f) => /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f) && !/compartilhados[\\/]glossario\.ts$/.test(f),
+  );
+  return arquivos.map((f) => readFileSync(join(raiz, f), "utf-8")).join("\n");
+}
 
 /** primeira palavra, sem acento de caixa e sem pontuação em volta */
 function primeiraPalavra(s: string): string {
@@ -22,7 +33,24 @@ const parenteses = (s: string) => s.match(/\([^)]*\)/g) ?? [];
 
 describe("glossário de indicadores", () => {
   it("tem entradas", () => {
-    expect(entradas.length).toBeGreaterThan(40);
+    expect(entradas.length).toBeGreaterThan(20);
+  });
+
+  // revisão de 25/11/2026: as chaves dos indicadores que saíram do site saíram daqui. Uma chave fica enquanto
+  // alguma tela a cita, entre aspas ("drawdown", info="drawdown") ou como GLOSSARIO.drawdown; quando a última
+  // tela deixa de citá-la, ela sai do tipo e do GLOSSARIO
+  it("toda chave é citada por alguma tela", () => {
+    const codigo = codigoQueCitaOGlossario();
+    const semUso = entradas
+      .map(([chave]) => chave)
+      .filter((chave) => !new RegExp(`["'\`]${chave}["'\`]|GLOSSARIO\\.${chave}\\b`).test(codigo));
+    expect(semUso).toEqual([]);
+  });
+
+  // a premissa dos custos vem de src/lib/premissa, escrita junto do número: o robô sem custo cadastrado está
+  // antes dos custos, e um texto fixo do glossário afirmaria o contrário no balão dele
+  it.each(entradas)("%s: não afirma que os custos estão descontados", (_chave, e) => {
+    expect(e.texto).not.toMatch(/descontados os custos|com o custo considerado/i);
   });
 
   it.each(entradas)("%s: texto de 20 a 260 caracteres, terminando em ponto", (_chave, e) => {
@@ -60,33 +88,23 @@ describe("glossário de indicadores", () => {
     expect(e.texto).not.toMatch(/por contrato, l|líquido de custos/i);
   });
 
-  // a tela dizia "Maior queda" e o balão abria com "Drawdown máximo"; "Acertos" abria "Taxa de acerto"; "Nota",
-  // "Score". O nome de cada chave em uso é o rótulo que a tela põe nela (KpisRobo, PainelDesempenho,
-  // PainelResultado, PainelComparativo, HojeAoVivo, TabelaOperacoes, CabecalhoRobo, PainelSimulador)
+  // a tela dizia "Maior queda" e o balão abria com "Drawdown máximo"; "Acertos" abria "Taxa de acerto". O nome
+  // de cada chave é o rótulo que a tela põe nela (PainelResultado, PainelCasa, ComoEleOpera, PainelRisco,
+  // CabecalhoRobo, HojeAoVivo, DiaEscolhido, PainelSimulador e Como funciona)
   it("o nome é o rótulo da tela", () => {
     const rotulos: Partial<Record<ChaveIndicador, string>> = {
       drawdown: "Maior queda",
-      drawdownPct: "Maior queda, em % do capital",
-      taxaAcerto: "Acertos",
-      payoff: "Ganho médio contra perda média",
-      fatorLucro: "Fator de lucro",
-      operacoes: "Operações",
-      mediaMensal: "Média por mês",
-      sequenciaDiasNegativos: "Maior sequência de dias com perda",
-      retorno: "Retorno sobre o capital",
       capitalMinimo: "Capital mínimo",
-      contratosPadrao: "Contratos por operação",
+      taxaAcerto: "Acertos",
+      fatorLucro: "Fator de lucro",
+      piorDia: "Pior dia",
+      diasPositivos: "Dias com ganho",
+      diasNegativos: "Dias com perda",
+      sequenciaDiasNegativos: "Maior sequência de dias com perda",
       mep: "Melhor momento do dia",
       men: "Pior momento do dia",
-      // as chaves sem uso na tela seguem o vocabulário da seção 7 do DESIGN.md
-      faixa: "Dia e horário",
-      score: "Nota",
-      lote: "Tamanho sugerido da posição",
-      bruto: "Antes dos custos",
-      liquido: "Já descontados os custos",
-      porContrato: "Com 1 contrato por entrada",
-      diasPositivos: "Dias com ganho",
-      volatilidade: "Variação de um dia para o outro",
+      flutuante: "Resultado da operação aberta",
+      semaforoCapital: "Cabe, apertado ou não cabe",
     };
     for (const [chave, rotulo] of Object.entries(rotulos) as Array<[ChaveIndicador, string]>) {
       expect(GLOSSARIO[chave].nome, chave).toBe(rotulo);
@@ -144,8 +162,14 @@ describe("glossário de indicadores", () => {
   it("o termo técnico fica no texto, entre parênteses, para quem já conhece", () => {
     expect(GLOSSARIO.drawdown.texto).toMatch(/\([^)]*drawdown[^)]*\)/);
     expect(GLOSSARIO.taxaAcerto.texto).toMatch(/\([^)]*taxa de acerto[^)]*\)/);
-    expect(GLOSSARIO.payoff.texto).toMatch(/\([^)]*payoff[^)]*\)/);
-    expect(GLOSSARIO.volatilidade.texto).toMatch(/\([^)]*volatilidade[^)]*\)/);
+    expect(GLOSSARIO.flutuante.texto).toMatch(/\([^)]*flutuante[^)]*\)/);
+  });
+
+  // a duração típica do Resumo é a mediana das operações medidas (duracaoTipica), e não a média: o texto diz isso
+  it("duração típica é a do meio, não a média", () => {
+    const t = GLOSSARIO.duracaoMedia.texto;
+    expect(t).toMatch(/metade das operações dura menos do que isso, metade dura mais/);
+    expect(t).not.toMatch(/médi[oa]/i);
   });
 
   // 21/09/2026: o contador conta entradas ainda abertas, e o texto tem que dizer que não é contrato
@@ -156,10 +180,11 @@ describe("glossário de indicadores", () => {
     expect(e.texto).toMatch(/contratos/);
   });
 
-  // 22/09/2026: MEP/MEN com duas fontes (tick a tick pelo coletor 1.1.0, ou por fechamento) e MFE/MAE.
-  // 25/11/2026 (ficha Mesa): na tela são o melhor e o pior momento, do dia e da operação; a sigla saiu do nome
-  // e fica uma vez no texto, entre parênteses, e "pontos por contrato" virou "em pontos"
-  it("melhor e pior momento do dia citam as duas fontes; os da operação são em pontos", () => {
+  // 22/09/2026: MEP/MEN com duas fontes (tick a tick pelo coletor 1.1.0, ou por fechamento) e o MAE da operação.
+  // 25/11/2026 (ficha Mesa): na tela são o melhor e o pior momento do dia e o pior momento da operação (a coluna
+  // da aba Operações); a sigla saiu do nome e fica uma vez no texto, entre parênteses, e "pontos por contrato"
+  // virou "em pontos"
+  it("melhor e pior momento do dia citam as duas fontes; o da operação é em pontos", () => {
     for (const chave of ["mep", "men"] as const) {
       const e = GLOSSARIO[chave];
       expect(e.texto).toMatch(/movimento do preço/);
@@ -167,42 +192,27 @@ describe("glossário de indicadores", () => {
     }
     expect(GLOSSARIO.mep.texto).toMatch(/\([^)]*MEP[^)]*\)/);
     expect(GLOSSARIO.men.texto).toMatch(/\([^)]*MEN[^)]*\)/);
-    expect(GLOSSARIO.mfe.nome).toBe("Melhor momento da operação");
     expect(GLOSSARIO.mae.nome).toBe("Pior momento da operação");
-    expect(GLOSSARIO.mfe.texto).toMatch(/\([^)]*MFE[^)]*\)/);
     expect(GLOSSARIO.mae.texto).toMatch(/\([^)]*MAE[^)]*\)/);
-    for (const chave of ["mfe", "mae"] as const) {
-      const e = GLOSSARIO[chave];
-      expect(e.texto).toMatch(/em pontos/);
-      expect(e.texto).toMatch(/enquanto ela esteve aberta/);
-    }
-    expect(GLOSSARIO.mfe.texto).toMatch(/a favor/);
+    expect(GLOSSARIO.mae.texto).toMatch(/em pontos/);
+    expect(GLOSSARIO.mae.texto).toMatch(/enquanto ela esteve aberta/);
     expect(GLOSSARIO.mae.texto).toMatch(/contra/);
   });
 
-  // 23/09/2026: a curva do dia com duas fontes (série do saldo do EA 1.1.2 a cada 5 s, ou por fechamento), a
-  // faixa mín./máx. de cada balde e os dentes de MFE/MAE nas curvas por operação.
-  // 25/11/2026 (ficha Mesa): o nome da curva do dia é o título que a tela põe em cima dela, e o dos dentes
-  // deixou de levar as siglas
-  it("curva do dia cita as duas fontes; faixa e dentes descrevem o desenho", () => {
+  // 23/09/2026: a curva do dia com duas fontes (série do saldo do EA 1.1.2 a cada 5 s, ou por fechamento).
+  // 25/11/2026 (ficha Mesa): o nome é o título que a tela põe em cima dela
+  it("curva do dia cita as duas fontes", () => {
     expect(GLOSSARIO.curvaDoDia.nome).toBe("Saldo ao longo do dia");
     expect(GLOSSARIO.curvaDoDia.texto).toMatch(/5 segundos/);
     expect(GLOSSARIO.curvaDoDia.texto).toMatch(/operação por operação/);
-    expect(GLOSSARIO.faixaSaldo.texto).toMatch(/menor e o maior/);
-    expect(GLOSSARIO.dentesExcursao.nome).toBe("Melhor e pior momento de cada operação");
-    expect(GLOSSARIO.dentesExcursao.texto).toMatch(/\([^)]*MAE e MFE[^)]*\)/);
-    expect(GLOSSARIO.dentesExcursao.texto).toMatch(/MetaTrader/);
-    expect(GLOSSARIO.dentesExcursao.texto).toMatch(/aberta/);
   });
 
-  it("o lote sai da constante das faixas", () => {
-    expect(GLOSSARIO.lote.texto).toContain("100% em Ligar");
-    expect(GLOSSARIO.lote.texto).toContain("0% em Evitar");
-  });
-
-  // o texto do "cabe, apertado ou não cabe" cita o limite à mão: se LIMITE_APERTADO mudar, o texto muda junto
-  it("o limite de apertado do texto é o do simulador", () => {
+  // o texto do "cabe, apertado ou não cabe" cita o limite à mão: se LIMITE_APERTADO mudar, o texto muda junto.
+  // E diz a quarta resposta (semaforoDe, "sem_avaliacao"): sem o capital mínimo de um robô escolhido, não há
+  // veredito
+  it("o limite de apertado do texto é o do simulador, e o texto diz quando não dá para avaliar", () => {
     expect(GLOSSARIO.semaforoCapital.texto).toContain(`${formatarPct(LIMITE_APERTADO, 0)} do capital`);
     expect(GLOSSARIO.semaforoCapital.texto).toMatch(/não uma garantia/);
+    expect(GLOSSARIO.semaforoCapital.texto).toMatch(/sem o capital mínimo de algum robô escolhido, não dá para avaliar/i);
   });
 });

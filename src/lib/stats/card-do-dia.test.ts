@@ -199,7 +199,7 @@ describe("montarCardDoDia: a curva por fechamento", () => {
 });
 
 describe("montarCardDoDia: números e textos", () => {
-  it("totais líquidos, pontos, operações com ganho e os textos do cabeçalho e do rodapé", () => {
+  it("totais líquidos, pontos, operações e os textos do cabeçalho e do rodapé", () => {
     const d = montar();
     // 50 − 20 + 80 + 30 brutos, menos 4 × 0,25
     expect(d.valores.resultado).toBeCloseTo(139, 9);
@@ -207,11 +207,10 @@ describe("montarCardDoDia: números e textos", () => {
     expect(d.tomResultado).toBe("positivo");
     expect(d.pontos).toBe("+700 pts");
     expect(d.valores.nOperacoes).toBe(4);
-    expect(d.valores.nGains).toBe(3);
-    // "4 operações, 3 com ganho" em duas células (25/11/2026; a segunda dizia "75% · acerto · 3 gains")
+    // os três números do dia escolhido em Dia a dia (25/11/2026). Saiu "Com ganho" (antes, "75% · acerto · 3
+    // gains"): acertos sem o necessário para empatar
     expect(d.numeros[0]).toEqual({ rotulo: "Operações", valor: "4", tom: null });
-    expect(d.numeros[1]).toEqual({ rotulo: "Com ganho", valor: "3", tom: null });
-    expect(d.numeros.map((n) => n.rotulo)).toEqual(["Operações", "Com ganho", "Melhor momento", "Pior momento"]);
+    expect(d.numeros.map((n) => n.rotulo)).toEqual(["Operações", "Melhor momento", "Pior momento"]);
     expect(d.nome).toBe("Robô Teste");
     // só o nome do ativo, como no cabeçalho do robô (era "Mini Índice · WIN")
     expect(d.ativo).toBe("Mini Índice");
@@ -222,6 +221,14 @@ describe("montarCardDoDia: números e textos", () => {
     expect(d.legal).toBe("Resultados passados não garantem resultados futuros.");
     expect(d.parcial).toBeNull();
     expect(d.rotuloResultado).toBe("Resultado do dia, com 1 contrato por entrada");
+  });
+
+  it("robô sem custo cadastrado: o rodapé diz 'Antes dos custos' (a regra de src/lib/premissa, a mesma das telas)", () => {
+    const semCusto = montar({ robo: { ...ROBO, custo_por_contrato: 0 }, operacoes: OPS.map((o) => ({ ...o, custos_brl_por_contrato: 0 })) });
+    expect(semCusto.rodape).toBe("Antes dos custos · quantsrobos.com/robos/robo-teste");
+    expect(semCusto.rodape).not.toMatch(/descontados/i);
+    // o rótulo do resultado não muda: "com 1 contrato por entrada" vale para os dois
+    expect(semCusto.rotuloResultado).toBe("Resultado do dia, com 1 contrato por entrada");
   });
 
   it("nenhum texto da imagem usa o jargão antigo (ficha Mesa, 25/11/2026)", () => {
@@ -249,8 +256,8 @@ describe("montarCardDoDia: números e textos", () => {
       exposicao,
       saldo: { baldes: serie("11:42", "17:30"), aproximado: true },
     });
-    // célula de 222 px com rótulo de 22 px: tamanhoParaCaber não precisa encolher nenhum dos quatro
-    for (const n of pior.numeros) expect(tamanhoParaCaber(n.rotulo, 222, 22, 18)).toBe(22);
+    // célula de 301 px (três numa fileira) com rótulo de 22 px: tamanhoParaCaber não precisa encolher nenhum dos três
+    for (const n of pior.numeros) expect(tamanhoParaCaber(n.rotulo, 301, 22, 18)).toBe(22);
     // A linha útil tem 936 px e o story escreve maior que o quadrado: nota e legenda a 24 px, rodapé a 26 px e o
     // rótulo do resultado a 30 px. Pela medida larga de tamanhoParaCaber (0,56 em por caractere; a Geist mede
     // uns 0,47), o texto cabe quando não precisaria encolher.
@@ -260,6 +267,7 @@ describe("montarCardDoDia: números e textos", () => {
     expect(cabe(pior.notaMepMen, 24)).toBe(true);
     expect(cabe(montar().notaMepMen, 24)).toBe(true);
     expect(cabe(pior.rodape, 26)).toBe(true);
+    expect(cabe(montar({ robo: { ...ROBO, slug: "alaska-square", custo_por_contrato: 0 } }).rodape, 26)).toBe(true);
     expect(cabe(pior.rotuloResultado, 30)).toBe(true);
     // o rótulo parcial é o mais comprido dos dois ("Resultado parcial, com 1 contrato por entrada")
     const parcial = montar({ dia: HOJE, operacoes: [op("10:00", 30, { dia: HOJE })], agora: new Date("2026-09-24T17:32:00Z") });
@@ -268,10 +276,9 @@ describe("montarCardDoDia: números e textos", () => {
     expect(cabe(`Com 1 contrato por entrada, já descontados os custos · quantsrobos.com/robos/alaska-square`, 26)).toBe(false);
   });
 
-  it("uma operação só: 'Operação' no singular e '1' com ganho; sem ativo_nome, só o código do ativo", () => {
+  it("uma operação só: 'Operação' no singular; sem ativo_nome, só o código do ativo", () => {
     const d = montar({ operacoes: [op("10:00", 40)], robo: { ...ROBO, ativo_nome: "" } });
     expect(d.numeros[0]).toEqual({ rotulo: "Operação", valor: "1", tom: null });
-    expect(d.numeros[1]).toEqual({ rotulo: "Com ganho", valor: "1", tom: null });
     expect(d.ativo).toBe("WIN");
   });
 
@@ -376,10 +383,10 @@ describe("montarCardDoDia: MEP e MEN", () => {
     const d = montar({ exposicao });
     expect(d.fonteMepMen).toBe("mt5");
     expect(d.valores.mep).toBe(1297);
-    expect(d.numeros[2]).toEqual({ rotulo: "Melhor momento", valor: formatarBRL(1297, { sinal: true, inteiro: true }), tom: "positivo" });
-    expect(d.numeros[3].rotulo).toBe("Pior momento");
-    expect(semNbsp(d.numeros[3].valor)).toBe("R$ 0,00");
-    expect(d.numeros[3].tom).toBe("neutro");
+    expect(d.numeros[1]).toEqual({ rotulo: "Melhor momento", valor: formatarBRL(1297, { sinal: true, inteiro: true }), tom: "positivo" });
+    expect(d.numeros[2].rotulo).toBe("Pior momento");
+    expect(semNbsp(d.numeros[2].valor)).toBe("R$ 0,00");
+    expect(d.numeros[2].tom).toBe("neutro");
     // medição parcial (o EA subiu com o dia em andamento): a nota diz, sem a palavra "coletor" (25/11/2026)
     expect(d.notaMepMen).toBe("Melhor e pior momento medidos no MetaTrader 5, só em parte do dia");
     expect(montar({ exposicao: { ...exposicao, excursao_ea_parcial: false } }).notaMepMen).toBe("Melhor e pior momento medidos no MetaTrader 5");
@@ -613,7 +620,9 @@ describe("resumirMes", () => {
     pregao("2026-10-07", [], [-30]),
     pregao("2026-11-03", [], [-999]),
   ];
-  const base = { mes: "2026-10", linhas: OUTUBRO, hoje: "2026-11-25", feriados: [] as string[], duracoesSeg: [] as number[] };
+  // um feriado de 2026 fora de outubro: o ano tem calendário, e os pregões da bolsa entram na conta (num ano sem
+  // feriado cadastrado o site não sabe se a bolsa abriu, e o total não aparece)
+  const base = { mes: "2026-10", linhas: OUTUBRO, hoje: "2026-11-25", feriados: ["2026-11-02"] as string[], duracoesSeg: [] as number[], acompanhado: true };
 
   it("o resultado do mês vem com a maior queda de dentro do mês, os dias com ganho e o pior dia", () => {
     const r = resumirMes(base);
@@ -628,7 +637,8 @@ describe("resumirMes", () => {
     // os dias em ordem, com o somado do mês; setembro e novembro ficam de fora
     expect(r.dias.map((d) => d.dia)).toEqual(["2026-10-01", "2026-10-02", "2026-10-05", "2026-10-06", "2026-10-07"]);
     expect(r.dias.map((d) => d.somado)).toEqual([100, -200, -150, 250, 220]);
-    expect(r.dias[1]).toEqual({ dia: "2026-10-02", operacoes: 1, comGanho: 0, comPerda: 1, resultado: -300, somado: -200 });
+    // sem as operações com ganho e com perda de cada dia: acertos de um dia sem o necessário para empatar (25/11/2026)
+    expect(r.dias[1]).toEqual({ dia: "2026-10-02", operacoes: 1, resultado: -300, somado: -200 });
     // como operou: 5 operações, 3 com ganho; ganho de R$ 183,33 e perda de R$ 165
     expect(r.operou.operacoes).toBe(5);
     expect(r.operou.acertos).toBeCloseTo(0.6, 9);
@@ -637,9 +647,54 @@ describe("resumirMes", () => {
     expect(r.operacoesPorPregao).toBe(1);
   });
 
-  it("pregões da bolsa no mês: dias úteis menos os feriados", () => {
-    expect(resumirMes(base).pregoesDaBolsa).toBe(22);
+  it("pregões da bolsa no mês: dias úteis menos os feriados, com o trecho do mês em que foram contados", () => {
+    const r = resumirMes(base);
+    expect(r.pregoesDaBolsa).toBe(22);
+    expect(r.pregoesContados).toEqual({ de: "2026-10-01", ate: "2026-10-31", estreouNoMes: false, ateOFimDoMes: true });
     expect(resumirMes({ ...base, feriados: ["2026-10-12", "2026-11-02"] }).pregoesDaBolsa).toBe(21);
+  });
+
+  it("mês de estreia: os pregões contam a partir do primeiro dia do robô, como na aba Dia a dia", () => {
+    // estreou na quarta, 14/10: de 14 a 31 de outubro a bolsa teve 13 pregões (contando do dia 1º seriam 22)
+    const estreia = [pregao("2026-10-14", [50], []), pregao("2026-10-15", [], [-20]), pregao("2026-10-19", [30], [])];
+    const r = resumirMes({ ...base, linhas: estreia });
+    expect(r.pregoes).toBe(3);
+    expect(r.pregoesDaBolsa).toBe(13);
+    expect(r.pregoesContados).toEqual({ de: "2026-10-14", ate: "2026-10-31", estreouNoMes: true, ateOFimDoMes: true });
+    // a estreia vem do histórico inteiro: um robô que já operava em setembro conta outubro desde o dia 1º
+    expect(resumirMes({ ...base, linhas: [pregao("2026-09-30", [10], []), ...estreia] }).pregoesDaBolsa).toBe(22);
+  });
+
+  it("ano sem feriado cadastrado: o site não sabe se a bolsa abriu, e o total de pregões não aparece", () => {
+    const de2025 = [pregao("2025-10-01", [50], []), pregao("2025-10-02", [], [-20])];
+    const r = resumirMes({ ...base, mes: "2025-10", linhas: de2025 });
+    expect(r.pregoes).toBe(2);
+    expect(r.pregoesDaBolsa).toBeNull();
+    expect(r.pregoesContados).toBeNull();
+    // sem feriado nenhum cadastrado, nem 2026 tem a conta
+    expect(resumirMes({ ...base, feriados: [] }).pregoesDaBolsa).toBeNull();
+  });
+
+  it("robô sem acompanhamento ao vivo no mês em andamento: a conta para no último dia com operação", () => {
+    const novembro = [pregao("2026-10-30", [10], []), pregao("2026-11-03", [50], []), pregao("2026-11-05", [], [-20]), pregao("2026-11-10", [30], [])];
+    const entrada = { ...base, mes: "2026-11", linhas: novembro, feriados: ["2026-11-02", "2026-11-20"] };
+    // de 1º a 10/11: 3, 4, 5, 6, 9 e 10 (o dia 2 é feriado); depois do dia 10 o site não sabe se o robô operou
+    const historico = resumirMes({ ...entrada, acompanhado: false });
+    expect(historico.pregoes).toBe(3);
+    expect(historico.pregoesDaBolsa).toBe(6);
+    expect(historico.pregoesContados).toEqual({ de: "2026-11-01", ate: "2026-11-10", estreouNoMes: false, ateOFimDoMes: false });
+    // o mesmo robô acompanhado ao vivo: a conta vai até ontem (24/11), com 15 pregões
+    const aoVivo = resumirMes(entrada);
+    expect(aoVivo.pregoesDaBolsa).toBe(15);
+    expect(aoVivo.pregoesContados).toEqual({ de: "2026-11-01", ate: "2026-11-24", estreouNoMes: false, ateOFimDoMes: false });
+  });
+
+  it("robô acompanhado que ainda não operou hoje: hoje não entra na conta", () => {
+    // sexta, 09/10: o último dia com operação é a quarta, 07/10; a quinta, 08/10, é um pregão em que não operou
+    const r = resumirMes({ ...base, hoje: "2026-10-09" });
+    expect(r.pregoes).toBe(5);
+    expect(r.pregoesDaBolsa).toBe(6);
+    expect(r.pregoesContados?.ate).toBe("2026-10-08");
   });
 
   it("mês em andamento: conta só até hoje e a queda que não voltou fica sem data de recuperação", () => {
@@ -684,10 +739,11 @@ describe("resumirMes", () => {
     expect(r.piorDia).toBeNull();
     expect(r.maiorQueda.valor).toBe(0);
     expect(r.operacoesPorPregao).toBeNull();
+    expect(r.pregoesDaBolsa).toBeNull();
     expect(r.dias).toEqual([]);
   });
 
-  it("sem a conta fechar (mais dias operados que pregões da bolsa), o total de pregões não aparece", () => {
+  it("sem a conta fechar (operação gravada em dia que a lista diz ser feriado), o total de pregões não aparece", () => {
     const r = resumirMes({ ...base, hoje: "2026-10-02", feriados: ["2026-10-01", "2026-10-02"] });
     expect(r.pregoes).toBe(2);
     expect(r.pregoesDaBolsa).toBeNull();

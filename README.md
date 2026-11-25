@@ -147,11 +147,33 @@ hidratação) também não, como o selo Posicionado.
 
 ### Relatórios mensais
 
-Os meses com operação estão na lista "Mês a mês" da aba Dia a dia (`/robos/<slug>/calendario#mes-a-mes`)
-e os mais recentes, no pé da aba Operações. Desde 25/11/2026 a aba Relatórios não existe:
-`/robos/<slug>/relatorios` redireciona para `#mes-a-mes` (`next.config.ts`). `/api/relatorios/<slug>/<YYYY-MM>/pdf`
-gera o PDF (`@react-pdf/renderer`) e `/api/relatorios/<slug>/<YYYY-MM>/csv` a planilha (CSV), ambos a partir
-de `operacoes_publico`. Meses fechados ficam em cache por um dia.
+Os relatórios ficam na aba Dia a dia: cada mês com operação, na lista "Mês a mês"
+(`/robos/<slug>/calendario#mes-a-mes`), tem o "PDF" e a "Planilha", e os meses mais recentes também ficam no pé
+da aba Operações. Desde 25/11/2026 a aba Relatórios não existe: `/robos/<slug>/relatorios` redireciona para
+`#mes-a-mes` (`next.config.ts`). `/api/relatorios/<slug>/<YYYY-MM>/pdf` gera o PDF (`@react-pdf/renderer`) e
+`/api/relatorios/<slug>/<YYYY-MM>/csv` a planilha (CSV com `;` e vírgula decimal), ambos a partir de
+`operacoes_publico`. Meses fechados ficam em cache por um dia.
+
+O PDF (`src/lib/relatorios/RelatorioMensal.tsx`, com as contas em `resumirMes`, `src/lib/stats/card-do-dia.ts`)
+segue as regras das telas, porque vai para quem nunca abriu o site:
+
+- o resultado do mês em número grande, com a premissa do robô (`premissaDoRobo`: "com 1 contrato por entrada,
+  já descontados os custos", ou "antes dos custos" no robô sem custo cadastrado) e de quando a quando; ao lado,
+  a maior queda dentro do mês (e se recuperou), os dias com ganho e o pior dia;
+- "Como ele operou no mês": as operações, quantas por pregão, quanto dura cada uma e em quantos pregões operou
+  (contados como na aba Dia a dia: da estreia do robô ao último dia que o site conhece, e só em ano com
+  feriados cadastrados); os acertos com o necessário para empatar; o ganho típico e a perda típica, com a maior
+  perda; o fator de lucro em frase; e o resultado médio por operação, com o custo considerado;
+- "Capital para usar o robô": as entradas abertas ao mesmo tempo e o capital mínimo das telas (`capitalDoRobo`),
+  com a conta por extenso;
+- a nota com a premissa e a frase legal curta do aviso legal;
+- a tabela "Dia a dia" (dia, operações, resultado e somado no mês; sem as colunas de operações com ganho e com
+  perda, que eram acertos sem o necessário para empatar) e, numa página própria, as operações do mês (até
+  1.000; todas estão na planilha), sem as colunas que o mês não tem como preencher.
+
+A planilha traz o que as telas e o PDF deixaram de mostrar: o código do contrato, o resultado antes dos custos
+e os custos de cada operação, e no fim o melhor e o pior momento de cada operação, em pontos por contrato
+(`melhor_momento_pontos_por_contrato` e `pior_momento_pontos_por_contrato`).
 
 ### Curva de capital por operação
 
@@ -259,8 +281,9 @@ MFE/MAE). Regra na spec §7 e em Como funciona (`/metodologia#curva-do-dia`).
 ### Imagem do dia para compartilhar
 
 Pedido do Lucas (24/09/2026): uma imagem pronta ao fim de cada pregão, para a live, o WhatsApp e o Instagram,
-sem montar nada na mão. `GET /api/og/<slug>/<dia>` devolve um PNG com o dia do robô por 1 contrato, líquido de
-custos: `?formato=quadrado` (o padrão, 1080×1080: feed e WhatsApp) ou `?formato=story` (1080×1920: stories e
+sem montar nada na mão. `GET /api/og/<slug>/<dia>` devolve um PNG com o dia do robô com 1 contrato por entrada e a
+premissa dos custos do robô (`custosDoRobo`, `src/lib/premissa.ts`: "Já descontados os custos" ou "Antes dos
+custos", no rodapé): `?formato=quadrado` (o padrão, 1080×1080: feed e WhatsApp) ou `?formato=story` (1080×1920: stories e
 status, com 200 px livres em cima e 260 px embaixo para a interface do Instagram não cobrir nada). Qualquer outro
 parâmetro, como o `v=` que o site acrescenta para a prévia de hoje não vir velha, é ignorado. Hoje
 `Cache-Control: public, max-age=0, s-maxage=60, stale-while-revalidate=60`, dia passado
@@ -305,22 +328,25 @@ nenhuma fonte externa é carregada.
 
 ### Simulador com o meu capital
 
-`/simulador` aplica o histórico público, por 1 contrato e já com custos, ao capital e aos contratos que o
-visitante informa. Tudo fica na URL (`?capital=30000&r=apollo:2,orion:1&periodo=12m`; `r` ausente = todos os
-robôs com 1, `r=` = nenhum, padrões omitidos), e os links do cabeçalho do robô e da aba Quedas e risco chegam
-com o robô preenchido. Sem `capital` na URL, simula com o capital mínimo da escolha (25/11/2026). Para cada dia
-de pregão soma contratos × resultado líquido por contrato de cada robô (dia sem operação = 0), desenha
-patrimônio = capital + acumulado com a maior queda em vermelho na linha e mostra o resultado do período em R$
-(sem %), drawdown máximo (em R$ e em % do **capital inicial informado**, nunca do patrimônio do momento), pior
-mês (com quantos pregões entraram: os meses das pontas podem estar incompletos), pior dia, dias negativos com
-a maior sequência e o capital mínimo da carteira (soma de contratos × capital mínimo de cada robô, o mesmo da
-aba Quedas e risco: garantia por contrato × entradas abertas ao mesmo tempo + maior queda de todo o histórico
-× fator, no real inteiro publicado; robô sem margem configurada deixa a soma dos outros como piso). O semáforo é só uma leitura disso: não cabe (capital abaixo do
-mínimo ou do piso conhecido, ou drawdown simulado que consumiria o capital inteiro), apertado (drawdown máximo
-simulado acima de 25% do capital) ou cabe. `capital` e `n` na URL aceitam só dígitos. É aritmética sobre o
-histórico, não recomendação nem projeção de resultado, e a página diz isso em texto fixo. Cálculo puro em
-`src/lib/stats/simulador.ts`, URL em `src/components/simulador/simulador-url.ts`, regra na spec §8.6 e em
-Como funciona (`/metodologia#simulador`).
+`/simulador` aplica o histórico público, com 1 contrato por entrada, ao capital e aos contratos que o visitante
+informa; a premissa diz os custos da escolha (`custosDaSoma`, `src/lib/premissa.ts`: o robô escolhido sem custo
+cadastrado é dito pelo nome). Tudo fica na URL (`?capital=30000&r=apollo:2,orion:1&periodo=12m`; `r` ausente =
+todos os robôs com 1, `r=` = nenhum, padrões omitidos), e os links do cabeçalho do robô e da aba Quedas e risco
+chegam com o robô preenchido. Sem `capital` na URL, simula com o capital mínimo da escolha (25/11/2026). Para
+cada dia de pregão soma contratos × resultado por contrato de cada robô (dia sem operação = 0), desenha o
+acumulado com a maior queda em vermelho na linha e mostra o resultado do período só em R$ (sem % e sem
+patrimônio final), drawdown máximo (em R$ e em % do **capital inicial informado**, nunca do patrimônio do
+momento), pior mês (com quantos pregões entraram: os meses das pontas podem estar incompletos), pior dia, dias
+negativos com a maior sequência e o capital mínimo da carteira (soma de contratos × capital mínimo de cada robô,
+o mesmo da aba Quedas e risco: garantia por contrato × entradas abertas ao mesmo tempo + maior queda de todo o
+histórico × fator, no real inteiro publicado). Robô escolhido sem capital mínimo (sem margem cadastrada, ou sem a
+leitura das entradas abertas) aparece com um traço no lugar do mínimo. O semáforo é só uma leitura disso (`semaforoDe`):
+não dá para avaliar se cabe (algum robô escolhido sem capital mínimo: a frase diz por que falta e quanto os
+outros já pedem), não cabe (capital abaixo do mínimo, ou drawdown simulado que consumiria o capital inteiro),
+apertado (drawdown máximo simulado acima de 25% do capital) ou cabe. `capital` e `n` na URL aceitam só dígitos.
+É aritmética sobre o histórico, não recomendação nem projeção de resultado, e a página diz isso em texto fixo.
+Cálculo puro em `src/lib/stats/simulador.ts`, URL em `src/components/simulador/simulador-url.ts`, regra na spec
+§8.6 e em Como funciona (`/metodologia#simulador`).
 
 ### Regras de segurança do schema
 

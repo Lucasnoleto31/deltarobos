@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Painel } from "@/components/sistema/Painel";
 import { formatarBRL } from "@/lib/formato";
+import { custosDoRobo, temCusto } from "@/lib/premissa";
 import type { RoboPublico } from "@/lib/tipos";
 
 interface Props {
@@ -49,11 +50,17 @@ export function Transparencia({ robo, className }: Props) {
         <Linha
           href="/metodologia#custos"
           rotulo="Custo descontado"
-          valor={robo.custo_por_contrato > 0 ? `${formatarBRL(robo.custo_por_contrato)} por contrato, a cada operação` : "não configurado: valores antes dos custos"}
+          // a regra dos custos é a de lib/premissa, a mesma da premissa de todas as telas
+          valor={
+            temCusto(robo.custo_por_contrato)
+              ? `${formatarBRL(robo.custo_por_contrato)} por contrato, a cada operação`
+              : `não configurado: valores ${custosDoRobo(robo.custo_por_contrato)}`
+          }
         />
         <Linha href="/metodologia#normalizacao" rotulo="Quanto vale 1 ponto" valor={`${formatarBRL(robo.valor_ponto_brl)} por contrato de ${robo.ativo_nome}`} />
-        {/* os arquivos de cada mês moram na aba Dia a dia desde 25/11/2026 (a aba Relatórios saiu) */}
-        <Linha href={`/robos/${robo.slug}/calendario#mes-a-mes`} rotulo="Relatórios mensais" valor="PDF e CSV" />
+        {/* os arquivos de cada mês moram na aba Dia a dia desde 25/11/2026 (a aba Relatórios saiu); "planilha", a
+            mesma palavra dos links "PDF" e "Planilha" do Mês a mês, para onde a linha leva (a sigla CSV saiu da tela) */}
+        <Linha href={`/robos/${robo.slug}/calendario#mes-a-mes`} rotulo="Relatórios mensais" valor="PDF e planilha" />
         {robo.relatorio_mt5_url ? <Linha href={robo.relatorio_mt5_url} externo rotulo="Relatório do MetaTrader" valor="abrir" /> : null}
       </ul>
     </Painel>

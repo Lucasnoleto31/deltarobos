@@ -4,7 +4,6 @@ import {
   anosDoHistorico,
   ehPregaoSemOperacao,
   gradeMes,
-  heatmapAnoMes,
   historicoCurto,
   janelaConhecida,
   mesesComDados,
@@ -69,17 +68,7 @@ describe("gradeMes", () => {
   });
 });
 
-describe("heatmapAnoMes / mesesComDados", () => {
-  it("agrupa por ano e mês", () => {
-    const h = heatmapAnoMes([...linhas, linha("2025-12-15", 7)], o);
-    expect(h.map((l) => l.ano)).toEqual(["2025", "2026"]);
-    expect(h[0].meses[11]).toMatchObject({ mes: "2025-12", total: 7, nDias: 1 });
-    expect(h[1].meses[7]).toMatchObject({ mes: "2026-08", total: 10 });
-    expect(h[1].meses[8]).toMatchObject({ mes: "2026-09", total: 85, nDias: 3 });
-    expect(h[1].meses[0]).toBeNull();
-    expect(h[1].total).toBe(95);
-  });
-
+describe("mesesComDados", () => {
   it("meses com dados em ordem", () => {
     expect(mesesComDados(linhas)).toEqual(["2026-08", "2026-09"]);
   });

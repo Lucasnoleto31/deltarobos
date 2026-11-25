@@ -43,6 +43,7 @@ function robo(
     semMinimoPorque: capitalMinimoPorContrato === null ? "garantia" : null,
     entradasAbertas,
     entradasMedidas: entradasAbertas > 1,
+    custoPorContrato: 0.25,
   };
 }
 

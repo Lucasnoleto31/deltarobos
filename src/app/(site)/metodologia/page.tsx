@@ -10,6 +10,7 @@ import { LINK_DO_PAINEL } from "@/components/sistema/Painel";
 import { capitaisDaCasa, type CapitalDoRobo } from "@/lib/consultas/capital";
 import { carregarCasa } from "@/lib/consultas/casa";
 import { formatarBRL, formatarData, formatarMultiplo, formatarNumero, formatarPct } from "@/lib/formato";
+import { custosDaSoma, custosDoRobo, premissaDoRobo, temCusto } from "@/lib/premissa";
 import { HORAS, LOTE_POR_CLASSE, ROTULO_CLASSE } from "@/lib/stats/faixas";
 import {
   acertoParaEmpatar,
@@ -46,7 +47,7 @@ const SECOES = [
   { id: "como-comecar", rotulo: "Como começar" },
   { id: "coleta", rotulo: "De onde vêm os números" },
   { id: "status", rotulo: "O que o site diz do robô agora" },
-  { id: "normalizacao", rotulo: "1 contrato por entrada e custos" },
+  { id: "normalizacao", rotulo: "1 contrato por entrada e os custos" },
   { id: "operacao", rotulo: "O que é uma operação" },
   { id: "resultado", rotulo: "Resultado" },
   { id: "drawdown", rotulo: GLOSSARIO.drawdown.nome },
@@ -71,6 +72,8 @@ const centavos = (v: number, sinal = false) => formatarBRL(v, { sinal });
 const vezes = (v: number) => `${formatarNumero(v, Number.isInteger(v) ? 0 : 1)}×`;
 /** "a, b e c" */
 const emLista = (itens: readonly string[]) => (itens.length <= 1 ? itens.join("") : `${itens.slice(0, -1).join(", ")} e ${itens[itens.length - 1]}`);
+/** "antes dos custos" -> "Antes dos custos": a premissa de src/lib/premissa no começo de uma frase */
+const comMaiuscula = (texto: string) => texto.charAt(0).toLocaleUpperCase("pt-BR") + texto.slice(1);
 
 // ── Os exemplos de papel ───────────────────────────────────────────────────────────────────────────
 // Números redondos, inventados só para a conta caber na cabeça, e sempre com a legenda "Exemplo". Nenhum
@@ -89,7 +92,7 @@ const GANHO_POR_QUEDA = QUEDA ? ganhoPorQueda(RESULTADO_DA_CURVA, QUEDA.valor).v
 // a operação do exemplo de "com 1 contrato": uma compra de dois contratos que saiu 150 pontos acima da entrada
 const COMPRA = { pontos: 150, contratos: 2 };
 
-// as operações: 8 com ganho de R$ 30 e 2 com perda de R$ 100, já descontados os custos
+// as operações: 8 com ganho de R$ 30 e 2 com perda de R$ 100
 const OPS = { comGanho: 8, ganho: 30, comPerda: 2, perda: 100 };
 const OPS_TOTAL = OPS.comGanho + OPS.comPerda;
 const OPS_GANHOS = OPS.comGanho * OPS.ganho;
@@ -250,6 +253,11 @@ function ExemploDaQueda() {
  * - as telas têm os nomes de hoje (Visão geral, Simular meu capital, Como funciona; no robô: Resumo, Ao vivo,
  *   Dia a dia, Quedas e risco, Melhores horários, Operações).
  *
+ * Os custos (revisão de 25/11/2026): a página não promete "já descontados os custos" para todos os robôs. A
+ * premissa de cada um vem de src/lib/premissa, a mesma das telas, e quem não tem custo no histórico é dito
+ * pelo nome, lido do banco. As respostas do simulador são as quatro de semaforoDe, com a de "Não dá para
+ * avaliar se cabe" para o robô escolhido sem capital mínimo.
+ *
  * Os nomes dos indicadores saem do GLOSSARIO (o mesmo nome que a tela põe no rótulo). Nada de robô, ativo,
  * link ou parâmetro fixo no código: tudo o que é do site vem do banco (carregarCasa, o mesmo que a casca já
  * carrega neste render, e capitaisDaCasa).
@@ -262,9 +270,22 @@ export default async function PaginaMetodologia() {
   const ativoDoExemplo = ativos[0] ?? null;
   const fator = formatarMultiplo(fatorSeguranca, 1);
 
-  // o custo que entra no exemplo de "já descontados os custos" é o de um robô do site, no ativo do exemplo
-  const roboDoCusto = ativoDoExemplo ? (visiveis.find((r) => r.ativo === ativoDoExemplo.codigo && r.custo_por_contrato > 0) ?? null) : null;
+  // o custo que entra no exemplo da premissa é o de um robô do site, no ativo do exemplo
+  const roboDoCusto = ativoDoExemplo ? (visiveis.find((r) => r.ativo === ativoDoExemplo.codigo && temCusto(r.custo_por_contrato)) ?? null) : null;
   const ganhoDaCompra = ativoDoExemplo ? COMPRA.pontos * ativoDoExemplo.valorPonto * COMPRA.contratos : 0;
+
+  // A premissa dos custos de cada robô com histórico, pela regra das telas (src/lib/premissa): quem tem custo
+  // cadastrado e quem está antes dos custos. O robô em breve, ainda sem operação, não entra em nenhum dos dois.
+  const comOperacao = new Set(casa.estatisticas.filter((e) => e.n_operacoes > 0).map((e) => e.slug));
+  const comHistorico = visiveis.filter((r) => comOperacao.has(r.slug));
+  const comCusto = comHistorico.filter((r) => temCusto(r.custo_por_contrato));
+  const semCusto = comHistorico.filter((r) => !temCusto(r.custo_por_contrato));
+  const nomesSemCusto = emLista(semCusto.map((r) => r.nome));
+  const temOuTem = semCusto.length === 1 ? "tem" : "têm";
+  // a frase que vai junto do número, como a tela a escreve: a de um robô com custo, se houver
+  const premissaDeExemplo = premissaDoRobo((comCusto[0] ?? comHistorico[0])?.custo_por_contrato);
+  // a soma dos robôs (a da Visão geral), quando parte deles não tem custo no histórico
+  const custosDaSomaDosRobos = custosDaSoma(comHistorico.map((r) => ({ nome: r.nome, custoPorContrato: r.custo_por_contrato })));
 
   // a garantia (a margem) que cada ativo tem cadastrada hoje
   const garantias = ativos.flatMap((a) => {
@@ -291,8 +312,7 @@ export default async function PaginaMetodologia() {
     },
     {
       nome: <TextoDeHoje className="text-sm" robo={{ statusAoVivo: "operando", operouHoje: true, hoje: 240, hojeOperacoes: 3 }} />,
-      texto:
-        "O resultado das operações que já fecharam hoje, com 1 contrato por entrada e já descontados os custos. Continua na tela depois que o pregão fecha.",
+      texto: "O resultado das operações que já fecharam hoje, com 1 contrato por entrada. Continua na tela depois que o pregão fecha.",
     },
     {
       nome: <TextoDeHoje className="text-sm" robo={{ statusAoVivo: "posicionado", operouHoje: false, hoje: 0 }} />,
@@ -335,7 +355,7 @@ export default async function PaginaMetodologia() {
     {
       nome: GLOSSARIO.taxaAcerto.nome,
       tecnico: "taxa de acerto",
-      texto: "De cada 100 operações, quantas terminaram com ganho, já descontados os custos.",
+      texto: "De cada 100 operações, quantas terminaram com ganho. Uma operação que ganha menos do que o custo dela conta como perda.",
       conta: "operações com ganho ÷ total de operações.",
       exemplo: `${formatarNumero(OPS.comGanho)} ÷ ${formatarNumero(OPS_TOTAL)} = ${formatarNumero(OPS_ACERTOS * 100)} de cada 100`,
     },
@@ -367,7 +387,7 @@ export default async function PaginaMetodologia() {
       id: "resultado-por-operacao",
       nome: GLOSSARIO.resultadoPorOperacao.nome,
       texto:
-        "O que sobra, em média, de cada operação, depois do custo. A tela mostra ao lado o custo considerado por operação, para comparar os dois: é a folga do robô. Se na sua conta cada operação custar mais ou sair a um preço pior, é daqui que sai.",
+        "O que sobra, em média, de cada operação. Ao lado, a tela mostra o custo considerado por operação, ou avisa que o histórico não tem custo descontado: é a folga do robô. Se na sua conta cada operação custar mais ou sair a um preço pior, é daqui que sai.",
       conta: "resultado do período ÷ número de operações.",
       exemplo: `${reais(OPS_RESULTADO, true)} ÷ ${formatarNumero(OPS_TOTAL)} = ${centavos(OPS_RESULTADO / OPS_TOTAL, true)}`,
     },
@@ -418,8 +438,16 @@ export default async function PaginaMetodologia() {
     },
     {
       nome: "Os custos da sua corretora",
-      texto:
-        "O site desconta de cada operação um custo de referência por contrato, mostrado na página de cada robô. Se a sua corretora cobrar outro valor de corretagem ou de taxas, o seu resultado muda na mesma medida, em todas as operações.",
+      texto: [
+        comCusto.length > 0
+          ? "O site desconta de cada operação um custo de referência por contrato, mostrado na página de cada robô. Se a sua corretora cobrar outro valor de corretagem ou de taxas, o seu resultado muda na mesma medida, em todas as operações."
+          : "",
+        semCusto.length > 0
+          ? `No ${nomesSemCusto}, que não ${temOuTem} custo no histórico, os números estão ${custosDoRobo(semCusto[0].custo_por_contrato)}: o custo inteiro da sua corretora sai do resultado.`
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" "),
     },
     {
       nome: "O imposto de renda",
@@ -446,6 +474,7 @@ export default async function PaginaMetodologia() {
     },
   ];
 
+  // as quatro respostas de semaforoDe (lib/stats/simulador), com o mesmo título que a tela escreve
   const respostasDoSimulador: Linha[] = [
     {
       nome: "Cabe",
@@ -457,7 +486,12 @@ export default async function PaginaMetodologia() {
     },
     {
       nome: "Não cabe",
-      texto: "O capital é menor que o capital mínimo, ou a maior queda simulada é igual ou maior que o capital: o patrimônio simulado teria zerado.",
+      texto: "O capital é menor que o capital mínimo, ou a maior queda simulada é igual ou maior que o capital: ela teria levado o capital inteiro.",
+    },
+    {
+      nome: "Não dá para avaliar se cabe",
+      texto:
+        "Algum robô escolhido está sem capital mínimo, porque a garantia do ativo dele não está cadastrada ou porque as entradas abertas dele não puderam ser lidas. Ele aparece com um traço no lugar do mínimo, e a frase diz por que falta e quanto os outros robôs escolhidos já pedem. Sem o mínimo inteiro, o simulador não dá veredito.",
     },
   ];
 
@@ -573,7 +607,7 @@ export default async function PaginaMetodologia() {
               <Linhas comoNaTela itens={frases} />
             </Secao>
 
-            <Secao id="normalizacao" titulo="Com 1 contrato por entrada, já descontados os custos">
+            <Secao id="normalizacao" titulo="1 contrato por entrada e os custos">
               <ComExemplo
                 exemplo={
                   ativoDoExemplo ? (
@@ -609,7 +643,7 @@ export default async function PaginaMetodologia() {
                 }
               >
                 <Texto>
-                  <p>Esta frase acompanha os números do site. Ela diz duas coisas.</p>
+                  <p>Junto do número principal de cada tela vem uma frase como “{premissaDeExemplo}”. Ela diz duas coisas.</p>
                   <p>
                     <strong>Com 1 contrato por entrada.</strong> Contrato é a unidade de negociação da bolsa. Todo valor é dividido pela
                     quantidade de contratos da operação, para mostrar quanto daria com 1. Assim os robôs ficam na mesma régua, e você
@@ -623,13 +657,27 @@ export default async function PaginaMetodologia() {
                     </a>
                     .
                   </p>
-                  <p id="custos">
-                    <strong>Já descontados os custos.</strong> De cada operação sai um custo fixo por contrato (corretagem e taxas da bolsa),
-                    definido por robô e mostrado na página dele. Ganho e perda são decididos depois dos custos: uma operação que ganha menos
-                    do que o custo conta como perda.
-                  </p>
+                  {/* a premissa dos custos de cada robô vem de src/lib/premissa: "já descontados os custos" só para quem
+                      tem custo cadastrado; quem não tem é dito pelo nome, lido do banco */}
+                  {comCusto.length > 0 ? (
+                    <p id="custos">
+                      <strong>{comMaiuscula(custosDoRobo(comCusto[0].custo_por_contrato))}.</strong> De cada operação sai um custo fixo por
+                      contrato (corretagem e taxas da bolsa), definido por robô e mostrado na página dele. Ganho e perda são decididos depois
+                      dos custos: uma operação que ganha menos do que o custo conta como perda.
+                    </p>
+                  ) : null}
+                  {semCusto.length > 0 ? (
+                    <p id={comCusto.length > 0 ? undefined : "custos"}>
+                      <strong>{comMaiuscula(custosDoRobo(semCusto[0].custo_por_contrato))}.</strong>{" "}
+                      {semCusto.length === 1 ? `O histórico de ${nomesSemCusto}` : `Os históricos de ${nomesSemCusto}`} não {temOuTem} custo
+                      cadastrado: os números são os da plataforma, sem desconto nenhum, e a frase junto do número diz “
+                      {premissaDoRobo(semCusto[0].custo_por_contrato)}”.
+                      {comCusto.length > 0 ? ` Na soma dos robôs, como a da Visão geral, a frase diz “${custosDaSomaDosRobos}”.` : ""}
+                    </p>
+                  ) : null}
                   <p>
-                    Esse custo é uma referência. O da sua corretora pode ser outro: veja{" "}
+                    {comCusto.length > 0 ? "Esse custo é uma referência. O da sua corretora pode ser outro" : "O custo da sua corretora não está nesses números"}
+                    : veja{" "}
                     <a href="#sua-conta" className={LINK_DO_PAINEL}>
                       o que pode ser diferente na sua conta
                     </a>
@@ -698,8 +746,12 @@ export default async function PaginaMetodologia() {
               >
                 <Texto>
                   <p>
-                    É a soma dos ganhos menos as perdas das operações fechadas no período, com 1 contrato por entrada e já descontados os
-                    custos. Positivo quer dizer que o robô terminou o período com ganho.
+                    É a soma dos ganhos menos as perdas das operações fechadas no período, com 1 contrato por entrada. Positivo quer dizer
+                    que o robô terminou o período com ganho. A frase escrita junto do número diz se os custos já foram descontados (
+                    <a href="#custos" className={LINK_DO_PAINEL}>
+                      veja acima
+                    </a>
+                    ).
                   </p>
                   <p>
                     Cada operação conta no dia de pregão em que fechou, pelo horário de Brasília. Sábados, domingos e feriados da bolsa não são
@@ -810,7 +862,7 @@ export default async function PaginaMetodologia() {
                         resultado={{ rotulo: GLOSSARIO.capitalMinimo.nome, valor: reais(contaDoExemplo.total) }}
                       />
                       <Nota>
-                        Com 1 contrato por entrada, já descontados os custos.
+                        {comMaiuscula(premissaDoRobo(exemplo.robo.custo_por_contrato))}.
                         {exemplo.capital.entradas > 1 ? " É o robô do site que já teve mais entradas abertas ao mesmo tempo." : ""} A mesma conta
                         está em{" "}
                         <Link href={`/robos/${exemplo.robo.slug}/risco`} className={LINK_DO_PAINEL}>
@@ -845,8 +897,9 @@ export default async function PaginaMetodologia() {
                     multiplicada por {fator}, o fator de segurança, porque quedas futuras podem ser maiores que as do passado.
                   </p>
                   <p>
-                    É o mesmo número na lista da Visão geral, no Resumo e em Quedas e risco de cada robô e em Simular meu capital. Robô de
-                    ativo sem garantia cadastrada fica sem capital mínimo.
+                    É o mesmo número na lista da Visão geral, no Resumo e em Quedas e risco de cada robô e em Simular meu capital. Sem a
+                    garantia do ativo cadastrada, sem a leitura das entradas abertas ou sem nenhuma operação no histórico, o robô fica sem
+                    capital mínimo: no lugar do número aparece um traço, e o site não inventa a conta.
                   </p>
                   <p>
                     É uma referência, não uma promessa: a próxima queda pode ser maior que a do histórico, e a corretora pode mudar a
@@ -917,8 +970,8 @@ export default async function PaginaMetodologia() {
                 </p>
                 <p>
                   O exemplo: {formatarNumero(OPS_TOTAL)} operações, {formatarNumero(OPS.comGanho)} com ganho de {reais(OPS.ganho)} cada (
-                  {reais(OPS_GANHOS)} ao todo) e {formatarNumero(OPS.comPerda)} com perda de {reais(OPS.perda)} cada ({reais(OPS_PERDAS)} ao todo),
-                  já descontados os custos. O resultado é {reais(OPS_RESULTADO, true)}.
+                  {reais(OPS_GANHOS)} ao todo) e {formatarNumero(OPS.comPerda)} com perda de {reais(OPS.perda)} cada ({reais(OPS_PERDAS)} ao todo).
+                  O resultado é {reais(OPS_RESULTADO, true)}.
                 </p>
                 <p>Estes números ficam no Resumo de cada robô, em “Como ele opera”.</p>
               </Texto>
@@ -942,8 +995,8 @@ export default async function PaginaMetodologia() {
             <Secao id="sua-conta" titulo="O que pode ser diferente na sua conta">
               <Texto>
                 <p>
-                  Os números do site são os da conta da Quants Robôs, com 1 contrato por entrada e um custo de referência. Quatro coisas
-                  que mudam o resultado de quem usa o robô não estão neles.
+                  Os números do site são os da conta da Quants Robôs, com 1 contrato por entrada e o custo de referência de cada robô,
+                  quando ele tem custo cadastrado. Quatro coisas que mudam o resultado de quem usa o robô não estão neles.
                 </p>
               </Texto>
               <Linhas itens={diferencasNaSuaConta} />
@@ -976,7 +1029,7 @@ export default async function PaginaMetodologia() {
                       { rotulo: `Um robô com 2 contratos por entrada, num dia de ${reais(50, true)}`, valor: reais(100, true) },
                       { rotulo: `Outro com 1 contrato por entrada, num dia de ${reais(-30, true)}`, valor: reais(-30, true) },
                     ]}
-                    resultado={{ rotulo: "Patrimônio simulado no fim do dia", valor: reais(10070) }}
+                    resultado={{ rotulo: "O capital no fim do dia", valor: reais(10070) }}
                   />
                 }
               >
@@ -990,12 +1043,15 @@ export default async function PaginaMetodologia() {
                   </p>
                   <p>
                     Para cada dia de pregão, soma o resultado de cada robô escolhido vezes os contratos informados; dia em que o robô não
-                    operou conta zero. O patrimônio simulado é o capital informado mais essa soma, dia a dia, e a maior queda é medida nessa
-                    curva.
+                    operou conta zero. O resultado simulado é essa soma, só em reais: percentual de retorno não entra em tela nenhuma. O
+                    capital de cada dia é o capital informado mais a soma até ali, e a maior queda é medida nessa curva, em reais e em
+                    porcentagem do capital informado, porque mede o risco.
                   </p>
                   <p>
-                    O capital mínimo da escolha é a soma, robô a robô, de contratos × capital mínimo do robô. Robô sem garantia cadastrada
-                    fica sem capital mínimo, e a soma dos outros vale como piso.
+                    O capital mínimo da escolha é a soma, robô a robô, de contratos × capital mínimo do robô. Sem capital digitado, a
+                    simulação usa esse valor e diz isso. Robô escolhido sem capital mínimo (sem a garantia do ativo cadastrada, ou sem a
+                    leitura das entradas abertas) aparece com um traço no lugar do mínimo, e a resposta passa a ser “Não dá para avaliar se
+                    cabe”.
                   </p>
                 </Texto>
               </ComExemplo>
@@ -1073,6 +1129,10 @@ export default async function PaginaMetodologia() {
                 <p>
                   Os horários vão de segunda a sexta, das {HORAS[0]}h às {HORAS[HORAS.length - 1]}h. Três números decidem a classificação de
                   cada um: os acertos, a recuperação e a queda relativa.
+                </p>
+                <p>
+                  Como no resto do site, os acertos de cada horário aparecem ao lado do necessário para empatar, calculado com o ganho
+                  típico e a perda típica das operações daquele horário.
                 </p>
               </Texto>
               <Linhas itens={numerosDoHorario} />

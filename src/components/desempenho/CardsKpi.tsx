@@ -2,15 +2,15 @@ import { cn } from "cn";
 import type { ChaveIndicador } from "@/components/compartilhados/glossario";
 import { RotuloComInfo } from "@/components/compartilhados/InfoIndicador";
 
-export type TomKpi = "positivo" | "negativo" | "neutro" | "info" | "alerta";
+// 25/11/2026, revisão das telas (DESIGN.md, seção 9): a faixa de números lado a lado (CardsKpi) saiu com as
+// telas que a usavam (a aba Desempenho e a página Comparar). O arquivo guarda só a lista, que é o "mais
+// números" das telas de análise. O `tom` e o `icone` do item saíram junto: nenhuma tela os passava, e a lista
+// nunca pintou nem mostrou ícone.
 
 export interface ItemKpi {
   rotulo: string;
   valor: React.ReactNode;
   detalhe?: React.ReactNode;
-  /** Mantidos na interface para não mexer em quem chama; desde 17/09/2026 o cartão não pinta nem mostra ícone. */
-  tom?: TomKpi;
-  icone?: React.ReactNode;
   /** chave do glossário: com ela, o rótulo vira o gatilho do "o que é" (sublinhado pontilhado, sem ícone) */
   info?: ChaveIndicador;
   /** troca o texto do glossário quando o número da tela pede outra explicação (a duração típica do Resumo é a mediana) */
@@ -30,39 +30,6 @@ function Rotulo({ item }: { item: ItemKpi }) {
     </RotuloComInfo>
   ) : (
     item.rotulo
-  );
-}
-
-// quantas colunas a faixa abre conforme quantos números traz (classes inteiras: o Tailwind não monta nome)
-const GRADE: Record<number, string> = {
-  1: "grid-cols-1",
-  2: "grid-cols-2",
-  3: "grid-cols-1 sm:grid-cols-3",
-  4: "grid-cols-2 lg:grid-cols-4",
-  5: "grid-cols-2 md:grid-cols-3 xl:grid-cols-5",
-  6: "grid-cols-2 md:grid-cols-3 2xl:grid-cols-6",
-};
-const GRADE_LONGA = "grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6";
-
-/**
- * Faixa de indicadores (ficha Mesa, 25/11/2026): um painel só, dividido por fios, com rótulo, número e
- * linha de apoio em cada célula. Eram N cartões soltos em grade. As telas que a usavam (a aba Desempenho e a
- * página Comparar) saíram na revisão de 25/11/2026 (DESIGN.md, seção 9) e as outras passaram a ListaKpi ou a
- * `sistema/Indicadores`, o mesmo desenho recebendo a lista pronta; fica exportada com a mesma interface.
- */
-export function CardsKpi({ itens, className }: Props) {
-  return (
-    <dl className={cn("indicadores", GRADE[itens.length] ?? GRADE_LONGA, className)}>
-      {itens.map((item) => (
-        <div key={item.rotulo} className="indicador">
-          <dt className="text-xs text-muted-foreground">
-            <Rotulo item={item} />
-          </dt>
-          <dd className="mt-1.5 text-xl leading-none font-semibold tracking-tight tabular-nums sm:text-2xl">{item.valor}</dd>
-          {item.detalhe ? <dd className="mt-1.5 text-xs text-pretty text-muted-foreground tabular-nums">{item.detalhe}</dd> : null}
-        </div>
-      ))}
-    </dl>
   );
 }
 

@@ -47,6 +47,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
     feriados,
     // o histórico importado não tem hora de entrada: fica fora da duração
     duracoesSeg: ops.filter((o) => o.origem !== "manual").map((o) => o.duracao_seg),
+    // a mesma regra da aba Dia a dia (calendario/page.tsx): só o robô com coletor e ativo é acompanhado dia a dia;
+    // nos outros, os pregões do mês são contados até o último dia com operação
+    acompanhado: robo.tem_coletor && robo.status === "ativo",
   });
   if (resumo.dias.length === 0) return new Response("sem operações nesse mês", { status: 404 });
 

@@ -14,7 +14,9 @@ import {
   intervaloDeDatas,
   minimoEmPalavras,
   minimoSemCapital,
+  oQueEOCapitalMinimoDaEscolha,
   pregoes,
+  premissaDoResultado,
   quandoEmPalavras,
   quedaDaSimulacao,
   respostaDoSimulador,
@@ -519,5 +521,64 @@ describe("respostaDoSimulador", () => {
   it("singular: R$ 1 fica, falta R$ 1", () => {
     const r = respostaDoSimulador({ ...base, semaforo: "nao_cabe", capital: 1, capitalMinimo: 2, capitalMinimoConhecido: 2, capitalQueFalta: 1 });
     expect(r.frase).toBe(`${brl(1)} fica abaixo de ${brl(2)}, o capital mínimo para estes robôs e contratos. Falta ${brl(1)}.`);
+  });
+});
+
+describe("oQueEOCapitalMinimoDaEscolha", () => {
+  it("usa as palavras do glossário: o máximo de entradas que o robô já teve abertas, não o que ele pode ter", () => {
+    const texto = oQueEOCapitalMinimoDaEscolha(1.5);
+    expect(texto).toContain("vezes o máximo de entradas que ele já teve abertas ao mesmo tempo");
+    expect(texto).not.toContain("pode ter");
+    expect(texto).toContain("a maior queda de todo o histórico dele vezes 1,5.");
+    expect(texto).toContain("Quedas futuras podem ser maiores.");
+  });
+
+  it("os contratos por entrada multiplicam a conta inteira (garantia e queda), como capitalMinimoDaCarteira", () => {
+    const texto = oQueEOCapitalMinimoDaEscolha(2);
+    expect(texto).toContain("Para cada um, com 1 contrato por entrada:");
+    expect(texto).toContain("vezes 2,0. Esse valor é multiplicado pelos contratos por entrada escolhidos para ele.");
+  });
+});
+
+describe("premissaDoResultado", () => {
+  const historico = "desde 3 de janeiro de 2018 (8 anos e 10 meses, 1.995 pregões)";
+
+  it("todos com custo: já descontados os custos", () => {
+    expect(
+      premissaDoResultado(
+        "1 contrato por entrada em cada um dos 2 robôs",
+        [
+          { nome: "Apollo", custoPorContrato: 0.25 },
+          { nome: "Orion", custoPorContrato: 1 },
+        ],
+        historico,
+      ),
+    ).toBe(`com 1 contrato por entrada em cada um dos 2 robôs, já descontados os custos · ${historico}`);
+  });
+
+  it("só o robô sem custo: antes dos custos", () => {
+    expect(premissaDoResultado("1 contrato por entrada no Alaska", [{ nome: "Alaska", custoPorContrato: 0 }], historico)).toBe(
+      `com 1 contrato por entrada no Alaska, antes dos custos · ${historico}`,
+    );
+  });
+
+  it("soma com um robô sem custo: diz qual, pelo nome", () => {
+    expect(
+      premissaDoResultado(
+        "1 contrato por entrada em cada um dos 3 robôs",
+        [
+          { nome: "Apollo", custoPorContrato: 0.25 },
+          { nome: "Orion", custoPorContrato: 0.25 },
+          { nome: "Alaska", custoPorContrato: 0 },
+        ],
+        historico,
+      ),
+    ).toBe(`com 1 contrato por entrada em cada um dos 3 robôs, já descontados os custos, menos no Alaska, que não tem custo no histórico · ${historico}`);
+  });
+
+  it("sem o tamanho do histórico, sem o ponto do meio", () => {
+    expect(premissaDoResultado("2 contratos por entrada no Apollo", [{ nome: "Apollo", custoPorContrato: 0.25 }], "")).toBe(
+      "com 2 contratos por entrada no Apollo, já descontados os custos",
+    );
   });
 });

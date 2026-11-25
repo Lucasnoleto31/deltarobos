@@ -12,6 +12,7 @@ import { GraficoResultado } from "@/components/graficos/GraficoResultado";
 import { Fato, Fatos, NumeroGrande } from "@/components/sistema/Numero";
 import type { SerieDoRobo } from "@/lib/consultas/casa";
 import { formatarBRL, formatarData, formatarDataLonga, formatarNumero } from "@/lib/formato";
+import { custosDaSoma, premissaDoRobo } from "@/lib/premissa";
 import {
   aPartirDe,
   acumular,
@@ -115,8 +116,10 @@ function Miniatura({ pontos, dominio }: { pontos: PontoDaMiniatura[]; dominio: r
  * resultado, e qual deles? Um número grande, uma curva e a lista dos robôs, que é a comparação entre eles.
  *
  * - O número é o resultado somado dos robôs no período, com a premissa escrita junto ("1 contrato por
- *   entrada em cada um dos robôs, já descontados os custos"): sem ela o leigo lê o valor como o que um robô
- *   rende. Ao lado, os fatos: dias com ganho, pior dia e maior queda.
+ *   entrada em cada um dos robôs" e os custos, de lib/premissa): sem ela o leigo lê o valor como o que um
+ *   robô rende. O robô cujo histórico não tem custo cadastrado entra na premissa como ressalva, pelo nome
+ *   ("já descontados os custos, menos no X, que não tem custo no histórico"). Ao lado, os fatos: dias com
+ *   ganho, pior dia e maior queda.
  * - A curva é a do período, com a maior queda em vermelho. Em "Somados" é a soma; em "Lado a lado", a curva
  *   de cada robô no mesmo gráfico, todas partindo de zero no começo do período e com o nome na ponta.
  *   Passar o ponteiro troca o número pelo acumulado até aquele pregão.
@@ -130,15 +133,16 @@ function Miniatura({ pontos, dominio }: { pontos: PontoDaMiniatura[]; dominio: r
  *   volta à soma. Sem linha de instrução.
  * - O período vale para a tela toda e é o mesmo corte de data para a soma e para cada robô, então as linhas
  *   da lista somam o número grande. O padrão são 12 meses: há robô com histórico desde 2018 e robô de 2026,
- *   e "desde o início" somado é uma linha quase reta de anos com um salto no fim.
+ *   e "desde o início" somado é uma linha quase reta de anos com um salto no fim. "12 meses" é o mesmo
+ *   recorte do simulador (inicioPeriodo): com 1 contrato em cada robô, as duas telas dão o mesmo número.
  * - No celular não existe "passar por cima": um seletor só, acima da curva, escolhe entre a soma, o lado a
  *   lado e cada robô; a lista vira uma linha por robô com nome, resultado e maior queda, e o ganho por queda
  *   e o capital mínimo embaixo, em texto pequeno.
  *
  * Os robôs vêm do banco; o desenho é uma linha por robô, então serve de 2 a 12. Tudo é para 1 contrato por
- * entrada e já descontados os custos. As séries vêm do servidor (cache de 60 s); o que o ao vivo já sabe de
- * hoje além delas entra nos totais. As contas são as de lib/stats/serie-casa; o capital mínimo é o de
- * capitaisDaCasa, o mesmo número das outras telas.
+ * entrada, com os custos que o histórico de cada robô tem. As séries vêm do servidor (cache de 60 s); o que
+ * o ao vivo já sabe de hoje além delas entra nos totais. As contas são as de lib/stats/serie-casa; o capital
+ * mínimo é o de capitaisDaCasa, o mesmo número das outras telas.
  */
 export function PainelCasa({ cards, series, capitais }: Props) {
   const { hoje } = useCasa();
@@ -286,11 +290,19 @@ export function PainelCasa({ cards, series, capitais }: Props) {
   const numero = lido ? lido.acumulado : resumo.total + aMais;
 
   const opcao = PERIODOS.find((p) => p.valor === periodo) ?? PERIODOS[0];
-  const comPregoes = linhas.filter((l) => l.pregoes > 0).length;
-  const premissa =
-    escolhido || comPregoes <= 1
-      ? "com 1 contrato por entrada, já descontados os custos"
-      : `com 1 contrato por entrada em cada um dos ${formatarNumero(comPregoes)} robôs, já descontados os custos`;
+  // Os custos vêm de lib/premissa, com os robôs que entram no número: o apontado, ou os que têm pregões no
+  // período. O robô cujo histórico não tem custo cadastrado não entra como "já descontados os custos": sozinho
+  // diz "antes dos custos", e na soma vira a ressalva, pelo nome.
+  const premissa = useMemo(() => {
+    const dosRobos = (ls: typeof linhas) => ls.map((l) => ({ nome: l.robo.nome, custoPorContrato: l.robo.custoPorContrato }));
+    const doEscolhido = linhas.find((l) => l.robo.slug === slugEscolhido);
+    if (doEscolhido) return premissaDoRobo(doEscolhido.robo.custoPorContrato);
+    const naSoma = linhas.filter((l) => l.pregoes > 0);
+    if (naSoma.length === 1) return premissaDoRobo(naSoma[0].robo.custoPorContrato);
+    if (naSoma.length > 1) return `com 1 contrato por entrada em cada um dos ${formatarNumero(naSoma.length)} robôs, ${custosDaSoma(dosRobos(naSoma))}`;
+    // nenhum robô no período: vale a nota de todos os que têm histórico
+    return `com 1 contrato por entrada, ${custosDaSoma(dosRobos(linhas.filter((l) => !l.emBreve && historicos.get(l.robo.slug))))}`;
+  }, [linhas, slugEscolhido, historicos]);
 
   // De quando é o número. O robô cujo histórico cabe inteiro no período diz o tamanho do histórico: "nos
   // últimos 12 meses" de um robô que tem 9 meses seria mentira.

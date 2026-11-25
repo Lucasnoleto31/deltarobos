@@ -1,21 +1,20 @@
 import { describe, expect, it } from "vitest";
+import { diaDaSemana, inicioPeriodo, somarDias } from "./periodos";
 import {
   aPartirDe,
   acumular,
-  amostrar,
   compararNaLista,
   curvaNoEixo,
-  eixoComum,
   ganhoPorQueda,
   inicioDoPeriodoDaCasa,
   maiorQueda,
   resumirDias,
   somarSeries,
   tamanhoDoHistorico,
-  ultimosPregoes,
   type DiaResultado,
   type LinhaNaOrdem,
 } from "./serie-casa";
+import { simular, type RoboSimulador } from "./simulador";
 
 const dia = (d: string, valor: number, n = 1, g = valor > 0 ? 1 : 0): DiaResultado => ({ dia: d, valor, n, g });
 
@@ -38,15 +37,6 @@ describe("somarSeries", () => {
 
   it("sem série, sem dias", () => {
     expect(somarSeries([])).toEqual([]);
-  });
-});
-
-describe("ultimosPregoes", () => {
-  const dias = [1, 2, 3, 4, 5];
-  it("corta do fim", () => expect(ultimosPregoes(dias, 2)).toEqual([4, 5]));
-  it("nulo ou maior que a série devolve tudo", () => {
-    expect(ultimosPregoes(dias, null)).toEqual(dias);
-    expect(ultimosPregoes(dias, 99)).toEqual(dias);
   });
 });
 
@@ -99,20 +89,6 @@ describe("resumirDias", () => {
   });
 });
 
-describe("amostrar", () => {
-  it("mantém a primeira e a última ponta", () => {
-    const longo = Array.from({ length: 200 }, (_, i) => i);
-    const curto = amostrar(longo, 40);
-    expect(curto).toHaveLength(40);
-    expect(curto[0]).toBe(0);
-    expect(curto[39]).toBe(199);
-  });
-
-  it("série curta passa inteira", () => {
-    expect(amostrar([1, 2, 3], 40)).toEqual([1, 2, 3]);
-  });
-});
-
 describe("inicioDoPeriodoDaCasa e aPartirDe", () => {
   const HOJE = "2026-09-18";
   // 40 dias seguidos, de 01/08 a 09/09
@@ -123,10 +99,10 @@ describe("inicioDoPeriodoDaCasa e aPartirDe", () => {
     expect(aPartirDe(somada, null)).toHaveLength(40);
   });
 
-  it("12 meses deixam de fora o dia de hoje de um ano atrás", () => {
-    expect(inicioDoPeriodoDaCasa(somada, "12m", HOJE)).toBe("2025-09-19");
-    const dias = [{ dia: "2025-09-18" }, { dia: "2025-09-19" }, { dia: "2026-09-18" }];
-    expect(aPartirDe(dias, inicioDoPeriodoDaCasa(dias, "12m", HOJE)).map((d) => d.dia)).toEqual(["2025-09-19", "2026-09-18"]);
+  it("12 meses começam no dia de hoje de um ano atrás, esse dia incluído (como no simulador)", () => {
+    expect(inicioDoPeriodoDaCasa(somada, "12m", HOJE)).toBe("2025-09-18");
+    const dias = [{ dia: "2025-09-17" }, { dia: "2025-09-18" }, { dia: "2025-09-19" }, { dia: "2026-09-18" }];
+    expect(aPartirDe(dias, inicioDoPeriodoDaCasa(dias, "12m", HOJE)).map((d) => d.dia)).toEqual(["2025-09-18", "2025-09-19", "2026-09-18"]);
   });
 
   it("30 pregões começam no trigésimo pregão da casa, de trás para a frente", () => {
@@ -150,6 +126,61 @@ describe("inicioDoPeriodoDaCasa e aPartirDe", () => {
     const dias = [{ dia: "2026-09-01" }];
     expect(aPartirDe(dias, null)).not.toBe(dias);
     expect(aPartirDe(dias, null)).toEqual(dias);
+  });
+});
+
+describe("12 meses: a Visão geral e o simulador recortam o mesmo período", () => {
+  // datas comuns, fim de mês, 29/02 de ano bissexto e o dia seguinte a ele
+  const DATAS = ["2026-11-25", "2026-11-26", "2026-11-27", "2027-03-02", "2026-03-31", "2028-02-29", "2027-02-28", "2026-01-01"];
+
+  it("o primeiro dia é o mesmo de inicioPeriodo('12m'), a regra do simulador", () => {
+    for (const hoje of DATAS) expect(inicioDoPeriodoDaCasa([], "12m", hoje)).toBe(inicioPeriodo("12m", hoje));
+  });
+
+  // dois robôs com pregão em todo dia útil de 2024 a 2028, em centavos inteiros (a soma não perde centavo); o
+  // segundo pula um dia em cada três, para a soma ter dias de um robô só
+  const uteis: string[] = [];
+  for (let d = "2024-01-01"; d <= "2028-12-31"; d = somarDias(d, 1)) if (diaDaSemana(d) % 6 !== 0) uteis.push(d);
+  const roboA = uteis.map((d, i) => dia(d, ((i * 37) % 23) * 10 - 100));
+  const roboB = uteis.filter((_, i) => i % 3 !== 0).map((d, i) => dia(d, ((i * 53) % 19) * 10 - 80));
+  const paraOSimulador = (slug: string, dias: DiaResultado[]) =>
+    ({
+      slug,
+      nome: slug,
+      ativo: "WIN",
+      ativoNome: "Mini Índice",
+      contaTipo: null,
+      dias: dias.map((d) => [d.dia, d.valor] as const),
+      capitalMinimoPorContrato: null,
+      semMinimoPorque: "garantia",
+      entradasAbertas: 1,
+      entradasMedidas: false,
+      custoPorContrato: 0.25,
+    }) as RoboSimulador;
+
+  it("com 1 contrato em cada robô, o resultado somado e os pregões são os do simulador", () => {
+    for (const hoje of DATAS) {
+      const series = [roboA, roboB].map((s) => s.filter((d) => d.dia <= hoje));
+      const somada = somarSeries(series);
+      const curva = acumular(aPartirDe(somada, inicioDoPeriodoDaCasa(somada, "12m", hoje)));
+      const simulado = simular({
+        capital: 100_000,
+        robos: [paraOSimulador("a", series[0]), paraOSimulador("b", series[1])],
+        contratos: { a: 1, b: 1 },
+        periodo: "12m",
+        hoje,
+      });
+      expect(curva.length).toBe(simulado.nDias);
+      expect(curva[0].dia).toBe(simulado.serie[0].dia);
+      expect(curva.at(-1)?.acumulado).toBe(simulado.resultado);
+    }
+  });
+
+  it("o dia de hoje de um ano atrás entra nas duas telas quando houve pregão nele", () => {
+    const hoje = "2026-11-26";
+    expect(uteis).toContain("2025-11-26");
+    const somada = somarSeries([roboA, roboB].map((s) => s.filter((d) => d.dia <= hoje)));
+    expect(aPartirDe(somada, inicioDoPeriodoDaCasa(somada, "12m", hoje))[0].dia).toBe("2025-11-26");
   });
 });
 
@@ -212,17 +243,17 @@ describe("tamanhoDoHistorico", () => {
   });
 });
 
-describe("eixoComum e curvaNoEixo", () => {
+describe("curvaNoEixo", () => {
   const a = [dia("2026-09-14", 100, 1, 1), dia("2026-09-15", -300, 2, 0), dia("2026-09-17", 50, 1, 1)];
   const b = [dia("2026-09-15", 40, 1, 1), dia("2026-09-16", -10, 1, 0), dia("2026-09-18", 20, 1, 1)];
+  // o eixo comum, como a página inicial o monta: os dias da soma dos robôs
+  const eixo = somarSeries([a, b]).map((d) => d.dia);
 
-  it("o eixo é todo pregão em que algum robô operou, em ordem e sem repetir", () => {
-    expect(eixoComum([{ dias: b }, { dias: a }, { dias: [] }])).toEqual(["2026-09-14", "2026-09-15", "2026-09-16", "2026-09-17", "2026-09-18"]);
-    expect(eixoComum([])).toEqual([]);
+  it("o eixo da soma é todo pregão em que algum robô operou, em ordem e sem repetir", () => {
+    expect(eixo).toEqual(["2026-09-14", "2026-09-15", "2026-09-16", "2026-09-17", "2026-09-18"]);
   });
 
   it("no dia sem operação o acumulado fica onde estava; o robô que estreou no período não tem linha antes", () => {
-    const eixo = eixoComum([{ dias: a }, { dias: b }]);
     const curvaA = acumular(a);
     const curvaB = acumular(b);
 
@@ -236,7 +267,6 @@ describe("eixoComum e curvaNoEixo", () => {
   });
 
   it("o robô que já existia antes do período parte de zero no começo do eixo", () => {
-    const eixo = eixoComum([{ dias: a }, { dias: b }]);
     const curvaB = acumular(b);
     const noEixoB = curvaNoEixo(eixo, curvaB, maiorQueda(curvaB), true);
     expect(noEixoB.acumulado).toEqual([0, 40, 30, 30, 50]);
@@ -245,7 +275,6 @@ describe("eixoComum e curvaNoEixo", () => {
   });
 
   it("a maior queda vai para os índices do eixo", () => {
-    const eixo = eixoComum([{ dias: a }, { dias: b }]);
     const curvaB = acumular(b);
     // B: pico em 15/09 (índice 0 da curva, 1 do eixo), fundo em 16/09 (índice 1 da curva, 2 do eixo)
     expect(maiorQueda(curvaB)).toEqual({ iInicio: 0, iFundo: 1, valor: 10 });

@@ -1,7 +1,8 @@
 /**
  * As contas da página inicial e da visão geral do robô (ficha Mesa, 25/11/2026): somar os robôs dia a dia,
  * recortar o período, acumular, achar a maior queda e resumir os pregões em palavras de leigo. Tudo em
- * R$ para 1 contrato, já descontados os custos: os valores chegam prontos de `valorDia`.
+ * R$ para 1 contrato, com os custos que o histórico de cada robô tem descontados: os valores chegam prontos
+ * de `valorDia` (a premissa que a tela escreve vem de lib/premissa).
  *
  * 25/11/2026, revisão das telas (DESIGN.md, seção 9): a lista "Por robô" da página inicial passou a ser a
  * comparação entre os robôs, e as contas dela moram aqui: o período igual para todos, o ganho para cada R$ 1
@@ -9,7 +10,7 @@
  */
 
 import { tempoEmPalavras } from "./indicadores-robo";
-import { somarDias, somarMeses } from "./periodos";
+import { inicioPeriodo } from "./periodos";
 
 /** Um pregão: o resultado, quantas operações fecharam e quantas delas com ganho. */
 export interface DiaResultado {
@@ -62,11 +63,6 @@ export function somarSeries(series: ReadonlyArray<ReadonlyArray<DiaResultado>>):
   return [...porDia.values()].sort((a, b) => (a.dia < b.dia ? -1 : a.dia > b.dia ? 1 : 0));
 }
 
-/** Os últimos `pregoes` dias da série (já em ordem de data); nulo devolve tudo. */
-export function ultimosPregoes<T>(dias: readonly T[], pregoes: number | null): T[] {
-  return pregoes === null || pregoes >= dias.length ? [...dias] : dias.slice(dias.length - pregoes);
-}
-
 /** O acumulado do período, pregão a pregão, partindo de zero. */
 export function acumular(dias: ReadonlyArray<{ dia: string; valor: number }>): DiaAcumulado[] {
   let acumulado = 0;
@@ -110,14 +106,6 @@ export function resumirDias(dias: ReadonlyArray<DiaResultado>): ResumoDosDias {
   return r;
 }
 
-/** Reduz uma curva longa a no máximo `maximo` pontos, sempre com o primeiro e o último (para a mini curva). */
-export function amostrar(valores: readonly number[], maximo: number): number[] {
-  if (valores.length <= maximo || maximo < 2) return [...valores];
-  const saida: number[] = [];
-  for (let k = 0; k < maximo; k++) saida.push(valores[Math.round((k / (maximo - 1)) * (valores.length - 1))]);
-  return saida;
-}
-
 // ---------------------------------------------------------------------------------------------------------
 // O período da página inicial
 // ---------------------------------------------------------------------------------------------------------
@@ -132,13 +120,16 @@ export const PREGOES_DO_PERIODO_CURTO = 30;
  * O primeiro dia que entra no período, ou nulo quando entra tudo. É um dia só para a tela inteira: a soma e
  * cada robô são cortados na mesma data, para as linhas da lista somarem o número grande e as curvas dividirem
  * o mesmo eixo de tempo.
- * - 12 meses: o dia de hoje de um ano atrás fica de fora.
+ * - 12 meses: a mesma definição do simulador (inicioPeriodo, em ./periodos), de hoje de um ano atrás, esse
+ *   dia incluído. As duas telas escrevem "nos últimos 12 meses" e, com 1 contrato em cada robô, têm de dar
+ *   o mesmo resultado nos mesmos pregões (revisão de 25/11/2026: a Visão geral deixava esse dia de fora e
+ *   divergia do simulador sempre que algum robô tinha operado nele).
  * - 30 pregões: os últimos 30 pregões em que algum robô operou (`somada` é a soma dos robôs, em ordem de
  *   data). Um robô que não operou em todos eles aparece com os que operou.
  */
 export function inicioDoPeriodoDaCasa(somada: ReadonlyArray<{ dia: string }>, periodo: PeriodoDaCasa, hoje: string): string | null {
   if (periodo === "tudo") return null;
-  if (periodo === "12m") return somarDias(somarMeses(hoje, -12), 1);
+  if (periodo === "12m") return inicioPeriodo("12m", hoje);
   return somada.length > PREGOES_DO_PERIODO_CURTO ? somada[somada.length - PREGOES_DO_PERIODO_CURTO].dia : null;
 }
 
@@ -224,14 +215,10 @@ export function tamanhoDoHistorico(dias: ReadonlyArray<{ dia: string }>): Tamanh
 // As curvas lado a lado
 // ---------------------------------------------------------------------------------------------------------
 
-/** O eixo de tempo comum: todo pregão em que algum robô operou no período, em ordem e sem repetir. */
-export function eixoComum(robos: ReadonlyArray<{ dias: ReadonlyArray<{ dia: string }> }>): string[] {
-  const dias = new Set<string>();
-  for (const r of robos) for (const d of r.dias) dias.add(d.dia);
-  return [...dias].sort();
-}
-
-/** A curva de um robô no eixo comum. */
+/**
+ * A curva de um robô no eixo comum. O eixo é todo pregão em que algum robô operou no período, em ordem e sem
+ * repetir: os dias da soma dos robôs (somarSeries), que a página inicial já tem.
+ */
 export interface CurvaNoEixo {
   /** o acumulado do período em cada pregão do eixo; nulo onde ainda não há linha */
   acumulado: Array<number | null>;

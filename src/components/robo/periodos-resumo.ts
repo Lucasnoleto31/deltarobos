@@ -1,19 +1,11 @@
-// Os períodos do painel de resultado da visão geral (18/09/2026, Artur: "faltam filtros, hoje,
-// semana, mes, tudo"). "Hoje" é o painel ao vivo; os outros quatro recortam a série diária e as
-// operações. Sem "use client": a página monta a curva por operação de cada período no servidor.
+// Os períodos da aba Resumo do robô (18/09/2026, Artur: "faltam filtros, hoje, semana, mes, tudo"). Os
+// quatro recortam a série diária e as operações. Sem "use client": a página monta a curva por operação de
+// cada período no servidor. Desde 25/11/2026 "Hoje" é a aba Ao vivo, e saíram daqui a lista com "Hoje" e a
+// escolha do período em que o painel abria (DESIGN.md, seção 9).
 
 import { anoDe, diaDaSemana, mesDe, somarDias } from "@/lib/stats/periodos";
 
-export type PeriodoResumo = "hoje" | "semana" | "mes" | "ano" | "tudo";
-export type PeriodoFechado = Exclude<PeriodoResumo, "hoje">;
-
-export const PERIODOS_RESUMO: ReadonlyArray<{ valor: PeriodoResumo; rotulo: string }> = [
-  { valor: "hoje", rotulo: "Hoje" },
-  { valor: "semana", rotulo: "Semana" },
-  { valor: "mes", rotulo: "Mês" },
-  { valor: "ano", rotulo: "Ano" },
-  { valor: "tudo", rotulo: "Tudo" },
-];
+export type PeriodoFechado = "semana" | "mes" | "ano" | "tudo";
 
 export const PERIODOS_FECHADOS: readonly PeriodoFechado[] = ["semana", "mes", "ano", "tudo"];
 
@@ -61,20 +53,6 @@ export function inicioDoPeriodo(periodo: PeriodoFechado, hoje: string): string |
 export function noPeriodo<T extends { dia: string }>(itens: readonly T[], periodo: PeriodoFechado, hoje: string): T[] {
   const inicio = inicioDoPeriodo(periodo, hoje);
   return itens.filter((i) => i.dia <= hoje && (inicio === null || i.dia >= inicio));
-}
-
-/**
- * O período em que o painel abre (19/09/2026). "Hoje" quando o dia tem operação ou o pregão está
- * aberto. Fora disso "Hoje" é um painel zerado (sábado, feriado, antes da abertura), e ele abre no
- * primeiro período com operação: semana, mês, ano, tudo. Sem operação nenhuma, fica em "Hoje".
- */
-export function periodoInicial(
-  linhas: readonly { dia: string; n_operacoes: number }[],
-  hoje: string,
-  agora: { operacoesHoje: number; pregaoAberto: boolean },
-): PeriodoResumo {
-  if (agora.operacoesHoje > 0 || agora.pregaoAberto) return "hoje";
-  return PERIODOS_FECHADOS.find((p) => noPeriodo(linhas, p, hoje).some((l) => l.n_operacoes > 0)) ?? "hoje";
 }
 
 /** O período como chega na URL de /api/robos/[slug]/curva/[periodo]: só os quatro fechados valem. */

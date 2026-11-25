@@ -249,42 +249,8 @@ export function historicoCurto(de: string, ate: string): boolean {
   return somarMeses(de, 12) > ate;
 }
 
-// ---------------------------------------------------------------------------------------------------------
-// Mapa dos meses (ano x mês)
-// ---------------------------------------------------------------------------------------------------------
-
-export interface CelulaHeatmap {
-  mes: string;
-  total: number;
-  nDias: number;
-}
-
-export interface LinhaHeatmap {
-  ano: string;
-  /** 12 posições (jan..dez); null = sem operação no mês */
-  meses: (CelulaHeatmap | null)[];
-  total: number;
-}
-
-/** Heatmap ano x mês com o total de cada mês. */
-export function heatmapAnoMes(linhas: readonly LinhaDiaria[], o: OpcoesSerie): LinhaHeatmap[] {
-  const porMes = new Map<string, CelulaHeatmap>();
-  for (const l of linhas) {
-    const mes = mesDe(l.dia);
-    const c = porMes.get(mes) ?? { mes, total: 0, nDias: 0 };
-    c.total += valorDia(l, o);
-    c.nDias += 1;
-    porMes.set(mes, c);
-  }
-  const anos = [...new Set([...porMes.keys()].map((m) => m.slice(0, 4)))].sort();
-  return anos.map((ano) => {
-    const meses = Array.from({ length: 12 }, (_, i) => {
-      const chave = `${ano}-${String(i + 1).padStart(2, "0")}`;
-      return porMes.get(chave) ?? null;
-    });
-    return { ano, meses, total: meses.reduce((s, m) => s + (m?.total ?? 0), 0) };
-  });
-}
+// O mapa ano x mês (heatmapAnoMes) saiu em 25/11/2026 com o componente que o desenhava: o mês a mês do
+// Dia a dia sai de anosDoHistorico.
 
 /** Meses (YYYY-MM) que têm ao menos um dia com operação, em ordem. */
 export function mesesComDados(linhas: readonly LinhaDiaria[]): string[] {

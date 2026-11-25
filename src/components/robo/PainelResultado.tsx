@@ -9,6 +9,7 @@ import { CurvaCapital } from "@/components/graficos/CurvaCapital";
 import { expandirSerie, type SerieCompacta } from "@/components/graficos/series-da-curva";
 import { Fato, Fatos, NumeroGrande } from "@/components/sistema/Numero";
 import { formatarBRL, formatarData, formatarNumero } from "@/lib/formato";
+import { premissaDoRobo } from "@/lib/premissa";
 import { resumoDoPeriodo, type ResumoDoPeriodo } from "@/lib/stats/como-opera";
 import { tempoEmPalavras } from "@/lib/stats/indicadores-robo";
 import type { LinhaDiaria } from "@/lib/stats/tipos";
@@ -73,8 +74,9 @@ function Rotulo({ chave, nota, children }: { chave?: ChaveIndicador; nota?: Reac
  * vale a pena? Quanto ganhou e quanto caiu no caminho?
  *
  * - O número grande é o resultado desde o início, com a premissa ("com 1 contrato por entrada, já descontados
- *   os custos") e o tamanho do histórico ("em 9 meses, 172 pregões") escritos embaixo. A tela abre sempre aí;
- *   ano, mês e semana ficam como escolha. "Hoje" saiu: é a aba Ao vivo.
+ *   os custos", ou "antes dos custos" no robô sem custo cadastrado: premissaDoRobo, de lib/premissa, a mesma
+ *   regra das outras abas) e o tamanho do histórico ("em 9 meses, 172 pregões") escritos embaixo. A tela abre
+ *   sempre aí; ano, mês e semana ficam como escolha. "Hoje" saiu: é a aba Ao vivo.
  * - Ao lado, os fatos que pesam na decisão: a maior queda e se já recuperou; quanto ganhou para cada R$ 1 que
  *   já chegou a cair; o capital mínimo; em quantos meses e dias terminou com ganho, com o pior de cada.
  *   Onde aparece ganho, aparece a queda.
@@ -100,6 +102,7 @@ export function PainelResultado({ linhas, pontosPorOperacao, valorPonto, capital
         key={periodo}
         periodo={periodo}
         slug={robo.slug}
+        premissa={premissaDoRobo(robo.custo_por_contrato)}
         linhas={linhas}
         serie={pontosPorOperacao[periodo]}
         valorPonto={valorPonto}
@@ -114,6 +117,7 @@ export function PainelResultado({ linhas, pontosPorOperacao, valorPonto, capital
 function ResultadoDoPeriodo({
   periodo,
   slug,
+  premissa,
   linhas,
   serie,
   valorPonto,
@@ -123,6 +127,8 @@ function ResultadoDoPeriodo({
 }: {
   periodo: PeriodoFechado;
   slug: string;
+  /** "com 1 contrato por entrada, já descontados os custos" (ou "antes dos custos"): premissaDoRobo */
+  premissa: string;
   linhas: LinhaDiaria[];
   /** a série leve do período; a completa é pedida à rota quando a curva abre "Por operação" */
   serie: SerieCompacta;
@@ -262,7 +268,7 @@ function ResultadoDoPeriodo({
         <div className="min-w-0">
           <NumeroGrande valor={r.resultado} centavos={Math.abs(r.resultado) < 1000} />
           <p className="mt-3 text-sm text-pretty text-muted-foreground xl:max-w-[22rem]">
-            com 1 contrato por entrada, já descontados os custos · {tamanhoDoPeriodo(periodo, r, hoje)}
+            {premissa} · {tamanhoDoPeriodo(periodo, r, hoje)}
           </p>
         </div>
         <div className="hidden min-w-0 xl:block xl:max-w-[46rem]">{fatos}</div>

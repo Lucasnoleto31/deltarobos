@@ -24,7 +24,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
  * Aba "Quedas e risco" (revisão de 25/11/2026, DESIGN.md seção 9): quanto posso perder e quanto capital
  * preciso? A página busca e chama as contas puras; o desenho é do PainelRisco.
  *
- * - A série diária vira data e valor (R$, 1 contrato por entrada, já com custos) e riscoDoRobo lê o histórico
+ * - A série diária vira data e valor (R$, 1 contrato por entrada, menos o custo do robô) e riscoDoRobo lê o histórico
  *   inteiro: a maior queda com as datas, as outras quedas e os dias ruins. Só data e valor de cada pregão vão
  *   ao navegador, para a curva; as operações não são mais buscadas (serviam ao risco de ruína, que saiu).
  * - O capital mínimo e as parcelas vêm de capitalDoRobo, a mesma leitura das outras telas; contaDoCapital só
@@ -57,6 +57,7 @@ export default async function PaginaRisco({ params }: Props) {
       limite={LIMITE_APERTADO}
       momento={piorMomentoMedido(exposicao, dias, robo.custo_por_contrato, robo.valor_ponto_brl)}
       porOperacao={resultadoPorOperacao(ateHoje)}
+      custoPorContrato={robo.custo_por_contrato}
     />
   );
 }

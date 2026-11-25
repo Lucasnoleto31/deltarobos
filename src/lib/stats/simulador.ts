@@ -90,6 +90,11 @@ export interface RoboSimulador {
   entradasAbertas: number;
   /** false = não há operação acompanhada ao vivo para medir as entradas, e o 1 acima é só o piso da conta */
   entradasMedidas: boolean;
+  /**
+   * robo.custo_por_contrato. Só para a premissa do resultado (lib/premissa, custosDaSoma): sem custo cadastrado
+   * a série do robô está antes dos custos, e a premissa diz isso no lugar de "já descontados os custos".
+   */
+  custoPorContrato: number;
 }
 
 export interface EntradaSimulacao {

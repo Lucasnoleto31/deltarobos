@@ -1,4 +1,5 @@
 import { formatarBRL, formatarNumero, formatarPct } from "@/lib/formato";
+import { acertoParaEmpatar } from "./indicadores-robo";
 import { dia as diaOp, diaSemana, hora, liquidoOperacao, type OperacaoCompacta } from "./operacoes";
 import { mesDe } from "./periodos";
 
@@ -87,6 +88,16 @@ export interface Faixa {
   nGain: number;
   /** consistência */
   acerto: number;
+  /** o tamanho médio de uma operação com ganho (R$, positivo), a mesma conta do ganho típico do Resumo; nulo sem nenhuma */
+  ganhoTipico: number | null;
+  /** o tamanho médio de uma operação com perda (R$, negativo), a mesma conta da perda típica do Resumo; nulo sem nenhuma */
+  perdaTipica: number | null;
+  /**
+   * A fração das operações que precisa terminar com ganho só para empatar (acertoParaEmpatar, com o ganho e a
+   * perda típicos deste dia e horário). Os acertos nunca aparecem sem ela (DESIGN.md, seção 9). Nula sem ganho ou
+   * sem perda para comparar: aí não há número de empate, e a tela diz por quê.
+   */
+  paraEmpatar: number | null;
   total: number;
   expectativa: number;
   /** drawdown máximo da curva operação a operação da faixa (R$/contrato, positivo) */
@@ -298,7 +309,22 @@ export function validarFaixas(
   const parciais = [...acc.entries()].map(([chave, a]) => {
     const [d, h] = chave.split("-").map(Number);
     const n = a.valores.length;
-    const nGain = a.valores.filter((v) => v > 0).length;
+    // os dois lados pelo líquido, como os acertos: operação em zero não é ganho nem perda
+    let nGain = 0;
+    let somaGanho = 0;
+    let nPerda = 0;
+    let somaPerda = 0;
+    for (const v of a.valores) {
+      if (v > 0) {
+        nGain += 1;
+        somaGanho += v;
+      } else if (v < 0) {
+        nPerda += 1;
+        somaPerda += v;
+      }
+    }
+    const ganhoTipico = nGain > 0 ? somaGanho / nGain : null;
+    const perdaTipica = nPerda > 0 ? somaPerda / nPerda : null;
     const total = a.valores.reduce((s, v) => s + v, 0);
     const dd = drawdownPorOperacao(a.valores);
     const mesesPositivos = [...a.meses.values()].filter((v) => v > 0).length;
@@ -309,6 +335,9 @@ export function validarFaixas(
       n,
       nGain,
       acerto: n > 0 ? nGain / n : 0,
+      ganhoTipico,
+      perdaTipica,
+      paraEmpatar: ganhoTipico !== null && perdaTipica !== null ? acertoParaEmpatar(ganhoTipico, perdaTipica) : null,
       total,
       expectativa: n > 0 ? total / n : 0,
       dd,

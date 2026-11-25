@@ -1,6 +1,7 @@
 import { cn } from "cn";
 import { ChevronDown } from "lucide-react";
 import { formatarNumero } from "@/lib/formato";
+import { premissaDoRobo } from "@/lib/premissa";
 import { LIMITE_SEM_HEARTBEAT_SEG } from "@/lib/stats/pregao";
 
 export interface PerguntaFaq {
@@ -11,6 +12,10 @@ export interface PerguntaFaq {
 // o mesmo limite que decide o aviso "sem atualização" (lib/stats/pregao), para a resposta não descolar dele;
 // é a mesma conta que a página Como funciona faz para o texto dela
 const MINUTOS_SEM_SINAL = formatarNumero(LIMITE_SEM_HEARTBEAT_SEG / 60);
+
+// a premissa que as telas escrevem junto do número do robô sem custo cadastrado, pela mesma regra delas
+// (src/lib/premissa): custo zero é o caso desse robô
+const PREMISSA_SEM_CUSTO = premissaDoRobo(0);
 
 /**
  * As perguntas comuns do site, num lugar só e fechadas até alguém querer ler (17/09/2026: a explicação saiu
@@ -26,7 +31,8 @@ const MINUTOS_SEM_SINAL = formatarNumero(LIMITE_SEM_HEARTBEAT_SEG / 60);
  *   acertar muito basta. Acertos nunca aparecem sem o necessário para empatar;
  * - o que o site não sabe (preço da licença, alíquota de imposto, se o robô estava ligado) não é inventado.
  * Nenhuma resposta leva número de robô nem de ativo: isso está nas telas, vindo do banco.
- * Robô sem custo cadastrado aparece sem o desconto (a página dele diz "não configurado").
+ * Os custos (revisão de 25/11/2026): a resposta não diz "sim" para todos os robôs. O robô sem custo cadastrado
+ * aparece "antes dos custos", e a frase que a resposta cita sai de src/lib/premissa, a mesma das telas.
  */
 export const PERGUNTAS_FREQUENTES: PerguntaFaq[] = [
   {
@@ -43,11 +49,11 @@ export const PERGUNTAS_FREQUENTES: PerguntaFaq[] = [
   },
   {
     p: "Os custos estão descontados?",
-    r: "Sim. De cada operação sai um custo fixo por contrato (corretagem e taxas da bolsa), mostrado na página de cada robô. É um custo de referência: o da sua corretora pode ser outro. Robô sem custo cadastrado aparece sem esse desconto, e a página dele diz isso.",
+    r: `No robô que tem custo cadastrado, sim: de cada operação sai um custo fixo por contrato (corretagem e taxas da bolsa), mostrado na página dele. É um custo de referência, e o da sua corretora pode ser outro. O robô cujo histórico não tem custo aparece sem esse desconto, e a frase junto do número dele diz “${PREMISSA_SEM_CUSTO}”.`,
   },
   {
     p: "O resultado vai ser igual na minha conta?",
-    r: "Não exatamente. Os números são os da conta da Quants Robôs, com 1 contrato por entrada e um custo de referência. Na sua conta mudam o preço em que cada ordem sai e os custos da sua corretora, e ainda há o imposto de renda e a licença do robô, que não estão em nenhum número do site. E resultado passado não garante resultado futuro.",
+    r: "Não exatamente. Os números são os da conta da Quants Robôs, com 1 contrato por entrada e o custo de referência de cada robô, quando ele tem custo cadastrado. Na sua conta mudam o preço em que cada ordem sai e os custos da sua corretora, e ainda há o imposto de renda e a licença do robô, que não estão em nenhum número do site. E resultado passado não garante resultado futuro.",
   },
   {
     p: "Por que o site não mostra quanto o robô rende por mês?",
@@ -71,7 +77,7 @@ export const PERGUNTAS_FREQUENTES: PerguntaFaq[] = [
   },
   {
     p: "Onde estão os arquivos de cada mês?",
-    r: "Na aba Dia a dia de cada robô: o mês escolhido tem o arquivo em PDF e a planilha com as operações.",
+    r: "Na aba Dia a dia de cada robô, na lista “Mês a mês”: cada mês tem o relatório em PDF e a planilha com as operações. Os meses mais recentes também ficam no pé da aba Operações.",
   },
 ];
 

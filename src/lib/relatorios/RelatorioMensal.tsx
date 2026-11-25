@@ -2,6 +2,7 @@ import { Document, Font, Page, StyleSheet, Text, View } from "@react-pdf/rendere
 import { partesDoValor } from "@/components/card/cores";
 import type { CapitalDoRobo } from "@/lib/consultas/capital";
 import { formatarBRL, formatarData, formatarDataCurta, formatarDuracao, formatarHora, formatarNumero, formatarPontos, formatarPreco, rotuloLado } from "@/lib/formato";
+import { custosDoRobo, premissaDoRobo, temCusto } from "@/lib/premissa";
 import type { ResumoDoMes } from "@/lib/stats/card-do-dia";
 import { casasDosAcertos } from "@/lib/stats/como-opera";
 import type { OperacaoPublica, RoboPublico } from "@/lib/tipos";
@@ -15,13 +16,18 @@ import type { OperacaoPublica, RoboPublico } from "@/lib/tipos";
  * site, então segue as regras das telas:
  * - o resultado do mês vem com a maior queda de dentro do mês, os dias com ganho e o pior dia;
  * - os acertos vêm com o necessário para empatar, e o fator de lucro vem em frase;
- * - a premissa está escrita junto do número: com 1 contrato por entrada, já descontados os custos;
- * - o capital mínimo é o das telas, com a conta por extenso.
+ * - a premissa está escrita junto do número: com 1 contrato por entrada e, pelo custo cadastrado do robô, "já
+ *   descontados os custos" ou "antes dos custos" (src/lib/premissa, a mesma regra das telas; até a revisão o PDF
+ *   dizia "já descontados os custos" também no robô cujo histórico não tem custo nenhum);
+ * - o capital mínimo é o das telas, com a conta por extenso;
+ * - "operou em X de Y pregões" conta os pregões como a aba Dia a dia: só da estreia do robô ao último dia que o
+ *   site conhece, e só em ano com feriados cadastrados (resumirMes).
  * Saíram: o ganho médio contra a perda média como razão (o payoff), a maior queda em % do capital de
- * referência, o resultado antes dos custos como número de destaque, o melhor dia como indicador e os recortes
+ * referência, o resultado antes dos custos como número de destaque, o melhor dia como indicador, os recortes
  * do mês por código de contrato, por dia da semana e por hora de entrada (um mês é pouco para isso; o histórico
- * inteiro está na aba Melhores horários). O resultado antes dos custos e os custos de cada operação continuam
- * na planilha do mês.
+ * inteiro está na aba Melhores horários) e, na tabela "Dia a dia", as operações com ganho e com perda de cada
+ * dia (acertos sem o necessário para empatar, que o dia escolhido do site também deixou de mostrar). O
+ * resultado antes dos custos, os custos e cada operação continuam na planilha do mês.
  *
  * Sem caixas, como as telas: o que separa é o espaço e o fio. Eram oito números em caixinhas com borda.
  */
@@ -108,6 +114,20 @@ function quantas(v: number): string {
 
 const pregoes = (n: number) => `${formatarNumero(n)} ${n === 1 ? "pregão" : "pregões"}`;
 
+/**
+ * "operou em 14 de 15 pregões do mês até 24/11", "operou em todos os pregões desde a estreia, em 13/02": os
+ * pregões da bolsa contados como na aba Dia a dia (resumirMes), com o trecho do mês que o site conhece. Vazio
+ * quando o site não sabe quantos pregões a bolsa teve (ano sem feriado cadastrado, por exemplo).
+ */
+function emQuantosPregoes(resumo: ResumoDoMes): string {
+  const { pregoesDaBolsa: total, pregoesContados: contados } = resumo;
+  if (total === null || contados === null) return "";
+  const trecho = contados.estreouNoMes
+    ? `desde a estreia, em ${formatarDataCurta(contados.de)}${contados.ateOFimDoMes ? "" : `, até ${formatarDataCurta(contados.ate)}`}`
+    : `do mês${contados.ateOFimDoMes ? "" : ` até ${formatarDataCurta(contados.ate)}`}`;
+  return total > resumo.pregoes ? `operou em ${formatarNumero(resumo.pregoes)} de ${pregoes(total)} ${trecho}` : `operou em todos os pregões ${trecho}`;
+}
+
 /** R$ sem centavos quando o valor é redondo (a garantia de R$ 150 por contrato), com centavos senão */
 function reais(v: number): string {
   return formatarBRL(v, { inteiro: Number.isInteger(v) });
@@ -150,6 +170,8 @@ const liquido = (o: OperacaoPublica) => o.resultado_brl_por_contrato - o.custos_
 export function RelatorioMensal({ robo, resumo, capital, ops, totalOps, geradoEm, site, legal }: Props) {
   const mes = mesPorExtenso(resumo.mes);
   const custo = robo.custo_por_contrato;
+  // o robô sem custo cadastrado tem o histórico antes dos custos: a premissa e as notas dizem isso (src/lib/premissa)
+  const comCusto = temCusto(custo);
   const { operou, maiorQueda } = resumo;
   const primeiroDia = resumo.dias.length > 0 ? resumo.dias[0].dia : null;
 
@@ -183,9 +205,7 @@ export function RelatorioMensal({ robo, resumo, capital, ops, totalOps, geradoEm
     resumo.operacoesPorPregao !== null
       ? `${quantas(resumo.operacoesPorPregao)} por pregão${resumo.duracaoTipicaSeg !== null ? `, cada uma dura ${formatarDuracao(resumo.duracaoTipicaSeg)}, normalmente` : ""}`
       : "",
-    resumo.pregoesDaBolsa !== null
-      ? `operou em ${formatarNumero(resumo.pregoes)} de ${pregoes(resumo.pregoesDaBolsa)} do mês${resumo.emAndamento ? " até agora" : ""}`
-      : "",
+    emQuantosPregoes(resumo),
   ].filter(Boolean);
   const comoOperou: Item[] = [{ rotulo: "Operações", valor: formatarNumero(operou.operacoes), apoio: ritmo.join("; ") }];
   // acertos nunca aparecem sem o necessário para empatar: sem ganho ou sem perda para comparar, a linha não entra
@@ -224,7 +244,7 @@ export function RelatorioMensal({ robo, resumo, capital, ops, totalOps, geradoEm
     comoOperou.push({
       rotulo: "Resultado médio por operação",
       valor: brl(operou.porOperacao),
-      apoio: custo > 0 ? `O custo considerado é de ${formatarBRL(custo)} por operação.` : undefined,
+      apoio: comCusto ? `O custo considerado é de ${formatarBRL(custo)} por operação.` : "Antes dos custos: este histórico não tem custo nenhum descontado, e o custo de cada operação sai deste valor.",
     });
   }
 
@@ -305,7 +325,7 @@ export function RelatorioMensal({ robo, resumo, capital, ops, totalOps, geradoEm
               {prefixo ? <Text style={{ color: negativo ? VERMELHO : CINZA }}>{`${prefixo} `}</Text> : null}
               <Text style={{ fontFamily: "Helvetica-Bold", color: negativo ? VERMELHO : TEXTO }}>{algarismos}</Text>
             </Text>
-            <Text style={s.premissa}>com 1 contrato por entrada, já descontados os custos</Text>
+            <Text style={s.premissa}>{premissaDoRobo(custo)}</Text>
             {periodo ? <Text style={[s.premissa, { marginTop: 1 }]}>{periodo}</Text> : null}
           </View>
 
@@ -353,7 +373,7 @@ export function RelatorioMensal({ robo, resumo, capital, ops, totalOps, geradoEm
             para a página seguinte. A nota e a frase legal não se separam. */}
         <View wrap={false}>
           <Text style={s.nota}>
-            {`Todos os valores são para 1 contrato por entrada, já descontados os custos${custo > 0 ? ` (${formatarBRL(custo)} por operação)` : ""}. O robô pode ter mais de uma entrada aberta ao mesmo tempo, e cada uma usa 1 contrato. Uma operação conta como ganho ou como perda depois de descontado o custo dela. A maior queda no mês vai do ponto mais alto ao mais baixo que veio depois, somando um dia depois do outro a partir do zero no começo do mês. A planilha do mês, com cada operação, o resultado antes dos custos e os custos, está na aba Dia a dia do robô em ${site}/robos/${robo.slug}. A conta de cada número está na página Como funciona.`}
+            {`Todos os valores são para 1 contrato por entrada, ${custosDoRobo(custo)}${comCusto ? ` (${formatarBRL(custo)} por operação)` : ": este histórico não tem custo nenhum descontado"}. O robô pode ter mais de uma entrada aberta ao mesmo tempo, e cada uma usa 1 contrato. ${comCusto ? "Uma operação conta como ganho ou como perda depois de descontado o custo dela. " : ""}A maior queda no mês vai do ponto mais alto ao mais baixo que veio depois, somando um dia depois do outro a partir do zero no começo do mês. A planilha do mês, com cada operação${comCusto ? ", o resultado antes dos custos e os custos" : ""}, está na aba Dia a dia do robô em ${site}/robos/${robo.slug}. A conta de cada número está na página Como funciona.`}
           </Text>
           <Text style={[s.nota, { marginTop: 4 }]}>{legal}</Text>
         </View>
@@ -361,22 +381,21 @@ export function RelatorioMensal({ robo, resumo, capital, ops, totalOps, geradoEm
         <Text style={s.secao} minPresenceAhead={60}>
           Dia a dia
         </Text>
+        {/* Dia, operações, resultado e o somado do mês. Saíram as colunas "Com ganho" e "Com perda" (25/11/2026):
+            acertos de um dia sem o necessário para empatar, que o dia escolhido do site também deixou de mostrar.
+            As contagens podem ser refeitas pela planilha do mês, que tem cada operação. */}
         <View style={s.cabTabela} fixed>
-          <Text style={[s.cel, { width: "16%" }]}>Dia</Text>
-          <Text style={[s.cel, s.dir, { width: "14%" }]}>Operações</Text>
-          <Text style={[s.cel, s.dir, { width: "14%" }]}>Com ganho</Text>
-          <Text style={[s.cel, s.dir, { width: "14%" }]}>Com perda</Text>
-          <Text style={[s.cel, s.dir, { width: "21%" }]}>Resultado</Text>
-          <Text style={[s.cel, s.dir, { width: "21%" }]}>Somado no mês</Text>
+          <Text style={[s.cel, { width: "22%" }]}>Dia</Text>
+          <Text style={[s.cel, s.dir, { width: "18%" }]}>Operações</Text>
+          <Text style={[s.cel, s.dir, { width: "30%" }]}>Resultado</Text>
+          <Text style={[s.cel, s.dir, { width: "30%" }]}>Somado no mês</Text>
         </View>
         {resumo.dias.map((d) => (
           <View key={d.dia} style={s.linha} wrap={false}>
-            <Text style={[s.cel, { width: "16%" }]}>{formatarData(d.dia)}</Text>
-            <Text style={[s.cel, s.dir, { width: "14%" }]}>{formatarNumero(d.operacoes)}</Text>
-            <Text style={[s.cel, s.dir, { width: "14%" }]}>{formatarNumero(d.comGanho)}</Text>
-            <Text style={[s.cel, s.dir, { width: "14%" }]}>{formatarNumero(d.comPerda)}</Text>
-            <Text style={[s.cel, s.dir, { width: "21%", color: cor(d.resultado) }]}>{brl(d.resultado)}</Text>
-            <Text style={[s.cel, s.dir, { width: "21%", color: cor(d.somado) }]}>{brl(d.somado)}</Text>
+            <Text style={[s.cel, { width: "22%" }]}>{formatarData(d.dia)}</Text>
+            <Text style={[s.cel, s.dir, { width: "18%" }]}>{formatarNumero(d.operacoes)}</Text>
+            <Text style={[s.cel, s.dir, { width: "30%", color: cor(d.resultado) }]}>{brl(d.resultado)}</Text>
+            <Text style={[s.cel, s.dir, { width: "30%", color: cor(d.somado) }]}>{brl(d.somado)}</Text>
           </View>
         ))}
 

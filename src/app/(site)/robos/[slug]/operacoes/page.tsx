@@ -13,6 +13,7 @@ import { listarOperacoes, type FiltroLado, type FiltroResultado } from "@/lib/co
 import { buscarRobo, listarEstatisticas } from "@/lib/consultas/publico";
 import { mesesRelatorio } from "@/lib/consultas/relatorios";
 import { formatarNumero } from "@/lib/formato";
+import { premissaDoRobo } from "@/lib/premissa";
 import { historicoCurto } from "@/lib/stats/calendario";
 import { tempoEmPalavras } from "@/lib/stats/indicadores-robo";
 import { ehDia, hojeSP } from "@/lib/stats/periodos";
@@ -101,8 +102,8 @@ export default async function PaginaOperacoes({ params, searchParams }: Props) {
 
   const resumo = resumirFiltro(dias, filtros);
   const soma = resumo !== null && resumo.operacoes === dados.total ? resumo : null;
-  // a mesma regra do bloco "De onde vêm os números": robô sem custo cadastrado mostra o valor antes dos custos
-  const premissa = `com 1 contrato por entrada, ${robo.custo_por_contrato > 0 ? "já descontados os custos" : "antes dos custos"}`;
+  // a regra única de lib/premissa: robô sem custo cadastrado mostra o valor antes dos custos
+  const premissa = premissaDoRobo(robo.custo_por_contrato);
   const descricao = descreverFiltro(filtros);
   // os meses com operação, do mais recente para o mais antigo: cada um tem um PDF e uma planilha
   const meses = mesesRelatorio(dias).map((m) => m.mes);

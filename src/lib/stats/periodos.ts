@@ -10,10 +10,6 @@ export const PERIODOS: ReadonlyArray<{ valor: Periodo; rotulo: string }> = [
   { valor: "personalizado", rotulo: "Personalizado" },
 ];
 
-export function ehPeriodo(v: unknown): v is Periodo {
-  return typeof v === "string" && PERIODOS.some((p) => p.valor === v);
-}
-
 /** Intervalo fechado de datas YYYY-MM-DD; null = sem limite. */
 export interface Intervalo {
   de: string | null;
@@ -31,24 +27,6 @@ export function ehDia(v: unknown): v is string {
   if (typeof v !== "string" || !RE_DIA.test(v)) return false;
   const t = new Date(`${v}T00:00:00Z`);
   return !Number.isNaN(t.getTime()) && t.toISOString().slice(0, 10) === v;
-}
-
-/** Intervalo efetivo de um período (ou do personalizado), limitado a hoje. */
-export function intervaloDe(
-  periodo: Periodo,
-  hoje: string,
-  personalizado?: { de?: string | null; ate?: string | null },
-): Intervalo {
-  if (periodo === "personalizado") {
-    const de = ehDia(personalizado?.de) ? personalizado!.de! : null;
-    const ateBruto = ehDia(personalizado?.ate) ? personalizado!.ate! : hoje;
-    return { de, ate: ateBruto < hoje ? ateBruto : hoje };
-  }
-  return { de: inicioPeriodo(periodo, hoje), ate: hoje };
-}
-
-export function filtrarIntervalo<T extends { dia: string }>(linhas: readonly T[], i: Intervalo): T[] {
-  return linhas.filter((l) => (i.de === null || l.dia >= i.de) && (i.ate === null || l.dia <= i.ate));
 }
 
 export function dentroDoIntervalo(dia: string, i: Intervalo): boolean {
