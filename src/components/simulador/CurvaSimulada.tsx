@@ -1,71 +1,45 @@
 "use client";
 
-import { useCallback, useId, useMemo } from "react";
-import { escalaEmReais } from "@/components/graficos/CurvaCapital";
-import { AmostraDaLinha, CURVA_POR_DIA, DesenhoDaCurva, MolduraProfit, PROFIT } from "@/components/graficos/CurvaProfit";
-import { formatarBRL } from "@/lib/formato";
+import { useMemo } from "react";
+import { GraficoResultado } from "@/components/graficos/GraficoResultado";
 import type { PontoSimulado } from "@/lib/stats/simulador";
-import { pontosDaSimulacao } from "./serie-simulada";
+import type { Drawdown } from "@/lib/stats/tipos";
+import { quedaDaSimulacao } from "./serie-simulada";
 
 interface Props {
   /** a curva simulada do período (ResultadoSimulacao.serie), em ordem de dia */
   serie: PontoSimulado[];
-  /** o capital inicial informado: o zero do desenho e a base do % do drawdown */
-  capital: number;
-  altura?: number;
+  /** a maior queda que a simulação achou (ResultadoSimulacao.drawdown): o trecho pintado de vermelho */
+  drawdown: Drawdown;
+  /** o pregão sob o ponteiro: quem chama troca o número grande pela leitura dele */
+  ativo: number | null;
+  aoApontar: (indice: number | null) => void;
+  className?: string;
 }
 
+// A altura da curva nesta tela: desconta o que o simulador tem acima do gráfico (a fita, o cabeçalho da página,
+// o número com os fatos e a frase do semáforo), para o resultado inteiro caber sem rolar em 1440 e 1920 px.
+const ALTURA = { "--alt-curva": "clamp(14rem, calc(100dvh - 33rem), 28rem)" } as React.CSSProperties;
+
 /**
- * O patrimônio simulado dia a dia, com o drawdown embaixo, no mesmo desenho da curva de capital
- * (DesenhoDaCurva, estilo Profit). Desenha-se o ACUMULADO, não o patrimônio: a escala da curva sempre
- * inclui o zero, e o patrimônio absoluto (R$ 30 mil oscilando 2 mil) viraria uma linha reta lá no alto.
- * O zero do desenho é o capital inicial; o eixo da direita rotula capital + valor, então lê-se patrimônio.
- * O eixo do drawdown fica em R$ (a prop formatarEixoDrawdown existe para isso), porque somar o capital
- * a uma queda não faria sentido. Sem zoom por arrasto e sem marcadores: é uma leitura, não uma análise.
+ * O resultado simulado dia a dia (ficha Mesa, 25/11/2026): a mesma curva da página inicial, linha fina na
+ * cor do texto com a maior queda em vermelho na própria linha e o valor escrito ao lado. Era a moldura
+ * grafite do Profit com a faixa de drawdown embaixo; a maior queda agora se vê na curva, sem caixa.
+ *
+ * Desenha-se o ACUMULADO, não o patrimônio: o patrimônio absoluto (R$ 30 mil oscilando 2 mil) viraria uma
+ * linha reta lá no alto. O zero do desenho é o capital informado, e o eixo lê o resultado em R$, que é o
+ * número grande da tela; o patrimônio daquele dia aparece na leitura do pregão apontado.
  */
-export function CurvaSimulada({ serie, capital, altura = 320 }: Props) {
-  const id = `simulador-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
-  const { pontos, rotulosX } = useMemo(() => pontosDaSimulacao(serie, capital), [serie, capital]);
-  // referências estáveis: o desenho guarda o traçado enquanto os props não mudam
-  const formatarEixo = useCallback((v: number) => escalaEmReais(capital + v), [capital]);
-  const formatarEixoDrawdown = useCallback((v: number) => escalaEmReais(v), []);
-
-  if (serie.length === 0) {
-    return (
-      <div className="grid place-items-center text-sm text-muted-foreground" style={{ height: altura }}>
-        Sem pregões no período.
-      </div>
-    );
-  }
-
+export function CurvaSimulada({ serie, drawdown, ativo, aoApontar, className }: Props) {
+  const queda = useMemo(() => quedaDaSimulacao(serie, drawdown), [serie, drawdown]);
   return (
-    <MolduraProfit
-      titulo="Patrimônio simulado"
-      legenda={
-        <>
-          <span className="inline-flex items-center gap-1.5">
-            <AmostraDaLinha cores={CURVA_POR_DIA} />
-            Por dia · zero = capital inicial de {formatarBRL(capital, { inteiro: true })}
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span className="size-2" style={{ background: PROFIT.baixa, opacity: 0.62 }} />
-            Drawdown
-          </span>
-        </>
-      }
-    >
-      <DesenhoDaCurva
-        id={id}
-        pontos={pontos}
-        cores={CURVA_POR_DIA}
-        altura={Math.round(altura * 0.66)}
-        alturaDoDrawdown={Math.max(56, Math.round(altura * 0.26))}
-        rotulosX={rotulosX}
-        formatarEixo={formatarEixo}
-        formatarEixoDrawdown={formatarEixoDrawdown}
-        rotuloVertical="Patrimônio simulado (R$)"
-        rotuloAria="Patrimônio simulado dia a dia, com o drawdown embaixo"
-      />
-    </MolduraProfit>
+    <div className={className} style={ALTURA}>
+      <GraficoResultado dias={serie} queda={queda} ativo={ativo} aoApontar={aoApontar} />
+      {queda && serie.length > 1 ? (
+        <p className="mt-1 text-[0.8125rem] text-sutil">
+          Em <span className="text-negativo">vermelho</span>, a maior queda: do ponto mais alto ao mais baixo que veio depois.
+        </p>
+      ) : null}
+    </div>
   );
 }

@@ -4,7 +4,13 @@ import { LOTE_POR_CLASSE } from "@/lib/stats/faixas";
 /**
  * O que é cada indicador do site, em português do dia a dia (19/09/2026, Artur: "em todos os cards deve ter
  * uma info sobre o que é" e "as explicações devem ser de fácil entendimento, para qualquer leigo entender").
- * O InfoIndicador mostra o nome em negrito e o texto ao lado do rótulo.
+ * O RotuloComInfo (InfoIndicador.tsx) abre o balão com o nome em negrito e o texto embaixo.
+ *
+ * 25/11/2026 (ficha Mesa, DESIGN.md seção 7; Lucas: "para um leigo está muito difícil de entender"): o nome é
+ * o rótulo que a tela usa ("Maior queda", "Acertos", "Nota"), porque é o título do balão que abre quando
+ * alguém toca no rótulo; a tela dizia "Maior queda" e o balão abria com "Drawdown máximo". O termo técnico
+ * (drawdown, payoff, MEP, MFE…) não vai no nome e aparece no texto no máximo uma vez, entre parênteses, para
+ * quem o conhece de outro lugar. As chaves continuam com os nomes antigos: são usadas em toda a base.
  *
  * Regras do texto (glossario.test.ts confere as mecânicas): uma ou duas frases curtas, para quem nunca
  * operou; o que o número mede e como ler; sem fórmula com símbolos, sem sigla sem explicar, sem marketing,
@@ -112,97 +118,98 @@ export type ChaveIndicador =
   | "melhoresFaixas";
 
 export interface EntradaGlossario {
-  /** como o indicador se chama na tela; vai em negrito no balão e no aria-label "O que é …" */
+  /** o rótulo que a tela usa para o indicador; é o título, em negrito, do balão que o rótulo abre */
   nome: string;
   texto: string;
 }
 
-// o lote de cada classe sai da mesma constante que a aba Faixas usa, para o texto não descolar dela
+// a parte da posição de cada classe sai da mesma constante que a aba Melhores horários usa, para o texto
+// não descolar dela
 const lote = (c: keyof typeof LOTE_POR_CLASSE) => formatarPct(LOTE_POR_CLASSE[c], 0);
 
 export const GLOSSARIO: Record<ChaveIndicador, EntradaGlossario> = {
   // ── resultado ────────────────────────────────────────────────────────────────────────────────────
   acumulado: {
-    nome: "Resultado acumulado",
-    texto: "Soma de tudo o que o robô ganhou e perdeu desde a primeira operação registrada no site, já descontados os custos.",
+    nome: "Resultado desde o início",
+    texto: "Soma de tudo o que o robô ganhou e perdeu desde a primeira operação registrada no site, com 1 contrato e já descontados os custos.",
   },
   resultadoPeriodo: {
-    nome: "Resultado do período",
-    texto: "Soma dos ganhos menos as perdas de todas as operações fechadas no intervalo escolhido. Positivo quer dizer que o robô terminou o período no lucro.",
+    nome: "Resultado no período",
+    texto: "Soma dos ganhos menos as perdas das operações fechadas no período escolhido. Positivo quer dizer que o robô terminou o período com ganho.",
   },
   resultadoDia: {
     nome: "Resultado do dia",
-    texto: "Quanto o robô ganhou ou perdeu nas operações fechadas naquele pregão, já descontados os custos.",
+    texto: "Quanto o robô ganhou ou perdeu nas operações fechadas naquele dia, com 1 contrato e já descontados os custos.",
   },
   mesAtual: {
     nome: "Mês atual",
-    texto: "Resultado das operações fechadas do dia 1º deste mês até hoje, já descontados os custos.",
+    texto: "Resultado das operações fechadas do dia 1º deste mês até hoje, com 1 contrato e já descontados os custos.",
   },
   resultadoMes: {
     nome: "Resultado do mês",
-    texto: "Soma do resultado de todos os pregões do mês mostrado, já descontados os custos.",
+    texto: "Soma do resultado de todos os dias do mês mostrado, com 1 contrato e já descontados os custos.",
   },
   mediaMensal: {
-    nome: "Média mensal",
-    texto: "O resultado acumulado dividido pelo número de meses em que o robô operou. Mostra quanto ele rendeu, em média, por mês.",
+    nome: "Média por mês",
+    texto: "O resultado do período dividido pelo número de meses em que o robô operou. É uma média: não diz quanto esperar de cada mês.",
   },
   retorno: {
     nome: "Retorno sobre o capital",
-    texto: "O resultado do período em porcentagem do capital de referência. Mostra quanto o dinheiro separado para o robô cresceu ou encolheu.",
+    texto: "O resultado do período em porcentagem do capital de referência, o valor de conta usado como base para cada contrato. Mostra quanto esse dinheiro teria crescido ou encolhido no período.",
   },
   melhorRobo: {
     nome: "Melhor robô",
-    texto: "O robô com o maior resultado por contrato no dia, já descontados os custos.",
+    texto: "O robô com o maior resultado no dia, com 1 contrato e já descontados os custos.",
   },
 
   // ── operações ────────────────────────────────────────────────────────────────────────────────────
   operacoes: {
     nome: "Operações",
-    texto: "Quantas vezes o robô entrou no mercado e saiu. Cada operação vai da entrada até a posição zerar.",
+    texto: "Quantas vezes o robô entrou no mercado e saiu. Cada operação vai da entrada até a saída completa.",
   },
   operacoesDia: {
     nome: "Operações por dia",
-    texto: "Média de operações em cada pregão em que o robô operou. Mostra se ele opera pouco ou muito num dia.",
+    texto: "Média de operações em cada dia em que o robô operou. Mostra se ele opera pouco ou muito num dia.",
   },
   duracaoMedia: {
     nome: "Duração média",
     texto: "Tempo médio entre a entrada e a saída de cada operação.",
   },
   taxaAcerto: {
-    nome: "Taxa de acerto",
-    texto: "Parte das operações que terminou com lucro depois dos custos. Sozinha não diz se o robô ganha dinheiro: depende também do tamanho dos ganhos e das perdas.",
+    nome: "Acertos",
+    texto: "De cada 100 operações, quantas terminaram com ganho, já descontados os custos (o mercado chama de taxa de acerto). Sozinho, não diz se o robô ganha dinheiro: depende também do tamanho dos ganhos e das perdas.",
   },
   gainsLosses: {
-    nome: "Gains e losses",
-    texto: "Operações que terminaram no lucro (gains) e no prejuízo (losses), já descontados os custos. Uma operação que ganha menos que o custo conta como loss.",
+    nome: "Operações com ganho e com perda",
+    texto: "Quantas operações terminaram com ganho e quantas com perda, já descontados os custos. Uma operação que ganha menos do que o custo conta como perda.",
   },
   fatorLucro: {
     nome: "Fator de lucro",
-    texto: "Quanto o robô ganhou para cada real que perdeu, somando todas as operações. Acima de 1, ganhou mais do que perdeu.",
+    texto: "Quanto o robô ganhou para cada R$ 1 perdido, somando todas as operações. Um fator de 1,13, por exemplo, quer dizer R$ 1,13 de ganho para cada R$ 1 de perda. Acima de 1, ganhou mais do que perdeu.",
   },
   payoff: {
-    nome: "Payoff",
-    texto: "Tamanho do ganho médio comparado com a perda média. Payoff 2 quer dizer que cada gain vale, em média, o dobro de cada loss; quanto menor, mais o robô precisa acertar para lucrar.",
+    nome: "Ganho médio contra perda média",
+    texto: "O tamanho do ganho médio comparado com o da perda média (o mercado chama de payoff). Se der 2, o ganho médio é o dobro da perda média. Quanto menor, mais o robô precisa acertar para lucrar.",
   },
   ganhoMedio: {
-    nome: "Ganho médio",
-    texto: "Quanto o robô ganha, em média, numa operação que termina no lucro.",
+    nome: "Ganho médio por operação",
+    texto: "Quanto o robô ganha, em média, numa operação que termina com ganho.",
   },
   perdaMedia: {
-    nome: "Perda média",
-    texto: "Quanto o robô perde, em média, numa operação que termina no prejuízo.",
+    nome: "Perda média por operação",
+    texto: "Quanto o robô perde, em média, numa operação que termina com perda.",
   },
   maiorGanho: {
-    nome: "Maior ganho",
-    texto: "O resultado da melhor operação do período.",
+    nome: "Melhor operação",
+    texto: "O resultado da operação que mais ganhou no período.",
   },
   maiorPerda: {
-    nome: "Maior perda",
-    texto: "O resultado da pior operação do período. Mostra o maior prejuízo que o robô teve numa operação só.",
+    nome: "Pior operação",
+    texto: "O resultado da operação que mais perdeu no período. Mostra a maior perda que o robô teve numa operação só.",
   },
   maiorSequencia: {
     nome: "Maior sequência",
-    texto: "O maior número de gains seguidos e de losses seguidos, contando uma operação depois da outra na ordem em que fecharam. Uma operação zerada interrompe a contagem.",
+    texto: "O maior número de operações com ganho seguidas e o de operações com perda seguidas, na ordem em que fecharam. Uma operação que fecha em zero interrompe a contagem.",
   },
 
   // ── dias ─────────────────────────────────────────────────────────────────────────────────────────
@@ -212,118 +219,123 @@ export const GLOSSARIO: Record<ChaveIndicador, EntradaGlossario> = {
   },
   melhorDia: {
     nome: "Melhor dia",
-    texto: "O pregão com o maior resultado somado no período, e a data em que aconteceu.",
+    texto: "O dia com o maior resultado no período, com a data em que aconteceu.",
   },
   piorDia: {
     nome: "Pior dia",
-    texto: "O pregão com o menor resultado somado no período, e a data em que aconteceu.",
+    texto: "O dia com o menor resultado no período, com a data em que aconteceu.",
   },
   diasPositivosNegativos: {
-    nome: "Dias positivos e negativos",
-    texto: "Quantos pregões terminaram no lucro e quantos terminaram no prejuízo. Dias que fecharam zerados não entram em nenhum dos dois.",
+    nome: "Dias com ganho e com perda",
+    texto: "Quantos dias terminaram com ganho e quantos com perda. Dia que fecha em zero não entra em nenhum dos dois.",
   },
   diasPositivos: {
-    nome: "Dias positivos",
-    texto: "Parte dos pregões que terminaram no lucro, já descontados os custos.",
+    nome: "Dias com ganho",
+    texto: "Em quantos dias, do total de dias com operação, o robô terminou com ganho, já descontados os custos.",
   },
   diasNegativos: {
-    nome: "Dias negativos",
-    texto: "Quantos pregões terminaram no prejuízo, e que parte do total isso representa.",
+    nome: "Dias com perda",
+    texto: "Em quantos dias o robô terminou com perda, e que parte do total isso representa.",
   },
   sequenciaDiasNegativos: {
-    nome: "Maior sequência de dias negativos",
-    texto: "O maior número de pregões seguidos que terminaram no prejuízo. Mostra quanto tempo seguido o robô já passou perdendo.",
+    nome: "Maior sequência de dias com perda",
+    texto: "O maior número de dias seguidos que terminaram com perda. Mostra quanto tempo seguido o robô já passou perdendo.",
   },
   volatilidade: {
-    nome: "Volatilidade diária",
-    texto: "Quanto o resultado de um dia costuma se afastar da média dos dias. Quanto maior, mais o resultado varia de um dia para o outro.",
+    nome: "Variação de um dia para o outro",
+    texto: "O quanto o resultado de um dia costuma se afastar da média dos dias (o mercado chama de volatilidade). Quanto maior, mais o resultado muda de um dia para o outro.",
   },
 
   // ── risco e capital ──────────────────────────────────────────────────────────────────────────────
   drawdown: {
-    nome: "Drawdown máximo",
-    texto: "A maior queda do saldo desde um topo até o fundo seguinte, antes de voltar a subir. Mostra o tamanho do pior momento.",
+    nome: "Maior queda",
+    texto: "A distância do ponto mais alto que o resultado somado alcançou até o ponto mais baixo que veio depois. Mostra o tamanho do pior momento: quanto o robô chegou a devolver antes de voltar a subir (o mercado chama de drawdown).",
   },
   drawdownPct: {
-    nome: "Drawdown máximo em % do capital",
-    texto: "A maior queda do saldo, de um topo até o fundo seguinte, em porcentagem do capital de referência. Mostra que parte desse capital a pior fase consumiu.",
+    nome: "Maior queda, em % do capital",
+    texto: "A maior queda, do ponto mais alto ao mais baixo que veio depois, em porcentagem do capital de referência. Mostra que parte desse capital o pior momento levou.",
   },
   tempoEmDrawdown: {
-    nome: "Tempo em drawdown",
-    texto: "Parte dos pregões em que o saldo estava abaixo do maior valor já alcançado. Quanto menor, menos tempo o robô passa recuperando perdas.",
+    nome: "Dias abaixo do topo",
+    texto: "Em quantos dias o resultado somado estava abaixo do ponto mais alto que já tinha alcançado. Quanto menos dias, menos tempo o robô passa recuperando perdas.",
   },
   tempoRecuperacao: {
-    nome: "Tempo de recuperação",
-    texto: "Quantos dias corridos o saldo levou para voltar ao topo depois da maior queda. Enquanto não volta, aparece em recuperação.",
+    nome: "Tempo até recuperar",
+    texto: "Quantos dias corridos o resultado levou para voltar ao ponto mais alto depois da maior queda. Enquanto não volta, a tela diz que ainda não recuperou.",
   },
   recuperacaoMedia: {
-    nome: "Recuperação média",
-    texto: "Quantos dias corridos, em média, o saldo levou para voltar ao topo depois de cada queda. Só conta as quedas que já foram recuperadas.",
+    nome: "Tempo médio para recuperar",
+    texto: "Quantos dias corridos, em média, o resultado levou para voltar ao ponto mais alto depois de cada queda. Só conta as quedas que já foram recuperadas.",
   },
   calmar: {
     nome: "Calmar",
-    texto: "Quanto o robô renderia em um ano, no ritmo do período, comparado com a maior queda. Acima de 1, o ganho estimado para um ano é maior que o pior drawdown.",
+    texto: "Quanto o robô renderia em um ano, no ritmo do período, comparado com a maior queda. Acima de 1, esse ganho de um ano seria maior que a maior queda. É uma conta sobre o histórico, não uma previsão.",
   },
   recoveryFactor: {
-    nome: "Recovery factor",
-    texto: "Quantas vezes o lucro do período cobre a maior queda. Acima de 1, o robô já ganhou mais do que perdeu no pior momento.",
+    nome: "Fator de recuperação",
+    texto: "Quantas vezes o resultado do período cobre a maior queda (o mercado chama de recovery factor). Acima de 1, o robô já ganhou mais do que perdeu no pior momento.",
   },
   ulcer: {
-    nome: "Ulcer index",
-    texto: "Mede ao mesmo tempo a profundidade e a duração das quedas do saldo. Quanto menor, mais estável foi a curva; quanto maior, mais tempo o saldo passou bem abaixo do topo.",
+    nome: "Índice de úlcera",
+    texto: "Mede ao mesmo tempo o tamanho e a duração das quedas (o mercado chama de ulcer index). Quanto menor, mais estável foi a curva; quanto maior, mais tempo o resultado passou bem abaixo do topo.",
   },
   // honesto sobre o zero (19/09/2026, "o risco de ruína está zero, pq?"): riscoDeRuina em lib/stats/risco
   // eleva a razão de perda a capital ÷ perda média, que passa de centenas; sem sequência de perdas, some
   riscoRuina: {
     nome: "Risco de ruína",
-    texto: "Estimativa da chance de perder todo o capital de referência, supondo toda perda do tamanho da perda média e cada operação sem relação com a anterior. Como perdas reais costumam vir juntas em dias ruins, pode dar perto de zero mesmo com drawdown grande.",
+    texto: "Estimativa da chance de perder todo o capital de referência, supondo toda perda do tamanho da perda média e cada operação sem relação com a anterior. Como perdas reais costumam vir juntas em dias ruins, pode dar perto de zero mesmo com uma queda grande.",
   },
   capitalReferencia: {
     nome: "Capital de referência",
-    texto: "Valor de conta usado como base para operar o robô com 1 contrato. As porcentagens do site, como retorno e drawdown em %, são calculadas sobre ele.",
+    texto: "Valor de conta usado como base para operar o robô com 1 contrato. As porcentagens do site, como o retorno e a maior queda em %, são calculadas sobre ele.",
   },
   capitalMinimo: {
     nome: "Capital mínimo",
-    texto: "Quanto ter na conta para operar 1 contrato: a margem exigida pela corretora mais o maior drawdown já visto, com uma folga de segurança. Quedas futuras podem ser maiores.",
+    texto: "Quanto ter na conta para operar 1 contrato com alguma folga: a garantia que a corretora exige (a margem) mais a maior queda que o robô já teve, aumentada por um fator de segurança. Quedas futuras podem ser maiores.",
   },
   // 23/09/2026: a página /simulador (lib/stats/simulador). Compliance: aritmética sobre o histórico, nunca
-  // recomendação nem projeção; o drawdown em % é sobre o capital inicial informado; o capital mínimo é só a
-  // regra já publicada na aba Risco, somada por robô × contratos
+  // recomendação nem projeção; a maior queda em % é sobre o capital inicial informado; o capital mínimo é só
+  // a regra já publicada na aba Quedas e risco, somada por robô × contratos
   simulador: {
     nome: "Simulador",
-    texto: "Aritmética sobre o histórico: soma o resultado diário de cada robô vezes os contratos escolhidos e mede o drawdown sobre o capital informado. Não é recomendação nem projeção de resultado.",
+    texto: "Aritmética sobre o histórico: soma o resultado de cada dia de cada robô vezes os contratos escolhidos e mede a maior queda sobre o capital informado. Não é recomendação nem projeção de resultado.",
   },
+  // 25/11/2026 (ficha Mesa): a tela não tem mais o painel "Semáforo do capital"; mostra uma das três
+  // palavras ("Cabe", "Apertado", "Não cabe") na frente da frase, e o nome daqui são elas. O limite de 25% é
+  // o LIMITE_APERTADO de lib/stats/simulador (o teste do glossário confere os dois juntos)
   semaforoCapital: {
-    nome: "Semáforo do capital",
-    texto: "Não cabe quando o capital fica abaixo do mínimo publicado ou o drawdown simulado consumiria o capital inteiro; apertado quando cabe, mas o drawdown máximo simulado passa de 25% do capital; cabe no resto. É uma leitura do histórico, não uma garantia.",
+    nome: "Cabe, apertado ou não cabe",
+    texto: "Não cabe quando o capital fica abaixo do mínimo publicado ou quando a maior queda simulada levaria o capital inteiro; apertado quando cabe, mas essa queda passa de 25% do capital; cabe no resto. É uma leitura do histórico, não uma garantia.",
   },
 
   // ── o dia por dentro ─────────────────────────────────────────────────────────────────────────────
   // 22/09/2026: duas fontes. Nos dias que o coletor 1.1.0 acompanhou, o número é medido no MetaTrader a
   // cada movimento do preço, com a posição aberta (o mesmo do Profit); nos outros, é conferido a cada
   // operação fechada (lib/stats/operacoes, excursaoDoDia). A tela diz qual foi a fonte do dia mostrado.
+  // 25/11/2026 (ficha Mesa): na tela são o melhor e o pior momento, do dia (MEP e MEN) e da operação (MFE e
+  // MAE); a sigla fica uma vez no texto, entre parênteses.
   mep: {
-    nome: "MEP (máxima exposição positiva)",
-    texto: "O ponto mais alto que o saldo do dia alcançou. Nos dias que o coletor acompanhou, é medido a cada movimento do preço, com a posição aberta; nos outros, conferido a cada operação fechada.",
+    nome: "Melhor momento do dia",
+    texto: "O ponto mais alto que o resultado do dia alcançou (o mercado chama de MEP). Nos dias medidos no MetaTrader, conta cada movimento do preço, com a operação aberta; nos outros, é conferido a cada operação fechada.",
   },
   men: {
-    nome: "MEN (máxima exposição negativa)",
-    texto: "O ponto mais baixo que o saldo do dia alcançou: o quanto o dia chegou a ficar no prejuízo. Nos dias que o coletor acompanhou, é medido a cada movimento do preço; nos outros, a cada operação fechada.",
+    nome: "Pior momento do dia",
+    texto: "O ponto mais baixo que o resultado do dia alcançou: quanto o dia chegou a ficar no prejuízo (o mercado chama de MEN). Nos dias medidos no MetaTrader, conta cada movimento do preço; nos outros, é conferido a cada operação fechada.",
   },
   mfe: {
-    nome: "MFE (máxima excursão favorável)",
-    texto: "O máximo que o preço andou a favor da operação enquanto ela esteve aberta, em pontos por contrato, medido no MetaTrader a cada movimento. Mostra quanto a operação chegou a ter de lucro antes de fechar.",
+    nome: "Melhor momento da operação",
+    texto: "O máximo que o preço andou a favor da operação enquanto ela esteve aberta, em pontos, medido no MetaTrader a cada movimento do preço (o mercado chama de MFE). Mostra quanto ela chegou a ganhar antes de fechar.",
   },
   mae: {
-    nome: "MAE (máxima excursão adversa)",
-    texto: "O máximo que o preço andou contra a operação enquanto ela esteve aberta, em pontos por contrato, medido no MetaTrader a cada movimento. Mostra o quanto a operação chegou a ficar no prejuízo antes de fechar.",
+    nome: "Pior momento da operação",
+    texto: "O máximo que o preço andou contra a operação enquanto ela esteve aberta, em pontos, medido no MetaTrader a cada movimento do preço (o mercado chama de MAE). Mostra quanto ela chegou a perder antes de fechar.",
   },
   flutuante: {
-    nome: "Flutuante",
-    texto: "Resultado da operação que ainda está aberta, se ela fosse encerrada agora. Muda a cada movimento do preço e só vira resultado quando a operação fecha.",
+    nome: "Resultado da operação aberta",
+    texto: "Quanto a operação que ainda está aberta daria de ganho ou de perda, com 1 contrato, se fosse encerrada agora (o mercado chama de flutuante). Muda a cada movimento do preço e só vira resultado quando a operação fecha.",
   },
   posicionados: {
-    nome: "Posicionados",
+    nome: "Robôs em operação agora",
     texto: "Quantos robôs estão com pelo menos uma operação aberta neste momento, esperando a saída.",
   },
   // 21/09/2026: o contador da barra, dos cards, do Hoje ao vivo e da tela Ao vivo. Conta entradas, nunca
@@ -336,181 +348,189 @@ export const GLOSSARIO: Record<ChaveIndicador, EntradaGlossario> = {
   // ── base dos números ─────────────────────────────────────────────────────────────────────────────
   pontos: {
     nome: "Pontos",
-    texto: "Quanto o preço andou a favor ou contra nas operações, antes de converter em reais. No mini índice, cada ponto vale 20 centavos por contrato.",
+    texto: "Quanto o preço andou a favor ou contra nas operações, antes de converter em reais. No Mini Índice, cada ponto vale R$ 0,20 com 1 contrato.",
   },
   valorPonto: {
-    nome: "Valor do ponto",
-    texto: "Quanto vale, em reais, cada ponto que o preço anda, para 1 contrato. No mini índice são 20 centavos.",
+    nome: "Quanto vale 1 ponto",
+    texto: "Valor, em reais, de cada ponto que o preço anda, com 1 contrato. No Mini Índice é R$ 0,20.",
   },
   bruto: {
-    nome: "Bruto",
-    texto: "Resultado das operações como a plataforma informa, antes de descontar corretagem e taxas da bolsa.",
+    nome: "Antes dos custos",
+    texto: "Resultado das operações como a plataforma informa, sem descontar a corretagem e as taxas da bolsa (o mercado chama de resultado bruto).",
   },
   liquido: {
-    nome: "Líquido",
-    texto: "Resultado depois de descontar o custo de cada operação, como corretagem e taxas da bolsa. É a base padrão dos números do site.",
+    nome: "Já descontados os custos",
+    texto: "Resultado depois de tirar o custo de cada operação, que é a corretagem mais as taxas da bolsa (o mercado chama de resultado líquido). É como o site mostra os números, a não ser que a tela diga antes dos custos.",
   },
   custos: {
     nome: "Custos",
-    texto: "Corretagem e taxas da bolsa cobradas a cada operação, num valor fixo por contrato. São a diferença entre o bruto e o líquido.",
+    texto: "Corretagem e taxas da bolsa, cobradas a cada operação num valor fixo por contrato. O site tira esse valor de cada operação antes de mostrar o resultado.",
   },
   porContrato: {
-    nome: "Por contrato",
-    texto: "Todo resultado é dividido pela quantidade de contratos de cada operação. Assim dá para comparar robôs e multiplicar pelo número de contratos que você pretende usar.",
+    nome: "Com 1 contrato",
+    texto: "Todo resultado é dividido pela quantidade de contratos da operação, para mostrar quanto daria com 1 contrato. Assim dá para comparar os robôs e multiplicar pelo número de contratos que você pretende usar.",
   },
   contratosPadrao: {
-    nome: "Contratos padrão",
-    texto: "Quantos contratos o robô costuma usar em cada operação. Os resultados do site aparecem sempre por 1 contrato.",
+    nome: "Contratos por operação",
+    texto: "Quantos contratos o robô costuma usar em cada operação. Os resultados do site são calculados para 1 contrato.",
   },
 
-  // ── faixas ───────────────────────────────────────────────────────────────────────────────────────
+  // ── dias e horários ──────────────────────────────────────────────────────────────────────────────
+  // 25/11/2026 (ficha Mesa): na tela, "faixa" é "dia e horário", "score" é "nota", "lote sugerido" é
+  // "tamanho sugerido da posição" e "drawdown" é "maior queda" (a aba se chama Melhores horários). As
+  // chaves guardam os nomes antigos.
   faixa: {
-    nome: "Faixa",
-    texto: "Uma combinação de dia da semana e hora de entrada, como segunda às 10h. Cada faixa junta as operações que começaram naquele dia e hora.",
+    nome: "Dia e horário",
+    texto: "Uma combinação de dia da semana e hora de entrada, como segunda às 10h. Junta as operações que começaram naquele dia e naquela hora.",
   },
   score: {
-    nome: "Score",
-    texto: "Nota de 0 a 100 que só serve para ordenar as faixas. Metade vem de quanto a faixa ganha por operação em comparação com as outras, 30 pontos da regularidade mês a mês e 20 da quantidade de operações.",
+    nome: "Nota",
+    texto: "Vai de 0 a 100 e só serve para pôr os dias e horários em ordem. Metade vem de quanto cada um ganha por operação comparado aos outros, 30 pontos da regularidade mês a mês e 20 da quantidade de operações.",
   },
   lote: {
-    nome: "Lote sugerido",
-    texto: `Quanto do tamanho normal da posição usar em cada faixa: ${lote("ligar")} em Ligar, ${lote("cautela")} em Cautela, ${lote("neutro")} em Neutro e ${lote("evitar")} em Evitar.`,
+    nome: "Tamanho sugerido da posição",
+    texto: `Que parte da quantidade normal de contratos usar em cada dia e horário, conforme a classe dele: ${lote("ligar")} em Ligar, ${lote("cautela")} em Cautela, ${lote("neutro")} em Neutro e ${lote("evitar")} em Evitar.`,
   },
   classeLigar: {
     nome: "Ligar",
-    texto: "Faixa que passou nos três critérios das regras: acerta bastante, o lucro cobre bem a pior queda e essa queda não é muito maior que a das outras faixas.",
+    texto: "Dia e horário que passou nos três critérios das regras: acerta bastante, o resultado cobre bem a maior queda e essa queda não é muito maior que a dos outros dias e horários.",
   },
   classeCautela: {
     nome: "Cautela",
-    texto: "Faixa com acerto e recuperação razoáveis, mas que não passou em todos os critérios de Ligar. A sugestão é operar com lote menor.",
+    texto: "Dia e horário que acerta razoavelmente e em que o resultado cobre boa parte da maior queda, mas que não passou em todos os critérios de Ligar. A sugestão é operar com uma posição menor.",
   },
   classeNeutro: {
     nome: "Neutro",
-    texto: "Faixa com amostra suficiente que não chegou aos mínimos de Cautela nem caiu nos limites de Evitar. A sugestão é operar com lote bem reduzido.",
+    texto: "Dia e horário com operações suficientes que não chegou aos mínimos de Cautela nem caiu nos limites de Evitar. A sugestão é operar com uma posição bem reduzida.",
   },
   classeEvitar: {
     nome: "Evitar",
-    texto: "Faixa que falhou em pelo menos um limite: acerta pouco, o lucro não cobre a pior queda ou essa queda é muito maior que a das outras faixas. A sugestão é não operar.",
+    texto: "Dia e horário que caiu em pelo menos um limite: acerta pouco, o resultado não cobre a maior queda ou essa queda é muito maior que a dos outros. A sugestão é não operar.",
   },
   semAmostra: {
-    nome: "Sem amostra",
-    texto: "Faixa com menos operações que o mínimo exigido. Fica sem classificação, porque com tão poucas operações o resultado pode ser sorte ou azar.",
+    nome: "Sem classificação",
+    texto: "Dia e horário com menos operações que o mínimo exigido. Fica sem classe, porque com tão poucas operações o resultado pode ser sorte ou azar.",
   },
   amostraMinima: {
-    nome: "Amostra mínima",
-    texto: "Quantidade mínima de operações que uma faixa precisa ter para ser classificada. Com menos que isso, o resultado pode ser sorte ou azar.",
+    nome: "Mínimo de operações",
+    texto: "Quantas operações um dia e horário precisa ter para ser classificado. Com menos que isso, o resultado pode ser sorte ou azar.",
   },
   recuperacaoFaixa: {
     nome: "Recuperação",
-    texto: "Quantas vezes o lucro da faixa cobre a maior queda dela, contando uma operação depois da outra. Acima de 1, o lucro já pagou a pior queda; sem queda nenhuma, aparece ∞.",
+    texto: "Quantas vezes o resultado do dia e horário cobre a maior queda dele, somando uma operação depois da outra. Acima de 1, o resultado já pagou a pior queda.",
   },
   drawdownFaixa: {
-    nome: "Drawdown da faixa",
-    texto: "A maior queda do resultado desta faixa, somando as operações dela uma depois da outra.",
+    nome: "Maior queda do dia e horário",
+    texto: "A maior queda do resultado deste dia e horário, somando as operações dele uma depois da outra: do ponto mais alto ao mais baixo que veio depois.",
   },
   ddRelativo: {
-    nome: "Drawdown relativo",
-    texto: "Compara a pior queda desta faixa com a queda típica das faixas. 1 é igual à típica, 2 é o dobro; quanto maior, mais esta faixa cai em comparação com as outras.",
+    nome: "Queda relativa",
+    texto: "Compara a maior queda deste dia e horário com a queda típica dos outros. 1 é igual à típica, 2 é o dobro; quanto maior, mais ele cai em comparação com os outros.",
   },
   medianaDrawdown: {
-    nome: "Mediana de drawdown",
-    texto: "A queda típica das faixas: pondo a pior queda de cada faixa em ordem, é a que fica no meio. Serve de base para o drawdown relativo.",
+    nome: "Maior queda típica",
+    texto: "Pondo em ordem a maior queda de cada dia e horário, é a que fica no meio. Serve de base para a queda relativa.",
   },
   expectativaOperacao: {
-    nome: "Expectativa por operação",
-    texto: "Quanto a faixa ganhou ou perdeu, em média, por operação, já com custos. Positiva quer dizer que, no histórico, operar ali deu lucro.",
+    nome: "Resultado médio por operação",
+    texto: "Quanto o dia e horário ganhou ou perdeu, em média, por operação, já descontados os custos. Positivo quer dizer que, no histórico, operar ali deu ganho.",
   },
   totalFaixa: {
-    nome: "Total da faixa",
-    texto: "Soma do resultado de todas as operações da faixa, já descontados os custos.",
+    nome: "Resultado do dia e horário",
+    texto: "Soma do resultado de todas as operações que começaram neste dia e horário, já descontados os custos.",
   },
   mesesPositivos: {
-    nome: "Meses positivos",
-    texto: "Em quantos dos meses com operação a faixa terminou no lucro. Mostra se o resultado é regular ou veio de poucos meses bons.",
+    nome: "Meses com ganho",
+    texto: "Em quantos dos meses com operação o dia e horário terminou com ganho. Mostra se o resultado é regular ou veio de poucos meses bons.",
   },
 
   // ── gráficos e quadros ───────────────────────────────────────────────────────────────────────────
   curvaCapital: {
-    nome: "Curva de capital",
-    texto: "O saldo somado dia após dia, ou operação após operação. Subindo, o robô está ganhando; as descidas são os drawdowns.",
+    nome: "Curva do resultado",
+    texto: "O resultado somado dia após dia, ou operação após operação. Subindo, o robô está ganhando; o trecho em vermelho é a maior queda.",
   },
   // 23/09/2026: 5 segundos é o InpSaldoBucketSeg padrão do EA 1.1.2. A curva do dia passou a ter duas fontes,
-  // como o MEP/MEN: a série do saldo medida no MetaTrader (lib/stats/saldo-dia, líquida pelos custos das
-  // operações já fechadas) nos dias que o coletor mediu, e a soma por fechamento nos outros. A faixa e os
-  // dentes são os dois desenhos novos em cima da linha (CurvaProfit); a conta completa fica na metodologia.
-  // O "5 segundos" daqui e de faixaSaldo é o input do EA, enquanto a legenda da curva mostra o tamanho real
-  // inferido da série (bucketSeg): se o input mudar, estes dois textos, a Metodologia e o teste do glossário
-  // (que cita "5 segundos") acompanham juntos.
+  // como o melhor e o pior momento do dia: a série do saldo medida no MetaTrader (lib/stats/saldo-dia, já
+  // descontado o custo das operações fechadas) nos dias que o coletor mediu, e a soma por fechamento nos
+  // outros. A área clara e os traços são os dois desenhos em cima da linha (CurvaProfit); a conta completa
+  // fica na metodologia. O "5 segundos" daqui e de faixaSaldo é o input do EA, enquanto a legenda da curva
+  // mostra o tamanho real inferido da série (bucketSeg): se o input mudar, estes dois textos, a Metodologia
+  // e o teste do glossário (que cita "5 segundos") acompanham juntos.
+  // 25/11/2026 (ficha Mesa): o nome é o título que a aba Dia a dia põe em cima do desenho ("O saldo ao longo
+  // do dia"); era "Curva do dia". "Faixa do saldo" virou "Oscilação do saldo" e "Dentes de MFE e MAE",
+  // "Melhor e pior momento de cada operação".
   curvaDoDia: {
-    nome: "Curva do dia",
-    texto: "O saldo do dia ao longo do pregão. Nos dias que o coletor mediu, é o saldo com a posição aberta, a cada 5 segundos, líquido dos custos das operações já fechadas; nos outros, a soma operação por operação, na ordem em que fecharam.",
+    nome: "Saldo ao longo do dia",
+    texto: "O resultado do dia enquanto o pregão anda. Nos dias medidos no MetaTrader, é o saldo com a operação aberta, a cada 5 segundos, já descontado o custo das operações fechadas; nos outros, a soma operação por operação, na ordem em que fecharam.",
   },
   faixaSaldo: {
-    nome: "Faixa do saldo",
-    texto: "Na imagem do dia, a área clara em volta da linha: o menor e o maior valor que o saldo alcançou dentro de cada intervalo de 5 segundos. Mostra o quanto o saldo oscilou entre um ponto e o outro da curva.",
+    nome: "Oscilação do saldo",
+    texto: "Na imagem do dia, a área clara em volta da linha: o menor e o maior valor que o saldo alcançou dentro de cada intervalo de 5 segundos. Mostra o quanto o saldo subiu e desceu entre um ponto e o outro da curva.",
   },
   dentesExcursao: {
-    nome: "Dentes de MFE e MAE",
-    texto: "O traço vertical em cada operação: vai do ponto mais baixo ao mais alto que o saldo chegou enquanto ela esteve aberta, medidos no MetaTrader a cada movimento. Mostra o calor da operação antes de fechar.",
+    nome: "Melhor e pior momento de cada operação",
+    texto: "O traço vertical em cada operação: vai do ponto mais baixo ao mais alto que o saldo chegou enquanto ela esteve aberta, medidos no MetaTrader a cada movimento do preço (o mercado chama de MAE e MFE). Mostra o quanto ela oscilou antes de fechar.",
   },
   resultadoMensal: {
-    nome: "Resultado mensal",
-    texto: "Quanto o robô ganhou ou perdeu em cada mês, já descontados os custos.",
+    nome: "Resultado por mês",
+    texto: "Quanto o robô ganhou ou perdeu em cada mês.",
   },
   mapaMeses: {
-    nome: "Resultado mensal por ano",
-    texto: "Quanto o robô ganhou ou perdeu em cada mês, com um ano por linha. Quanto mais forte a cor, maior o lucro ou o prejuízo do mês.",
+    nome: "Mês a mês",
+    texto: "Quanto o robô ganhou ou perdeu em cada mês, com um ano por linha e o total do ano no fim. Quanto mais forte a cor, maior o ganho ou a perda do mês.",
   },
+  // 25/11/2026 (ficha Mesa): a lista deixou de ser por código de contrato (WINQ26, WINV26…); os códigos são
+  // juntados no ativo (components/desempenho/por-ativo)
   porAtivo: {
     nome: "Resultado por ativo",
-    texto: "Quanto o robô ganhou ou perdeu em cada código de contrato negociado. O código muda a cada vencimento, então cada linha cobre um período diferente.",
+    texto: "Quanto o robô ganhou ou perdeu em cada ativo que negociou, como Mini Índice e Mini Dólar. Os contratos de vencimentos diferentes do mesmo ativo entram somados.",
   },
   porDiaSemana: {
-    nome: "Por dia da semana",
-    texto: "Resultado somado das operações de cada dia da semana. Mostra se o robô costuma ir melhor ou pior em algum dia.",
+    nome: "Resultado por dia da semana",
+    texto: "Soma do resultado das operações de cada dia da semana. Mostra se o robô costuma ir melhor ou pior em algum dia.",
   },
   porHora: {
-    nome: "Por hora de entrada",
-    texto: "Resultado somado das operações pela hora em que começaram. Mostra em que horários o robô costuma ganhar ou perder.",
+    nome: "Resultado por horário de entrada",
+    texto: "Soma do resultado das operações pela hora em que começaram. Mostra em que horários o robô costuma ganhar ou perder.",
   },
   histograma: {
     nome: "Resultado por operação",
-    texto: "Quantas operações terminaram em cada faixa de resultado, da maior perda ao maior ganho. Mostra se os resultados ficam em valores pequenos ou se há extremos.",
+    texto: "Quantas operações terminaram em cada tamanho de resultado, da maior perda ao maior ganho. Mostra se os resultados ficam em valores pequenos ou se há extremos.",
   },
   melhoresDias: {
     nome: "Melhores dias",
-    texto: "Os pregões com o maior resultado, com o número de operações de cada um.",
+    texto: "Os dias com o maior resultado, com o número de operações de cada um.",
   },
   pioresDias: {
     nome: "Piores dias",
-    texto: "Os pregões com o menor resultado, com o número de operações de cada um.",
+    texto: "Os dias com o menor resultado, com o número de operações de cada um.",
   },
   abaixoDoPico: {
-    nome: "Abaixo do pico",
-    texto: "Quanto o saldo estava abaixo do maior valor já alcançado, em cada dia. No zero, o robô está no topo; quanto mais fundo, maior a queda naquele momento.",
+    nome: "Abaixo do topo",
+    texto: "Quanto o resultado somado estava abaixo do ponto mais alto já alcançado, em cada dia. No zero, o robô está no topo; quanto mais fundo, maior a queda naquele momento.",
   },
   maioresDrawdowns: {
-    nome: "Maiores drawdowns",
-    texto: "As maiores quedas do saldo, com o dia em que começaram, o fundo e a volta ao topo. Aberto quer dizer que o saldo ainda não voltou.",
+    nome: "Maiores quedas",
+    texto: "As maiores quedas do resultado, com o dia em que cada uma começou, o dia do ponto mais baixo e o da volta ao topo. Onde o resultado ainda não voltou ao topo, a tabela diz “ainda não”.",
   },
   profundidade: {
-    nome: "Distribuição por profundidade",
-    texto: "Quantas quedas do saldo tiveram cada tamanho, das mais rasas às mais fundas.",
+    nome: "Tamanho das quedas",
+    texto: "Quantas quedas do resultado tiveram cada tamanho, das menores às maiores.",
   },
   quemRendeuMais: {
     nome: "Quem rendeu mais",
-    texto: "Resultado de cada robô no período escolhido, por 1 contrato e já com custos, do maior para o menor.",
+    texto: "Resultado de cada robô no período escolhido, com 1 contrato e já descontados os custos, do maior para o menor.",
   },
   mapaFaixas: {
-    nome: "Mapa de faixas",
-    texto: "Cada quadrado é um dia da semana numa hora de entrada, com a classificação pelas regras, o número de operações e a taxa de acerto.",
+    nome: "Mapa dos dias e horários",
+    texto: "Cada quadro é um dia da semana numa hora de entrada, com a classe que as regras deram a ele pelo histórico das operações que começaram ali. O traço marca onde há operações de menos para avaliar.",
   },
   distribuicaoFaixas: {
-    nome: "Distribuição das faixas",
-    texto: "Quantas faixas caíram em cada classificação. As que não têm a amostra mínima ficam fora da conta.",
+    nome: "Dias e horários por classe",
+    texto: "Quantos dias e horários caíram em cada classe. Os que não têm o mínimo de operações ficam fora da conta.",
   },
   melhoresFaixas: {
-    nome: "Melhores faixas",
-    texto: "As faixas classificadas como Ligar com o maior score. Se nenhuma for Ligar, aparecem as de maior score entre todas.",
+    nome: "Melhores dias e horários",
+    texto: "Os dias e horários classificados como Ligar com a maior nota. Se nenhum for Ligar, aparecem os de maior nota entre todos.",
   },
 };

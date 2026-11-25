@@ -15,10 +15,15 @@ interface Props {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const robo = await buscarRobo(slug);
-  return { title: robo ? `${robo.nome} · Faixas` : "Faixas" };
+  // o título é o nome que a aba tem na tela desde a ficha Mesa (25/11/2026)
+  return { title: robo ? `${robo.nome} · Melhores horários` : "Melhores horários" };
 }
 
-/** Aba Faixas: validação por dia da semana × hora de entrada, com os parâmetros do banco. */
+/**
+ * Aba "Melhores horários" (ficha Mesa, 25/11/2026): o melhor dia e horário em palavras, o mapa de dia da
+ * semana por hora de entrada e a tabela dos dias e horários. A classificação vem de validarFaixas, com os
+ * parâmetros do banco; o desenho é do PainelFaixas.
+ */
 export default async function PaginaFaixas({ params }: Props) {
   const { slug } = await params;
   const [robo, ops, parametros] = await Promise.all([buscarRobo(slug), listarOperacoesCompactas(slug), carregarParametros()]);

@@ -11,7 +11,7 @@ export interface ItemKpi {
   /** Mantidos na interface para não mexer em quem chama; desde 17/09/2026 o cartão não pinta nem mostra ícone. */
   tom?: TomKpi;
   icone?: React.ReactNode;
-  /** chave do glossário: com ela, o rótulo ganha o i do "o que é" ao lado (19/09/2026) */
+  /** chave do glossário: com ela, o rótulo vira o gatilho do "o que é" (sublinhado pontilhado, sem ícone) */
   info?: ChaveIndicador;
   /** troca o texto do glossário quando o número não é de um robô só (os robôs somados do Comparativo) */
   infoTexto?: string;
@@ -33,46 +33,56 @@ function Rotulo({ item }: { item: ItemKpi }) {
   );
 }
 
+// quantas colunas a faixa abre conforme quantos números traz (classes inteiras: o Tailwind não monta nome)
+const GRADE: Record<number, string> = {
+  1: "grid-cols-1",
+  2: "grid-cols-2",
+  3: "grid-cols-1 sm:grid-cols-3",
+  4: "grid-cols-2 lg:grid-cols-4",
+  5: "grid-cols-2 md:grid-cols-3 xl:grid-cols-5",
+  6: "grid-cols-2 md:grid-cols-3 2xl:grid-cols-6",
+};
+const GRADE_LONGA = "grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6";
+
 /**
- * Grade de cards de KPI, no desenho do Habitto: painel chapado, rótulo, número e linha de apoio.
- * Saíram o fundo tingido pelo tom e o quadradinho de ícone (17/09/2026): seis metáforas para seis
- * números não diziam nada que o rótulo já não dissesse, e a cor já vem no próprio número
- * (verde e vermelho só no resultado).
+ * Faixa de indicadores (ficha Mesa, 25/11/2026): um painel só, dividido por fios, com rótulo, número e
+ * linha de apoio em cada célula. Eram N cartões soltos em grade; o nome e a interface ficaram para não
+ * mexer em quem chama (Desempenho, Risco, Simulador, Comparativo). É o mesmo desenho de
+ * `sistema/Indicadores`, recebendo a lista pronta.
  */
 export function CardsKpi({ itens, className }: Props) {
   return (
-    <div className={cn("grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6", className)}>
+    <dl className={cn("indicadores", GRADE[itens.length] ?? GRADE_LONGA, className)}>
       {itens.map((item) => (
-        <div key={item.rotulo} className="painel p-4">
-          <p className="rotulo-metrica">
+        <div key={item.rotulo} className="indicador">
+          <dt className="text-xs text-muted-foreground">
             <Rotulo item={item} />
-          </p>
-          <p className="mt-2 text-xl leading-none font-semibold tracking-tight tabular-nums">{item.valor}</p>
-          {item.detalhe ? <p className="mt-1.5 text-xs text-muted-foreground tabular-nums">{item.detalhe}</p> : null}
+          </dt>
+          <dd className="mt-1.5 text-xl leading-none font-semibold tracking-tight tabular-nums sm:text-2xl">{item.valor}</dd>
+          {item.detalhe ? <dd className="mt-1.5 text-xs text-pretty text-muted-foreground tabular-nums">{item.detalhe}</dd> : null}
         </div>
       ))}
-    </div>
+    </dl>
   );
 }
 
 /**
- * O resto dos números em lista agrupada: rótulo e apoio à esquerda, valor à direita, separador
- * encaixado. É o desenho que o Artur aprovou nos KPIs da visão geral (KpisRobo); desde 19/09/2026
- * no lugar das fileiras de cartões iguais do Desempenho e do Risco. Duas colunas a partir do lg,
- * e o fio sai das duas últimas linhas, que fecham o painel.
+ * O resto dos números em lista: rótulo e apoio à esquerda, valor à direita, uma linha por número com fio
+ * entre elas. Duas colunas a partir do lg (três em tela muito larga), e o fio sai das linhas que fecham
+ * o painel.
  */
 export function ListaKpi({ itens, className }: Props) {
   return (
-    <dl className={cn("painel grid overflow-hidden lg:grid-cols-2 lg:[&>div:nth-last-child(-n+2)]:after:hidden", className)}>
+    <dl className={cn("grid gap-x-12 lg:grid-cols-2", className)}>
       {itens.map((item) => (
-        <div key={item.rotulo} className="sep flex items-center justify-between gap-3 px-4 py-2.5 [--sep:16px]">
+        <div key={item.rotulo} className="flex items-center justify-between gap-4 border-b border-(--painel-fio) py-2.5">
           <dt className="min-w-0">
             <span className="block text-sm">
               <Rotulo item={item} />
             </span>
-            {item.detalhe ? <span className="block text-xs text-muted-foreground tabular-nums">{item.detalhe}</span> : null}
+            {item.detalhe ? <span className="block text-[0.8125rem] text-pretty text-sutil">{item.detalhe}</span> : null}
           </dt>
-          <dd className="shrink-0 text-sm font-semibold whitespace-nowrap tabular-nums">{item.valor}</dd>
+          <dd className="shrink-0 text-sm font-medium whitespace-nowrap">{item.valor}</dd>
         </div>
       ))}
     </dl>

@@ -7,6 +7,11 @@ export interface FiltrosUrl {
   resultado: FiltroResultado | null;
 }
 
+/** Há algum filtro ligado? */
+export function temFiltro(f: FiltrosUrl): boolean {
+  return Boolean(f.de || f.ate || f.lado || f.resultado);
+}
+
 /** Monta a query string da página de operações a partir dos filtros. */
 export function queryDeFiltros(f: FiltrosUrl, pagina?: number): string {
   const p = new URLSearchParams();

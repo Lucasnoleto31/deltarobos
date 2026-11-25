@@ -1,12 +1,11 @@
 "use client";
 
-import { Download, Link2, Share2, XIcon } from "lucide-react";
+import { XIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Segmentado } from "@/components/compartilhados/Segmentado";
 import { DIMENSOES_CARD, FORMATOS_CARD, nomeDoArquivo, urlDoCard, type FormatoCard } from "@/components/compartilhar/url-do-card";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { Skeleton } from "@/components/ui/skeleton";
 import { formatarDataLonga } from "@/lib/formato";
 import {
   AVISO_LINK_COPIADO,
@@ -51,6 +50,11 @@ export interface PropsCompartilharDia {
  * A versão (cache-buster) é congelada ao abrir: a prévia não troca embaixo do dedo enquanto o diálogo está
  * aberto, e cada abertura pega o dia como está. A folha é o Sheet do projeto (Base UI Dialog): foco preso, Esc
  * fecha e o foco volta ao botão. O X padrão dela tem o texto "Close", em inglês; por isso vai o nosso.
+ *
+ * Ficha Mesa (25/11/2026): os botões são só texto (saíram os ícones de compartilhar, baixar e link), a folha
+ * perdeu a sombra e o canto de 16 px (é uma faixa com um fio em cima), a prévia tem canto de 6 px, nada é
+ * centralizado e o lugar da imagem, enquanto ela é gerada, é um retângulo parado, sem pulsar. No diálogo o
+ * botão principal é um só: Compartilhar.
  */
 export function CompartilharDia({
   slug,
@@ -83,13 +87,12 @@ export function CompartilharDia({
           <Button variant={variante} size="sm" className={className} aria-label={rotuloAcessivelDoBotao(nomeRobo, dia)} />
         }
       >
-        <Share2 data-icon="inline-start" aria-hidden />
         {rotulo}
       </SheetTrigger>
       <SheetContent
         side="bottom"
         showCloseButton={false}
-        className="mx-auto max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-t-2xl p-4 sm:p-5"
+        className="mx-auto max-h-[92dvh] w-full max-w-lg overflow-y-auto p-4 shadow-none sm:border-x sm:p-5"
       >
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -101,9 +104,9 @@ export function CompartilharDia({
           </SheetClose>
         </div>
 
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1.5">
           <Segmentado ariaLabel="Formato da imagem" opcoes={FORMATOS_CARD} valor={formato} onChange={setFormato} />
-          <p className="text-xs text-muted-foreground">{dicaDoFormato(formato)}</p>
+          <p className="text-[0.8125rem] text-sutil">{dicaDoFormato(formato)}</p>
         </div>
 
         {/* a chave remonta a prévia a cada formato e a cada abertura: desmontar cancela o pedido no ar */}
@@ -273,19 +276,18 @@ function PreviaDoCard({ slug, nomeRobo, dia, formato, versao, caminhoDoLink, con
           width={largura}
           height={altura}
           alt={textoAlternativoDoCard(nomeRobo, dia, formato)}
-          className="mx-auto h-auto max-h-[min(50dvh,26rem)] w-auto max-w-full rounded-xl border"
+          className="h-auto max-h-[min(50dvh,26rem)] w-auto max-w-full self-start rounded-md border"
         />
       ) : falha ? (
-        <div className="mx-auto flex flex-col items-center justify-center gap-3 rounded-xl border p-4 text-center" style={caixa}>
+        <div className="flex flex-col items-start justify-end gap-3 rounded-md border p-4" style={caixa}>
           <p className="text-sm text-muted-foreground">{mensagemDoErroDaPrevia(falha.status)}</p>
           <Button variant="outline" size="sm" onClick={() => setTentativa((t) => t + 1)}>
             Tentar de novo
           </Button>
         </div>
       ) : (
-        <div aria-busy="true" className="relative mx-auto grid place-items-center overflow-hidden rounded-xl border" style={caixa}>
-          <Skeleton className="absolute inset-0 rounded-none" />
-          <p className="relative px-3 text-center text-xs text-muted-foreground">Gerando a imagem…</p>
+        <div aria-busy="true" className="flex items-end rounded-md border bg-(--linha-hover) p-4" style={caixa}>
+          <p className="text-[0.8125rem] text-muted-foreground">Gerando a imagem…</p>
         </div>
       )}
 
@@ -293,29 +295,25 @@ function PreviaDoCard({ slug, nomeRobo, dia, formato, versao, caminhoDoLink, con
         {/* sem suporte a arquivo o botão some: ficam Baixar e Copiar */}
         {suportaArquivos ? (
           <Button size="sm" disabled={!pronta} onClick={compartilhar}>
-            <Share2 data-icon="inline-start" aria-hidden />
             Compartilhar
           </Button>
         ) : null}
         {pronta ? (
           <a href={pronta.objetoUrl} download={nome} className={buttonVariants({ variant: "outline", size: "sm" })}>
-            <Download data-icon="inline-start" aria-hidden />
             Baixar imagem
           </a>
         ) : (
           <Button variant="outline" size="sm" disabled>
-            <Download data-icon="inline-start" aria-hidden />
             Baixar imagem
           </Button>
         )}
         <Button variant="outline" size="sm" onClick={copiarLink}>
-          <Link2 data-icon="inline-start" aria-hidden />
           Copiar link
         </Button>
       </div>
 
       {/* a região existe desde o começo, vazia: o leitor de tela só anuncia mudança em região já montada */}
-      <p role="status" aria-live="polite" className="min-h-4 text-xs text-muted-foreground">
+      <p role="status" aria-live="polite" className="min-h-5 text-[0.8125rem] text-muted-foreground">
         {aviso}
       </p>
     </div>

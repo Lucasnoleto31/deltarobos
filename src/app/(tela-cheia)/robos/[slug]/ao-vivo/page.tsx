@@ -37,12 +37,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!robo) return { title: "Robô não encontrado" };
   return {
     title: `${robo.nome} · Ao vivo`,
-    description: `Resultado do dia do ${robo.nome} em tempo real.`,
+    description: `O resultado de hoje do ${robo.nome}, ao vivo, com 1 contrato e já descontados os custos.`,
     openGraph: { images: [{ url: `/api/og/${slug}`, width: 1200, height: 630 }] },
   };
 }
 
-/** Tela cheia só com o dia: pra compartilhar e deixar aberta no celular (spec §8.4). */
+/**
+ * Tela cheia só com o dia (spec §8.4): para deixar aberta num monitor ou no celular, e para compartilhar.
+ * Desde a ficha Mesa (25/11/2026) usa a janela inteira, sem a barra lateral e sem a fita do site; a faixa de
+ * cima da própria tela traz a marca e o caminho de volta. Fica no tema escuro nos dois temas do site, como
+ * sempre: é o que sai em print.
+ */
 export default async function PaginaAoVivo({ params }: Props) {
   const { slug } = await params;
   const robo = await buscarRobo(slug);

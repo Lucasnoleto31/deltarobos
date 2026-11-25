@@ -134,6 +134,22 @@
 
 ## 8. Páginas
 
+### 8.0 O que mudou em 25/11/2026 (ficha Mesa)
+
+A pedido do Lucas ("a estrutura da página está ok, mas a página não está legal; coisas que não são necessárias pode tirar"), as telas foram enxugadas e ganharam a casca de sistema (barra lateral com os robôs, fita de mercado). Onde os itens abaixo e as subseções seguintes divergirem, vale este resumo; o desenho está em `DESIGN.md`.
+
+- **Casca**: barra lateral fixa em toda página (áreas: Visão geral, Comparar robôs, Simular meu capital, Como funciona; e a lista de robôs com o que cada um fez hoje, ao vivo) e fita de mercado no topo (pregão, cotação de cada ativo, o dia da casa em uma frase). O rodapé é uma linha de links para fora do site e o aviso legal.
+- **Celular**: versão própria abaixo de 1024 px. A navegação é uma barra presa embaixo (Visão geral, Robôs, Comparar, Simular, Mais); "Robôs" e "Mais" abrem uma folha que sobe de baixo. A marca e a fita rolam com a página. Na página inicial, a curva de um robô se escolhe por um seletor em texto, e o botão "Como começar" vem no fim da lista.
+- **Home (8.1)**: ficou com três coisas: o resultado somado dos robôs em número grande (com a premissa "1 contrato em cada robô, já descontados os custos"), a curva do período com a maior queda marcada em vermelho, e a lista dos robôs (passar o ponteiro num robô troca o número e a curva pelos dele; clicar abre a página do robô). Período padrão: 12 meses; também "desde o início" e "30 pregões". Saíram da home: hero, cards, resumo do dia, comunidade, ecossistema, como começar e FAQ. "Como começar" e as perguntas moram em Como funciona; os canais, no rodapé e no botão "Como começar" da barra lateral.
+- **Estado do robô**: no lugar dos selos (operando, posicionado, histórico), uma frase: "hoje +R$ 240 em 3 operações", "hoje ainda sem operação", "em operação agora", "sem operação hoje", "sem acompanhamento ao vivo · dados até dd/mm", "sem atualização no momento". O site não afirma que o robô está ligado.
+- **Página do robô (8.2)**: cabeçalho com o botão "Quero esse robô" e os atalhos "Tela ao vivo" e "Simular com meu capital". Abas: Visão geral, Desempenho, Dia a dia (era Calendário/Diário), Quedas e risco (era Risco), Melhores horários (era Faixas), Operações, Relatórios. A visão geral abre no primeiro período com operação quando hoje ainda não há operação nem posição aberta.
+- **Desempenho**: saíram o histograma por operação e o resultado por código de contrato (por ativo só aparece com mais de um ativo); o mapa ano × mês fica só em Dia a dia.
+- **Operações (8.3)**: uma tabela só em qualquer largura, com as colunas "Melhor momento" e "Pior momento" (eram MFE / MAE, só a partir de xl), sem Símbolo, Bruto e Custos; no celular rola de lado com o Resultado preso.
+- **Comparar robôs**: um gráfico com uma linha por robô na mesma escala e a tabela lado a lado; saíram os blocos "quem rendeu mais", "todos juntos" e "mês a mês".
+- **Simulador (8.6)**: sem capital digitado, simula com o capital mínimo publicado para a escolha (e diz isso na premissa). O texto fixo de compliance aparece uma vez, debaixo do título. O semáforo é uma frase em texto, não um selo.
+- **Como funciona (8.7, era Metodologia)**: abre com "Como começar" (três passos e o link de abertura de conta), explica cada número em palavras simples e termina nas perguntas frequentes.
+- **Vocabulário**: maior queda (drawdown), acertos (taxa de acerto), melhor e pior momento (MEP/MEN, MFE/MAE), "com 1 contrato, já descontados os custos" (por contrato, líquido). A tabela completa está na seção 7 do `DESIGN.md`.
+
 ### 8.1 Home `/` (ordem de cima pra baixo)
 1. Barra ao vivo: pregão aberto ou fechado, WIN e WDO agora, quantos robôs estão posicionados e quantas operações em aberto a casa tem (número de entradas ainda abertas na conta principal de cada robô, nunca contratos), resultado do dia da casa, "atualizado há Xs"
 2. Hero: frase curta, número grande com o resultado do dia somado por contrato, botões "ver os robôs" e "entrar na comunidade"
@@ -223,11 +239,14 @@ Widget leve (card do robô) pra iframe. Imagem OG com resultado do dia, gerada n
 
 ## 9. Design
 
-- Mobile-first. Tema escuro padrão com tema claro.
-- Verde pra positivo, vermelho pra negativo, cinza pra neutro. Fonte com números tabulares.
+Desde 25/11/2026 o desenho do site público segue a ficha "Mesa", descrita em `DESIGN.md` na raiz do repositório. Ela manda no que for visual; esta seção fica só com o que é requisito. A página inicial (§8.1) ficou reduzida, a pedido do Lucas, a três coisas: o resultado somado em número grande, a curva com a maior queda marcada e a lista dos robôs; "como começar" e as perguntas moram em Como funciona, e os canais, no rodapé.
+
+- É um sistema, não uma landing page: barra lateral fixa com os robôs ao vivo, fita de mercado no topo e área de trabalho na largura toda da tela, sem caixas (o conteúdo fica direto sobre o fundo, separado por espaço e fio).
+- Cada tela tem uma coisa principal: um número grande que responde à pergunta da tela, com a premissa escrita junto, e um gráfico. O jargão (drawdown, payoff, taxa de acerto) aparece com nome de leigo e explicação no glossário.
+- Tema escuro padrão com tema claro. Verde só para ganho, vermelho só para perda e para a maior queda, cinza para neutro. Hanken Grotesk com números tabulares.
+- Sem caixa, pílula, vidro, gradiente, sombra, caixa alta nem ícone decorativo (seção 8 do `DESIGN.md`).
 - Skeletons em tudo que carrega, indicador "atualizado há Xs" em tudo que é ao vivo.
-- Identidade visual Delta: cores e logo a definir (pendência).
-- Fazer com que a página do robô e o fechamento do dia fiquem bons em print de celular, pois vão parar em story e WhatsApp. O fechamento pronto é a imagem do dia (§8.8).
+- A página do robô e o fechamento do dia precisam ficar bons em print de celular, pois vão parar em story e WhatsApp. O fechamento pronto é a imagem do dia (§8.8).
 
 ## 10. Segurança
 

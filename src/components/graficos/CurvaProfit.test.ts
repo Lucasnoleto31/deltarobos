@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_BARRAS, caminhoDaFaixa, caminhoDaLinha, caminhoDoDrawdown, caminhoDosDentes, type PontoDoDesenho } from "./CurvaProfit";
+import { MAX_BARRAS, caminhoDaFaixa, caminhoDaLinha, caminhoDaQueda, caminhoDoDrawdown, caminhoDosDentes, type PontoDoDesenho } from "./CurvaProfit";
 
 const ponto = (posicao: number, drawdown: number, extras: Partial<PontoDoDesenho> = {}): PontoDoDesenho => ({
   posicao,
@@ -106,5 +106,41 @@ describe("faixa mín./máx. e dentes de MFE/MAE (23/09/2026)", () => {
     expect(faixa.startsWith("M0.005,95.00")).toBe(true);
     expect(faixa.endsWith("L0.005,105.00Z")).toBe(true);
     expect((dentes.match(/M/g) ?? []).length).toBe(20_000);
+  });
+});
+
+// O trecho da maior queda pintado de vermelho na própria linha (ficha Mesa, 25/11/2026): é um pedaço do traçado,
+// nas mesmas coordenadas, para cair exatamente em cima dele.
+describe("trecho da maior queda (25/11/2026)", () => {
+  const y = (v: number) => 100 - v;
+  const quatro = [
+    ponto(0.25, 0, { acumulado: 10 }),
+    ponto(0.5, 0, { acumulado: 40 }),
+    ponto(0.75, 0, { acumulado: -20 }),
+    ponto(1, 0, { acumulado: 5 }),
+  ];
+  const x = (i: number) => quatro[i].posicao * 100;
+
+  it("vai do pico ao fundo pelos mesmos pontos da linha", () => {
+    const trecho = caminhoDaQueda(quatro, x, y, 2, y(0), 1, 2, false);
+    expect(trecho).toBe("M50.00,60.00L75.00,120.00");
+    expect(caminhoDaLinha(quatro, x, y, 2, y(0), false).tracado).toContain(trecho.replace("M", "L"));
+  });
+
+  it("queda desde a partida: nasce no zero da borda esquerda, como a linha", () => {
+    const menos = [ponto(0.5, 0, { acumulado: -30 }), ponto(1, 0, { acumulado: -50 })];
+    const px = (i: number) => menos[i].posicao * 100;
+    const trecho = caminhoDaQueda(menos, px, y, 2, y(0), 0, 1, true);
+    expect(trecho).toBe("M0,100.00L50.00,130.00L100.00,150.00");
+    expect(caminhoDaLinha(menos, px, y, 2, y(0), false).tracado).toBe(trecho);
+    // o fundo no primeiro ponto ainda é um trecho: da borda até ele
+    expect(caminhoDaQueda(menos, px, y, 2, y(0), 0, 0, true)).toBe("M0,100.00L50.00,130.00");
+  });
+
+  it("sem trecho, nada a desenhar", () => {
+    expect(caminhoDaQueda(quatro, x, y, 2, y(0), 2, 1, false)).toBe("");
+    expect(caminhoDaQueda(quatro, x, y, 2, y(0), 1, 1, false)).toBe("");
+    expect(caminhoDaQueda(quatro, x, y, 2, y(0), 1, 9, false)).toBe("");
+    expect(caminhoDaQueda([], x, y, 2, y(0), 0, 0, true)).toBe("");
   });
 });

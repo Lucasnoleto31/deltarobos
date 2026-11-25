@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { AbasRobo } from "@/components/robo/AbasRobo";
 import { CabecalhoRobo } from "@/components/robo/CabecalhoRobo";
-import { Voltar } from "@/components/layout/Voltar";
+import { CorpoPagina } from "@/components/sistema/Pagina";
 import { RoboAoVivoProvider } from "@/components/robo/RoboAoVivoProvider";
 import {
   buscarRobo,
@@ -13,6 +13,7 @@ import {
   listarPosicoes,
   listarRobos,
 } from "@/lib/consultas/publico";
+import { carregarCasa } from "@/lib/consultas/casa";
 import { hojeSP } from "@/lib/stats/periodos";
 import { pregaoAberto } from "@/lib/stats/pregao";
 
@@ -54,14 +55,20 @@ export async function generateMetadata({ params }: Pick<Props, "params">): Promi
   };
 }
 
-/** Cabeçalho, status ao vivo e abas compartilhados por todas as páginas do robô. */
+/**
+ * Cabeçalho, estado ao vivo e abas compartilhados por todas as páginas do robô. Desde a ficha Mesa
+ * (25/11/2026) o cabeçalho e a faixa de abas ocupam a largura da área de trabalho, e cada aba desenha
+ * os próprios painéis dentro do CorpoPagina. O caminho de volta mora no cabeçalho.
+ */
 export default async function LayoutRobo({ children, params }: Props) {
   const { slug } = await params;
   const robo = await buscarRobo(slug);
   if (!robo) notFound();
 
   const hoje = hojeSP();
-  const [operacoes, posicoes, feriados, mercado, exposicao] = await Promise.all([
+  // os links do site (o botão "Quero esse robô" do cabeçalho): a mesma leitura do layout do site, com cache
+  const [casa, operacoes, posicoes, feriados, mercado, exposicao] = await Promise.all([
+    carregarCasa(),
     listarOperacoesDoDia(slug, hoje),
     listarPosicoes(slug),
     listarFeriados(),
@@ -76,8 +83,7 @@ export default async function LayoutRobo({ children, params }: Props) {
     : { inicio: "09:00", fim: "18:00" };
 
   return (
-    <article className="conteudo space-y-6 py-8">
-      <Voltar href="/#robos">Todos os robôs</Voltar>
+    <article>
       <RoboAoVivoProvider
         robo={robo}
         inicial={{ operacoes, posicoes, ultimoHeartbeatEm: robo.ultimo_heartbeat_em, dia: hoje, exposicaoHoje: exposicao[0] ?? null }}
@@ -85,9 +91,9 @@ export default async function LayoutRobo({ children, params }: Props) {
         feriados={feriados}
         pregaoAbertoNoServidor={pregaoAberto(new Date(), pregao, feriados)}
       >
-        <CabecalhoRobo />
+        <CabecalhoRobo linkQuero={casa.parametros.links.whatsapp || undefined} />
         <AbasRobo slug={slug} />
-        {children}
+        <CorpoPagina>{children}</CorpoPagina>
       </RoboAoVivoProvider>
     </article>
   );

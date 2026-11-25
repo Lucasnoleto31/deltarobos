@@ -38,12 +38,13 @@ interface Props {
 const ALTURA_DOS_ROTULOS = 22;
 
 /**
- * Barras verticais pelo sinal (mensal, dia da semana, hora, histograma), no desenho do Zeve Hub
- * desde 17/09/2026: barra em HTML com gradiente e trilho atrás, guias pontilhadas, espessura igual
- * em todo gráfico (64% da coluna, no máximo 32 px). A interface é a mesma de antes (era Recharts):
- * quem chama não mudou. Desde 19/09/2026 a leitura da barra apontada fica numa linha fixa acima do
- * gráfico, como nas curvas: o cartão flutuante cobria as barras vizinhas e, nos gráficos estreitos,
- * a própria barra apontada. Sem o ponteiro, a linha lê a última barra.
+ * Barras verticais pelo sinal (mensal, dia da semana, hora, histograma). Desde a ficha Mesa (25/11/2026) a
+ * barra é chapada, verde ou vermelha, sem gradiente e sem trilho (o trilho só acende sob o ponteiro), com
+ * guias discretas e a mesma espessura em todo gráfico (64% da coluna, no máximo 48 px). A interface é a
+ * mesma de antes (era Recharts): quem chama não mudou. Desde 19/09/2026 a leitura da barra apontada fica
+ * numa linha fixa acima do gráfico, como nas curvas: o cartão flutuante cobria as barras vizinhas. Sem o
+ * ponteiro, a linha lê a última barra. A leitura não traz mais a média por dia ou por operação: o iniciante
+ * multiplica a média e lê como salário.
  */
 export function GraficoBarras({ dados, unidade, altura = 220, contagem = false, rotuloN = "Operações", aoEscolher }: Props) {
   const [ativo, setAtivo] = useState<number | null>(null);
@@ -84,9 +85,6 @@ export function GraficoBarras({ dados, unidade, altura = 220, contagem = false, 
   const naDica = (v: number) =>
     unidade === "brl" ? formatarBRL(v, { sinal: true, inteiro: Math.abs(v) >= 1000 }) : `${formatarPontos(v, true)} pts`;
 
-  // a média é pequena: sempre com centavos (ou uma casa, em pontos)
-  const naMedia = (v: number) => (unidade === "brl" ? formatarBRL(v, { sinal: true }) : `${formatarPontos(v, true)} pts`);
-
   const dicaDe = (d: DadoBarra): ConteudoDaDica =>
     contagem
       ? { titulo: d.rotulo, linhas: [{ rotulo: "Operações", valor: formatarNumero(Math.round(d.valor)) }] }
@@ -95,15 +93,6 @@ export function GraficoBarras({ dados, unidade, altura = 220, contagem = false, 
           linhas: [
             { rotulo: "Resultado", valor: naDica(d.valor), tom: tomDe(d.valor) },
             ...(d.n !== undefined ? [{ rotulo: rotuloN, valor: formatarNumero(d.n) }] : []),
-            ...(d.n !== undefined && d.n > 0
-              ? [
-                  {
-                    rotulo: rotuloN === "Operações" ? "Média por operação" : "Média por dia",
-                    valor: naMedia(d.valor / d.n),
-                    tom: tomDe(d.valor),
-                  },
-                ]
-              : []),
           ],
         };
 
@@ -149,17 +138,16 @@ export function GraficoBarras({ dados, unidade, altura = 220, contagem = false, 
               <div key={i} className="relative min-w-0 flex-1">
                 <div
                   aria-hidden
-                  className="absolute inset-y-0 left-1/2 w-[64%] max-w-8 -translate-x-1/2 rounded-[3px]"
-                  style={{ background: mistura("--foreground", ativo === i ? 9 : 3.5) }}
+                  className="absolute inset-y-0 left-1/2 w-[64%] max-w-12 -translate-x-1/2 rounded-[2px]"
+                  style={{ background: ativo === i ? mistura("--foreground", 7) : "transparent" }}
                 />
                 <div
                   aria-hidden
-                  className="absolute left-1/2 w-[64%] max-w-8 -translate-x-1/2 rounded-[3px]"
+                  className="absolute left-1/2 w-[64%] max-w-12 -translate-x-1/2 rounded-[2px]"
                   style={{
                     top: `${positivo ? zero - alto : zero}%`,
                     height: `${alto}%`,
-                    // forte na ponta do valor, esmaecida junto do zero
-                    background: `linear-gradient(${positivo ? "to bottom" : "to top"}, ${forte}, ${mistura(token, 28)})`,
+                    background: forte,
                   }}
                 />
               </div>
@@ -171,15 +159,22 @@ export function GraficoBarras({ dados, unidade, altura = 220, contagem = false, 
       {/* 24/09/2026 (Artur, print do histograma): o rótulo da barra apontada transborda a coluna dela e, quando
           um rótulo fixo cai a menos de `aCada` colunas, os dois se escrevem um por cima do outro ("-R$ 127,38"
           debaixo de "R$ 60,13"). Com o ponteiro em cima, os fixos a essa distância do apontado somem. */}
-      <div aria-hidden className="mt-1.5 flex text-[11px] text-muted-foreground tabular-nums">
+      {/* 25/11/2026: o rótulo é centrado na coluna por posição absoluta. Como texto centralizado, o que era
+          mais largo que a coluna transbordava só para a direita, e o da última barra passava da página no
+          celular (392 px numa tela de 375). O da última coluna encosta na borda direita do gráfico. */}
+      <div aria-hidden className="mt-1.5 flex h-4 text-[11px] text-muted-foreground tabular-nums">
         {dados.map((d, i) => {
           const fixo = i % aCada === 0 && (ativo === null || Math.abs(i - ativo) >= aCada);
+          const ultimo = i === dados.length - 1;
           return (
-            <span
-              key={i}
-              className={`min-w-0 flex-1 overflow-visible text-center whitespace-nowrap ${ativo === i ? "text-foreground" : ""}`}
-            >
-              {fixo || ativo === i ? d.rotulo : ""}
+            <span key={i} className="relative min-w-0 flex-1">
+              {fixo || ativo === i ? (
+                <span
+                  className={`absolute top-0 leading-4 whitespace-nowrap ${ultimo ? "right-0" : "left-1/2 -translate-x-1/2"} ${ativo === i ? "text-foreground" : ""}`}
+                >
+                  {d.rotulo}
+                </span>
+              ) : null}
             </span>
           );
         })}

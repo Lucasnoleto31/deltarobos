@@ -6,19 +6,22 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Segmentado } from "@/components/compartilhados/Segmentado";
 import { Valor } from "@/components/compartilhados/Valor";
-import { CardsKpi, ListaKpi, type ItemKpi } from "@/components/desempenho/CardsKpi";
-import { Badge } from "@/components/ui/badge";
-import { formatarBRL, formatarData, formatarMesAno, formatarMultiplo, formatarNumero, formatarPct } from "@/lib/formato";
+import { Fato, Fatos, NumeroGrande } from "@/components/sistema/Numero";
+import { Grade } from "@/components/sistema/Pagina";
+import { LINK_DO_PAINEL, Painel } from "@/components/sistema/Painel";
+import { formatarBRL, formatarData, formatarDataLonga, formatarMesAno, formatarMultiplo, formatarNumero, formatarPct } from "@/lib/formato";
 import {
   MAX_CONTRATOS,
   OPCOES_PERIODO_SIMULADOR,
   capitalMinimoDaCarteira,
   simular,
+  type PeriodoSimulador,
   type ResultadoSimulacao,
   type RoboSimulador,
 } from "@/lib/stats/simulador";
 import { CurvaSimulada } from "./CurvaSimulada";
 import { Semaforo } from "./Semaforo";
+import { contratosEmPalavras, intervaloDeDatas, quandoEmPalavras } from "./serie-simulada";
 import { inteiroDe, lerCapital, lerUrlSimulador, normalizarContratos, urlSimulador, type EstadoSimulador } from "./simulador-url";
 
 interface Props {
@@ -29,17 +32,20 @@ interface Props {
   fatorSeguranca: number;
 }
 
-// os rótulos e os campos são os da barra de filtros do Desempenho (Filtros.tsx)
-const ROTULO = "text-[11px] font-medium tracking-wide text-muted-foreground uppercase";
-const CAMPO = "rounded-lg border bg-background tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring/50";
+// os períodos são os da conta (lib/stats/simulador); só o nome de "tudo" muda, para o de todas as telas
+const PERIODOS: ReadonlyArray<{ valor: PeriodoSimulador; rotulo: string }> = OPCOES_PERIODO_SIMULADOR.map((o) =>
+  o.valor === "tudo" ? { ...o, rotulo: "Desde o início" } : o,
+);
+
+// rótulo de campo e campo, na ficha Mesa: 13 px em cinza, sem caixa alta; borda de fio forte, canto de 6 px
+const ROTULO = "text-[0.8125rem] text-sutil";
+const CAMPO = "rounded-md border border-(--painel-fio-forte) transition-colors";
+// o campo de número sem as setas: no capital elas somam R$ 1 de cada vez
+const SEM_SETAS = "[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none";
 
 const brl = (v: number) => formatarBRL(v, { inteiro: true });
 const dias = (n: number) => (n === 1 ? "1 dia" : `${formatarNumero(n)} dias`);
 const pregoes = (n: number) => (n === 1 ? "1 pregão" : `${formatarNumero(n)} pregões`);
-
-function Vazio({ children }: { children: React.ReactNode }) {
-  return <p className="painel px-4 py-8 text-center text-sm text-muted-foreground">{children}</p>;
-}
 
 /**
  * Campo de número inteiro que guarda o que está sendo digitado (revisão de 23/09/2026). Controlado só pelo
@@ -74,23 +80,28 @@ function CampoInteiro({
   );
 }
 
-/** O capital mínimo da seleção antes de o capital ser digitado: a referência para digitar. */
-function fraseDoMinimo(minimo: ReturnType<typeof capitalMinimoDaCarteira>, nomeDe: (slug: string) => string): string {
-  const nomes = minimo.semMinimo.map(nomeDe).join(", ");
-  if (minimo.total !== null) return minimo.total > 0 ? ` Capital mínimo publicado para esses robôs e contratos: ${brl(minimo.total)}.` : "";
-  if (minimo.conhecido > 0) {
-    return ` Capital mínimo publicado para esses robôs e contratos: ao menos ${brl(minimo.conhecido)} (sem capital mínimo configurado: ${nomes}).`;
-  }
-  return ` Capital mínimo não configurado para ${nomes}.`;
-}
-
 /**
  * O simulador "com o meu capital" (23/09/2026): capital, período e contratos por robô entram, e sai o que
- * o histórico teria feito com eles: resultado, drawdown, pior mês, pior dia, sequência negativa, capital
- * mínimo publicado e o semáforo. Tudo mora na URL (simulador-url), para compartilhar e para os links
+ * o histórico teria feito com eles. Tudo mora na URL (simulador-url), para compartilhar e para os links
  * "Simular com meu capital" chegarem preenchidos. É tudo aritmética no navegador sobre as séries que a
  * página já trouxe: não há carga, não há estado de carregamento. O aviso legal não se repete aqui: o
- * rodapé, logo abaixo, traz o mesmo texto em toda página (decisão de 17/09/2026, robo/Disclaimer.tsx).
+ * rodapé, logo abaixo, traz o mesmo texto em toda página (decisão de 17/09/2026).
+ *
+ * 25/11/2026 (ficha Mesa). A pergunta da tela: com o capital que eu tenho, quanto eu teria ganho e quanto
+ * teria caído? Eram um painel de entradas, o painel do semáforo, quatro cartões, uma lista de quatro
+ * números, a curva na moldura do Profit e um rodapé de regra, um embaixo do outro. Agora, sem caixas:
+ * - à esquerda (4 de 12 colunas), o que a pessoa informa: o capital e os contratos de cada robô;
+ * - à direita (8 colunas), a resposta: o resultado em número grande com a premissa embaixo, ao lado a
+ *   maior queda em R$ e em % do capital, o pior dia e o capital mínimo, a frase do semáforo e a curva com
+ *   a maior queda em vermelho. Passar o ponteiro na curva troca o número pelo acumulado até aquele pregão;
+ * - debaixo dos campos, "Mais números": o que sobrou dos cartões e da lista, uma linha cada.
+ * No celular vem nesta ordem: campos, resposta, mais números. O período fica na linha de título da
+ * resposta, alinhado à borda do gráfico, como em toda tela.
+ *
+ * Saíram: os valores que apareciam duas vezes (o capital mínimo por robô repetia o que já está debaixo do
+ * nome de cada um; a frase do semáforo repetia a maior queda e o mínimo), "dias de pregão" como número à
+ * parte (está em "dias com perda: 87 de 241"), a linha de instrução dos contratos e o rodapé com a regra
+ * do capital mínimo (está no "o que é" do capital mínimo e em Como é calculado).
  */
 export function PainelSimulador({ robos, hoje, fatorSeguranca }: Props) {
   const slugs = useMemo(() => robos.map((r) => r.slug), [robos]);
@@ -110,7 +121,7 @@ export function PainelSimulador({ robos, hoje, fatorSeguranca }: Props) {
   // cabeçalho estando já em /simulador?capital=… era revertido na hora). Quando `sp` muda, confere-se a
   // BARRA, que é síncrona: o `sp` chega depois do replaceState e, com duas teclas seguidas, o antigo
   // chegaria com o estado já adiante e o reverteria. Se a barra diz outra coisa que o estado, foi uma
-  // navegação por fora (link do cabeçalho ou do rodapé, voltar/avançar) e o estado passa a ser o dela. É
+  // navegação por fora (link da barra lateral ou do rodapé, voltar/avançar) e o estado passa a ser o dela. É
   // o padrão de "guardar informação do render anterior" do React, não um efeito (setState síncrono em
   // efeito é proibido pelo lint), e não há laço: a URL que o próprio painel escreve é a forma canônica do
   // estado. Comparações entre formas canônicas (urlSimulador): sp.toString() codifica ":" e ",".
@@ -129,15 +140,18 @@ export function PainelSimulador({ robos, hoje, fatorSeguranca }: Props) {
   }, [estado, slugs]);
 
   const temSelecao = slugs.some((s) => (estado.contratos[s] ?? 0) > 0);
+  const minimoDaSelecao = useMemo(() => capitalMinimoDaCarteira(robos, estado.contratos), [robos, estado.contratos]);
+  // Sem capital digitado, a simulação usa o capital mínimo publicado para a escolha (25/11/2026): a tela abria
+  // vazia, pedindo um número antes de mostrar qualquer coisa. A premissa diz que é o mínimo; digitar troca.
+  const capitalDoMinimo = estado.capital === null && temSelecao ? lerCapital(minimoDaSelecao.total) : null;
+  const capitalUsado = estado.capital ?? capitalDoMinimo;
   const resultado = useMemo(
     () =>
-      estado.capital !== null && temSelecao
-        ? simular({ capital: estado.capital, robos, contratos: estado.contratos, periodo: estado.periodo, hoje })
+      capitalUsado !== null && temSelecao
+        ? simular({ capital: capitalUsado, robos, contratos: estado.contratos, periodo: estado.periodo, hoje })
         : null,
-    [estado.capital, estado.contratos, estado.periodo, temSelecao, robos, hoje],
+    [capitalUsado, estado.contratos, estado.periodo, temSelecao, robos, hoje],
   );
-  // o capital mínimo da seleção aparece antes de o capital ser digitado: é a referência para digitar
-  const minimoDaSelecao = useMemo(() => capitalMinimoDaCarteira(robos, estado.contratos), [robos, estado.contratos]);
   const nomeDe = (slug: string) => robos.find((x) => x.slug === slug)?.nome ?? slug;
 
   // só dígitos, a regra do codec da URL (inteiroDe): apagou tudo = sem capital; texto que o campo de número
@@ -151,224 +165,279 @@ export function PainelSimulador({ robos, hoje, fatorSeguranca }: Props) {
     if (n !== null) atualizar({ contratos: { ...estado.contratos, [slug]: normalizarContratos(n) } });
   };
 
-  const capital = estado.capital;
+  const capital = capitalUsado;
+  const escolhidos = robos.flatMap((r) => {
+    const n = estado.contratos[r.slug] ?? 0;
+    return n > 0 ? [{ nome: r.nome, contratos: n }] : [];
+  });
+  const semMinimo = minimoDaSelecao.semMinimo.map(nomeDe).join(", ");
+  // "com R$ 30.000 e 1 contrato em cada um dos 3 robôs"; com contratos diferentes a lista já tem o seu "e"
+  const emPalavras = contratosEmPalavras(escolhidos, robos.length);
+  const comQue =
+    capital === null
+      ? ""
+      : `com ${capitalDoMinimo !== null ? "o capital mínimo publicado, " : ""}${brl(capital)}${capitalDoMinimo !== null || emPalavras.includes(" e ") ? "," : " e"} ${emPalavras}`;
+  const comResultado = capital !== null && resultado !== null && resultado.nDias > 0;
 
   return (
-    <div className="space-y-6">
-      <section aria-label="Entradas da simulação" className="painel space-y-5 p-4 sm:p-5">
-        <div className="flex flex-wrap items-end gap-x-6 gap-y-4">
-          <div className="space-y-1.5">
-            <p className={ROTULO}>Capital</p>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">R$</span>
-              <CampoInteiro
-                min={0}
-                aria-label="Capital em reais"
-                valor={capital === null ? "" : String(capital)}
-                aoDigitar={digitarCapital}
-                className={cn("h-9 w-40 px-3 text-sm", CAMPO)}
-              />
-            </div>
-            <p className="text-xs text-muted-foreground tabular-nums">
-              {capital !== null ? `${brl(capital)} de capital inicial` : "em reais, sem centavos"}
-            </p>
-          </div>
-          <div className="max-w-full min-w-0 space-y-1.5">
-            <p className={ROTULO}>Período</p>
-            <Segmentado
-              ariaLabel="Período"
-              opcoes={OPCOES_PERIODO_SIMULADOR}
-              valor={estado.periodo}
-              onChange={(periodo) => atualizar({ periodo })}
+    <Grade className="xl:grid-rows-[auto_1fr]">
+      {/* o que a pessoa informa. Entre o tablet e a tela larga a coluna única é larga demais para dois campos
+          empilhados: o capital fica à esquerda e os robôs ao lado */}
+      <div className="min-w-0 self-start md:grid md:grid-cols-[minmax(0,18rem)_minmax(0,1fr)] md:items-start md:gap-x-12 xl:col-span-4 xl:col-start-1 xl:row-start-1 xl:block">
+        <label className="block max-w-sm md:max-w-none">
+          <span className={ROTULO}>Seu capital</span>
+          <span className={cn("mt-1.5 flex h-11 items-center gap-2 px-3 focus-within:border-foreground", CAMPO)}>
+            <span aria-hidden className="text-muted-foreground">
+              R$
+            </span>
+            <CampoInteiro
+              min={0}
+              aria-label="Capital em reais"
+              placeholder={capitalDoMinimo !== null ? `${capitalDoMinimo.toLocaleString("pt-BR")} (o mínimo publicado)` : "em reais, sem centavos"}
+              valor={estado.capital === null ? "" : String(estado.capital)}
+              aoDigitar={digitarCapital}
+              className={cn(
+                "h-full min-w-0 flex-1 bg-transparent text-lg font-medium outline-none placeholder:text-sm placeholder:font-normal placeholder:text-sutil",
+                SEM_SETAS,
+              )}
             />
-          </div>
-        </div>
+          </span>
+        </label>
 
-        <div className="space-y-1.5">
-          <p className={ROTULO}>Robôs e contratos</p>
-          <ul className="divide-y">
+        <Painel titulo="Robôs" acao={<span className="text-sutil">Contratos</span>} corpo="" className="mt-8 md:mt-0 xl:mt-8">
+          <ul>
             {robos.map((r) => {
               const n = estado.contratos[r.slug] ?? 0;
               const fora = n === 0;
               return (
-                <li key={r.slug} className={cn("flex flex-wrap items-center gap-x-4 gap-y-1.5 py-2.5", fora && "opacity-70")}>
-                  <div className="min-w-0 flex-1">
-                    <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-medium">
-                      <Link href={`/robos/${r.slug}`} className="hover:underline">
-                        {r.nome}
-                      </Link>
-                      <span className="text-xs font-normal text-muted-foreground">
-                        {r.ativoNome} · {r.ativo}
-                      </span>
+                <li key={r.slug} className="flex items-center justify-between gap-4 border-b border-(--painel-fio) py-3">
+                  <div className="min-w-0">
+                    <Link
+                      href={`/robos/${r.slug}`}
+                      className={cn("text-[0.9375rem] font-medium hover:underline", fora && "text-muted-foreground")}
+                    >
+                      {r.nome}
+                    </Link>
+                    <p className="text-[0.8125rem] text-pretty text-sutil">
+                      {r.ativoNome}
                       {r.contaTipo === "demo" ? (
-                        <Badge variant="outline" className="border-alerta/50 text-alerta" title="As estatísticas vêm de uma conta demo">
-                          Conta demo
-                        </Badge>
+                        <>
+                          {" · "}
+                          <span className="text-alerta" title="As estatísticas vêm de uma conta demo">
+                            conta demo
+                          </span>
+                        </>
                       ) : null}
-                    </p>
-                    <p className="text-xs text-muted-foreground tabular-nums">
-                      {r.capitalMinimoPorContrato !== null
-                        ? `${brl(r.capitalMinimoPorContrato)} mín. por contrato (todo o histórico)`
-                        : "capital mínimo não configurado"}
-                      {fora ? " · fora da simulação" : ""}
+                      {" · "}
+                      {fora
+                        ? "fora da simulação"
+                        : r.capitalMinimoPorContrato !== null
+                          ? `mínimo de ${brl(r.capitalMinimoPorContrato)} por contrato`
+                          : "sem capital mínimo configurado"}
                     </p>
                   </div>
-                  <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                    contratos
-                    <CampoInteiro
-                      min={0}
-                      max={MAX_CONTRATOS}
-                      aria-label={`Contratos do ${r.nome}`}
-                      valor={String(n)}
-                      aoDigitar={(texto) => digitarContratos(r.slug, texto)}
-                      className={cn("h-8 w-20 px-2 text-xs text-foreground", CAMPO)}
-                    />
-                  </label>
+                  <CampoInteiro
+                    min={0}
+                    max={MAX_CONTRATOS}
+                    aria-label={`Contratos do ${r.nome}`}
+                    valor={String(n)}
+                    aoDigitar={(texto) => digitarContratos(r.slug, texto)}
+                    className={cn(
+                      "h-9 w-16 shrink-0 bg-transparent pr-1 pl-2.5 text-sm outline-none focus-visible:border-foreground focus-visible:ring-2 focus-visible:ring-ring/50",
+                      CAMPO,
+                    )}
+                  />
                 </li>
               );
             })}
           </ul>
-          <p className="text-xs text-muted-foreground">0 tira o robô da simulação. Tudo por contrato, líquido de custos.</p>
+        </Painel>
+      </div>
+
+      {/* a resposta */}
+      <section aria-labelledby="resultado-simulado" className="min-w-0 xl:col-span-8 xl:col-start-5 xl:row-span-2 xl:row-start-1">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-8 gap-y-3 sm:pr-20">
+          <h2 id="resultado-simulado" className="text-[0.9375rem] font-normal text-muted-foreground">
+            Resultado simulado
+          </h2>
+          {/* o período fica alinhado à borda direita da curva, como em toda tela */}
+          <Segmentado ariaLabel="Período" opcoes={PERIODOS} valor={estado.periodo} onChange={(periodo) => atualizar({ periodo })} />
         </div>
+
+        {capital === null ? (
+          <div className="mt-4 max-w-xl text-pretty text-muted-foreground">
+            <p>Informe o seu capital para ver quanto os robôs escolhidos teriam ganho e quanto teriam caído.</p>
+            {temSelecao ? (
+              <p className="mt-3 text-sm">
+                {minimoDaSelecao.total !== null && minimoDaSelecao.total > 0 ? (
+                  <>
+                    O capital mínimo publicado para estes robôs e contratos é {brl(minimoDaSelecao.total)}.{" "}
+                    <button type="button" onClick={() => atualizar({ capital: lerCapital(minimoDaSelecao.total) })} className={cn("cursor-pointer", LINK_DO_PAINEL)}>
+                      Simular com esse valor
+                    </button>
+                  </>
+                ) : minimoDaSelecao.total === null && minimoDaSelecao.conhecido > 0 ? (
+                  `O capital mínimo publicado para estes robôs e contratos é de ao menos ${brl(minimoDaSelecao.conhecido)}. Sem capital mínimo configurado: ${semMinimo}.`
+                ) : minimoDaSelecao.total === null ? (
+                  `Sem capital mínimo configurado: ${semMinimo}.`
+                ) : null}
+              </p>
+            ) : null}
+          </div>
+        ) : !temSelecao ? (
+          <p className="mt-4 text-muted-foreground">Escolha ao menos um robô: ponha 1 contrato ou mais em algum deles.</p>
+        ) : resultado === null || resultado.nDias === 0 ? (
+          <p className="mt-4 text-muted-foreground">Os robôs escolhidos não operaram neste período.</p>
+        ) : (
+          <Resposta
+            r={resultado}
+            capital={capital}
+            robos={robos}
+            premissa={`${comQue}, já descontados os custos · ${quandoEmPalavras(estado.periodo, resultado.serie[0].dia, hoje)}`}
+            fatorSeguranca={fatorSeguranca}
+          />
+        )}
       </section>
 
-      {capital === null ? (
-        <Vazio>
-          Informe o capital para simular.
-          {temSelecao ? fraseDoMinimo(minimoDaSelecao, nomeDe) : ""}
-        </Vazio>
-      ) : !temSelecao ? (
-        <Vazio>Escolha ao menos um robô (contratos acima de 0).</Vazio>
-      ) : resultado === null || resultado.nDias === 0 ? (
-        <Vazio>Sem pregões no período.</Vazio>
-      ) : (
-        <Resultados resultado={resultado} capital={capital} robos={robos} fatorSeguranca={fatorSeguranca} />
-      )}
+      {comResultado ? <MaisNumeros r={resultado} capital={capital} className="xl:col-span-4 xl:col-start-1 xl:row-start-2" /> : null}
+    </Grade>
+  );
+}
+
+/** O número grande, os fatos, a frase do semáforo e a curva. */
+function Resposta({
+  r,
+  capital,
+  robos,
+  premissa,
+  fatorSeguranca,
+}: {
+  r: ResultadoSimulacao;
+  capital: number;
+  robos: RoboSimulador[];
+  premissa: string;
+  fatorSeguranca: number;
+}) {
+  const [apontado, setApontado] = useState<number | null>(null);
+  // o índice apontado pode ter ficado de uma série mais longa (troca de período ou de contratos)
+  const lido = apontado !== null ? (r.serie[apontado] ?? null) : null;
+
+  // sem o total (algum robô sem margem), a parte conhecida ainda é um piso: "ao menos R$ X", nunca um traço
+  const minimo = r.capitalMinimo !== null ? brl(r.capitalMinimo) : r.capitalMinimoConhecido > 0 ? `ao menos ${brl(r.capitalMinimoConhecido)}` : null;
+
+  return (
+    <>
+      {/* o número e, colados nele, os fatos; quando não cabem lado a lado, os fatos descem */}
+      <div className="mt-3 flex flex-wrap items-end gap-x-12 gap-y-6">
+        <div className="min-w-[min(18rem,100%)] max-sm:w-full">
+          <NumeroGrande valor={lido ? lido.acumulado : r.resultado} />
+          {/* A premissa e a leitura do pregão apontado ocupam o mesmo lugar, para a tela não pular ao passar o
+              ponteiro. O w-0 com min-w-full faz o texto quebrar na largura do número em vez de alargar a
+              coluna e empurrar os fatos para baixo. */}
+          <div className="mt-3 grid w-0 min-w-full text-sm text-pretty text-muted-foreground">
+            <p className={cn("col-start-1 row-start-1", lido && "invisible")}>{premissa}</p>
+            {lido ? (
+              <p className="col-start-1 row-start-1">
+                até {formatarDataLonga(lido.dia)} · no dia <Valor valor={lido.valor} inteiro={Math.abs(lido.valor) >= 1000} className="font-medium" /> ·
+                o capital estaria em {brl(lido.patrimonio)}
+              </p>
+            ) : null}
+          </div>
+        </div>
+
+        <Fatos className="max-w-80 min-w-64 flex-1 lg:pb-0.5">
+          <Fato rotulo="Maior queda">
+            {r.ddMax > 0 ? <Valor valor={-r.ddMax} inteiro={r.ddMax >= 1000} className="font-medium" /> : <span className="text-sutil">nenhuma</span>}
+          </Fato>
+          {r.ddMax > 0 ? (
+            <Fato rotulo="Em % do capital informado">
+              <span className="font-medium">{formatarPct(r.ddMaxPct, 1)}</span>
+            </Fato>
+          ) : null}
+          {r.piorDia && r.piorDia.valor < 0 ? (
+            <Fato rotulo="Pior dia">
+              <span className="mr-3 text-sutil">{formatarData(r.piorDia.dia)}</span>
+              <Valor valor={r.piorDia.valor} inteiro={Math.abs(r.piorDia.valor) >= 1000} className="font-medium" />
+            </Fato>
+          ) : null}
+          {minimo ? (
+            <Fato
+              rotulo="Capital mínimo"
+              info="capitalMinimo"
+              // o "o que é" do glossário fala de 1 contrato de um robô; aqui é a soma da escolha
+              infoTexto={`Soma, por robô, dos contratos vezes o capital mínimo por contrato publicado na página do robô, em Quedas e risco: a margem exigida pela corretora mais a maior queda de todo o histórico vezes ${formatarMultiplo(fatorSeguranca, 1)}. Robô sem margem configurada fica fora da soma, que vira um piso. Quedas futuras podem ser maiores.`}
+            >
+              <span className="font-medium">{minimo}</span>
+            </Fato>
+          ) : null}
+        </Fatos>
+      </div>
+
+      <Semaforo resultado={r} capital={capital} robos={robos} className="mt-5" />
+
+      <CurvaSimulada serie={r.serie} drawdown={r.drawdown} ativo={apontado} aoApontar={setApontado} className="mt-7" />
+    </>
+  );
+}
+
+/** Uma linha de "Mais números": o nome e uma linha de apoio à esquerda, o valor à direita, com fio embaixo. */
+function Linha({ rotulo, apoio, children }: { rotulo: string; apoio?: string; children: React.ReactNode }) {
+  return (
+    <div className="flex break-inside-avoid items-baseline justify-between gap-6 border-b border-(--painel-fio) py-2.5">
+      <dt className="min-w-0 text-sm">
+        {rotulo}
+        {apoio ? <span className="block text-[0.8125rem] text-pretty text-sutil">{apoio}</span> : null}
+      </dt>
+      <dd className="shrink-0 text-sm font-medium whitespace-nowrap">{children}</dd>
     </div>
   );
 }
 
-function Resultados({
-  resultado: r,
-  capital,
-  robos,
-  fatorSeguranca,
-}: {
-  resultado: ResultadoSimulacao;
-  capital: number;
-  robos: RoboSimulador[];
-  fatorSeguranca: number;
-}) {
-  const nomeDe = (slug: string) => robos.find((x) => x.slug === slug)?.nome ?? slug;
+/**
+ * O resto dos números da simulação, uma linha cada. Fica debaixo dos campos em tela larga (a coluna da
+ * esquerda é mais curta que a da resposta) e no fim da tela no celular. É o desenho do ListaKpi numa coluna
+ * só; o ListaKpi abre duas colunas, que não cabem em 4 das 12.
+ */
+function MaisNumeros({ r, capital, className }: { r: ResultadoSimulacao; capital: number; className?: string }) {
   const dd = r.drawdown;
-
-  // os "o que é" do glossário falam de um robô; aqui os números são da carteira simulada (infoTexto)
-  const cards: ItemKpi[] = [
-    {
-      rotulo: "Resultado do período",
-      info: "resultadoPeriodo",
-      infoTexto: "Soma do resultado diário dos robôs escolhidos, cada um vezes os seus contratos, no período simulado, já com custos.",
-      valor: <Valor valor={r.resultado} inteiro={Math.abs(r.resultado) >= 1000} />,
-      detalhe: `${formatarPct(r.resultadoPct, 1)} do capital inicial`,
-    },
-    {
-      // as datas e a recuperação ficam aqui, no mesmo cartão do número (23/09/2026: a lista repetia o valor)
-      rotulo: "Drawdown máximo",
-      info: "drawdownPct",
-      infoTexto:
-        "A maior queda do patrimônio simulado, de um topo até o fundo seguinte, em reais e em porcentagem do capital inicial informado, com o início, o fundo e o tempo até recuperar.",
-      valor: <Valor valor={-r.ddMax} inteiro />,
-      detalhe: (
-        <>
-          <span className="block">{formatarPct(r.ddMaxPct, 1)} do capital inicial</span>
-          {r.ddMax > 0 && dd.inicio && dd.fundo ? (
-            <span className="block">
-              de {formatarData(dd.inicio)} a {formatarData(dd.fundo)}
-              {dd.recuperacao ? `, recuperado em ${dias(dd.diasAteRecuperar ?? 0)}` : ", em recuperação"}
-            </span>
-          ) : null}
-        </>
-      ),
-    },
-    {
-      rotulo: "Pior mês",
-      info: "resultadoMensal",
-      infoTexto:
-        "O mês de menor resultado da carteira simulada no período, já com custos. Os meses das pontas do período podem estar incompletos: o apoio diz quantos pregões entraram.",
-      valor: r.piorMes ? <Valor valor={r.piorMes.valor} inteiro={Math.abs(r.piorMes.valor) >= 1000} /> : "–",
-      detalhe: r.piorMes ? `${formatarMesAno(`${r.piorMes.mes}-01`)} · ${pregoes(r.piorMes.nDias)}` : undefined,
-    },
-    {
-      rotulo: "Maior sequência negativa",
-      info: "sequenciaDiasNegativos",
-      infoTexto: "Maior número de pregões seguidos em que a carteira simulada fechou no negativo; um dia zerado ou positivo interrompe a contagem.",
-      valor: dias(r.maiorSequenciaNegativa),
-      detalhe: `${formatarNumero(r.diasNegativos)} de ${formatarNumero(r.nDias)} pregões negativos`,
-    },
-  ];
-
-  const lista: ItemKpi[] = [
-    {
-      rotulo: "Capital mínimo",
-      info: "capitalMinimo",
-      infoTexto:
-        "Soma, por robô, de contratos vezes o capital mínimo por contrato publicado na aba Risco: margem de referência mais o drawdown máximo de todo o histórico com a folga de segurança. Robô sem margem configurada fica fora da soma, que vira um piso.",
-      // sem o total (algum robô sem margem), a parte conhecida ainda é um piso: "≥ R$ X", nunca um traço
-      valor: r.capitalMinimo !== null ? brl(r.capitalMinimo) : r.capitalMinimoConhecido > 0 ? `≥ ${brl(r.capitalMinimoConhecido)}` : "–",
-      detalhe: (
-        <>
-          {r.capitalMinimoPorRobo.map((c) => (
-            <span key={c.slug} className="block">
-              {nomeDe(c.slug)} · {formatarNumero(c.contratos)} × {c.porContrato !== null ? brl(c.porContrato) : "não configurado"}
-            </span>
-          ))}
-        </>
-      ),
-    },
-    {
-      rotulo: "Patrimônio final",
-      valor: brl(capital + r.resultado),
-      detalhe: `capital inicial ${brl(capital)}`,
-    },
-    {
-      rotulo: "Pior dia",
-      info: "pioresDias",
-      infoTexto: "O pregão de menor resultado da carteira simulada no período, já com custos.",
-      valor: r.piorDia ? <Valor valor={r.piorDia.valor} inteiro={Math.abs(r.piorDia.valor) >= 1000} /> : "–",
-      detalhe: r.piorDia ? formatarData(r.piorDia.dia) : undefined,
-    },
-    {
-      rotulo: "Dias de pregão",
-      info: "diasPregao",
-      infoTexto:
-        "Dias em que ao menos um dos robôs escolhidos operou. Dia sem operação de nenhum deles não entra na conta nem interrompe a sequência negativa; dia em que a soma dá zero interrompe.",
-      valor: formatarNumero(r.nDias),
-    },
-  ];
-
   return (
-    <>
-      <Semaforo resultado={r} capital={capital} robos={robos} />
-      <CardsKpi itens={cards} className="lg:grid-cols-4" />
-      <ListaKpi itens={lista} />
-
-      <section className="painel p-4 sm:p-5">
-        <CurvaSimulada serie={r.serie} capital={capital} />
-        <p className="mt-2 text-xs text-muted-foreground">
-          Patrimônio simulado, dia a dia · linha do zero = capital inicial · drawdown em R$ sobre o capital inicial
-        </p>
-      </section>
-
-      <footer className="text-xs text-pretty text-muted-foreground">
-        <p>
-          Capital mínimo pela regra publicada na aba Risco: margem de referência mais o drawdown máximo de todo o histórico, 1
-          contrato, vezes {formatarMultiplo(fatorSeguranca, 1)}, no valor inteiro publicado, somado por robô e multiplicado
-          pelos contratos. Drawdown em % sempre sobre o capital inicial informado.{" "}
-          <Link href="/metodologia#simulador" className="underline underline-offset-4 hover:text-foreground">
-            Como é calculado
-          </Link>
-        </p>
-      </footer>
-    </>
+    <Painel
+      titulo="Mais números"
+      acao={
+        <Link href="/metodologia#simulador" className={LINK_DO_PAINEL}>
+          Como é calculado
+        </Link>
+      }
+      corpo=""
+      className={className}
+    >
+      {/* em duas colunas enquanto a tela é uma coluna só e larga; uma só debaixo dos campos e no celular */}
+      <dl className="md:columns-2 md:gap-x-12 xl:columns-1">
+        <Linha rotulo="Capital no fim do período" apoio={`${formatarNumero(r.resultadoPct * 100, 1, true)}% sobre o capital informado`}>
+          {brl(capital + r.resultado)}
+        </Linha>
+        {/* os meses das pontas do período podem estar incompletos: a linha diz quantos pregões entraram */}
+        {r.piorMes ? (
+          <Linha rotulo="Pior mês" apoio={`${formatarMesAno(`${r.piorMes.mes}-01`)} · ${pregoes(r.piorMes.nDias)}`}>
+            <Valor valor={r.piorMes.valor} inteiro={Math.abs(r.piorMes.valor) >= 1000} />
+          </Linha>
+        ) : null}
+        <Linha
+          rotulo="Dias com perda"
+          apoio={r.maiorSequenciaNegativa > 1 ? `a maior sequência foi de ${dias(r.maiorSequenciaNegativa)} seguidos` : undefined}
+        >
+          {r.diasNegativos === 0 ? "nenhum" : formatarNumero(r.diasNegativos)}
+          <span className="font-normal text-muted-foreground"> de {formatarNumero(r.nDias)}</span>
+        </Linha>
+        {r.ddMax > 0 && dd.inicio && dd.fundo ? (
+          <Linha
+            rotulo="Quando foi a maior queda"
+            apoio={dd.recuperacao ? `voltou ao topo em ${dias(dd.diasAteRecuperar ?? 0)}` : "ainda não voltou ao topo"}
+          >
+            {intervaloDeDatas(dd.inicio, dd.fundo)}
+          </Linha>
+        ) : null}
+      </dl>
+    </Painel>
   );
 }

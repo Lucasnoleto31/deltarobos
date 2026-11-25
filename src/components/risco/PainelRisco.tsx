@@ -2,30 +2,22 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import type { ChaveIndicador } from "@/components/compartilhados/glossario";
-import { RotuloComInfo } from "@/components/compartilhados/InfoIndicador";
 import { Segmentado } from "@/components/compartilhados/Segmentado";
 import { Valor } from "@/components/compartilhados/Valor";
 import { ListaKpi, type ItemKpi } from "@/components/desempenho/CardsKpi";
-import { mistura } from "@/components/graficos/base";
-import { linkSimulador } from "@/components/simulador/simulador-url";
-import { formatarBRL, formatarData, formatarMultiplo, formatarNumero, formatarPct } from "@/lib/formato";
-import { calcularKpis } from "@/lib/stats/kpis";
+import { GraficoResultado } from "@/components/graficos/GraficoResultado";
 import type { PeriodoPainel } from "@/components/robo/ops-por-periodo";
-import { inicioDoPeriodo } from "@/components/robo/periodos-resumo";
+import { VAZIO_DO_PERIODO, inicioDoPeriodo } from "@/components/robo/periodos-resumo";
+import { linkSimulador } from "@/components/simulador/simulador-url";
+import { Indicador, Indicadores } from "@/components/sistema/Indicadores";
+import { Fato, Fatos, NumeroGrande } from "@/components/sistema/Numero";
+import { LINK_DO_PAINEL, Painel } from "@/components/sistema/Painel";
+import { formatarBRL, formatarData, formatarDataCurta, formatarDataLonga, formatarMultiplo, formatarNumero, formatarPct } from "@/lib/formato";
+import { calcularKpis } from "@/lib/stats/kpis";
 import { filtrarIntervalo, filtrarPeriodo, type Intervalo } from "@/lib/stats/periodos";
-import {
-  calmar,
-  capitalMinimoRecomendado,
-  distribuicaoProfundidade,
-  episodiosDrawdown,
-  recoveryFactor,
-  resumoDiario,
-  riscoDeRuina,
-  tempoEmDrawdown,
-  ulcerIndex,
-} from "@/lib/stats/risco";
-import { curvaAcumulada, drawdownMaximo, valorDia } from "@/lib/stats/serie";
+import { calmar, capitalMinimoRecomendado, episodiosDrawdown, recoveryFactor, resumoDiario, riscoDeRuina, ulcerIndex } from "@/lib/stats/risco";
+import { curvaAcumulada, drawdownMaximo } from "@/lib/stats/serie";
+import { maiorQueda } from "@/lib/stats/serie-casa";
 import type { LinhaDiaria, OpcoesSerie } from "@/lib/stats/tipos";
 import { AbaixoDoPico } from "./AbaixoDoPico";
 
@@ -42,328 +34,341 @@ interface Props {
   fatorSeguranca: number;
 }
 
-// os mesmos atalhos das outras abas; sem "hoje" e "semana", que não têm drawdown para medir
+// os mesmos atalhos das outras abas; sem "hoje" e "semana", que não têm queda para medir
 const OPCOES_PERIODO: ReadonlyArray<{ valor: PeriodoPainel; rotulo: string }> = [
   { valor: "mes", rotulo: "Mês" },
   { valor: "ano", rotulo: "Ano" },
   { valor: "tudo", rotulo: "Tudo" },
 ];
 
-/** Uma das três colunas do bloco de capital: rótulo (com o "o que é"), número e a linha que liga ele aos outros dois. */
-function CelulaCapital({
-  rotulo,
-  info,
-  children,
-  detalhe,
-  acao,
-}: {
-  rotulo: string;
-  info: ChaveIndicador;
-  children: React.ReactNode;
-  detalhe: React.ReactNode;
-  /** um link de ação embaixo do apoio ("Simular com meu capital" no capital mínimo, 23/09/2026) */
-  acao?: React.ReactNode;
-}) {
-  return (
-    <div className="border-(--painel-fio) p-4 not-first:border-t sm:p-5 sm:not-first:border-t-0 sm:not-first:border-l">
-      <p className="rotulo-metrica">
-        <RotuloComInfo chave={info}>{rotulo}</RotuloComInfo>
-      </p>
-      <p className="mt-2 text-xl leading-none font-semibold tracking-tight tabular-nums sm:text-2xl">{children}</p>
-      <p className="mt-1.5 text-xs text-muted-foreground tabular-nums">{detalhe}</p>
-      {acao ? <p className="mt-2 text-xs text-muted-foreground">{acao}</p> : null}
-    </div>
-  );
-}
+// quantas quedas a tabela lista, depois da maior: as pequenas não mudam a resposta da tela
+const OUTRAS_QUEDAS = 5;
 
-/** Aba Risco: capital e drawdown, índices de risco, gráfico abaixo do pico, maiores drawdowns e, embaixo, profundidade, piores dias e resumo diário. */
+// A altura da curva nesta aba. O padrão do GraficoResultado foi pensado para a página inicial; aqui há o
+// cabeçalho do robô e as abas em cima e a faixa "abaixo do topo" embaixo, então a curva fica mais baixa para
+// o número, o gráfico e o começo da tabela caberem na primeira tela.
+const ALTURA_DA_CURVA = { "--alt-curva": "clamp(12rem, calc(100dvh - 45rem), 24rem)" } as React.CSSProperties;
+
+const dias = (n: number) => `${formatarNumero(n)} ${n === 1 ? "dia" : "dias"}`;
+
+/** "08/07 a 02/09/2026"; com a virada do ano no meio, as duas datas inteiras. */
+const intervaloDeDatas = (de: string, ate: string) =>
+  de.slice(0, 4) === ate.slice(0, 4) ? `${formatarDataCurta(de)} a ${formatarData(ate)}` : `${formatarData(de)} a ${formatarData(ate)}`;
+
+/** "novembro de 2026" */
+const mesPorExtenso = (dia: string) => new Date(`${dia}T12:00:00Z`).toLocaleDateString("pt-BR", { month: "long", year: "numeric", timeZone: "UTC" });
+
+/**
+ * Aba "Quedas e risco" (ficha Mesa, 25/11/2026). Responde a uma pergunta: quanto este robô já caiu, quanto
+ * tempo levou para se recuperar e quanto capital é preciso para aguentar.
+ *
+ * - O número grande é a maior queda do período, em vermelho, com o que ela é e a premissa escritos embaixo.
+ *   Ao lado, quatro fatos: quanto tempo caiu, quanto tempo levou para recuperar (ou "ainda não recuperou"), o
+ *   pior dia e em quantos pregões o resultado esteve abaixo do topo.
+ * - O gráfico é a curva do período com essa queda em vermelho (GraficoResultado) e, colada embaixo, no mesmo
+ *   eixo de tempo, a faixa de quanto o resultado ficou abaixo do topo em cada dia (AbaixoDoPico). Passar o
+ *   ponteiro troca o número grande pelo quanto o robô estava abaixo do topo naquele pregão.
+ * - Depois, as outras quedas em tabela (a maior já está no alto); o capital (mínimo sugerido, de referência e
+ *   quanto dele a maior queda levou) em números lado a lado; e "Mais números" em lista, cada um com o apoio
+ *   em português simples.
+ *
+ * O que saiu, por repetir a tela ou por não fazer falta: a distribuição por profundidade (a tabela das quedas
+ * já mostra os tamanhos), os 5 piores dias (ficou o pior, nos fatos), os dias negativos e a sequência negativa
+ * (estão em Desempenho), a coluna de status da tabela (a de "voltou ao topo" já diz), a de % do capital e a
+ * linha da maior queda, que repetia o número grande. O gráfico "abaixo do pico" deixou de ser um bloco à
+ * parte, em % e com leitura própria. Os rótulos não levam mais o "o que é" do glossário: cada número tem a
+ * explicação escrita ao lado, sem a palavra drawdown.
+ *
+ * As contas não mudaram: calcularKpis, curvaAcumulada, episodiosDrawdown, resumoDiario e os índices de
+ * lib/stats/risco. O trecho em vermelho da curva vem de maiorQueda (lib/stats/serie-casa), a mesma conta da
+ * página inicial.
+ */
 export function PainelRisco({ slug, linhas, perdaMedia, hoje, valorPonto, capitalReferencia, margem, fatorSeguranca }: Props) {
   const [periodo, setPeriodo] = useState<PeriodoPainel>("tudo");
+  const [apontado, setApontado] = useState<number | null>(null);
   const opcoes = useMemo<OpcoesSerie>(() => ({ base: "liquido", unidade: "brl", valorPonto }), [valorPonto]);
   const intervalo = useMemo<Intervalo>(() => ({ de: inicioDoPeriodo(periodo, hoje), ate: hoje }), [periodo, hoje]);
   const linhasF = useMemo(() => filtrarIntervalo(linhas, intervalo), [linhas, intervalo]);
 
   const kpis = useMemo(() => calcularKpis(linhasF, opcoes, { hoje, capitalReferencia }), [linhasF, opcoes, hoje, capitalReferencia]);
   const curva = useMemo(() => curvaAcumulada(linhasF, opcoes), [linhasF, opcoes]);
-  // 23/09/2026: o capital mínimo é a regra da spec §7, sem período (margem + drawdown máximo de TODO o
-  // histórico × fator), o mesmo número por contrato que o simulador usa. Antes seguia o período escolhido,
-  // e em "Ano" a célula mostrava um mínimo menor que o "mín. por contrato" do link "Simular com meu capital".
+  // o trecho da curva que vai em vermelho: do topo ao fundo da maior queda
+  const queda = useMemo(() => maiorQueda(curva), [curva]);
+  // 23/09/2026: o capital mínimo é a regra da spec §7, sem período (margem + maior queda de TODO o histórico
+  // × fator), o mesmo número por contrato que o simulador usa. Antes seguia o período escolhido, e em "Ano"
+  // mostrava um mínimo menor que o "mín. por contrato" do link "Simular com meu capital".
   const ddTudo = useMemo(() => drawdownMaximo(curvaAcumulada(filtrarPeriodo(linhas, "tudo", hoje), opcoes)).valor, [linhas, hoje, opcoes]);
   const episodios = useMemo(() => episodiosDrawdown(curva, Infinity), [curva]);
-  const mediaLoss = perdaMedia[periodo];
   const diario = useMemo(() => resumoDiario(curva, episodios), [curva, episodios]);
-  const profundidade = useMemo(() => distribuicaoProfundidade(episodios, capitalReferencia), [episodios, capitalReferencia]);
-  const piores = useMemo(
-    () => linhasF.map((l) => ({ dia: l.dia, valor: valorDia(l, opcoes), n: l.n_operacoes })).sort((a, b) => a.valor - b.valor).slice(0, 5),
-    [linhasF, opcoes],
-  );
+  const mediaLoss = perdaMedia[periodo];
+
+  if (linhas.length === 0) {
+    return <p className="text-sm text-muted-foreground">{VAZIO_DO_PERIODO.tudo}</p>;
+  }
 
   const dd = kpis.drawdown.valor;
+  // a maior queda com as datas e as durações: é a primeira da lista, que vem ordenada pelo tamanho. As outras
+  // vão para a tabela; a maior não entra nela, porque já é o número grande e os fatos do alto da tela.
+  const maior = episodios[0] ?? null;
+  const outras = episodios.slice(1);
   const temCapital = Boolean(capitalReferencia && capitalReferencia > 0);
   const vCalmar = calmar(kpis.acumulado, kpis.nDias, dd);
   const vRecovery = recoveryFactor(kpis.acumulado, dd);
   const vUlcer = ulcerIndex(curva, capitalReferencia);
-  const vTempo = tempoEmDrawdown(curva);
   const vRuina = riscoDeRuina({ taxaAcerto: kpis.taxaAcerto, payoff: kpis.payoff, capital: capitalReferencia, perdaMedia: mediaLoss });
   const capitalMinimo = margem !== null ? capitalMinimoRecomendado(margem, ddTudo, fatorSeguranca) : null;
+  const abaixoDoTopo = curva.filter((p) => p.drawdown < 0).length;
 
-  if (linhas.length === 0) {
-    return <p className="painel p-8 text-center text-sm text-muted-foreground">Sem operações fechadas ainda.</p>;
-  }
+  // o índice apontado pode ter ficado de uma série mais longa (troca de período com o ponteiro parado)
+  const lido = apontado !== null ? (curva[apontado] ?? null) : null;
 
-  const ddTudoBrl = formatarBRL(ddTudo, { inteiro: ddTudo >= 1000 });
-  const fator = formatarMultiplo(fatorSeguranca, 1);
+  const quando =
+    periodo === "tudo"
+      ? curva.length > 0
+        ? `desde ${formatarDataLonga(curva[0].dia)}`
+        : ""
+      : periodo === "ano"
+        ? `em ${hoje.slice(0, 4)}`
+        : `em ${mesPorExtenso(hoje)}`;
+
+  const brl = (v: number) => formatarBRL(v, { inteiro: Math.abs(v) >= 1000 });
+
   // 19/09/2026 ("o risco de ruína está zero, pq?"): o apoio diz quantas perdas médias cabem no capital, as
   // "unidades" da conta na metodologia (capital ÷ perda média). A fórmula eleva a razão de perda a esse
   // número; com centenas de perdas médias no capital, o resultado arredonda para 0,0%. Inteiras, para baixo.
   const perdasNoCapital = capitalReferencia && mediaLoss !== 0 ? Math.floor(capitalReferencia / Math.abs(mediaLoss)) : null;
 
-  // 19/09/2026: eram nove cartões iguais em duas fileiras. Drawdown, capital de referência e capital
-  // mínimo foram para o bloco de cima; os outros seis ficam em lista, em pares no lg. Cada um com o
-  // "o que é" do glossário no rótulo (info).
-  const indices: ItemKpi[] = [
-    {
-      rotulo: "Tempo de recuperação",
-      info: "tempoRecuperacao",
-      valor: dd === 0 ? "–" : kpis.drawdown.diasAteRecuperar !== null ? `${formatarNumero(kpis.drawdown.diasAteRecuperar)} dias` : "em recuperação",
+  // "Mais números": só entra o que a conta conseguiu fechar no período; número sem valor não vira traço na tela
+  const mais: ItemKpi[] = [];
+  if (diario.recuperacaoMediaDias !== null) {
+    mais.push({
+      rotulo: "Tempo médio para recuperar",
+      valor: `${formatarNumero(diario.recuperacaoMediaDias)} dias`,
       detalhe:
-        kpis.drawdown.inicio && kpis.drawdown.recuperacao
-          ? `maior drawdown, de ${formatarData(kpis.drawdown.inicio)} a ${formatarData(kpis.drawdown.recuperacao)}`
-          : kpis.drawdown.inicio
-            ? `maior drawdown, desde ${formatarData(kpis.drawdown.inicio)}`
-            : undefined,
-    },
-    {
-      rotulo: "Tempo em drawdown",
-      info: "tempoEmDrawdown",
-      valor: formatarPct(vTempo, 0),
-      detalhe: `${formatarNumero(curva.filter((p) => p.drawdown < 0).length)} de ${formatarNumero(curva.length)} pregões abaixo do pico`,
-    },
-    { rotulo: "Calmar", info: "calmar", valor: formatarMultiplo(vCalmar), detalhe: "retorno anualizado ÷ drawdown máximo" },
-    { rotulo: "Recovery factor", info: "recoveryFactor", valor: formatarMultiplo(vRecovery), detalhe: "resultado ÷ drawdown máximo" },
-    { rotulo: "Ulcer index", info: "ulcer", valor: formatarNumero(vUlcer, 2), detalhe: temCapital ? "profundidade média, em % do capital" : "profundidade média, em R$/contrato" },
-    {
+        diario.episodiosRecuperados === 1
+          ? "a única queda que já voltou ao topo"
+          : `média das ${formatarNumero(diario.episodiosRecuperados)} quedas que já voltaram ao topo`,
+    });
+  }
+  if (diario.nDias > 1) {
+    mais.push({
+      rotulo: "Variação de um dia para o outro",
+      valor: brl(diario.volatilidade),
+      detalhe: "o quanto o resultado de um dia costuma se afastar da média dos dias (volatilidade)",
+    });
+  }
+  if (vCalmar !== null) {
+    mais.push({ rotulo: "Calmar", valor: formatarMultiplo(vCalmar), detalhe: "o ganho de um ano, no ritmo do período, dividido pela maior queda" });
+  }
+  if (vRecovery !== null) {
+    mais.push({ rotulo: "Fator de recuperação", valor: formatarMultiplo(vRecovery), detalhe: "quantas vezes o resultado do período cobre a maior queda" });
+  }
+  if (dd > 0) {
+    mais.push({
+      rotulo: "Índice de úlcera",
+      valor: formatarNumero(vUlcer, 2),
+      detalhe: `tamanho e duração das quedas num número só, ${temCapital ? "em % do capital de referência" : "em R$"}; quanto menor, mais estável`,
+    });
+  }
+  if (vRuina !== null) {
+    mais.push({
       rotulo: "Risco de ruína",
-      info: "riscoRuina",
-      valor: vRuina === null ? "–" : formatarPct(vRuina, 1),
-      // sem perda no período a conta também não sai: aí o motivo não é o capital
-      detalhe:
-        vRuina === null
-          ? temCapital
-            ? "sem perdas no período"
-            : "precisa de capital de referência"
-          : perdasNoCapital !== null
-            ? `capital de ${formatarBRL(capitalReferencia ?? 0, { inteiro: true })} cobre ${formatarNumero(perdasNoCapital)} perdas médias de ${formatarBRL(Math.abs(mediaLoss), { inteiro: Math.abs(mediaLoss) >= 1000 })}`
-            : undefined,
-    },
-  ];
+      valor: formatarPct(vRuina, 1),
+      // a ressalva vinha no "o que é" do glossário; sem ela, 0,0% ao lado de uma queda grande engana
+      detalhe: `chance estimada de perder todo o capital de referência${
+        perdasNoCapital !== null ? `, que cobre ${formatarNumero(perdasNoCapital)} perdas médias de ${brl(Math.abs(mediaLoss))}` : ""
+      }${vRuina < 0.01 ? "; como as perdas reais vêm juntas em dias ruins, a conta pode dar perto de zero mesmo com queda grande" : ""}`,
+    });
+  }
 
-  const recuperacaoMedia = diario.recuperacaoMediaDias !== null ? `${formatarNumero(diario.recuperacaoMediaDias)} dias` : "–";
+  // os números do capital: o mínimo e o de referência não dependem do período; a parte que a maior queda levou, sim
+  const pctDoCapital = temCapital && dd > 0 ? kpis.drawdownMaximoPct : null;
+  const quantosDoCapital = (capitalMinimo !== null ? 1 : 0) + (temCapital ? 1 : 0) + (pctDoCapital !== null ? 1 : 0);
 
   return (
-    <div className="space-y-6">
-      {/* O título "Risco" repetia a aba (19/09/2026); fica a base dos números e o link da metodologia,
-          que antes vinha no fim da seção de risco do Desempenho. */}
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground">
-          Líquido de custos, 1 contrato ·{" "}
-          <Link href="/metodologia#drawdown" className="underline underline-offset-4 hover:text-foreground">
-            metodologia
-          </Link>
-        </p>
-        <Segmentado ariaLabel="Período" opcoes={OPCOES_PERIODO} valor={periodo} onChange={setPeriodo} />
-      </header>
-
-      <div className="space-y-3">
-        {/* Um bloco só para os três (19/09/2026): o % do drawdown é sobre o capital de referência, e o
-            capital mínimo é a margem mais o drawdown × fator. Lado a lado, a conta fica à vista. */}
-        <section aria-label="Drawdown e capital" className="painel grid sm:grid-cols-3">
-          <CelulaCapital
-            rotulo="Drawdown máximo"
-            info={temCapital ? "drawdownPct" : "drawdown"}
-            detalhe={temCapital ? `${formatarBRL(-dd, { inteiro: dd >= 1000, sinal: true })} sobre o capital de referência` : "sem capital de referência"}
-          >
-            {temCapital ? formatarPct(kpis.drawdownMaximoPct, 1) : <Valor valor={-dd} inteiro={dd >= 1000} />}
-          </CelulaCapital>
-          <CelulaCapital rotulo="Capital de referência" info="capitalReferencia" detalhe={capitalReferencia ? "base dos percentuais" : "não configurado"}>
-            {capitalReferencia ? formatarBRL(capitalReferencia, { inteiro: true }) : "–"}
-          </CelulaCapital>
-          <CelulaCapital
-            rotulo="Capital mínimo · 1 contrato"
-            info="capitalMinimo"
-            detalhe={
-              capitalMinimo !== null
-                ? `margem ${formatarBRL(margem ?? 0, { inteiro: true })} + drawdown ${ddTudoBrl} de todo o histórico × ${fator}`
-                : "margem de referência não configurada"
-            }
-            acao={
-              <Link href={linkSimulador(slug)} className="underline underline-offset-4 hover:text-foreground">
-                Simular com meu capital
-              </Link>
-            }
-          >
-            {capitalMinimo !== null ? formatarBRL(capitalMinimo, { inteiro: true }) : "–"}
-          </CelulaCapital>
-        </section>
-
-        <ListaKpi itens={indices} />
-      </div>
-
-      {/* 19/09/2026: saiu a linha da direita ("máx … · recuperação média …"), que repetia o bloco de
-          cima e o Resumo diário; o capital também já está no bloco de cima */}
-      <section className="painel p-4 sm:p-5">
-        <div className="mb-3">
-          <h2 className="font-semibold">
-            <RotuloComInfo chave="abaixoDoPico">Abaixo do pico, dia a dia</RotuloComInfo>
+    <div className="space-y-10">
+      <section aria-labelledby="risco-titulo">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-8 gap-y-3 lg:pr-20">
+          <h2 id="risco-titulo" className="text-[0.9375rem] font-normal text-muted-foreground">
+            Maior queda
           </h2>
-          <p className="text-xs text-muted-foreground">{temCapital ? "em % do capital" : "em R$ por contrato"}</p>
+          {/* o período fica alinhado à borda direita da curva, como na página inicial */}
+          <Segmentado ariaLabel="Período" opcoes={OPCOES_PERIODO} valor={periodo} onChange={setPeriodo} />
         </div>
-        <AbaixoDoPico curva={curva} capitalReferencia={capitalReferencia} />
-      </section>
 
-      {/* 19/09/2026: sem a coluna "01–10" (a ordem é a do valor) e com a de dias, que só a seção de
-          risco do Desempenho tinha: até recuperar, ou até o fundo com "+" quando ainda aberto. Na
-          largura toda (a Distribuição do lado deixava um vão embaixo dela) e com o valor logo depois do
-          início: no celular a rolagem escondia o R$ atrás das três datas. */}
-      <section className="overflow-x-auto painel">
-        <div className="border-b px-4 py-3">
-          <h2 className="font-semibold">
-            <RotuloComInfo chave="maioresDrawdowns">Maiores drawdowns</RotuloComInfo>
-          </h2>
-        </div>
-        {episodios.length === 0 ? (
-          <p className="px-4 py-8 text-center text-sm text-muted-foreground">Nenhum drawdown no período.</p>
+        {curva.length === 0 ? (
+          <p className="py-12 text-sm text-muted-foreground">{VAZIO_DO_PERIODO[periodo]}</p>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="text-left text-xs text-muted-foreground">
-              <tr className="[&>th]:px-3 [&>th]:py-2 [&>th]:font-medium">
-                <th>Início</th>
-                <th className="text-right">R$</th>
-                {temCapital ? <th className="text-right">%</th> : null}
-                <th className="text-right">Dias</th>
-                <th className="text-right">Status</th>
-                <th>Fundo</th>
-                <th>Recuperação</th>
-              </tr>
-            </thead>
-            <tbody className="[&>tr]:border-t">
-              {episodios.slice(0, 10).map((e) => (
-                <tr key={`${e.inicio}-${e.fundo}`} className="tabular-nums [&>td]:px-3 [&>td]:py-2">
-                  <td>{formatarData(e.inicio)}</td>
-                  <td className="text-right text-negativo">{formatarBRL(e.valor, { inteiro: e.valor >= 1000 })}</td>
-                  {temCapital ? <td className="text-right text-negativo">{formatarPct(e.valor / (capitalReferencia as number), 1)}</td> : null}
-                  <td className="text-right">{e.diasAteRecuperar !== null ? formatarNumero(e.diasAteRecuperar) : `${formatarNumero(e.diasAteFundo)}+`}</td>
-                  {/* recuperado não é resultado: sem verde (19/09/2026) */}
-                  <td className="text-right">{e.recuperacao ? <span className="text-muted-foreground">Recuperado</span> : <span className="text-alerta">Aberto</span>}</td>
-                  <td>{formatarData(e.fundo)}</td>
-                  <td>{e.recuperacao ? formatarData(e.recuperacao) : <span className="text-alerta">—</span>}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <>
+            {/* lado a lado só a partir de xl: os fatos daqui são mais largos que os da página inicial, e entre
+                1024 e 1280 px a coluna do número ficaria espremida */}
+            <div className="mt-3 grid gap-x-16 gap-y-6 xl:grid-cols-[minmax(0,auto)_minmax(0,26rem)] xl:items-end xl:justify-start">
+              <div className="min-w-0">
+                <NumeroGrande valor={lido ? lido.drawdown : dd > 0 ? -dd : 0} />
+                {/* a primeira linha diz o que é o número (e é a que muda com o ponteiro); a segunda, a premissa */}
+                <p className="mt-3 text-sm text-muted-foreground">
+                  {lido ? (
+                    <>
+                      {formatarData(lido.dia)} ·{" "}
+                      {lido.drawdown < 0 ? (lido.pico > 0 ? `abaixo do topo de ${brl(lido.pico)}` : "abaixo do ponto de partida") : "no topo"}
+                    </>
+                  ) : dd > 0 ? (
+                    "do ponto mais alto ao mais baixo que veio depois"
+                  ) : (
+                    "o resultado não recuou nenhuma vez"
+                  )}
+                </p>
+                <p className="text-sm text-pretty text-sutil">
+                  com 1 contrato, já descontados os custos{quando ? ` · ${quando}` : ""}
+                </p>
+              </div>
+
+              {maior ? (
+                <Fatos className="max-w-[26rem] xl:pb-0.5">
+                  <Fato rotulo="Tempo caindo">
+                    <span className="mr-3 text-sutil">{intervaloDeDatas(maior.inicio, maior.fundo)}</span>
+                    <span className="font-medium whitespace-nowrap">{dias(maior.diasAteFundo)}</span>
+                  </Fato>
+                  <Fato rotulo="Tempo até recuperar">
+                    {maior.recuperacao && maior.diasAteRecuperar !== null ? (
+                      <>
+                        <span className="mr-3 text-sutil">em {formatarData(maior.recuperacao)}</span>
+                        <span className="font-medium whitespace-nowrap">{dias(maior.diasAteRecuperar)}</span>
+                      </>
+                    ) : (
+                      <span className="font-medium text-alerta">ainda não recuperou</span>
+                    )}
+                  </Fato>
+                  {kpis.piorDia && kpis.piorDia.valor < 0 ? (
+                    <Fato rotulo="Pior dia">
+                      <span className="mr-3 text-sutil">{formatarData(kpis.piorDia.dia)}</span>
+                      <Valor valor={kpis.piorDia.valor} inteiro={Math.abs(kpis.piorDia.valor) >= 1000} className="font-medium" />
+                    </Fato>
+                  ) : null}
+                  <Fato rotulo="Dias abaixo do topo">
+                    <span className="font-medium">{formatarNumero(abaixoDoTopo)}</span>
+                    <span className="text-muted-foreground"> de {formatarNumero(curva.length)}</span>
+                  </Fato>
+                </Fatos>
+              ) : null}
+            </div>
+
+            <div style={ALTURA_DA_CURVA}>
+              <GraficoResultado dias={curva} queda={queda} ativo={apontado} aoApontar={setApontado} className="mt-8" />
+            </div>
+            <AbaixoDoPico curva={curva} ativo={apontado} aoApontar={setApontado} className="mt-1" />
+            {queda && curva.length > 1 ? (
+              <p className="mt-3 text-[0.8125rem] text-pretty text-sutil lg:pr-20">
+                Em <span className="text-negativo">vermelho</span> na curva, a maior queda. Embaixo, quanto o resultado ficou abaixo do topo (o ponto mais
+                alto até ali) em cada dia.
+              </p>
+            ) : null}
+          </>
         )}
       </section>
 
-      {/* profundidade, piores dias e resumo diário lado a lado no lg: alturas parecidas (19/09/2026) */}
-      <div className="grid gap-4 lg:grid-cols-3">
-        <section className="painel p-4">
-          <h2 className="font-semibold">
-            <RotuloComInfo chave="profundidade">Distribuição por profundidade</RotuloComInfo>
-          </h2>
-          <p className="mb-3 text-xs text-muted-foreground">
-            {formatarNumero(episodios.length)} drawdowns no período{temCapital ? ", em % do capital" : ", em R$ por contrato"}
-          </p>
-          <ul className="space-y-2.5 text-sm">
-            {profundidade.map((f, i) => {
-              const maior = Math.max(1, ...profundidade.map((x) => x.n));
-              return (
-                <li key={f.rotulo} className="flex items-center gap-3">
-                  <span className="w-20 text-muted-foreground tabular-nums">{f.rotulo}</span>
-                  <div className="h-1.5 flex-1 rounded-full bg-muted">
-                    {/* 19/09/2026: um tom só, o do negativo, mais forte quanto mais funda a faixa (era
-                        verde, laranja e vermelho, e verde fica para resultado) */}
-                    <div
-                      className="h-1.5 rounded-full"
-                      style={{
-                        width: `${f.n > 0 ? Math.max(3, Math.round((f.n / maior) * 100)) : 0}%`,
-                        background: mistura("--negativo", 35 + Math.round((65 * i) / Math.max(1, profundidade.length - 1))),
-                      }}
-                    />
-                  </div>
-                  <span className="w-8 text-right font-semibold tabular-nums">{formatarNumero(f.n)}</span>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
+      {/* As outras quedas, da maior para a menor. 19/09/2026: o valor vem logo depois da primeira data, porque
+          no celular a rolagem escondia o R$ atrás das datas; recuperada não é resultado, então não leva verde.
+          Desde a ficha Mesa (25/11/2026) é uma .tbl sem caixa, sem a coluna de status (a de "voltou ao topo"
+          já diz) e sem a maior queda, que está no alto. */}
+      {outras.length > 0 ? (
+        <Painel
+          id="quedas"
+          titulo="Outras quedas"
+          apoio={`${formatarNumero(outras.length)} no período${outras.length > OUTRAS_QUEDAS ? `, as ${OUTRAS_QUEDAS} maiores` : ""}`}
+          fio={false}
+          corpo="pt-1"
+          className="lg:pr-20"
+        >
+          <div className="tbl-moldura">
+            <table className="tbl">
+              <thead>
+                <tr>
+                  <th>Começou em</th>
+                  <th className="num">Queda</th>
+                  <th className="num">Fundo em</th>
+                  <th className="num">Voltou ao topo em</th>
+                  <th className="num">Tempo até recuperar</th>
+                </tr>
+              </thead>
+              <tbody>
+                {outras.slice(0, OUTRAS_QUEDAS).map((e) => (
+                  <tr key={`${e.inicio}-${e.fundo}`}>
+                    <td className="whitespace-nowrap">{formatarData(e.inicio)}</td>
+                    <td className="num">
+                      {/* sem centavos em toda a coluna, para os valores alinharem */}
+                      <Valor valor={-e.valor} inteiro className="font-medium" />
+                    </td>
+                    <td className="num">{formatarData(e.fundo)}</td>
+                    <td className="num">{e.recuperacao ? formatarData(e.recuperacao) : <span className="text-alerta">ainda não</span>}</td>
+                    {/* a queda que ainda não voltou conta os dias até o fundo: dali para cima é "mais de" */}
+                    <td className="num">{e.diasAteRecuperar !== null ? dias(e.diasAteRecuperar) : `mais de ${dias(e.diasAteFundo)}`}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Painel>
+      ) : null}
 
-        <section className="painel p-4">
-          <h2 className="mb-3 font-semibold">
-            <RotuloComInfo chave="pioresDias">5 piores dias</RotuloComInfo>
-          </h2>
-          <ol className="space-y-2.5">
-            {piores.map((p) => {
-              const maior = Math.max(1, ...piores.map((x) => Math.abs(x.valor)));
-              return (
-                <li key={p.dia} className="text-sm">
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className="font-medium tabular-nums">
-                      {formatarData(p.dia)} <span className="text-xs font-normal text-muted-foreground">{formatarNumero(p.n)} op</span>
-                    </span>
-                    <Valor valor={p.valor} inteiro={Math.abs(p.valor) >= 1000} className="font-semibold" />
-                  </div>
-                  <div className="mt-1 h-1 rounded-full bg-muted">
-                    <div className="h-1 rounded-full bg-negativo" style={{ width: `${Math.max(3, Math.round((Math.abs(p.valor) / maior) * 100))}%` }} />
-                  </div>
-                </li>
-              );
-            })}
-          </ol>
-        </section>
+      {/* Os números do capital lado a lado (19/09/2026: a conta fica à vista; a parte do capital que a maior
+          queda levou é sobre o capital de referência, e o mínimo é a margem mais a maior queda × fator). O link
+          do simulador, que ficava debaixo do capital mínimo (23/09/2026), foi para o cabeçalho da seção. */}
+      {quantosDoCapital > 0 ? (
+        <Painel
+          id="capital"
+          titulo="Quanto capital é preciso"
+          apoio="para operar 1 contrato"
+          acao={
+            <Link href={linkSimulador(slug)} className={LINK_DO_PAINEL}>
+              Simular com meu capital
+            </Link>
+          }
+          fio={false}
+          corpo="pt-3"
+          className="lg:pr-20"
+        >
+          <Indicadores colunas={quantosDoCapital === 3 ? 3 : 2}>
+            {capitalMinimo !== null ? (
+              <Indicador
+                rotulo="Capital mínimo sugerido"
+                valor={formatarBRL(capitalMinimo, { inteiro: true })}
+                apoio={`a garantia que a corretora exige (${formatarBRL(margem ?? 0, { inteiro: true })}) mais a maior queda de todo o histórico (${formatarBRL(ddTudo, { inteiro: true })}) multiplicada por ${formatarMultiplo(fatorSeguranca, 1)}`}
+              />
+            ) : null}
+            {temCapital ? (
+              <Indicador
+                rotulo="Capital de referência"
+                valor={formatarBRL(capitalReferencia ?? 0, { inteiro: true })}
+                apoio="o tamanho de conta usado como base para 1 contrato"
+              />
+            ) : null}
+            {pctDoCapital !== null ? (
+              <Indicador
+                rotulo="Maior queda sobre esse capital"
+                valor={<span className="text-negativo">{formatarPct(pctDoCapital, 1)}</span>}
+                apoio={`a parte do capital de referência que a maior queda levou${quando ? `, ${quando}` : ""}`}
+              />
+            ) : null}
+          </Indicadores>
+        </Painel>
+      ) : null}
 
-        <section className="painel p-4">
-          <h2 className="mb-3 font-semibold">Resumo diário</h2>
-          {/* na coluna de um terço o valor quebra: encostado à direita e com folga do rótulo (19/09/2026) */}
-          <dl className="divide-y text-sm [&>div]:gap-2 [&_dd]:text-right">
-            <div className="flex items-center justify-between py-2">
-              <dt className="text-muted-foreground">
-                <RotuloComInfo chave="diasNegativos">Dias negativos</RotuloComInfo>
-              </dt>
-              <dd className="tabular-nums">
-                <strong>
-                  {formatarNumero(diario.diasNegativos)} de {formatarNumero(diario.nDias)}
-                </strong>{" "}
-                <span className="text-xs text-muted-foreground">{formatarPct(diario.fracaoNegativa, 0)}</span>
-              </dd>
-            </div>
-            <div className="flex items-center justify-between py-2">
-              <dt className="text-muted-foreground">
-                <RotuloComInfo chave="sequenciaDiasNegativos">Sequência negativa máxima</RotuloComInfo>
-              </dt>
-              <dd className="tabular-nums">
-                <strong>{formatarNumero(diario.maiorSequenciaNegativa)} dias</strong> <span className="text-xs text-muted-foreground">consecutivos</span>
-              </dd>
-            </div>
-            <div className="flex items-center justify-between py-2">
-              <dt className="text-muted-foreground">
-                <RotuloComInfo chave="volatilidade">Volatilidade diária</RotuloComInfo>
-              </dt>
-              <dd className="tabular-nums">
-                <strong>{formatarBRL(diario.volatilidade, { inteiro: diario.volatilidade >= 1000 })}</strong> <span className="text-xs text-muted-foreground">desvio padrão</span>
-              </dd>
-            </div>
-            <div className="flex items-center justify-between py-2">
-              <dt className="text-muted-foreground">
-                <RotuloComInfo chave="recuperacaoMedia">Recuperação média</RotuloComInfo>
-              </dt>
-              <dd className="tabular-nums">
-                <strong>{recuperacaoMedia}</strong>{" "}
-                <span className="text-xs text-muted-foreground">{formatarNumero(diario.episodiosRecuperados)} drawdowns recuperados</span>
-              </dd>
-            </div>
-          </dl>
-        </section>
-      </div>
+      {mais.length > 0 ? (
+        <Painel
+          id="mais-numeros"
+          titulo="Mais números"
+          acao={
+            <Link href="/metodologia#drawdown" className={LINK_DO_PAINEL}>
+              Como a conta é feita
+            </Link>
+          }
+          corpo=""
+          className="lg:pr-20"
+        >
+          <ListaKpi itens={mais} />
+        </Painel>
+      ) : null}
     </div>
   );
 }

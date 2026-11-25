@@ -1,21 +1,15 @@
 import Link from "next/link";
-import { comMarcaAtual } from "@/components/compartilhados/marca";
 import { PONTOS_LEVE, seriePorOperacaoCompacta, type SerieCompacta } from "@/components/graficos/series-da-curva";
 import { opcoesDaCurva, recorteDoPeriodo } from "@/components/robo/curva-por-periodo";
-import { Disclaimer } from "@/components/robo/Disclaimer";
 import { KpisRobo } from "@/components/robo/KpisRobo";
 import { PainelResultado } from "@/components/robo/PainelResultado";
 import { PERIODOS_FECHADOS, type PeriodoFechado } from "@/components/robo/periodos-resumo";
 import { Transparencia } from "@/components/robo/Transparencia";
 import { UltimasOperacoes } from "@/components/robo/UltimasOperacoes";
-import { buttonVariants } from "@/components/ui/button";
+import { Grade } from "@/components/sistema/Pagina";
+import { LINK_DO_PAINEL, Painel } from "@/components/sistema/Painel";
 import { listarOperacoesCompactas } from "@/lib/consultas/operacoes";
-import {
-  buscarRobo,
-  carregarParametros,
-  listarEstatisticas,
-  listarUltimasOperacoes,
-} from "@/lib/consultas/publico";
+import { buscarRobo, listarEstatisticas, listarUltimasOperacoes } from "@/lib/consultas/publico";
 import { formatarData } from "@/lib/formato";
 import { hojeSP } from "@/lib/stats/periodos";
 import type { LinhaDiaria } from "@/lib/stats/tipos";
@@ -26,15 +20,19 @@ interface Props {
   params: Promise<{ slug: string }>;
 }
 
-/** Aba "Visão geral": resultado por período (hoje ao vivo, semana, mês, ano, tudo), resumo e últimas operações. */
+/**
+ * Aba "Visão geral" do robô (ficha Mesa, 25/11/2026, segunda passada). É a página inicial filtrada para um
+ * robô: o resultado do período em número grande (hoje ao vivo, semana, mês, ano, tudo), os fatos ao lado e
+ * a curva; embaixo, as últimas operações e "mais números", lado a lado; por fim, de onde vêm os números.
+ * Sem caixas. O botão "Quero esse robô" está no cabeçalho, que é do layout.
+ */
 export default async function PaginaRobo({ params }: Props) {
   const { slug } = await params;
   const hoje = hojeSP();
-  const [robo, linhas, ultimas, parametros, ops] = await Promise.all([
+  const [robo, linhas, ultimas, ops] = await Promise.all([
     buscarRobo(slug),
     listarEstatisticas(slug),
-    listarUltimasOperacoes(slug, 20),
-    carregarParametros(),
+    listarUltimasOperacoes(slug, 12),
     // a mesma consulta que a aba Desempenho já faz; aqui ela fica no servidor (ver abaixo)
     listarOperacoesCompactas(slug),
   ]);
@@ -77,76 +75,75 @@ export default async function PaginaRobo({ params }: Props) {
     }),
   );
 
-  // o título do resumo diz de quando é o número (19/09/2026): era "Resumo desde o início", o mesmo
-  // texto do período "Tudo" logo acima
   const primeiroDia = linhas.reduce<string | null>((m, l) => (m === null || l.dia < m ? l.dia : m), null);
 
-  const emBreve = robo.status === "em_breve";
-  // Num dia de muitas operações, as últimas 20 são todas de hoje, e a seção só repetiria o painel
-  // "Hoje ao vivo" logo acima. Ela aparece quando traz alguma coisa de outro dia (17/09/2026).
+  if (robo.status === "em_breve") {
+    return (
+      <>
+        <p className="py-10 text-sm text-muted-foreground">Este robô ainda não começou a operar em conta real.</p>
+        <Transparencia robo={robo} />
+      </>
+    );
+  }
+
+  // Num dia de muitas operações, as últimas são todas de hoje, e a lista só repetiria as "operações de hoje"
+  // logo acima. Ela aparece quando traz alguma coisa de outro dia (17/09/2026).
   const ultimasSoDeHoje = ultimas.length > 0 && ultimas.every((o) => o.dia_pregao === hoje);
 
+  const maisNumeros = (
+    <Painel
+      id="mais-numeros"
+      titulo="Mais números"
+      apoio={primeiroDia ? `desde ${formatarData(primeiroDia)}` : undefined}
+      corpo=""
+      className={ultimasSoDeHoje ? undefined : "xl:col-span-5"}
+      acao={
+        <Link href={`/robos/${slug}/desempenho`} className={LINK_DO_PAINEL}>
+          Desempenho completo
+        </Link>
+      }
+    >
+      <KpisRobo
+        linhas={linhas}
+        valorPonto={robo.valor_ponto_brl}
+        capitalReferencia={robo.capital_referencia}
+        hoje={hoje}
+        className={ultimasSoDeHoje ? undefined : "lg:grid-cols-1"}
+      />
+    </Painel>
+  );
+
   return (
-    <div className="space-y-10">
-      {emBreve ? (
-        <p className="painel px-4 py-8 text-center text-sm text-muted-foreground">
-          Este robô ainda não começou a operar em conta real.
-        </p>
+    <>
+      <PainelResultado
+        linhas={linhasDoPainel}
+        pontosPorOperacao={pontosPorOperacao}
+        valorPonto={robo.valor_ponto_brl}
+        capitalReferencia={robo.capital_referencia}
+      />
+
+      {ultimasSoDeHoje ? (
+        maisNumeros
       ) : (
-        <>
-          <PainelResultado
-            linhas={linhasDoPainel}
-            pontosPorOperacao={pontosPorOperacao}
-            valorPonto={robo.valor_ponto_brl}
-            capitalReferencia={robo.capital_referencia}
-          />
-
-          <section aria-labelledby="kpis" className="space-y-3">
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <h2 id="kpis" className="text-lg font-semibold tracking-tight">
-                {primeiroDia ? `Desde ${formatarData(primeiroDia)}` : "Resumo"}
-              </h2>
-              <Link
-                href={`/robos/${slug}/desempenho`}
-                className={buttonVariants({ size: "sm", variant: "outline" })}
-              >
-                Ver desempenho completo
-              </Link>
-            </div>
-            <KpisRobo
-              linhas={linhas}
-              valorPonto={robo.valor_ponto_brl}
-              capitalReferencia={robo.capital_referencia}
-              hoje={hoje}
-            />
-          </section>
-
-          {ultimasSoDeHoje ? null : (
-          <section aria-labelledby="ultimas" className="space-y-3">
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <h2 id="ultimas" className="text-lg font-semibold tracking-tight">
-                Últimas operações
-              </h2>
-              <Link
-                href={`/robos/${slug}/operacoes`}
-                className={buttonVariants({ size: "sm", variant: "outline" })}
-              >
+        <Grade>
+          <Painel
+            id="ultimas"
+            titulo="Últimas operações"
+            corpo=""
+            className="xl:col-span-7"
+            acao={
+              <Link href={`/robos/${slug}/operacoes`} className={LINK_DO_PAINEL}>
                 Lista completa
               </Link>
-            </div>
+            }
+          >
             <UltimasOperacoes operacoes={ultimas} />
-          </section>
-          )}
-        </>
+          </Painel>
+          {maisNumeros}
+        </Grade>
       )}
 
       <Transparencia robo={robo} />
-
-      <Disclaimer
-        nomeRobo={robo.nome}
-        texto={comMarcaAtual(parametros.textos.disclaimer)}
-        linkCta={parametros.links.whatsapp}
-      />
-    </div>
+    </>
   );
 }

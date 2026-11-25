@@ -15,10 +15,16 @@ interface Props {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const robo = await buscarRobo(slug);
-  return { title: robo ? `${robo.nome} · Calendário` : "Calendário" };
+  // o título da aba no navegador é o nome que ela tem na faixa de abas desde a ficha Mesa (25/11/2026)
+  return { title: robo ? `${robo.nome} · Dia a dia` : "Dia a dia" };
 }
 
-/** Aba Calendário: resultado por pregão, detalhe por horário e padrões por dia, mês e ano. */
+/**
+ * Aba "Dia a dia" (rota /calendario; ficha Mesa, 25/11/2026): o resultado do mês em vista, o mês em casas com
+ * o dia escolhido ao lado, os melhores e os piores dias do histórico e o mapa de todos os meses. Aqui só se
+ * buscam os dados; o desenho inteiro é do PainelCalendario, que devolve as seções para o CorpoPagina do
+ * layout do robô.
+ */
 export default async function PaginaCalendario({ params }: Props) {
   const { slug } = await params;
   const hoje = hojeSP();
@@ -45,7 +51,6 @@ export default async function PaginaCalendario({ params }: Props) {
       hoje={hoje}
       valorPonto={robo.valor_ponto_brl}
       custoPorContrato={robo.custo_por_contrato}
-      capitalReferencia={robo.capital_referencia}
       slug={robo.slug}
       nomeRobo={robo.nome}
       contaDemo={robo.conta_tipo === "demo"}

@@ -86,18 +86,27 @@ describe("textos do diálogo", () => {
     expect(textoAlternativoDoCard("Apollo", "2026-09-23", "quadrado")).toContain("23 de setembro de 2026");
   });
 
-  it("título e texto do compartilhamento levam o link e o 'por 1 contrato, líquido de custos'", () => {
+  it("alt da prévia nas palavras da imagem, sem as siglas (ficha Mesa, 25/11/2026)", () => {
+    expect(textoAlternativoDoCard("Apollo", "2026-09-23", "quadrado")).toBe(
+      "Imagem do dia do Apollo, 23 de setembro de 2026, formato quadrado: o resultado com 1 contrato, as operações e quantas tiveram ganho, o melhor e o pior momento do dia e a curva do dia.",
+    );
+    for (const formato of ["quadrado", "story"] as const) {
+      expect(textoAlternativoDoCard("Apollo", "2026-09-23", formato)).not.toMatch(/\bMEP\b|\bMEN\b|por contrato|líquido|acerto|gain/i);
+    }
+  });
+
+  it("título e texto do compartilhamento levam o link e o 'com 1 contrato, já descontados os custos'", () => {
     const t = textosDoCompartilhamento("Apollo", "2026-09-23", "https://www.quantsrobos.com/robos/apollo");
     expect(t.title).toBe("Apollo · 23 de setembro de 2026");
     expect(t.text).toBe(
-      "O dia do Apollo em 23 de setembro de 2026, por 1 contrato, líquido de custos. https://www.quantsrobos.com/robos/apollo",
+      "O dia do Apollo em 23 de setembro de 2026, com 1 contrato, já descontados os custos. https://www.quantsrobos.com/robos/apollo",
     );
   });
 
   it("robô em conta demo: a legenda diz 'Conta demo.' antes do link", () => {
     const t = textosDoCompartilhamento("Orion", "2026-09-23", "https://www.quantsrobos.com/robos/orion", true);
     expect(t.text).toBe(
-      "O dia do Orion em 23 de setembro de 2026, por 1 contrato, líquido de custos. Conta demo. https://www.quantsrobos.com/robos/orion",
+      "O dia do Orion em 23 de setembro de 2026, com 1 contrato, já descontados os custos. Conta demo. https://www.quantsrobos.com/robos/orion",
     );
     expect(textosDoCompartilhamento("Orion", "2026-09-23", "x", false).text).not.toContain("demo");
   });

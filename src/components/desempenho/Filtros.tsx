@@ -1,9 +1,8 @@
 "use client";
 
-import Link from "next/link";
+import { cn } from "cn";
 import { useState } from "react";
 import { Segmentado } from "@/components/compartilhados/Segmentado";
-import { buttonVariants } from "@/components/ui/button";
 import type { Periodo } from "@/lib/stats/periodos";
 import type { Base, Unidade } from "@/lib/stats/tipos";
 import { PRESETS, estadoDoPreset, presetAtivo } from "./presets-periodo";
@@ -21,124 +20,115 @@ interface Props {
   estado: EstadoFiltros;
   onChange: (patch: Partial<EstadoFiltros>) => void;
   hoje: string;
-  linkOperacoes: string;
+  className?: string;
 }
 
 const OPCOES_UNIDADE = [
   { valor: "brl", rotulo: "R$" },
   { valor: "pontos", rotulo: "Pontos" },
 ] as const;
+// "líquido" e "bruto" com o nome de leigo (DESIGN.md, seção 7)
 const OPCOES_BASE = [
-  { valor: "liquido", rotulo: "Líquido" },
-  { valor: "bruto", rotulo: "Bruto" },
+  { valor: "liquido", rotulo: "Custos descontados" },
+  { valor: "bruto", rotulo: "Antes dos custos" },
 ] as const;
-const CONTRATOS_RAPIDOS = ["1", "2", "3", "5", "10"] as const;
 
-/** Barra de filtros da aba Desempenho: período, unidade, bruto/líquido, contratos. */
-export function Filtros({ estado, onChange, hoje, linkOperacoes }: Props) {
-  const ehRapido = CONTRATOS_RAPIDOS.includes(String(estado.contratos) as (typeof CONTRATOS_RAPIDOS)[number]);
-  // "Outro" abre o campo; o campo fica aberto enquanto o valor não for um dos rápidos
-  const [outroAberto, setOutroAberto] = useState(!ehRapido);
-  const contratosRapido = outroAberto || !ehRapido ? "outro" : String(estado.contratos);
+const MAXIMO_DE_CONTRATOS = 1000;
+
+// campo de data e de número: borda no fio forte, canto de 6 px
+const CAMPO =
+  "h-8 rounded-md border border-(--painel-fio-forte) bg-background px-2 text-[0.8125rem] text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50";
+
+/**
+ * O campo de contratos. Guarda o que está sendo digitado até o blur ou o Enter (a lição do campo do
+ * simulador, 23/09/2026): controlado só pelo valor confirmado, apagar o "1" para digitar "25" voltava a 1 no
+ * meio da digitação. Cada tecla que forma um inteiro a partir de 1 já vale; acima do teto, vale o teto.
+ */
+function CampoContratos({ valor, onChange }: { valor: number; onChange: (contratos: number) => void }) {
+  const [rascunho, setRascunho] = useState<string | null>(null);
+  return (
+    <label className="flex items-baseline gap-2 whitespace-nowrap text-sutil">
+      Contratos
+      <input
+        type="number"
+        inputMode="numeric"
+        min={1}
+        max={MAXIMO_DE_CONTRATOS}
+        step={1}
+        value={rascunho ?? String(valor)}
+        onChange={(e) => {
+          const texto = e.target.value;
+          setRascunho(texto);
+          const n = Math.floor(Number(texto));
+          if (texto.trim() !== "" && Number.isFinite(n) && n >= 1) onChange(Math.min(MAXIMO_DE_CONTRATOS, n));
+        }}
+        onBlur={() => setRascunho(null)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") e.currentTarget.blur();
+        }}
+        className={cn(CAMPO, "w-[4.5rem]")}
+      />
+    </label>
+  );
+}
+
+/**
+ * Os filtros da aba Desempenho (ficha Mesa, 25/11/2026): período, unidade, com ou sem custos e contratos,
+ * numa linha só de texto, sem caixa e sem rótulo em cima de cada grupo. Vão no alto da tela, à direita do
+ * título do número, e valem para a tela toda. Eram um painel de duas linhas, com rótulos em caixa alta, as
+ * opções em pílula e um botão.
+ *
+ * - Os contratos eram seis opções (1, 2, 3, 5, 10, Outro) mais um campo; agora é só o campo, que aceita de 1
+ *   a 1000 e tem as setas do navegador.
+ * - O link para a lista de operações (com a exportação em CSV) saiu daqui: fica no título de "Mais números",
+ *   ao lado da contagem de operações.
+ * - "Personalizado" abre as duas datas ao lado do período. "Hoje", "Semana" e "Mês" também são um intervalo
+ *   de datas por baixo (presets-periodo), e as datas apareciam com eles; agora só aparecem quando a pessoa
+ *   escolhe "Personalizado" ou quando o intervalo não é o de nenhum atalho (um mês escolhido nas barras, um
+ *   link com datas). Com as datas abertas, a opção acesa continua "Personalizado" mesmo que o intervalo
+ *   digitado coincida com o de um atalho.
+ */
+export function Filtros({ estado, onChange, hoje, className }: Props) {
+  const [datasAbertas, setDatasAbertas] = useState(false);
+  const preset = presetAtivo(estado, hoje);
+  const comDatas = estado.periodo === "personalizado" && (datasAbertas || preset === "personalizado");
 
   return (
-    <div className="space-y-4 painel p-4 sm:p-5">
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="max-w-full min-w-0 space-y-1.5">
-          <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">Período</p>
-          <div className="flex flex-wrap items-center gap-2">
-            <Segmentado
-              ariaLabel="Período"
-              opcoes={PRESETS}
-              valor={presetAtivo(estado, hoje)}
-              onChange={(preset) => onChange(estadoDoPreset(preset, hoje, estado))}
-            />
-            {estado.periodo === "personalizado" ? (
-              <div className="flex items-center gap-1.5 text-xs">
-                <input
-                  type="date"
-                  aria-label="Data inicial"
-                  value={estado.de}
-                  max={estado.ate || hoje}
-                  onChange={(e) => onChange({ de: e.target.value })}
-                  className="h-8 rounded-lg border bg-background px-2 tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                />
-                <span className="text-muted-foreground">até</span>
-                <input
-                  type="date"
-                  aria-label="Data final"
-                  value={estado.ate}
-                  min={estado.de || undefined}
-                  max={hoje}
-                  onChange={(e) => onChange({ ate: e.target.value })}
-                  className="h-8 rounded-lg border bg-background px-2 tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                />
-              </div>
-            ) : null}
-          </div>
-        </div>
-
-        <Link href={linkOperacoes} className={`${buttonVariants({ size: "sm", variant: "outline" })} ml-auto`}>
-          Ver operações e exportar CSV
-        </Link>
-      </div>
-
-      <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
-        <div className="max-w-full min-w-0 space-y-1.5">
-          <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">Unidade</p>
-          <Segmentado
-            ariaLabel="Unidade"
-            opcoes={OPCOES_UNIDADE}
-            valor={estado.unidade}
-            onChange={(unidade) => onChange({ unidade })}
+    <div className={cn("flex max-w-full min-w-0 flex-wrap items-baseline gap-x-7 gap-y-3 text-[0.8125rem]", className)}>
+      <Segmentado
+        ariaLabel="Período"
+        opcoes={PRESETS}
+        valor={comDatas ? "personalizado" : preset}
+        onChange={(escolhido) => {
+          setDatasAbertas(escolhido === "personalizado");
+          onChange(estadoDoPreset(escolhido, hoje, estado));
+        }}
+      />
+      {comDatas ? (
+        <div className="flex items-baseline gap-2 text-sutil">
+          <input
+            type="date"
+            aria-label="Data inicial"
+            value={estado.de}
+            max={estado.ate || hoje}
+            onChange={(e) => onChange({ de: e.target.value })}
+            className={CAMPO}
+          />
+          a
+          <input
+            type="date"
+            aria-label="Data final"
+            value={estado.ate}
+            min={estado.de || undefined}
+            max={hoje}
+            onChange={(e) => onChange({ ate: e.target.value })}
+            className={CAMPO}
           />
         </div>
-        <div className="max-w-full min-w-0 space-y-1.5">
-          <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">Custos</p>
-          <Segmentado
-            ariaLabel="Bruto ou líquido"
-            opcoes={OPCOES_BASE}
-            valor={estado.base}
-            onChange={(base) => onChange({ base })}
-          />
-        </div>
-        <div className="max-w-full min-w-0 space-y-1.5">
-          <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
-            Contratos
-          </p>
-          <div className="flex items-center gap-2">
-            <Segmentado
-              ariaLabel="Contratos"
-              opcoes={[...CONTRATOS_RAPIDOS.map((c) => ({ valor: c, rotulo: c })), { valor: "outro", rotulo: "Outro" }]}
-              valor={contratosRapido}
-              onChange={(v) => {
-                if (v === "outro") {
-                  setOutroAberto(true);
-                } else {
-                  setOutroAberto(false);
-                  onChange({ contratos: Number(v) });
-                }
-              }}
-            />
-            {contratosRapido === "outro" ? (
-              <input
-                type="number"
-                min={1}
-                max={1000}
-                step={1}
-                autoFocus
-                aria-label="Quantidade de contratos"
-                value={estado.contratos}
-                onChange={(e) => {
-                  const n = Math.max(1, Math.min(1000, Math.floor(Number(e.target.value) || 1)));
-                  onChange({ contratos: n });
-                }}
-                className="h-8 w-20 rounded-lg border bg-background px-2 text-xs tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-              />
-            ) : null}
-          </div>
-        </div>
-      </div>
+      ) : null}
+      <Segmentado ariaLabel="Unidade" opcoes={OPCOES_UNIDADE} valor={estado.unidade} onChange={(unidade) => onChange({ unidade })} />
+      <Segmentado ariaLabel="Custos" opcoes={OPCOES_BASE} valor={estado.base} onChange={(base) => onChange({ base })} />
+      <CampoContratos valor={estado.contratos} onChange={(contratos) => onChange({ contratos })} />
     </div>
   );
 }

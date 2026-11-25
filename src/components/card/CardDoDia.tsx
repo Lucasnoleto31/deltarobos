@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { ACENTO, COR_DO_TOM, FUNDO, MUDO, NEGATIVO, POSITIVO, TEXTO, ZERO } from "@/components/card/cores";
+import { ACENTO, ALERTA, COR_DO_TOM, FIO, FUNDO, MUDO, NEGATIVO, SUTIL, TEXTO, ZERO, partesDoValor } from "@/components/card/cores";
 import type { FormatoCard } from "@/components/compartilhar/url-do-card";
 import { SIMBOLO_CAMINHOS, SIMBOLO_VIEWBOX } from "@/components/marca/Simbolo";
 import { caminhosDaCurva, tamanhoParaCaber, type DadosCardDoDia, type NumeroDoCard } from "@/lib/stats/card-do-dia";
@@ -10,6 +10,13 @@ import { caminhosDaCurva, tamanhoParaCaber, type DadosCardDoDia, type NumeroDoCa
  * /api/og/[slug]/[dia]. Só desenha: textos, números e caminhos da curva vêm prontos de montarCardDoDia e de
  * caminhosDaCurva (src/lib/stats/card-do-dia).
  *
+ * Ficha Mesa (25/11/2026): a imagem tem a cara do sistema. Fundo quase preto, sem caixa nenhuma; o resultado do
+ * dia em número grande, com o sinal e o "R$" mais apagados e os algarismos na cor do texto (negativo, vermelho
+ * inteiro); a curva do dia numa linha fina e clara, sem área, sem faixa e sem verde; um fio de 1 px em cima dos
+ * números e outro em cima do rodapé. Saíram os selos em pílula ("Parcial", "Conta demo"), que viraram texto na
+ * cor de atenção; o degradê verde e vermelho da linha e da área; e a bolinha colorida do fim da curva. O verde da
+ * marca fica só no símbolo; verde e vermelho, só nos números de ganho e de perda. A informação é a mesma de antes.
+ *
  * Regras do satori que valem aqui: todo div com mais de um filho tem display flex; texto sempre como uma string
  * só (template string), nunca pedaços soltos; nada de <text> dentro do SVG (o resvg não tem fonte), por isso os
  * rótulos de hora são divs em posição absoluta; sem variáveis CSS; lineHeight explícito. A fonte é a padrão do
@@ -17,7 +24,7 @@ import { caminhosDaCurva, tamanhoParaCaber, type DadosCardDoDia, type NumeroDoCa
  *
  * Medidas prototipadas com o Apollo de 23/09/2026 e com o pior caso (nome "Alaska & Square", −R$ 12.345,67, 1.234
  * operações, MEP e MEN de 5 dígitos, parcial e demo juntos). O story deixa 200 px livres em cima e 260 px embaixo,
- * as zonas que a interface do Instagram cobre; por isso os selos vão para baixo da data, e não para o cabeçalho.
+ * as zonas que a interface do Instagram cobre; por isso os avisos vão para baixo da data, e não para o cabeçalho.
  *
  * Ajuste do render de verificação (24/09/2026): no quadrado, um MEP de 10 caracteres ("+R$ 344,00") ocupava 218 dos
  * 222 px da célula, e um valor um pouco mais largo quebraria em duas linhas. Os valores da linha de números não
@@ -27,12 +34,7 @@ import { caminhosDaCurva, tamanhoParaCaber, type DadosCardDoDia, type NumeroDoCa
  * Ajustes da revisão (24/09/2026), dentro dos 15% previstos no contrato:
  * - A frase legal é o único aviso de risco da peça que sai do site, e era o menor texto da imagem (18 px no quadrado,
  *   22 no story): no feed ou no WhatsApp, a uns 390 px de largura, virava 6,5 px. Agora tem o tamanho do rodapé
- *   (22 e 26 px), com 8 e 10 px de margem. Custa 6 px de altura; a folga medida era de 49 px no quadrado e 40 no
- *   story.
- * - O traço da curva tem um gradiente próprio (card-cor-linha) com uma faixa neutra (MUDO) da largura do traço, mais
- *   1 px de borda suavizada de cada lado, em volta do zero. Com o corte seco no zero, o saldo parado em zero (antes da primeira entrada, ou a origem da curva
- *   por fechamento) saía com a metade de cima verde e a de baixo vermelha, um sublinhado vermelho no começo de um
- *   dia positivo. Zero é neutro, como a bolinha do fim (tomDoValor). A área e a faixa continuam cortadas no zero.
+ *   (22 e 26 px), com 8 e 10 px de margem.
  * - Rótulo do eixo preso a uma borda encosta o texto nela: na curva por fechamento o último rótulo nomeia a última
  *   operação, em x = 1, e centralizado na caixa ele ficava 28 px à esquerda do ponto.
  */
@@ -40,17 +42,16 @@ import { caminhosDaCurva, tamanhoParaCaber, type DadosCardDoDia, type NumeroDoCa
 /** a largura útil nos dois formatos: 1080 menos 72 px de cada lado */
 const LARGURA = 936;
 
-const ALTURA_CURVA: Readonly<Record<FormatoCard, number>> = { quadrado: 280, story: 300 };
+const ALTURA_CURVA: Readonly<Record<FormatoCard, number>> = { quadrado: 270, story: 300 };
 
 const MEDIDAS = {
   quadrado: {
     padding: "64px 72px",
-    entreBlocos: 28,
+    entreBlocos: 26,
     cabecalho: 48,
     simbolo: [40, 39],
     marca: 28,
-    selo: 22,
-    seloPadding: "6px 16px",
+    aviso: 24,
     ativo: 28,
     rotuloResultado: 24,
     pontos: 36,
@@ -60,15 +61,17 @@ const MEDIDAS = {
     rotuloNumeroMinimo: 18,
     /** (936 − 3 × 16) / 4: quatro células numa linha */
     celula: 222,
+    /** o respiro entre o fio e o que vem debaixo dele */
+    depoisDoFio: 20,
     nota: 20,
     notaMargem: 10,
     legenda: 20,
-    legendaMargem: 10,
+    legendaMargem: 8,
     eixo: 20,
     eixoAltura: 30,
     eixoCaixa: 80,
-    traco: 4,
-    bolinha: 7,
+    traco: 3,
+    bolinha: 6,
     rodape: 22,
     legal: 22,
     legalMargem: 8,
@@ -79,8 +82,7 @@ const MEDIDAS = {
     cabecalho: 56,
     simbolo: [48, 47],
     marca: 34,
-    selo: 26,
-    seloPadding: "8px 20px",
+    aviso: 28,
     ativo: 34,
     rotuloResultado: 30,
     pontos: 44,
@@ -90,6 +92,7 @@ const MEDIDAS = {
     rotuloNumeroMinimo: 20,
     /** (936 − 16) / 2: grade 2 × 2 */
     celula: 460,
+    depoisDoFio: 32,
     nota: 24,
     notaMargem: 16,
     legenda: 24,
@@ -97,8 +100,8 @@ const MEDIDAS = {
     eixo: 26,
     eixoAltura: 36,
     eixoCaixa: 96,
-    traco: 5,
-    bolinha: 8,
+    traco: 4,
+    bolinha: 7,
     rodape: 26,
     legal: 26,
     legalMargem: 10,
@@ -112,19 +115,23 @@ function Texto({ tamanho, cor = TEXTO, estilo, children }: { tamanho: number; co
   return <div style={{ display: "flex", fontSize: tamanho, color: cor, lineHeight: 1.15, ...estilo }}>{children}</div>;
 }
 
-function Selo({ texto, cor, borda, m }: { texto: string; cor: string; borda: string; m: Medidas }) {
+/**
+ * "Parcial · até 14:32" e "Conta demo", em texto na cor de atenção. Eram selos em pílula, um deles no verde da
+ * marca; desde a ficha Mesa não há pílula, e o verde da marca é só do símbolo.
+ */
+function Avisos({ dados, m, estilo }: { dados: DadosCardDoDia; m: Medidas; estilo?: CSSProperties }) {
   return (
-    <div style={{ display: "flex", fontSize: m.selo, color: cor, border: `2px solid ${borda}`, borderRadius: 999, padding: m.seloPadding, lineHeight: 1.15 }}>
-      {texto}
-    </div>
-  );
-}
-
-function Selos({ dados, m, estilo }: { dados: DadosCardDoDia; m: Medidas; estilo?: CSSProperties }) {
-  return (
-    <div style={{ display: "flex", gap: 12, ...estilo }}>
-      {dados.parcial ? <Selo texto={dados.parcial} cor={ACENTO} borda={ACENTO} m={m} /> : null}
-      {dados.contaDemo ? <Selo texto="Conta demo" cor={TEXTO} borda={MUDO} m={m} /> : null}
+    <div style={{ display: "flex", gap: 28, ...estilo }}>
+      {dados.parcial ? (
+        <Texto tamanho={m.aviso} cor={ALERTA}>
+          {dados.parcial}
+        </Texto>
+      ) : null}
+      {dados.contaDemo ? (
+        <Texto tamanho={m.aviso} cor={ALERTA}>
+          Conta demo
+        </Texto>
+      ) : null}
     </div>
   );
 }
@@ -147,42 +154,45 @@ function Numero({ n, tamanhoValor, tamanhoRotulo }: { n: NumeroDoCard; tamanhoVa
   );
 }
 
+/**
+ * O resultado do dia em número grande, como o do site: o sinal e o "R$" mais apagados, os algarismos na cor do
+ * texto. Negativo fica vermelho inteiro. São dois textos lado a lado, do mesmo tamanho, porque o satori não
+ * pinta um pedaço de uma string.
+ */
+function Resultado({ dados, tamanho, aperto }: { dados: DadosCardDoDia; tamanho: number; aperto: number }) {
+  const [prefixo, algarismos] = partesDoValor(dados.resultado);
+  const negativo = dados.tomResultado === "negativo";
+  return (
+    <div style={{ display: "flex", alignItems: "flex-end" }}>
+      {prefixo ? (
+        <Texto tamanho={tamanho} cor={negativo ? NEGATIVO : MUDO} estilo={{ lineHeight: 1, letterSpacing: aperto, marginRight: Math.round(tamanho * 0.16) }}>
+          {prefixo}
+        </Texto>
+      ) : null}
+      <Texto tamanho={tamanho} cor={negativo ? NEGATIVO : TEXTO} estilo={{ lineHeight: 1, letterSpacing: aperto }}>
+        {algarismos}
+      </Texto>
+    </div>
+  );
+}
+
+/**
+ * A curva do dia: uma linha fina na cor do texto, a linha do zero tracejada e a ponta marcada. Até 25/11/2026
+ * a linha e a área trocavam de verde para vermelho no zero, com a faixa mín./máx. por trás; na ficha Mesa verde
+ * não entra em curva e não há área preenchida.
+ */
 function Curva({ dados, formato, m }: { dados: DadosCardDoDia; formato: FormatoCard; m: Medidas }) {
   const altura = ALTURA_CURVA[formato];
   const c = caminhosDaCurva(dados.curva, { largura: LARGURA, altura });
-  // a área e a faixa trocam de cor exatamente no zero: verde acima, vermelho abaixo, como a curva do site
-  const limitar = (v: number) => Math.min(1, Math.max(0, v));
-  const corte = limitar(c.yZero / altura);
-  // o traço tem uma faixa neutra da largura dele em volta do zero (mais 1 px de cada lado, a borda suavizada do
-  // traço): saldo parado no zero não sai meio verde, meio vermelho (revisão de 24/09/2026)
-  const meiaFaixa = m.traco / 2 + 1;
-  const acimaDoZero = limitar((c.yZero - meiaFaixa) / altura);
-  const abaixoDoZero = limitar((c.yZero + meiaFaixa) / altura);
   return (
     <div style={{ display: "flex", flexDirection: "column" }}>
-      <Texto tamanho={m.legenda} cor={MUDO} estilo={{ marginBottom: m.legendaMargem }}>
+      <Texto tamanho={m.legenda} cor={SUTIL} estilo={{ marginBottom: m.legendaMargem }}>
         {dados.curva.legenda}
       </Texto>
       <svg width={LARGURA} height={altura} viewBox={`0 0 ${LARGURA} ${altura}`}>
-        <defs>
-          <linearGradient id="card-cor" gradientUnits="userSpaceOnUse" x1={0} y1={0} x2={0} y2={altura}>
-            <stop offset={corte} stopColor={POSITIVO} />
-            <stop offset={corte} stopColor={NEGATIVO} />
-          </linearGradient>
-          <linearGradient id="card-cor-linha" gradientUnits="userSpaceOnUse" x1={0} y1={0} x2={0} y2={altura}>
-            <stop offset={0} stopColor={POSITIVO} />
-            <stop offset={acimaDoZero} stopColor={POSITIVO} />
-            <stop offset={acimaDoZero} stopColor={MUDO} />
-            <stop offset={abaixoDoZero} stopColor={MUDO} />
-            <stop offset={abaixoDoZero} stopColor={NEGATIVO} />
-            <stop offset={1} stopColor={NEGATIVO} />
-          </linearGradient>
-        </defs>
-        {c.faixa ? <path d={c.faixa} fill="url(#card-cor)" fillOpacity={0.22} /> : null}
-        <path d={c.area} fill="url(#card-cor)" fillOpacity={0.1} />
         <line x1={0} y1={c.yZero} x2={LARGURA} y2={c.yZero} stroke={ZERO} strokeWidth={2} strokeDasharray="8 8" />
-        <path d={c.linha} fill="none" stroke="url(#card-cor-linha)" strokeWidth={m.traco} strokeLinejoin="round" strokeLinecap="round" />
-        <circle cx={c.ultimo.x} cy={c.ultimo.y} r={m.bolinha} fill={COR_DO_TOM[dados.curva.tomFinal]} />
+        <path d={c.linha} fill="none" stroke={TEXTO} strokeWidth={m.traco} strokeLinejoin="round" strokeLinecap="round" />
+        <circle cx={c.ultimo.x} cy={c.ultimo.y} r={m.bolinha} fill={TEXTO} />
       </svg>
       <div style={{ display: "flex", position: "relative", width: LARGURA, height: m.eixoAltura }}>
         {c.rotulosX.map((r) => {
@@ -222,7 +232,7 @@ export interface PropsCardDoDia {
 export function CardDoDia({ dados, formato }: PropsCardDoDia) {
   const m = MEDIDAS[formato];
   const quadrado = formato === "quadrado";
-  const temSelo = dados.parcial !== null || dados.contaDemo;
+  const temAviso = dados.parcial !== null || dados.contaDemo;
   const [nNumero, nAcerto, nMep, nMen] = dados.numeros;
   const tamanhoValor = tamanhoComum(
     dados.numeros.map((n) => n.valor),
@@ -250,7 +260,7 @@ export function CardDoDia({ dados, formato }: PropsCardDoDia) {
         padding: m.padding,
       }}
     >
-      {/* cabeçalho: a marca; no quadrado, os selos à direita */}
+      {/* cabeçalho: a marca; no quadrado, os avisos à direita */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: m.cabecalho }}>
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
           <svg width={m.simbolo[0]} height={m.simbolo[1]} viewBox={SIMBOLO_VIEWBOX}>
@@ -265,10 +275,10 @@ export function CardDoDia({ dados, formato }: PropsCardDoDia) {
             </Texto>
           </div>
         </div>
-        {quadrado && temSelo ? <Selos dados={dados} m={m} /> : null}
+        {quadrado && temAviso ? <Avisos dados={dados} m={m} /> : null}
       </div>
 
-      {/* o robô, o ativo e a data (no story, os selos logo abaixo, fora da barra de perfil do Instagram) */}
+      {/* o robô, o ativo e a data (no story, os avisos logo abaixo, fora da barra de perfil do Instagram) */}
       {quadrado ? (
         <div style={{ display: "flex", flexDirection: "column", marginTop: m.entreBlocos }}>
           <div style={{ display: "flex", alignItems: "flex-end", flexWrap: "wrap", gap: 20 }}>
@@ -294,46 +304,34 @@ export function CardDoDia({ dados, formato }: PropsCardDoDia) {
           <Texto tamanho={m.ativo} cor={MUDO} estilo={{ marginTop: 6 }}>
             {dados.data}
           </Texto>
-          {temSelo ? <Selos dados={dados} m={m} estilo={{ marginTop: 20 }} /> : null}
+          {temAviso ? <Avisos dados={dados} m={m} estilo={{ marginTop: 20 }} /> : null}
         </div>
       )}
 
-      {/* o resultado do dia, grande e colorido; os pontos ao lado (quadrado) ou embaixo (story) */}
+      {/* o resultado do dia, grande; os pontos ao lado (quadrado) ou embaixo (story) */}
       <div style={{ display: "flex", flexDirection: "column", marginTop: m.entreBlocos }}>
         <Texto tamanho={m.rotuloResultado} cor={MUDO}>
           {dados.rotuloResultado}
         </Texto>
         {quadrado ? (
-          <div style={{ display: "flex", alignItems: "flex-end", gap: 24, marginTop: 6 }}>
-            <Texto
-              tamanho={tamanhoParaCaber(dados.resultado, 640, 112, 64)}
-              cor={COR_DO_TOM[dados.tomResultado]}
-              estilo={{ lineHeight: 1, letterSpacing: -2 }}
-            >
-              {dados.resultado}
-            </Texto>
+          <div style={{ display: "flex", alignItems: "flex-end", gap: 24, marginTop: 8 }}>
+            <Resultado dados={dados} tamanho={tamanhoParaCaber(dados.resultado, 640, 112, 64)} aperto={-3} />
             <Texto tamanho={m.pontos} cor={MUDO} estilo={{ paddingBottom: 6 }}>
               {dados.pontos}
             </Texto>
           </div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", marginTop: 8 }}>
-            <Texto
-              tamanho={tamanhoParaCaber(dados.resultado, LARGURA, 150, 80)}
-              cor={COR_DO_TOM[dados.tomResultado]}
-              estilo={{ lineHeight: 1, letterSpacing: -3 }}
-            >
-              {dados.resultado}
-            </Texto>
-            <Texto tamanho={m.pontos} cor={MUDO} estilo={{ marginTop: 10 }}>
+          <div style={{ display: "flex", flexDirection: "column", marginTop: 10 }}>
+            <Resultado dados={dados} tamanho={tamanhoParaCaber(dados.resultado, LARGURA, 150, 80)} aperto={-4} />
+            <Texto tamanho={m.pontos} cor={MUDO} estilo={{ marginTop: 12 }}>
               {dados.pontos}
             </Texto>
           </div>
         )}
       </div>
 
-      {/* operações, acerto, MEP e MEN, com a fonte do MEP/MEN */}
-      <div style={{ display: "flex", flexDirection: "column", marginTop: m.entreBlocos }}>
+      {/* operações, acerto, MEP e MEN, com a fonte do MEP/MEN; um fio em cima, sem caixa em volta de cada número */}
+      <div style={{ display: "flex", flexDirection: "column", marginTop: m.entreBlocos, borderTop: `1px solid ${FIO}`, paddingTop: m.depoisDoFio }}>
         {quadrado ? (
           <div style={{ display: "flex", gap: 16 }}>
             {numero(nNumero)}
@@ -353,7 +351,7 @@ export function CardDoDia({ dados, formato }: PropsCardDoDia) {
             </div>
           </div>
         )}
-        <Texto tamanho={m.nota} cor={MUDO} estilo={{ marginTop: m.notaMargem }}>
+        <Texto tamanho={m.nota} cor={SUTIL} estilo={{ marginTop: m.notaMargem }}>
           {dados.notaMepMen}
         </Texto>
       </div>
@@ -363,8 +361,8 @@ export function CardDoDia({ dados, formato }: PropsCardDoDia) {
         <Curva dados={dados} formato={formato} m={m} />
       </div>
 
-      {/* rodapé no fim da imagem; o paddingTop garante 24 px livres depois dos rótulos do eixo */}
-      <div style={{ display: "flex", flexDirection: "column", marginTop: "auto", paddingTop: 24 }}>
+      {/* rodapé no fim da imagem, com um fio em cima; o que sobra de altura fica entre os rótulos do eixo e ele */}
+      <div style={{ display: "flex", flexDirection: "column", marginTop: "auto", borderTop: `1px solid ${FIO}`, paddingTop: m.depoisDoFio }}>
         <Texto tamanho={m.rodape} cor={MUDO}>
           {dados.rodape}
         </Texto>

@@ -1,7 +1,6 @@
 "use client";
 
 import { cn } from "cn";
-import { Radio } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
@@ -11,12 +10,13 @@ interface Props {
 }
 
 /**
- * Abas da página do robô em pílulas (18/09/2026): a ativa em branco, as outras apagadas, o ao vivo à direita.
- * 19/09/2026: só as abas rolam, com a ponta esmaecendo; o "Ao vivo" fica fora da rolagem, sempre à
- * vista (no celular ele era cortado e o que aparecia na ponta era um "R" solto). O -m-1/p-1 da faixa
- * dá espaço ao anel de foco, que a rolagem cortaria.
- * No celular a faixa abre com a aba atual no meio (antes Risco ou Relatórios abriam fora da vista) e o
- * foco do teclado traz a aba para fora do esmaecido. Mexe só na rolagem da faixa, não na da página.
+ * As abas da página do robô (ficha Mesa, 25/11/2026): uma faixa de texto com um fio na cor do texto debaixo da
+ * aba atual, de ponta a ponta da área de trabalho, que fica presa logo abaixo da fita de mercado ao rolar.
+ * Eram pílulas dentro de um painel arredondado. Os nomes dizem o que a pessoa vai achar, não o jargão:
+ * "Dia a dia" (calendário), "Quedas e risco", "Melhores horários" (faixas).
+ *
+ * No celular a faixa rola de lado, com a ponta esmaecendo, e abre com a aba atual no meio; o foco do
+ * teclado traz a aba para fora do esmaecido. Mexe só na rolagem da faixa, não na da página.
  */
 export function AbasRobo({ slug }: Props) {
   const pathname = usePathname();
@@ -33,49 +33,43 @@ export function AbasRobo({ slug }: Props) {
   const abas = [
     { href: base, rotulo: "Visão geral", exato: true },
     { href: `${base}/desempenho`, rotulo: "Desempenho", exato: false },
-    { href: `${base}/calendario`, rotulo: "Calendário", exato: false },
-    { href: `${base}/risco`, rotulo: "Risco", exato: false },
-    { href: `${base}/faixas`, rotulo: "Faixas", exato: false },
+    { href: `${base}/calendario`, rotulo: "Dia a dia", exato: false },
+    { href: `${base}/risco`, rotulo: "Quedas e risco", exato: false },
+    { href: `${base}/faixas`, rotulo: "Melhores horários", exato: false },
     { href: `${base}/operacoes`, rotulo: "Operações", exato: false },
     // Relatórios é aba rara: busca no clique em vez de pré-carregar em toda visita (18/09/2026)
     { href: `${base}/relatorios`, rotulo: "Relatórios", exato: false, prefetch: false },
   ];
 
   return (
-    <nav aria-label="Seções do robô" className="painel flex items-center gap-1 rounded-full p-1">
-      <div
-        ref={faixaRef}
-        onFocus={(e) => (e.target as HTMLElement).scrollIntoView({ block: "nearest", inline: "nearest" })}
-        className="borda-esmaece -m-1 flex min-w-0 flex-1 items-center gap-1 overflow-x-auto p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-      >
-        {abas.map((a) => {
-          const ativo = a.exato ? pathname === a.href : pathname.startsWith(a.href);
-          return (
-            <Link
-              key={a.href}
-              href={a.href}
-              prefetch={a.prefetch}
-              aria-current={ativo ? "page" : undefined}
-              className={cn(
-                "h-8 shrink-0 rounded-full px-3.5 text-sm leading-8 whitespace-nowrap transition-colors",
-                ativo
-                  ? "bg-foreground font-medium text-background"
-                  : "text-muted-foreground hover:bg-(--linha-hover) hover:text-foreground",
-              )}
-            >
-              {a.rotulo}
-            </Link>
-          );
-        })}
-      </div>
-      {/* a tela cheia do dia também é rara: sem prefetch */}
-      <Link
-        href={`${base}/ao-vivo`}
-        prefetch={false}
-        className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-(--painel-fio-forte) px-3.5 text-sm whitespace-nowrap text-foreground transition-colors hover:bg-(--linha-hover)"
-      >
-        <Radio className="size-4" /> Ao vivo
-      </Link>
-    </nav>
+    <div className="sticky top-(--altura-cabecalho) z-30 mt-4 border-b bg-background">
+      <nav aria-label="Seções do robô" className="conteudo">
+        <div
+          ref={faixaRef}
+          onFocus={(e) => (e.target as HTMLElement).scrollIntoView({ block: "nearest", inline: "nearest" })}
+          className="borda-esmaece -mx-1 flex items-center gap-5 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
+          {abas.map((a) => {
+            const ativo = a.exato ? pathname === a.href : pathname.startsWith(a.href);
+            return (
+              <Link
+                key={a.href}
+                href={a.href}
+                prefetch={a.prefetch}
+                aria-current={ativo ? "page" : undefined}
+                className={cn(
+                  "-mb-px flex h-10 shrink-0 items-center border-b-2 text-sm whitespace-nowrap transition-colors outline-none focus-visible:text-foreground focus-visible:underline",
+                  ativo
+                    ? "border-foreground font-medium text-foreground"
+                    : "border-transparent text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {a.rotulo}
+              </Link>
+            );
+          })}
+        </div>
+      </nav>
+    </div>
   );
 }

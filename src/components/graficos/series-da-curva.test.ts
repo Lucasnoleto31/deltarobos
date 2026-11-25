@@ -22,8 +22,9 @@ import {
 // A série por operação como era até 18/09/2026, com a dica escrita no servidor e reduzida a 240
 // pontos, congelada aqui para provar que a forma compacta (números no HTML, dica escrita no navegador)
 // mostra a mesma coisa quando se pede a série leve. Os rótulos são os de 19/09/2026 ("3 operações
-// (205ª a 207ª)" e "Resultado" no lugar de "Neste trecho", e a etiqueta da mira no eixo de baixo); os
-// números continuam os de antes.
+// (205ª a 207ª)" e "Resultado" no lugar de "Neste trecho", e a etiqueta da mira no eixo de baixo) com o
+// vocabulário de 25/11/2026 (ficha Mesa: "Resultado até aqui" no lugar de "Acumulado", "Abaixo do topo" no de
+// "Drawdown", e "nada" no de "no topo"); os números continuam os de antes.
 function seriePorOperacaoDeAntes(ops: readonly OperacaoCompacta[], opcoes: OpcoesSerie, dias: readonly string[]): PontoDoDesenho[] {
   if (ops.length === 0) return [];
   const fmt = (v: number) =>
@@ -90,10 +91,10 @@ function seriePorOperacaoDeAntes(ops: readonly OperacaoCompacta[], opcoes: Opcoe
         : `${formatarNumero(fatia.length)} operações (${ordinal(primeiro.ordem)} a ${ordinal(ultimo.ordem)})`,
       linhas: [
         { rotulo: "Resultado", valor: fmt(valor), tom: tomDe(valor) },
-        { rotulo: "Acumulado", valor: fmt(ultimo.acumulado), tom: tomDe(ultimo.acumulado) },
+        { rotulo: "Resultado até aqui", valor: fmt(ultimo.acumulado), tom: tomDe(ultimo.acumulado) },
         {
-          rotulo: "Drawdown",
-          valor: drawdown < 0 ? fmt(drawdown) : "no topo",
+          rotulo: "Abaixo do topo",
+          valor: drawdown < 0 ? fmt(drawdown) : "nada",
           tom: drawdown < 0 ? ("negativo" as const) : ("neutro" as const),
         },
       ],
@@ -258,13 +259,43 @@ describe("série por operação compacta (série leve, 240 pontos)", () => {
     expect(pontos).toHaveLength(240);
     expect(pontos[0].dica.titulo).toBe("2 dias (01/12 a 02/12/2025)");
     expect(pontos[0].dica.subtitulo).toBeUndefined();
-    expect(pontos[0].dica.linhas.map((l) => l.rotulo)).toEqual(["Resultado", "Operações", "Acumulado", "Drawdown"]);
+    expect(pontos[0].dica.linhas.map((l) => l.rotulo)).toEqual(["Resultado", "Operações com ganho", "Resultado até aqui", "Abaixo do topo"]);
+    // "12 de 20": as operações com ganho dos dois dias do ponto, sobre o total deles (25/11/2026; era "20 · 60% de acerto")
+    expect(pontos[0].dica.linhas[1]).toEqual({ rotulo: "Operações com ganho", valor: "12 de 20" });
     // o ponto que atravessa a virada do ano leva as duas datas inteiras
     expect(pontos.some((p) => /^\d+ dias \(\d{2}\/12\/2025 a \d{2}\/01\/2026\)$/.test(p.dica.titulo))).toBe(true);
     const umDia = seriePorDia(linhas.slice(0, 5), brl).pontos[0];
     expect(umDia.dica.titulo).toBe("01/12/2025");
     expect(umDia.dica.subtitulo).toBe("segunda-feira");
     expect(umDia.eixo).toBe("01/12/2025");
+    // o primeiro dia perde 50: resultado e total negativos, e o ponto fica abaixo do topo (a partida)
+    expect(umDia.dica.linhas).toEqual([
+      { rotulo: "Resultado", valor: formatarBRL(-50, { sinal: true }), tom: "negativo" },
+      { rotulo: "Operações com ganho", valor: "6 de 10" },
+      { rotulo: "Resultado até aqui", valor: formatarBRL(-50, { sinal: true }), tom: "negativo" },
+      { rotulo: "Abaixo do topo", valor: formatarBRL(-50, { sinal: true }), tom: "negativo" },
+    ]);
+  });
+
+  it("a leitura não usa o jargão antigo, e no topo diz \"nada\" (ficha Mesa, 25/11/2026)", () => {
+    const jargao = /drawdown|acumulado|acerto|gain|loss|MFE|MAE|MEP|MEN\b|payoff|líquido/i;
+    const { ops, dias } = gerarOperacoes(6, () => 50);
+    const medidas = ops.map((o, i): OperacaoCompacta => [o[0], o[1], o[2], o[3], o[4], o[5], o[6], o[7], o[8], (i * 37) % 400, -((i * 53) % 250)]);
+    const leituras = [
+      ...seriePorDia(linhasDiarias(600), brl).pontos,
+      ...seriePorDia(linhasDiarias(5), brl).pontos,
+      ...seriePorOperacao(medidas, brl, dias, PONTOS_LEVE),
+      ...seriePorOperacao(medidas, { base: "liquido", unidade: "pontos", valorPonto: 0.2 }, dias),
+    ];
+    for (const p of leituras) {
+      const texto = [p.dica.titulo, p.dica.subtitulo ?? "", ...p.dica.linhas.flatMap((l) => [l.rotulo, l.valor])].join(" | ");
+      expect(texto).not.toMatch(jargao);
+      // os rótulos de uma leitura não se repetem: são a chave de cada item na linha de leitura
+      expect(new Set(p.dica.linhas.map((l) => l.rotulo)).size).toBe(p.dica.linhas.length);
+    }
+    // três dias de ganho: todo ponto está no topo
+    const noTopo = seriePorDia([linhaDiaria("2026-09-21", 40), linhaDiaria("2026-09-22", 40), linhaDiaria("2026-09-23", 40)], brl).pontos;
+    expect(noTopo.map((p) => p.dica.linhas[p.dica.linhas.length - 1])).toEqual(Array(3).fill({ rotulo: "Abaixo do topo", valor: "nada", tom: "neutro" }));
   });
 
   it("série vazia", () => {
@@ -530,17 +561,18 @@ describe("dentes de MFE/MAE (23/09/2026)", () => {
     expect(compacta.dentes).toEqual([[1, antes + -75 * 0.2, antes + 200 * 0.2, 200, -75]]);
     const pontos = expandirSerie(compacta, brl);
     expect(pontos[1].dente).toEqual({ de: antes - 15, ate: antes + 40, mfe: 200, mae: -75 });
-    // a linha "MFE / MAE" vem por último, depois de Resultado, Acumulado e Drawdown
-    expect(pontos[1].dica.linhas.map((l) => l.rotulo)).toEqual(["Resultado", "Acumulado", "Drawdown", "MFE / MAE"]);
-    expect(ultimaLinha(pontos[1])).toEqual({ rotulo: "MFE / MAE", valor: formatarMfeMae(200, -75) });
+    // a linha "Melhor e pior momento" (era "MFE / MAE" até 25/11/2026) vem por último, depois de Resultado,
+    // Resultado até aqui e Abaixo do topo
+    expect(pontos[1].dica.linhas.map((l) => l.rotulo)).toEqual(["Resultado", "Resultado até aqui", "Abaixo do topo", "Melhor e pior momento"]);
+    expect(ultimaLinha(pontos[1])).toEqual({ rotulo: "Melhor e pior momento", valor: formatarMfeMae(200, -75) });
     expect(pontos[0].dente).toBeUndefined();
     expect(pontos[2].dente).toBeUndefined();
-    expect(pontos[0].dica.linhas.map((l) => l.rotulo)).toEqual(["Resultado", "Acumulado", "Drawdown"]);
+    expect(pontos[0].dica.linhas.map((l) => l.rotulo)).toEqual(["Resultado", "Resultado até aqui", "Abaixo do topo"]);
     // seriePorOperacao (sem arredondar) tem o mesmo dente
     expect(seriePorOperacao(ops, brl, [dia])[1].dente).toEqual(pontos[1].dente);
   });
 
-  it("fatia de 2+ operações vira o envelope: menor de, maior ate, maior MFE, menor MAE, rotulado (extremos)", () => {
+  it("fatia de 2+ operações vira o envelope: menor de, maior ate, maior MFE, menor MAE, com o mesmo rótulo da operação única", () => {
     const ops = [op(9, 50, 100, -20), op(10, -20, 200, -75), op(11, 30, 40, -300), op(12, 10)];
     const compacta = seriePorOperacaoCompacta(ops, brl, [dia], { arredondar: false, maxPontos: 2 });
     const curva = curvaPorOperacao(ops, brl);
@@ -556,8 +588,10 @@ describe("dentes de MFE/MAE (23/09/2026)", () => {
     ]);
     const pontos = expandirSerie(compacta, brl);
     expect(pontos[0].dente).toEqual({ de: de0, ate: ate0, mfe: 200, mae: -75 });
-    expect(ultimaLinha(pontos[0])).toEqual({ rotulo: "MFE / MAE (extremos)", valor: formatarMfeMae(200, -75) });
-    expect(ultimaLinha(pontos[1])).toEqual({ rotulo: "MFE / MAE (extremos)", valor: formatarMfeMae(40, -300) });
+    // até 25/11/2026 a fatia dizia "MFE / MAE (extremos)"; o subtítulo já diz que o ponto junta operações
+    expect(pontos[0].dica.subtitulo).toBe("2 operações (1ª a 2ª)");
+    expect(ultimaLinha(pontos[0])).toEqual({ rotulo: "Melhor e pior momento", valor: formatarMfeMae(200, -75) });
+    expect(ultimaLinha(pontos[1])).toEqual({ rotulo: "Melhor e pior momento", valor: formatarMfeMae(40, -300) });
   });
 
   it("operação sem excursão não gera dente; série sem nenhuma medição não leva o campo e expande igual", () => {
@@ -565,7 +599,7 @@ describe("dentes de MFE/MAE (23/09/2026)", () => {
     const compacta = seriePorOperacaoCompacta(ops, brl, dias);
     expect("dentes" in compacta).toBe(false);
     const pontos = expandirSerie(compacta, brl);
-    expect(pontos.every((p) => p.dente === undefined && !p.dica.linhas.some((l) => l.rotulo.startsWith("MFE")))).toBe(true);
+    expect(pontos.every((p) => p.dente === undefined && !p.dica.linhas.some((l) => l.rotulo.startsWith("Melhor e pior")))).toBe(true);
     // uma só medida no meio de várias: um dente só, no ponto dela
     const umaMedida: OperacaoCompacta[] = [...ops.slice(0, 5), [dias[0], 12, 3, 15, 3, 0.5, 60, 1, "WINV26", 90, -10], ...ops.slice(5)];
     const c = seriePorOperacaoCompacta(umaMedida, brl, dias);
@@ -610,10 +644,10 @@ describe("dentes de MFE/MAE (23/09/2026)", () => {
     expect(viaJson.dentes).toEqual(serializada.dentes);
     const pontos = expandirSerie(viaJson, brl);
     expect(pontos.every((p) => p.dente !== undefined)).toBe(true);
-    expect(pontos.every((p) => ultimaLinha(p).rotulo.startsWith("MFE / MAE"))).toBe(true);
-    // a fatia de 2 diz "(extremos)", a de 1 não
-    expect(ultimaLinha(pontos.find((p) => p.dica.subtitulo?.startsWith("2 "))!).rotulo).toBe("MFE / MAE (extremos)");
-    expect(ultimaLinha(pontos.find((p) => p.dica.subtitulo?.endsWith("ª operação"))!).rotulo).toBe("MFE / MAE");
+    expect(pontos.every((p) => ultimaLinha(p).rotulo === "Melhor e pior momento")).toBe(true);
+    // a fatia de 2 e a de 1 levam o mesmo rótulo (25/11/2026; a de 2 dizia "(extremos)")
+    expect(ultimaLinha(pontos.find((p) => p.dica.subtitulo?.startsWith("2 "))!).rotulo).toBe("Melhor e pior momento");
+    expect(ultimaLinha(pontos.find((p) => p.dica.subtitulo?.endsWith("ª operação"))!).rotulo).toBe("Melhor e pior momento");
     // dente malformado no JSON é ignorado sem derrubar a série
     expect(expandirSerie({ ...viaJson, dentes: [[999, 0, 1, 1, -1], [0, "x", 1, 1, -1], [1, 0, 1]] }, brl)).toHaveLength(240);
   });
@@ -674,7 +708,7 @@ describe("série do saldo (23/09/2026)", () => {
       subtitulo: undefined,
       linhas: [
         { rotulo: "Saldo", valor: fmt(5), tom: "positivo" },
-        { rotulo: "Faixa", valor: `${fmt(-30)} a ${fmt(10)}` },
+        { rotulo: "Mínimo e máximo", valor: `${fmt(-30)} a ${fmt(10)}` },
       ],
     });
     expect(pontos[0].eixo).toBe("10:41:35");
@@ -699,11 +733,11 @@ describe("série do saldo (23/09/2026)", () => {
 
   it("marcadoresDoSaldo acha o pico e o vale, na régua da janela", () => {
     expect(marcadoresDoSaldo(baldes, janela)).toEqual([
-      { posicao: 6105 / 32400, valor: 60, rotulo: "MEP", tom: "positivo" },
-      { posicao: 6095 / 32400, valor: -30, rotulo: "MEN", tom: "negativo" },
+      { posicao: 6105 / 32400, valor: 60, rotulo: "melhor momento", tom: "positivo" },
+      { posicao: 6095 / 32400, valor: -30, rotulo: "pior momento", tom: "negativo" },
     ]);
-    expect(marcadoresDoSaldo([[t1, 1, 5, 3]], janela).map((m) => m.rotulo)).toEqual(["MEP"]);
-    expect(marcadoresDoSaldo([[t1, -5, -1, -3]], janela).map((m) => m.rotulo)).toEqual(["MEN"]);
+    expect(marcadoresDoSaldo([[t1, 1, 5, 3]], janela).map((m) => m.rotulo)).toEqual(["melhor momento"]);
+    expect(marcadoresDoSaldo([[t1, -5, -1, -3]], janela).map((m) => m.rotulo)).toEqual(["pior momento"]);
     // o subtítulo do grupo e a legenda não usam a palavra "balde" (texto público; revisão de 23/09/2026)
     const pontos = serieDoSaldoParaDesenho(baldes, { janela, unidade: "brl", bucketSeg: 5, comFaixa: true });
     for (const p of pontos) expect(`${p.dica.titulo} ${p.dica.subtitulo ?? ""}`).not.toMatch(/balde/i);

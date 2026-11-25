@@ -13,8 +13,8 @@ interface Props {
 }
 
 /**
- * Banner "sem atualização há X min" quando o coletor para em horário de
- * pregão (spec §5). Nunca mostrar dado velho parecendo vivo.
+ * Aviso "sem atualização há X min" quando o coletor para em horário de pregão (spec §5). Nunca mostrar dado
+ * velho parecendo vivo. Desde a ficha Mesa (25/11/2026) é uma linha de texto na cor de atenção, sem caixa.
  */
 export function AvisoSemAtualizacao({ ultimoHeartbeatEm, pregao, feriados, className }: Props) {
   const agora = useAgora(5000);
@@ -24,17 +24,9 @@ export function AvisoSemAtualizacao({ ultimoHeartbeatEm, pregao, feriados, class
   if (!coletaParada(ultimoHeartbeatEm, agora, aberto)) return null;
 
   return (
-    <div
-      role="status"
-      className={cn(
-        "rounded-lg border border-alerta/50 px-3 py-2 text-sm text-alerta",
-        className,
-      )}
-    >
-      <p>
-        <strong className="font-medium">Sem atualização {haQuanto(ultimoHeartbeatEm, agora)}.</strong>{" "}
-        O coletor do MetaTrader pode estar parado. Os dados abaixo podem estar defasados.
-      </p>
-    </div>
+    <p role="status" className={cn("max-w-3xl text-sm text-pretty text-alerta", className)}>
+      <strong className="font-medium">Sem atualização {haQuanto(ultimoHeartbeatEm, agora)}.</strong> O coletor do MetaTrader pode estar
+      parado. Os dados abaixo podem estar defasados.
+    </p>
   );
 }

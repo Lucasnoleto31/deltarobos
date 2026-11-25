@@ -16,10 +16,15 @@ interface Props {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const robo = await buscarRobo(slug);
-  return { title: robo ? `${robo.nome} · Risco` : "Risco" };
+  // o título é o nome que a aba tem na tela desde a ficha Mesa (25/11/2026)
+  return { title: robo ? `${robo.nome} · Quedas e risco` : "Quedas e risco" };
 }
 
-/** Aba Risco: drawdown e capital, Calmar, recovery factor, Ulcer, risco de ruína, curva de drawdown, maiores drawdowns. */
+/**
+ * Aba "Quedas e risco" (ficha Mesa, 25/11/2026): a maior queda em número grande, a curva com ela em vermelho,
+ * as maiores quedas, o capital para aguentar e os índices de risco em lista. A página só busca e recorta; o
+ * desenho é do PainelRisco.
+ */
 export default async function PaginaRisco({ params }: Props) {
   const { slug } = await params;
   const hoje = hojeSP();

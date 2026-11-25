@@ -1,5 +1,4 @@
 import { cn } from "cn";
-import { Badge } from "@/components/ui/badge";
 import { formatarNumero } from "@/lib/formato";
 import { rotuloOperacoesEmAberto } from "@/lib/stats/posicoes";
 import { LIMITE_SEM_HEARTBEAT_SEG } from "@/lib/stats/pregao";
@@ -27,6 +26,15 @@ const CLASSES: Record<TomStatus, string> = {
   info: "border-info/30 bg-info/15 text-[color-mix(in_srgb,var(--info)_80%,var(--foreground))] dark:text-info",
 };
 
+// o selo de estado em texto: só a cor do tom (os tokens já passam de 4,5:1 sobre o fundo nos dois temas)
+const TEXTO: Record<TomStatus, string> = {
+  positivo: "text-positivo",
+  negativo: "text-negativo",
+  neutro: "text-muted-foreground",
+  alerta: "text-alerta",
+  info: "text-info",
+};
+
 /** As classes da pílula por tom, para outra pílula de estado (o semáforo do simulador, 23/09/2026) herdar o contraste medido acima. */
 export function classesDoTom(tom: TomStatus): string {
   return CLASSES[tom];
@@ -39,7 +47,7 @@ export function classesDoTom(tom: TomStatus): string {
 const MINUTOS_SEM_SINAL = formatarNumero(LIMITE_SEM_HEARTBEAT_SEG / 60);
 const DEFINICAO_STATUS: Record<StatusAoVivo, string> = {
   operando: "Pregão aberto, dentro do horário do robô e sem posição aberta.",
-  posicionado: "Com posição aberta agora.",
+  posicionado: "Com operação aberta agora.",
   fora_do_horario: "Fora do pregão ou do horário do robô.",
   pausado: "Robô pausado. O histórico continua disponível.",
   em_breve: "Ainda não começou a operar em conta real.",
@@ -68,11 +76,12 @@ export function BadgeStatusRobo({
 }) {
   const definicao = DEFINICAO_STATUS[status];
   const rotuloAbertas = status === "posicionado" && abertas ? rotuloOperacoesEmAberto(abertas) : null;
+  // 25/11/2026 (Lucas: "muita cara de IA"): o estado deixou de ser pílula tingida e virou texto na cor
+  // do tom, sem caixa, sem borda e sem bolinha. A pílula do semáforo do simulador continua em classesDoTom.
   return (
-    <Badge
-      variant="outline"
+    <span
       title={rotuloAbertas ? `${definicao} ${rotuloAbertas}.` : definicao}
-      className={cn(CLASSES[TOM_STATUS[status]], className)}
+      className={cn("inline-flex items-baseline gap-1 text-xs font-medium whitespace-nowrap", TEXTO[TOM_STATUS[status]], className)}
     >
       {ROTULO_STATUS[status]}
       {rotuloAbertas ? (
@@ -85,6 +94,6 @@ export function BadgeStatusRobo({
         </>
       ) : null}
       {explicar ? <span className="sr-only">. {definicao}</span> : null}
-    </Badge>
+    </span>
   );
 }

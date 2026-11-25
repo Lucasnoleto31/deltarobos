@@ -10,8 +10,22 @@
 // sem série, a curva por fechamento, operação a operação. O MEP e o MEN são os do Hoje ao vivo (mepMenDoDia,
 // líquidos); sem medição do EA, por fechamento (excursao). Sem React, sem banco e sem relógio: o instante chega
 // por parâmetro (a rota passa new Date(); os testes fixam).
+//
+// 25/11/2026 (ficha Mesa; Lucas: "quero algo intuitivo, fácil de entender, para um leigo está muito difícil de
+// entender"): os textos da imagem saem na língua do site (DESIGN.md, seção 7), porque ela vai para quem nunca
+// abriu o site. "por contrato" virou "com 1 contrato"; "acerto · 36 gains" virou o número de operações com ganho;
+// "MEP" e "MEN" viraram "Melhor momento" e "Pior momento"; "MT5" virou "MetaTrader 5"; "líquido de custos" virou
+// "já descontados os custos"; e o ativo vai só pelo nome ("Mini Índice", sem o código "WIN"). Os números, a curva
+// e os nomes dos campos (fonteMepMen, notaMepMen, valores.mep...) são os mesmos.
+//
+// A premissa aparece uma vez na imagem, em duas partes: "com 1 contrato" no rótulo do resultado e "Já descontados
+// os custos" no rodapé. O rodapé com a frase inteira ("Com 1 contrato, já descontados os custos · endereço") não
+// cabe: medido na Geist, com quantsrobos.com/robos/alaska-square, dá 997 px a 26 px (story) numa linha de 936, e
+// a segunda linha encosta o rodapé no eixo da curva. Do jeito que ficou são 811 px; o antigo ("Por 1 contrato,
+// líquido de custos · ...") tinha 879. As notas e a legenda cabem numa linha nos dois formatos (a mais comprida,
+// a legenda com "aproximado" e "desde HH:MM", mede 759 px a 24 px).
 
-import { formatarBRL, formatarDataLonga, formatarHora, formatarNumero, formatarPct, formatarPontos } from "@/lib/formato";
+import { formatarBRL, formatarDataLonga, formatarHora, formatarNumero, formatarPontos } from "@/lib/formato";
 import type { BaldeCompacto, FechamentoCompacto, OperacaoPublica, RoboPublico } from "@/lib/tipos";
 import { mepMenDoDia, type ExposicaoHoje } from "./exposicao";
 import { excursao } from "./operacoes";
@@ -132,7 +146,7 @@ export interface NumeroDoCard {
 export interface DadosCardDoDia {
   /** "Apollo" */
   nome: string;
-  /** "Mini Índice · WIN" (só o ativo quando ativo_nome vier vazio) */
+  /** "Mini Índice": o nome do ativo, como no cabeçalho do robô; o código ("WIN") só quando ativo_nome vier vazio */
   ativo: string;
   /** "quarta-feira, 23 de setembro de 2026" */
   data: string;
@@ -140,19 +154,19 @@ export interface DadosCardDoDia {
   contaDemo: boolean;
   /** "Parcial · até 14:32" | null */
   parcial: string | null;
-  /** "Resultado do dia, por contrato" | "Resultado parcial, por contrato" */
+  /** "Resultado do dia, com 1 contrato" | "Resultado parcial, com 1 contrato" */
   rotuloResultado: string;
   /** formatarBRL(v, { sinal: true }): "+R$ 1.131,00" */
   resultado: string;
   tomResultado: TomCard;
   /** `${formatarPontos(p, true)} pts` */
   pontos: string;
-  /** operações, acerto, MEP, MEN */
+  /** operações, quantas terminaram com ganho, melhor momento e pior momento do dia (os dois últimos, o MEP e o MEN) */
   numeros: readonly [NumeroDoCard, NumeroDoCard, NumeroDoCard, NumeroDoCard];
   fonteMepMen: "mt5" | "fechamento";
   notaMepMen: string;
   curva: CurvaDoCard;
-  /** "Por 1 contrato, líquido de custos · quantsrobos.com/robos/apollo" */
+  /** "Já descontados os custos · quantsrobos.com/robos/apollo" (o "com 1 contrato" está em rotuloResultado) */
   rodape: string;
   legal: string;
   /** números crus, para os testes e o alt */
@@ -329,35 +343,41 @@ export function montarCardDoDia(entrada: EntradaCardDoDia): DadosCardDoDia | nul
     mep = ea.mep;
     men = ea.men;
     fonteMepMen = "mt5";
-    notaMepMen = ea.parcial ? "MEP e MEN medidos no MT5 desde que o coletor ligou" : "MEP e MEN medidos no MT5, tick a tick";
+    // Uma linha só nos dois formatos: a mais comprida mede 759 px dos 936 a 24 px (story). Eram "MEP e MEN
+    // medidos no MT5, tick a tick" e "... desde que o coletor ligou" até 25/11/2026.
+    notaMepMen = ea.parcial ? "Melhor e pior momento medidos no MetaTrader 5, só em parte do dia" : "Melhor e pior momento medidos no MetaTrader 5";
   } else {
     const e = excursao(liquidos);
     mep = e.mep;
     men = e.men;
     fonteMepMen = "fechamento";
-    notaMepMen = "MEP e MEN por fechamento de operação";
+    // sem medição, o melhor e o pior momento saem do saldo a cada operação fechada (era "MEP e MEN por fechamento de operação")
+    notaMepMen = "Melhor e pior momento pelas operações fechadas";
   }
 
   return {
     nome: robo.nome,
-    ativo: robo.ativo_nome ? `${robo.ativo_nome} · ${robo.ativo}` : robo.ativo,
+    ativo: robo.ativo_nome || robo.ativo,
     data: dataPorExtenso(dia),
     contaDemo: robo.conta_tipo === "demo",
     parcial,
-    rotuloResultado: parcial ? "Resultado parcial, por contrato" : "Resultado do dia, por contrato",
+    rotuloResultado: parcial ? "Resultado parcial, com 1 contrato" : "Resultado do dia, com 1 contrato",
     resultado: formatarBRL(resultado, { sinal: true }),
     tomResultado: tomDoValor(resultado),
     pontos: `${formatarPontos(pontos, true)} pts`,
     numeros: [
-      { rotulo: n === 1 ? "operação" : "operações", valor: formatarNumero(n), tom: null },
-      { rotulo: `acerto · ${formatarNumero(nGains)} ${nGains === 1 ? "gain" : "gains"}`, valor: formatarPct(nGains / n, 0), tom: null },
-      { rotulo: "MEP", valor: brlCurto(mep), tom: tomDoValor(mep) },
-      { rotulo: "MEN", valor: brlCurto(men), tom: tomDoValor(men) },
+      // Lidos em sequência: "55 operações, 36 com ganho" (a segunda célula era "65%", com o rótulo "acerto · 36
+      // gains"). Os quatro rótulos cabem na célula de 222 px do quadrado no tamanho cheio, 22 px: o mais comprido,
+      // "Melhor momento", mede 175 px.
+      { rotulo: n === 1 ? "Operação" : "Operações", valor: formatarNumero(n), tom: null },
+      { rotulo: "Com ganho", valor: formatarNumero(nGains), tom: null },
+      { rotulo: "Melhor momento", valor: brlCurto(mep), tom: tomDoValor(mep) },
+      { rotulo: "Pior momento", valor: brlCurto(men), tom: tomDoValor(men) },
     ],
     fonteMepMen,
     notaMepMen,
     curva,
-    rodape: `Por 1 contrato, líquido de custos · ${enderecoCurto(site)}/robos/${robo.slug}`,
+    rodape: `Já descontados os custos · ${enderecoCurto(site)}/robos/${robo.slug}`,
     legal: fraseLegalCurta(disclaimer),
     valores: { resultado, pontos, nOperacoes: n, nGains, mep, men, ultimoDadoT },
   };
@@ -369,6 +389,9 @@ export function montarCardDoDia(entrada: EntradaCardDoDia): DadosCardDoDia | nul
  * fechamento, reduzida a PONTOS_CARD grupos. A linha nasce no primeiro grupo, sem rampa desde o zero (o coletor que
  * ligou com o dia em andamento não inventa um trecho que ninguém mediu; a legenda diz "desde HH:MM"). A faixa
  * mín./máx. só quando a série não é aproximada.
+ *
+ * A legenda: "O dia, medido no MetaTrader 5 · a cada 5 s" e as ressalvas da medição. Até 25/11/2026 dizia "MT5" e
+ * terminava em " · líquido"; "já descontados os custos" está uma vez na imagem, no rodapé.
  */
 function curvaDaSerie(
   entrada: EntradaCardDoDia,
@@ -388,7 +411,7 @@ function curvaDaSerie(
   const legenda = legendaCurtaDoSaldo({ bucketSeg, aproximado: saldo.aproximado, medidoDesdeT: inicioDaMedicao(liquida, fechamentos, janela.inicio, entrada.exposicao?.excursao_ea_parcial === true) });
   return {
     fonte: "serie",
-    legenda: `O dia, medido no MT5 · ${legenda} · líquido`,
+    legenda: `O dia, medido no MetaTrader 5 · ${legenda}`,
     linha: grupos.map((g) => ({ x: posicaoNaJanela(g[5], janela), v: g[3] })),
     faixa: saldo.aproximado ? null : grupos.map((g) => ({ x: posicaoNaJanela(g[5], janela), min: g[1], max: g[2] })),
     rotulosX: rotulosDoCard(rotulosDeHora(janela)),
@@ -400,7 +423,8 @@ function curvaDaSerie(
 /**
  * A curva por fechamento (acumulado líquido operação a operação), como CurvaDoDia sem série: nasce no zero e dá um
  * degrau por operação, em (i + 1) / n. O eixo de baixo diz a hora da operação; no dia sem horário (importação
- * manual), a ordem dela, como o calendário.
+ * manual), a ordem dela, como o calendário. A legenda é "O dia, operação a operação"; até 25/11/2026 terminava
+ * em " · por fechamento", que repetia a mesma coisa em jargão.
  *
  * Cada rótulo fica EM CIMA do ponto que ele nomeia (24/09/2026, revisão): a j-ésima operação (contando de 1) está
  * em x = j/n, e o rótulo k vai nela com j = round((k + 1)·n/quantas), até a última em x = 1. A regra antiga (a de
@@ -429,7 +453,7 @@ function curvaPorFechamento(
   });
   return {
     fonte: "fechamento",
-    legenda: semHorario ? "O dia, operação a operação · histórico importado, sem horário" : "O dia, operação a operação · por fechamento",
+    legenda: semHorario ? "O dia, operação a operação · histórico importado, sem horário" : "O dia, operação a operação",
     linha,
     faixa: null,
     rotulosX: marcas.filter((m, i) => i === 0 || m.texto !== marcas[i - 1].texto),

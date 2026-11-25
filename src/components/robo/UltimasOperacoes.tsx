@@ -8,53 +8,48 @@ interface Props {
   operacoes: OperacaoPublica[];
 }
 
-/** Lista compacta das últimas operações (usada na visão geral). O lado é neutro: cor só no resultado (19/09/2026). */
+/**
+ * As últimas operações do robô, na visão geral (ficha Mesa, 25/11/2026): tabela sem caixa, com fio entre as
+ * linhas e só as colunas que respondem "o que ele fez": quando, comprou ou vendeu, por quanto entrou e saiu,
+ * quanto durou e o resultado. Pontos e símbolo ficam na aba Operações. No celular, duas linhas por operação.
+ * O lado é neutro: cor só no resultado (19/09/2026).
+ */
 export function UltimasOperacoes({ operacoes }: Props) {
   if (operacoes.length === 0) {
-    return <p className="painel px-4 py-8 text-center text-sm text-muted-foreground">{VAZIO_DO_PERIODO.tudo}</p>;
+    return <p className="py-6 text-sm text-muted-foreground">{VAZIO_DO_PERIODO.tudo}</p>;
   }
 
   return (
     <>
-      {/* celular: duas linhas por operação, como no painel de hoje */}
-      <ul className="painel overflow-hidden sm:hidden">
+      <ul className="sm:hidden">
         {operacoes.map((o) => (
           <LinhaOperacao key={o.id} operacao={o} comData />
         ))}
       </ul>
 
-      <div className="hidden overflow-x-auto painel sm:block">
-        <table className="w-full text-sm">
-          <thead className="text-left text-xs text-muted-foreground">
-            <tr className="[&>th]:px-3 [&>th]:py-2 [&>th]:font-medium">
-              <th>Data</th>
-              <th>Fech.</th>
+      <div className="tbl-moldura hidden sm:block">
+        <table className="tbl">
+          <thead>
+            <tr>
+              <th>Dia</th>
+              <th>Saída às</th>
               <th>Lado</th>
-              <th className="hidden md:table-cell">Símbolo</th>
-              <th className="text-right">Entrada</th>
-              <th className="text-right">Saída</th>
-              <th className="text-right">Pontos</th>
-              <th className="text-right">R$ /ct</th>
+              <th className="num">Entrada</th>
+              <th className="num">Saída</th>
+              <th className="num">Duração</th>
+              <th className="num">Resultado</th>
             </tr>
           </thead>
-          <tbody className="[&>tr]:border-t">
+          <tbody>
             {operacoes.map((o) => (
-              <tr key={o.id} className="tabular-nums [&>td]:px-3 [&>td]:py-2">
-                <td>{formatarDataCurta(o.dia_pregao)}</td>
-                <td className="whitespace-nowrap">
-                  {formatarHora(o.fechamento_em)}
-                  {o.origem !== "manual" ? (
-                    <span className="ml-1 text-xs text-muted-foreground">{formatarDuracao(o.duracao_seg)}</span>
-                  ) : null}
-                </td>
-                <td>{rotuloLado(o.lado)}</td>
-                <td className="hidden md:table-cell">{o.simbolo}</td>
-                <td className="text-right">{formatarPreco(o.preco_entrada)}</td>
-                <td className="text-right">{formatarPreco(o.preco_saida)}</td>
-                <td className="text-right whitespace-nowrap">
-                  <Valor valor={o.pontos_por_contrato} unidade="pontos" />
-                </td>
-                <td className="text-right font-medium whitespace-nowrap">
+              <tr key={o.id}>
+                <td className="text-muted-foreground">{formatarDataCurta(o.dia_pregao)}</td>
+                <td>{formatarHora(o.fechamento_em)}</td>
+                <td className="text-muted-foreground">{rotuloLado(o.lado)}</td>
+                <td className="num text-muted-foreground">{formatarPreco(o.preco_entrada)}</td>
+                <td className="num text-muted-foreground">{formatarPreco(o.preco_saida)}</td>
+                <td className="num text-muted-foreground">{o.origem !== "manual" ? formatarDuracao(o.duracao_seg) : "–"}</td>
+                <td className="num font-medium">
                   <Valor valor={o.resultado_brl_por_contrato - o.custos_brl_por_contrato} />
                 </td>
               </tr>

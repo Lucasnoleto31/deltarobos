@@ -8,30 +8,24 @@ interface Props {
 }
 
 /**
- * CTA "quero esse robô" (spec §8.2). O aviso legal deixou de ser repetido aqui em 17/09/2026: o rodapé,
- * logo abaixo, traz o mesmo texto em toda página. A prop `texto` fica para não mexer em quem chama.
- * Em 19/09/2026 saiu a frase que explicava o botão: fica o título e o botão.
+ * A chamada "quero esse robô" (spec §8.2), em uma linha: a frase e o botão, com um fio em cima. Na página
+ * do robô o botão subiu para o cabeçalho (ficha Mesa, 25/11/2026); aqui é para quem usa em outra tela (o
+ * simulador). O aviso legal deixou de ser repetido aqui em 17/09/2026: o rodapé traz o mesmo texto em toda
+ * página. A prop `texto` fica para não mexer em quem chama.
  */
 export function Disclaimer({ nomeRobo, linkCta }: Props) {
   return (
-    <section className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-4 painel p-5 sm:p-6">
-        <h2 className="text-lg font-semibold tracking-tight">Licença do {nomeRobo}</h2>
-        {linkCta ? (
-          <a
-            href={linkCta}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={buttonVariants({ size: "lg" })}
-          >
-            Quero esse robô
-          </a>
-        ) : (
-          <Link href="/#como-comecar" className={buttonVariants({ size: "lg" })}>
-            Quero esse robô
-          </Link>
-        )}
-      </div>
+    <section className="flex flex-wrap items-center justify-between gap-4 border-t border-(--painel-fio) pt-5">
+      <h2 className="text-[0.9375rem] font-medium">Licença do {nomeRobo}</h2>
+      {linkCta ? (
+        <a href={linkCta} target="_blank" rel="noopener noreferrer" className={buttonVariants({ className: "h-9" })}>
+          Quero esse robô
+        </a>
+      ) : (
+        <Link href="/metodologia#como-comecar" className={buttonVariants({ className: "h-9" })}>
+          Quero esse robô
+        </Link>
+      )}
     </section>
   );
 }

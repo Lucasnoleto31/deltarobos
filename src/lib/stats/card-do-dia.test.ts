@@ -108,8 +108,8 @@ describe("montarCardDoDia: a curva pela série do EA", () => {
       // y cresce para baixo: o máximo fica acima do mínimo
       expect(f.yAlto).toBeLessThanOrEqual(f.yBaixo);
     }
-    expect(c.legenda.startsWith("O dia, medido no MT5 · a cada 5 s")).toBe(true);
-    expect(c.legenda.endsWith(" · líquido")).toBe(true);
+    // 25/11/2026 (ficha Mesa): "MetaTrader 5" por extenso e sem o " · líquido" do fim (a premissa está no rodapé)
+    expect(c.legenda).toBe("O dia, medido no MetaTrader 5 · a cada 5 s");
     // o coletor mandou até 23:59, mas o eixo termina 10 min depois do fim do horário (17:30): nada depois das 18:00
     expect(c.rotulosX.length).toBeGreaterThanOrEqual(3);
     expect(c.rotulosX.length).toBeLessThanOrEqual(5);
@@ -126,6 +126,7 @@ describe("montarCardDoDia: a curva pela série do EA", () => {
     const d = montar({ saldo: { baldes: serie("11:42", "17:30"), aproximado: false } });
     expect(d.curva.fonte).toBe("serie");
     expect(d.curva.legenda).toContain("desde 11:42");
+    expect(d.curva.legenda).not.toContain("líquido");
     expect(d.curva.linha[0].x).toBeGreaterThan(0);
   });
 
@@ -134,6 +135,7 @@ describe("montarCardDoDia: a curva pela série do EA", () => {
     expect(d.curva.fonte).toBe("serie");
     expect(d.curva.faixa).toBeNull();
     expect(d.curva.legenda).toContain("aproximado");
+    expect(d.curva.legenda.startsWith("O dia, medido no MetaTrader 5 · a cada 5 s")).toBe(true);
   });
 });
 
@@ -142,7 +144,8 @@ describe("montarCardDoDia: a curva por fechamento", () => {
     const d = montar();
     const c = d.curva;
     expect(c.fonte).toBe("fechamento");
-    expect(c.legenda).toBe("O dia, operação a operação · por fechamento");
+    // até 25/11/2026 terminava em " · por fechamento"
+    expect(c.legenda).toBe("O dia, operação a operação");
     expect(c.linha[0]).toEqual({ x: 0, y: c.yZero });
     expect(c.linha.length).toBe(OPS.length + 1);
     expect(c.linha[c.linha.length - 1].x).toBe(1);
@@ -192,7 +195,7 @@ describe("montarCardDoDia: a curva por fechamento", () => {
 });
 
 describe("montarCardDoDia: números e textos", () => {
-  it("totais líquidos, pontos, acerto e os textos do cabeçalho e do rodapé", () => {
+  it("totais líquidos, pontos, operações com ganho e os textos do cabeçalho e do rodapé", () => {
     const d = montar();
     // 50 − 20 + 80 + 30 brutos, menos 4 × 0,25
     expect(d.valores.resultado).toBeCloseTo(139, 9);
@@ -201,21 +204,67 @@ describe("montarCardDoDia: números e textos", () => {
     expect(d.pontos).toBe("+700 pts");
     expect(d.valores.nOperacoes).toBe(4);
     expect(d.valores.nGains).toBe(3);
-    expect(d.numeros[0]).toEqual({ rotulo: "operações", valor: "4", tom: null });
-    expect(d.numeros[1]).toEqual({ rotulo: "acerto · 3 gains", valor: "75%", tom: null });
+    // "4 operações, 3 com ganho" em duas células (25/11/2026; a segunda dizia "75% · acerto · 3 gains")
+    expect(d.numeros[0]).toEqual({ rotulo: "Operações", valor: "4", tom: null });
+    expect(d.numeros[1]).toEqual({ rotulo: "Com ganho", valor: "3", tom: null });
+    expect(d.numeros.map((n) => n.rotulo)).toEqual(["Operações", "Com ganho", "Melhor momento", "Pior momento"]);
     expect(d.nome).toBe("Robô Teste");
-    expect(d.ativo).toBe("Mini Índice · WIN");
+    // só o nome do ativo, como no cabeçalho do robô (era "Mini Índice · WIN")
+    expect(d.ativo).toBe("Mini Índice");
     expect(d.data).toBe("quarta-feira, 23 de setembro de 2026");
-    expect(d.rodape).toBe("Por 1 contrato, líquido de custos · quantsrobos.com/robos/robo-teste");
+    // a premissa uma vez na imagem: "com 1 contrato" junto do número e "Já descontados os custos" no rodapé
+    // (25/11/2026; eram "Resultado do dia, por contrato" e "Por 1 contrato, líquido de custos · ...")
+    expect(d.rodape).toBe("Já descontados os custos · quantsrobos.com/robos/robo-teste");
     expect(d.legal).toBe("Resultados passados não garantem resultados futuros.");
     expect(d.parcial).toBeNull();
-    expect(d.rotuloResultado).toBe("Resultado do dia, por contrato");
+    expect(d.rotuloResultado).toBe("Resultado do dia, com 1 contrato");
   });
 
-  it("uma operação só: 'operação' e '1 gain' no singular; sem ativo_nome, só o ativo", () => {
+  it("nenhum texto da imagem usa o jargão antigo (ficha Mesa, 25/11/2026)", () => {
+    const jargao = /\bMEP\b|\bMEN\b|MFE|MAE|\bMT5\b|gains?\b|loss|acerto|drawdown|payoff|líquido|por contrato|tick|coletor|por fechamento/i;
+    const exposicao: ExposicaoHoje = { mep_ea: 1311, mep_ea_n_saidas: 56, men_ea: -200, men_ea_n_saidas: 3, excursao_ea_parcial: true };
+    const variantes = [
+      montar(),
+      montar({ exposicao }),
+      montar({ exposicao: { ...exposicao, excursao_ea_parcial: false } }),
+      montar({ saldo: { baldes: serie("11:42", "17:30"), aproximado: true } }),
+      montar({ operacoes: [op("00:00", 20, { origem: "manual" }), op("00:00", -10, { origem: "manual" })] }),
+      montar({ dia: HOJE, operacoes: [op("10:00", 30, { dia: HOJE })], agora: new Date("2026-09-24T17:32:00Z") }),
+    ];
+    for (const d of variantes) {
+      const textos = [d.ativo, d.parcial ?? "", d.rotuloResultado, d.notaMepMen, d.curva.legenda, d.rodape, ...d.numeros.map((n) => n.rotulo)];
+      for (const t of textos) expect(t).not.toMatch(jargao);
+    }
+  });
+
+  it("os textos cabem numa linha da imagem: rótulos na célula do quadrado; notas, legenda e rodapé na largura do story", () => {
+    const exposicao: ExposicaoHoje = { mep_ea: 1311, mep_ea_n_saidas: 56, men_ea: -200, men_ea_n_saidas: 3, excursao_ea_parcial: true };
+    // o pior caso de texto: medição parcial, série aproximada que começou tarde e o slug mais comprido do site
+    const pior = montar({
+      robo: { ...ROBO, slug: "alaska-square" },
+      exposicao,
+      saldo: { baldes: serie("11:42", "17:30"), aproximado: true },
+    });
+    // célula de 222 px com rótulo de 22 px: tamanhoParaCaber não precisa encolher nenhum dos quatro
+    for (const n of pior.numeros) expect(tamanhoParaCaber(n.rotulo, 222, 22, 18)).toBe(22);
+    // A linha útil tem 936 px e o story escreve maior que o quadrado: nota e legenda a 24 px, rodapé a 26 px e o
+    // rótulo do resultado a 30 px. Pela medida larga de tamanhoParaCaber (0,56 em por caractere; a Geist mede
+    // uns 0,47), o texto cabe quando não precisaria encolher.
+    const cabe = (t: string, px: number) => tamanhoParaCaber(t, 936, px, 1) === px;
+    expect(pior.curva.legenda).toBe("O dia, medido no MetaTrader 5 · a cada 5 s · aproximado · desde 11:42");
+    expect(cabe(pior.curva.legenda, 24)).toBe(true);
+    expect(cabe(pior.notaMepMen, 24)).toBe(true);
+    expect(cabe(montar().notaMepMen, 24)).toBe(true);
+    expect(cabe(pior.rodape, 26)).toBe(true);
+    expect(cabe(pior.rotuloResultado, 30)).toBe(true);
+    // a frase inteira no rodapé não caberia: é por isso que o "com 1 contrato" fica só no rótulo do resultado
+    expect(cabe(`Com 1 contrato, já descontados os custos · quantsrobos.com/robos/alaska-square`, 26)).toBe(false);
+  });
+
+  it("uma operação só: 'Operação' no singular e '1' com ganho; sem ativo_nome, só o código do ativo", () => {
     const d = montar({ operacoes: [op("10:00", 40)], robo: { ...ROBO, ativo_nome: "" } });
-    expect(d.numeros[0].rotulo).toBe("operação");
-    expect(d.numeros[1].rotulo).toBe("acerto · 1 gain");
+    expect(d.numeros[0]).toEqual({ rotulo: "Operação", valor: "1", tom: null });
+    expect(d.numeros[1]).toEqual({ rotulo: "Com ganho", valor: "1", tom: null });
     expect(d.ativo).toBe("WIN");
   });
 
@@ -243,7 +292,7 @@ describe("montarCardDoDia: parcial", () => {
   it("hoje, antes do fim do pregão: selo com a hora do último dado e rótulo parcial", () => {
     const d = montar({ dia: HOJE, operacoes: opsDeHoje, agora: new Date("2026-09-24T17:32:00Z") });
     expect(d.parcial).toBe("Parcial · até 14:30");
-    expect(d.rotuloResultado).toBe("Resultado parcial, por contrato");
+    expect(d.rotuloResultado).toBe("Resultado parcial, com 1 contrato");
   });
 
   it("com série, a hora é a do último balde quando ele vem depois da última saída", () => {
@@ -270,7 +319,7 @@ describe("montarCardDoDia: parcial", () => {
     const posicionado = { ...ROBO, posicionado: true };
     const d = montar({ robo: posicionado, dia: HOJE, operacoes: opsDeHoje, agora: new Date("2026-09-24T21:00:00.100Z") });
     expect(d.parcial).toBe("Parcial · até 14:30");
-    expect(d.rotuloResultado).toBe("Resultado parcial, por contrato");
+    expect(d.rotuloResultado).toBe("Resultado parcial, com 1 contrato");
     // em dia passado, posicionado não muda nada: o dia já fechou
     expect(montar({ robo: posicionado, agora: DEPOIS }).parcial).toBeNull();
   });
@@ -320,11 +369,13 @@ describe("montarCardDoDia: MEP e MEN", () => {
     const d = montar({ exposicao });
     expect(d.fonteMepMen).toBe("mt5");
     expect(d.valores.mep).toBe(1297);
-    expect(d.numeros[2]).toEqual({ rotulo: "MEP", valor: formatarBRL(1297, { sinal: true, inteiro: true }), tom: "positivo" });
+    expect(d.numeros[2]).toEqual({ rotulo: "Melhor momento", valor: formatarBRL(1297, { sinal: true, inteiro: true }), tom: "positivo" });
+    expect(d.numeros[3].rotulo).toBe("Pior momento");
     expect(semNbsp(d.numeros[3].valor)).toBe("R$ 0,00");
     expect(d.numeros[3].tom).toBe("neutro");
-    expect(d.notaMepMen).toContain("desde que o coletor ligou");
-    expect(montar({ exposicao: { ...exposicao, excursao_ea_parcial: false } }).notaMepMen).toBe("MEP e MEN medidos no MT5, tick a tick");
+    // medição parcial (o EA subiu com o dia em andamento): a nota diz, sem a palavra "coletor" (25/11/2026)
+    expect(d.notaMepMen).toBe("Melhor e pior momento medidos no MetaTrader 5, só em parte do dia");
+    expect(montar({ exposicao: { ...exposicao, excursao_ea_parcial: false } }).notaMepMen).toBe("Melhor e pior momento medidos no MetaTrader 5");
   });
 
   it("sem medição (exposição nula ou sem números): por fechamento, iguais a excursao dos líquidos", () => {
@@ -334,7 +385,7 @@ describe("montarCardDoDia: MEP e MEN", () => {
     for (const exposicao of [null, vazia]) {
       const d = montar({ exposicao });
       expect(d.fonteMepMen).toBe("fechamento");
-      expect(d.notaMepMen).toBe("MEP e MEN por fechamento de operação");
+      expect(d.notaMepMen).toBe("Melhor e pior momento pelas operações fechadas");
       expect(d.valores.mep).toBe(e.mep);
       expect(d.valores.men).toBe(e.men);
     }

@@ -45,8 +45,10 @@ export function statusAoVivo(e: EntradaStatus): StatusAoVivo {
 }
 
 export const ROTULO_STATUS: Record<StatusAoVivo, string> = {
-  operando: "Operando",
-  posicionado: "Posicionado",
+  // 25/11/2026: era "Operando". O selo só sabe que o pregão está aberto, que é horário do robô e que o coletor
+  // manda sinal; não sabe se o robô de fato está ligado. "Operando" ao lado de "última operação há 6 dias" enganava.
+  operando: "No horário",
+  posicionado: "Em operação",
   fora_do_horario: "Fora do horário",
   pausado: "Pausado",
   em_breve: "Em breve",

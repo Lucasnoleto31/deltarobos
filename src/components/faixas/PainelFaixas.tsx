@@ -1,104 +1,103 @@
 "use client";
 
 import { cn } from "cn";
-import { Fragment, useMemo, useState } from "react";
-import type { ChaveIndicador } from "@/components/compartilhados/glossario";
-import { RotuloComInfo } from "@/components/compartilhados/InfoIndicador";
+import Link from "next/link";
+import { useMemo, useState } from "react";
 import { Segmentado } from "@/components/compartilhados/Segmentado";
 import { Valor } from "@/components/compartilhados/Valor";
+import { ListaKpi, type ItemKpi } from "@/components/desempenho/CardsKpi";
 import type { PeriodoPainel } from "@/components/robo/ops-por-periodo";
-import { formatarBRL, formatarMultiplo, formatarNumero, formatarPct } from "@/lib/formato";
-import {
-  DIAS_UTEIS,
-  HORAS,
-  LOTE_POR_CLASSE,
-  ROTULO_CLASSE,
-  type ClasseFaixa,
-  type Faixa,
-  type ResultadoFaixas,
-} from "@/lib/stats/faixas";
+import { VAZIO_DO_PERIODO } from "@/components/robo/periodos-resumo";
+import { Fato, Fatos } from "@/components/sistema/Numero";
+import { LINK_DO_PAINEL, Painel } from "@/components/sistema/Painel";
+import { formatarBRL, formatarNumero, formatarPct } from "@/lib/formato";
+import { DIAS_UTEIS, HORAS, LOTE_POR_CLASSE, ROTULO_CLASSE, type ClasseFaixa, type Faixa, type ResultadoFaixas } from "@/lib/stats/faixas";
 
 interface Props {
   /** validarFaixas de cada período, calculado na página (18/09/2026: as operações não vêm mais) */
   resultados: Record<PeriodoPainel, ResultadoFaixas>;
 }
 
+type Filtro = "todos" | ClasseFaixa;
+
 const OPCOES_PERIODO: ReadonlyArray<{ valor: PeriodoPainel; rotulo: string }> = [
   { valor: "mes", rotulo: "Mês" },
   { valor: "ano", rotulo: "Ano" },
   { valor: "tudo", rotulo: "Tudo" },
 ];
+const QUANDO: Record<PeriodoPainel, string> = { mes: "neste mês", ano: "neste ano", tudo: "desde o início" };
+
 const CLASSES: ClasseFaixa[] = ["ligar", "cautela", "neutro", "evitar"];
-const COR: Record<ClasseFaixa, string> = {
-  ligar: "var(--positivo)",
-  cautela: "var(--alerta)",
-  neutro: "var(--muted-foreground)",
-  evitar: "var(--negativo)",
-};
-// 19/09/2026: o vermelho puro sobre o fundo de Evitar media 4,4:1 no escuro; lá o texto leva 20% da cor
-// do texto da página, como no selo de status, e a célula fica igual. No claro o vermelho puro passa.
+const ORDEM: Record<ClasseFaixa, number> = { ligar: 0, cautela: 1, neutro: 2, evitar: 3 };
+
+// O quadro do mapa é chapado na cor da classe, a 30%, e o texto é a cor do texto da página: sem borda e sem
+// texto tingido (ficha Mesa, 25/11/2026). A classe vai escrita em todo quadro, então a cor não é a única
+// pista. Sobre os quatro fundos o texto fica acima de 8:1 nos dois temas (calculado com os tokens, o pior é
+// o Ligar no escuro, 8,7:1); até 19/09/2026 o vermelho puro sobre o fundo de Evitar media 4,4:1.
 const FUNDO: Record<ClasseFaixa, string> = {
-  ligar: "bg-positivo/12 ring-positivo/40 text-positivo",
-  cautela: "bg-alerta/12 ring-alerta/40 text-alerta",
-  neutro: "bg-muted ring-foreground/15 text-muted-foreground",
-  evitar: "bg-negativo/12 ring-negativo/40 text-negativo dark:text-[color-mix(in_srgb,var(--negativo)_80%,var(--foreground))]",
+  ligar: "bg-positivo/30",
+  cautela: "bg-alerta/30",
+  neutro: "bg-foreground/10",
+  evitar: "bg-negativo/30",
 };
-// o texto da regra de cada classe e o "o que é" dela (19/09/2026: o Neutro entrou nas Regras, era a única
-// classe do mapa sem regra na tela)
-const COR_TEXTO: Record<ClasseFaixa, string> = {
-  ligar: "text-positivo",
-  cautela: "text-alerta",
-  neutro: "text-muted-foreground",
-  evitar: "text-negativo",
+
+// o que a classe quer dizer, em uma linha curta (cabe numa linha no celular); os números da regra ficam no
+// fim da tela, em "Como a classificação é feita"
+const SIGNIFICADO: Record<ClasseFaixa, string> = {
+  ligar: "passou em todos os critérios",
+  cautela: "passou em parte dos critérios",
+  neutro: "abaixo do mínimo de Cautela",
+  evitar: "caiu em um dos limites para não operar",
 };
-const INFO_CLASSE: Record<ClasseFaixa, ChaveIndicador> = {
-  ligar: "classeLigar",
-  cautela: "classeCautela",
-  neutro: "classeNeutro",
-  evitar: "classeEvitar",
-};
+
+const DIA = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
 const DIA_CURTO = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
-// hífen + word joiner (U+2060): o "-R$ 12,30" das frases não quebra entre o sinal e o valor (19/09/2026)
-const SINAL_PRESO = String.fromCharCode(0x2d, 0x2060);
 
-function rec(v: number | null): string {
-  return v === null ? "∞" : formatarMultiplo(v);
-}
+// quantas linhas a tabela abre; o resto fica a um toque
+const LINHAS_DA_TABELA = 10;
 
-/** "4×" no inteiro, "0,6×" no resto (19/09/2026) */
-function vezes(v: number): string {
-  return `${formatarNumero(v, Number.isInteger(v) ? 0 : 1)}×`;
-}
-
-/**
- * 19/09/2026: o motivo da faixa e as frases de "O que as regras apontam" chegam prontos de lib/stats/faixas
- * com ponto decimal e "x" ("recuperação 3.69 ≥ 0.85, DD relativo 0.6x ≤ 4x"). Aqui só o formato muda:
- * 3,69, 0,85, 0,6× e 4×. Valor em reais já vem formatado e fica de fora (o "R$ 1.234" não vira decimal).
- */
-function formatarTextoRegra(texto: string): string {
-  // o "×" mantém as casas que vieram (0.0x vira 0,0×, 4x vira 4×); a vírgula depois do número é pontuação
-  const casas = (n: string) => n.split(".")[1]?.length ?? 0;
-  return texto
-    .replace(/(?<!\d|\d[.,])(\d+(?:\.\d+)?)x\b/g, (_, n: string) => `${formatarNumero(Number(n), casas(n))}×`)
-    .replace(/(?<!\d|\d[.,]|R\$\s?)(\d+\.\d+)(?!\d|[.,]\d)/g, (_, n: string) => formatarMultiplo(Number(n)))
-    .replace(/-(?=R\$)/g, SINAL_PRESO);
-}
+// A altura de cada linha do mapa acompanha a janela, para o número, os fatos e o mapa inteiro caberem na
+// primeira tela em 1440 × 900 e em 1920 × 1080; nunca menos que 36 px, que ainda é um alvo de toque.
+const ALTURA_DO_QUADRO = "h-[clamp(2.25rem,calc((100dvh_-_35rem)/10),3rem)]";
 
 const chaveFaixa = (f: Pick<Faixa, "diaSemana" | "hora">) => `${f.diaSemana}-${f.hora}`;
+const nomeDoHorario = (f: Pick<Faixa, "diaSemana" | "hora">) => `${DIA[f.diaSemana]} às ${f.hora}h`;
+const pct = (v: number) => formatarPct(v, 0);
+/** "4 vezes", "1,5 vez" */
+const vezes = (v: number) => `${formatarNumero(v, Number.isInteger(v) ? 0 : 1)} ${v < 2 ? "vez" : "vezes"}`;
 
 /**
- * Aba Faixas: quando ligar cada combinação de dia da semana × hora de entrada, pelas regras
- * configuradas. Refeita em 18/09/2026 à noite ("essas faixas pode melhorar"): sem o parágrafo de
- * apresentação, sem ícones de lâmpada e raio, sem o gráfico de pizza (a distribuição virou uma
- * barra empilhada e a lista), as regras numa linha por classe e o período nos mesmos atalhos das
- * outras abas. Os números continuam vindo de validarFaixas.
+ * Aba "Melhores horários" (ficha Mesa, 25/11/2026). Responde a uma pergunta: em que dia da semana e em que
+ * horário o robô vai melhor, e quando é melhor não operar.
+ *
+ * - A resposta vem em palavras, no lugar do número grande: "Quinta às 9h", o dia e horário de entrada com a
+ *   maior nota entre os classificados como Ligar. Embaixo, a classe dele e a premissa; ao lado, os fatos
+ *   (operações e acertos, resultado, maior queda e o tamanho sugerido da posição).
+ * - O mapa de dia da semana por hora de entrada é o gráfico da tela, na largura toda: um quadro por dia e
+ *   horário, chapado na cor da classe, com a classe escrita. O mapa é o controle: passar o ponteiro, focar
+ *   ou tocar num quadro troca as palavras e os fatos de cima pelos dele; tocar de novo volta ao melhor.
+ * - Depois, a tabela de todos os dias e horários classificados, do melhor para o pior, com o filtro por
+ *   classe (que também apaga as outras classes no mapa); e, no fim, como a classificação é feita, com os
+ *   limites que vêm do banco escritos em palavras.
+ *
+ * O que saiu: o bloco "Regras" no alto (os limites foram para o fim, em palavras), a barra empilhada da
+ * distribuição (a contagem está na lista do fim e o filtro, na tabela), o ranking das cinco melhores com a
+ * barra de nota (a tabela já vem em ordem), a caixa de detalhe debaixo do mapa (o detalhe é o topo da tela)
+ * e as frases de "O que as regras apontam". Saiu também o "o que é" do glossário em cada rótulo e a frase do
+ * motivo, que chega de lib/stats/faixas com símbolos e siglas. O vocabulário mudou junto: "faixa" é "dia e
+ * horário", "score" é "nota", "lote sugerido" é "tamanho sugerido da posição" e "drawdown" é "maior queda".
+ *
+ * Os números continuam vindo de validarFaixas, calculados na página para os três períodos.
  */
 export function PainelFaixas({ resultados }: Props) {
   const [periodo, setPeriodo] = useState<PeriodoPainel>("tudo");
-  const [filtroClasse, setFiltroClasse] = useState<ClasseFaixa | null>(null);
-  // 19/09/2026: a faixa escolhida fica guardada pelo dia e hora, não pelo objeto: ao trocar o período o
-  // detalhe mostrava os números do período anterior. Tocar de novo na mesma faixa desmarca.
-  const [selecionada, setSelecionada] = useState<string | null>(null);
+  const [filtro, setFiltro] = useState<Filtro>("todos");
+  // 19/09/2026: o quadro escolhido fica guardado pelo dia e hora, não pelo objeto: ao trocar o período o
+  // detalhe mostrava os números do período anterior. Tocar de novo no mesmo quadro desmarca.
+  const [fixada, setFixada] = useState<string | null>(null);
+  // o quadro sob o ponteiro ou com o foco do teclado
+  const [apontada, setApontada] = useState<string | null>(null);
+  const [verTodos, setVerTodos] = useState(false);
 
   const r = resultados[periodo];
 
@@ -107,313 +106,303 @@ export function PainelFaixas({ resultados }: Props) {
     for (const f of r.faixas) m.set(chaveFaixa(f), f);
     return m;
   }, [r]);
-  const faixaSel = selecionada === null ? null : (porCelula.get(selecionada) ?? null);
-  const alternar = (f: Faixa) => setSelecionada((s) => (s === chaveFaixa(f) ? null : chaveFaixa(f)));
 
-  const totalComDados = r.comDados.length;
-  const maiorScore = Math.max(1, ...r.melhores.map((f) => f.score));
-  const p = r.parametros;
-  const regras: Record<Exclude<ClasseFaixa, "neutro">, string[]> = {
-    ligar: [
-      `acerto ≥ ${formatarPct(p.ligar.acertoMin, 0)}`,
-      `recuperação ≥ ${formatarMultiplo(p.ligar.recuperacaoMin)}`,
-      `drawdown ≤ ${vezes(p.ligar.ddRelativoMax)} a mediana`,
-    ],
-    cautela: [`acerto ≥ ${formatarPct(p.cautela.acertoMin, 0)}`, `recuperação ≥ ${formatarMultiplo(p.cautela.recuperacaoMin)}`],
-    evitar: [
-      `acerto < ${formatarPct(p.evitar.acertoMax, 0)}`,
-      `recuperação < ${formatarMultiplo(p.evitar.recuperacaoMax)}`,
-      `drawdown > ${vezes(p.evitar.ddRelativoMin)} a mediana`,
-    ],
-  };
-  // 19/09/2026: "ligar" e "evitar" repetiam a contagem da Distribuição e as Regras desta mesma tela
-  const insights = r.insights.filter((i) => i.chave !== "ligar" && i.chave !== "evitar");
+  // as horas do mapa: só as que já tiveram alguma operação. Sai de todo o histórico, para o mapa não mudar
+  // de tamanho quando o período muda; hora em que o robô nunca operou não vira uma fileira vazia.
+  const horas = useMemo(() => {
+    const comOperacao = new Set(resultados.tudo.faixas.filter((f) => f.n > 0).map((f) => f.hora));
+    return HORAS.filter((h) => comOperacao.has(h));
+  }, [resultados]);
+
+  // a tabela: primeiro a classe (Ligar, Cautela, Neutro, Evitar) e, dentro dela, a nota, com os mesmos
+  // desempates do ranking de validarFaixas; assim a primeira linha é o dia e horário do alto da tela
+  const ordenadas = useMemo(
+    () =>
+      [...r.comDados].sort(
+        (a, b) =>
+          (a.classe ? ORDEM[a.classe] : 9) - (b.classe ? ORDEM[b.classe] : 9) ||
+          b.score - a.score ||
+          (b.recuperacao ?? Infinity) - (a.recuperacao ?? Infinity) ||
+          b.expectativa - a.expectativa,
+      ),
+    [r],
+  );
 
   if (resultados.tudo.nOperacoes === 0) {
-    return <p className="painel px-4 py-8 text-center text-sm text-muted-foreground">Sem operações fechadas ainda.</p>;
+    return <p className="text-sm text-muted-foreground">{VAZIO_DO_PERIODO.tudo}</p>;
   }
 
+  const p = r.parametros;
+  const totalComDados = r.comDados.length;
+  const brl = (v: number) => formatarBRL(v, { inteiro: Math.abs(v) >= 1000 });
+
+  // quadro sem operação no período não tem o que mostrar: vale o próximo da fila
+  const comOperacao = (chave: string | null) => {
+    const f = chave ? porCelula.get(chave) : undefined;
+    return f && f.n > 0 ? f : null;
+  };
+  const melhor = r.melhores[0] ?? null;
+  const mostrada = comOperacao(apontada) ?? comOperacao(fixada) ?? melhor;
+  const chaveMostrada = mostrada ? chaveFaixa(mostrada) : null;
+  const ehOMelhor = melhor !== null && chaveMostrada === chaveFaixa(melhor);
+  // 19/09/2026: sem nenhum Ligar, validarFaixas devolve os de maior nota entre todos; o título não pode
+  // dizer "melhor" nos dois casos
+  const titulo = !ehOMelhor ? "Dia e horário" : r.contagem.ligar > 0 ? "Melhor dia e horário" : "Dia e horário com a maior nota";
+  const alternar = (chave: string) => setFixada((atual) => (atual === chave ? null : chave));
+
+  // o filtro guardado pode ser de uma classe que o período novo não tem
+  const filtroEfetivo: Filtro = filtro !== "todos" && r.contagem[filtro] > 0 ? filtro : "todos";
+  const classesPresentes = CLASSES.filter((c) => r.contagem[c] > 0);
+  const opcoesDeClasse: { valor: Filtro; rotulo: string }[] = [
+    { valor: "todos", rotulo: "Todos" },
+    ...classesPresentes.map((c) => ({ valor: c, rotulo: ROTULO_CLASSE[c] })),
+  ];
+  const linhas = filtroEfetivo === "todos" ? ordenadas : ordenadas.filter((f) => f.classe === filtroEfetivo);
+  const visiveis = verTodos ? linhas : linhas.slice(0, LINHAS_DA_TABELA);
+  const temTraco = r.faixas.some((f) => f.classe === null && f.n > 0);
+
+  // os limites vêm dos parâmetros do banco; aqui só viram frase. A "recuperação" da regra é o resultado
+  // dividido pela maior queda (0,85 é "cobre 85% da queda"); o "DD relativo", a maior queda dividida pela típica.
+  const posicao = (c: ClasseFaixa) => pct(LOTE_POR_CLASSE[c]);
+  const quantos = (c: ClasseFaixa) => (r.contagem[c] === 0 ? "nenhum" : `${formatarNumero(r.contagem[c])} de ${formatarNumero(totalComDados)}`);
+  const criterios: ItemKpi[] = [
+    {
+      rotulo: ROTULO_CLASSE.ligar,
+      valor: quantos("ligar"),
+      detalhe: `posição de ${posicao("ligar")}: pelo menos ${pct(p.ligar.acertoMin)} das operações com ganho, o resultado cobre pelo menos ${pct(p.ligar.recuperacaoMin)} da maior queda e ela é de até ${vezes(p.ligar.ddRelativoMax)} a típica`,
+    },
+    {
+      rotulo: ROTULO_CLASSE.cautela,
+      valor: quantos("cautela"),
+      detalhe: `posição de ${posicao("cautela")}: pelo menos ${pct(p.cautela.acertoMin)} com ganho e o resultado cobre pelo menos ${pct(p.cautela.recuperacaoMin)} da maior queda`,
+    },
+    {
+      rotulo: ROTULO_CLASSE.neutro,
+      valor: quantos("neutro"),
+      detalhe: `posição de ${posicao("neutro")}: tem operações suficientes, mas fica abaixo do mínimo de Cautela`,
+    },
+    {
+      rotulo: ROTULO_CLASSE.evitar,
+      valor: quantos("evitar"),
+      detalhe: `posição de ${posicao("evitar")}: menos de ${pct(p.evitar.acertoMax)} com ganho, ou o resultado cobre menos de ${pct(p.evitar.recuperacaoMax)} da maior queda, ou ela passa de ${vezes(p.evitar.ddRelativoMin)} a típica`,
+    },
+    {
+      rotulo: "Maior queda típica",
+      valor: brl(r.medianaDd),
+      detalhe: "a do meio, pondo em ordem a maior queda de cada dia e horário",
+    },
+    {
+      rotulo: "Nota",
+      valor: "0 a 100",
+      detalhe: "só põe em ordem: metade pelo ganho por operação comparado aos outros, 30 pontos pela regularidade mês a mês e 20 pela quantidade de operações",
+    },
+  ];
+
   return (
-    <div className="space-y-6">
-      {/* 19/09/2026: o título "Faixas" repetia a aba logo acima; fica só para leitor de tela */}
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="sr-only">Faixas</h2>
-          <p className="text-sm text-muted-foreground tabular-nums">
-            <strong className="text-foreground">{formatarNumero(r.nOperacoes)}</strong> operações em{" "}
-            <strong className="text-foreground">{formatarNumero(totalComDados)}</strong>{" "}
-            <RotuloComInfo chave="faixa">faixas de dia × hora</RotuloComInfo> ·{" "}
-            <RotuloComInfo chave="medianaDrawdown">mediana de drawdown</RotuloComInfo>{" "}
-            <strong className="text-foreground">{formatarBRL(r.medianaDd, { inteiro: r.medianaDd >= 1000 })}</strong>
-          </p>
+    <div className="space-y-10">
+      <section aria-labelledby="horarios-titulo">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-8 gap-y-3">
+          <h2 id="horarios-titulo" className="text-[0.9375rem] font-normal text-muted-foreground">
+            {r.nOperacoes > 0 && totalComDados > 0 ? titulo : "Melhor dia e horário"}
+          </h2>
+          <Segmentado ariaLabel="Período" opcoes={OPCOES_PERIODO} valor={periodo} onChange={setPeriodo} />
         </div>
-        <Segmentado ariaLabel="Período" opcoes={OPCOES_PERIODO} valor={periodo} onChange={setPeriodo} />
-      </header>
 
-      {/* as regras, uma por classe, na ordem do resto da tela; o i de cada classe diz em palavras o que a
-          regra ao lado diz em números (19/09/2026). A conta completa está na metodologia. */}
-      <section className="painel">
-        <div className="border-b px-4 py-3 sm:px-5">
-          <h3 className="font-semibold">Regras</h3>
-          <p className="text-xs text-muted-foreground">
-            <RotuloComInfo chave="amostraMinima">amostra mínima de {formatarNumero(p.amostraMinima)} operações por faixa</RotuloComInfo>
+        {r.nOperacoes === 0 ? (
+          <p className="py-12 text-sm text-muted-foreground">{VAZIO_DO_PERIODO[periodo]}</p>
+        ) : totalComDados === 0 || !mostrada ? (
+          // nenhum quadro com amostra: a tela diz isso uma vez, em palavras, em vez de um mapa de traços
+          <p className="max-w-3xl py-12 text-sm text-pretty text-muted-foreground">
+            Ainda é pouco para dizer qual é o melhor dia e horário: {r.nOperacoes === 1 ? "há 1 operação" : `são ${formatarNumero(r.nOperacoes)} operações`}{" "}
+            {QUANDO[periodo]}, e nenhum dia e horário chegou a {formatarNumero(p.amostraMinima)}.
           </p>
-        </div>
-        <dl className="grid text-sm sm:grid-cols-2 lg:grid-cols-4">
-          {CLASSES.map((c, i) => (
-            <div
-              key={c}
-              className={cn(
-                "border-(--painel-fio) px-4 py-3 sm:px-5 lg:border-t-0",
-                i > 0 && "border-t lg:border-l",
-                i === 1 && "sm:border-t-0",
-                i % 2 === 1 && "sm:border-l",
-              )}
-            >
-              <dt className={cn("font-medium", COR_TEXTO[c])}>
-                <RotuloComInfo chave={INFO_CLASSE[c]}>{ROTULO_CLASSE[c]}</RotuloComInfo>
-              </dt>
-              {/* cada critério inteiro numa linha: o "0,40" e o "·" não começam linha sozinhos */}
-              <dd className="mt-1 text-muted-foreground tabular-nums">
-                {c === "neutro"
-                  ? "com amostra, fora de Ligar, Cautela e Evitar"
-                  : regras[c].map((t, j) => (
-                      <Fragment key={t}>
-                        {j === 0 ? null : c === "evitar" ? <> ou&nbsp;</> : <>&nbsp;· </>}
-                        <span className="whitespace-nowrap">{t}</span>
-                      </Fragment>
-                    ))}
-              </dd>
-            </div>
-          ))}
-        </dl>
-      </section>
-
-      <div className="grid gap-4 lg:grid-cols-[1fr_1.2fr]">
-        {/* distribuição: uma barra empilhada e a lista; tocar numa classe filtra o mapa */}
-        <section className="painel p-4 sm:p-5">
-          <h3 className="font-semibold">
-            <RotuloComInfo chave="distribuicaoFaixas">Distribuição das faixas</RotuloComInfo>
-          </h3>
-          <div className="mt-3 flex h-2.5 overflow-hidden rounded-full bg-muted">
-            {CLASSES.map((c) =>
-              r.contagem[c] > 0 ? (
-                <div
-                  key={c}
-                  className="h-full transition-[width] duration-500"
-                  style={{ width: `${(r.contagem[c] / Math.max(1, totalComDados)) * 100}%`, background: COR[c], opacity: filtroClasse && filtroClasse !== c ? 0.3 : 1 }}
-                />
-              ) : null,
-            )}
-          </div>
-          <ul className="mt-3 space-y-1">
-            {CLASSES.map((c) => (
-              <li key={c}>
-                <button
-                  type="button"
-                  onClick={() => setFiltroClasse((f) => (f === c ? null : c))}
-                  aria-pressed={filtroClasse === c}
-                  className={cn(
-                    "flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-left text-sm transition-colors hover:bg-(--linha-hover)",
-                    filtroClasse === c && "bg-(--linha-hover)",
+        ) : (
+          <>
+            {/* lado a lado só a partir de xl: entre 1024 e 1280 px a coluna das palavras ficaria espremida */}
+            <div className="mt-3 grid gap-x-16 gap-y-6 xl:grid-cols-[minmax(0,auto)_minmax(0,24rem)] xl:items-end xl:justify-start">
+              <div className="min-w-0">
+                {/* o "às" mais leve, como o "+R$" do número grande das outras telas */}
+                <p className="numero-grande">
+                  {DIA[mostrada.diaSemana]} <span className="font-normal text-muted-foreground">às</span> {mostrada.hora}h
+                </p>
+                <p className="mt-3 text-sm text-muted-foreground">
+                  {mostrada.classe ? (
+                    <>
+                      <span className="font-medium text-foreground">{ROTULO_CLASSE[mostrada.classe]}</span> · {SIGNIFICADO[mostrada.classe]}
+                    </>
+                  ) : (
+                    `poucas operações para avaliar: ${formatarNumero(mostrada.n)}, e o mínimo é ${formatarNumero(p.amostraMinima)}`
                   )}
-                >
-                  <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: COR[c] }} />
-                  {/* 19/09/2026: embaixo da classe, só o lote; "Operar com confiança" e afins eram tom de coach */}
-                  <span className="flex-1">
-                    <span className="font-medium">{ROTULO_CLASSE[c]}</span>
-                    <span className="block text-xs text-muted-foreground tabular-nums">lote {formatarPct(LOTE_POR_CLASSE[c], 0)}</span>
-                  </span>
-                  <span className="font-semibold tabular-nums" style={{ color: COR[c] }}>
-                    {formatarNumero(r.contagem[c])}
-                  </span>
-                  <span className="w-9 text-right text-xs text-muted-foreground tabular-nums">
-                    {totalComDados > 0 ? formatarPct(r.contagem[c] / totalComDados, 0) : "0%"}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
+                </p>
+                <p className="text-sm text-pretty text-sutil">
+                  pelo horário em que cada operação começou · {formatarNumero(r.nOperacoes)} operações {QUANDO[periodo]}, com 1 contrato, já
+                  descontados os custos
+                </p>
+              </div>
 
-        {/* 19/09/2026: sem faixa Ligar, a lista mostra os maiores scores entre todas as classificadas
-            (validarFaixas); o título dizia "para ligar" nos dois casos */}
-        <section className="painel p-4 sm:p-5">
-          <h3 className="font-semibold">
-            <RotuloComInfo chave="melhoresFaixas">{r.contagem.ligar > 0 ? "Melhores faixas para ligar" : "Maiores scores"}</RotuloComInfo>
-          </h3>
-          <p className="mb-3 text-xs text-muted-foreground tabular-nums">
-            {r.contagem.ligar > 0
-              ? `${formatarNumero(r.melhores.length)} de ${formatarNumero(r.contagem.ligar)} ${r.contagem.ligar === 1 ? "faixa" : "faixas"} Ligar, pelo score`
-              : "nenhuma faixa classificada como Ligar"}
-          </p>
-          {r.melhores.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">Nenhuma faixa com amostra suficiente.</p>
-          ) : (
-            <ol className="-mx-2">
-              {r.melhores.map((f) => (
-                <li key={f.rotulo}>
-                  {/* 19/09/2026: sem o número da posição (a ordem já diz), a barra do score fora do verde
-                      (não é dinheiro) e o "lote 100%" sem quebrar entre a palavra e o número. A faixa aberta
-                      no detalhe fica marcada aqui também, e tocar de novo fecha. */}
-                  <button
-                    type="button"
-                    onClick={() => alternar(f)}
-                    aria-pressed={selecionada === chaveFaixa(f)}
-                    className={cn(
-                      "flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-left text-sm transition-colors outline-none hover:bg-(--linha-hover) focus-visible:ring-2 focus-visible:ring-ring/50",
-                      selecionada === chaveFaixa(f) && "bg-(--linha-hover) ring-1 ring-foreground/25",
-                    )}
-                  >
-                    <div className="min-w-0 flex-1">
-                      <span className="font-medium">{f.rotulo}</span>
-                      <div className="mt-1 h-1 rounded-full bg-muted">
-                        <div className="h-1 rounded-full bg-foreground/60" style={{ width: `${Math.round((f.score / maiorScore) * 100)}%` }} />
-                      </div>
-                      <p className="mt-0.5 text-[11px] text-muted-foreground tabular-nums">
-                        {formatarNumero(f.n)} op · {formatarPct(f.acerto, 0)} acerto · recuperação {rec(f.recuperacao)} · lote&nbsp;{formatarPct(f.lote, 0)}
-                      </p>
-                    </div>
-                    {/* 19/09/2026: o score não é dinheiro, então sai do verde; o rótulo embaixo sai da caixa alta */}
-                    <div className="text-right">
-                      <span className="text-xl font-semibold tabular-nums">{formatarNumero(f.score)}</span>
-                      <span className="block text-[11px] text-muted-foreground">score</span>
-                    </div>
-                  </button>
-                </li>
-              ))}
-            </ol>
-          )}
-        </section>
-      </div>
-
-      <section className="painel p-4 sm:p-5">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h3 className="font-semibold">
-            <RotuloComInfo chave="mapaFaixas">Mapa de faixas</RotuloComInfo>
-          </h3>
-          <ul className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-            {CLASSES.map((c) => (
-              <li key={c} className="inline-flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-sm" style={{ background: COR[c] }} /> {ROTULO_CLASSE[c]}
-              </li>
-            ))}
-          </ul>
-        </div>
-        {/* 19/09/2026: no celular o mapa rola de lado; a borda esmaece em vez de cortar o valor seco */}
-        <div className="borda-esmaece overflow-x-auto">
-          <table className="w-full min-w-[640px] border-separate border-spacing-1.5 text-xs">
-            <thead>
-              <tr className="text-muted-foreground uppercase">
-                <th className="w-12" />
-                {DIAS_UTEIS.map((d) => (
-                  <th key={d} className="text-left font-medium">
-                    {DIA_CURTO[d]}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {HORAS.map((h) => (
-                <tr key={h}>
-                  <th className="text-left font-medium text-muted-foreground tabular-nums">{String(h).padStart(2, "0")}:00</th>
-                  {DIAS_UTEIS.map((d) => {
-                    const f = porCelula.get(`${d}-${h}`);
-                    if (!f) return <td key={d} />;
-                    const apagada = filtroClasse !== null && f.classe !== filtroClasse;
-                    const sel = selecionada === chaveFaixa(f);
-                    return (
-                      <td key={d} className="p-0">
-                        <button
-                          type="button"
-                          onClick={() => alternar(f)}
-                          aria-pressed={sel}
-                          className={cn(
-                            "flex h-14 w-full flex-col justify-center rounded-lg px-2.5 text-left ring-1 transition-opacity",
-                            f.classe ? FUNDO[f.classe] : "bg-transparent text-muted-foreground ring-foreground/10",
-                            apagada && "opacity-25",
-                            sel && "ring-2 ring-foreground",
-                          )}
-                        >
-                          <span className="font-semibold">{f.classe ? ROTULO_CLASSE[f.classe] : "sem amostra"}</span>
-                          {/* 19/09/2026: sem o opacity-80, que levava a linha a 3,2-4,5:1 sobre a célula tingida */}
-                          <span className="text-[11px] tabular-nums">
-                            {formatarNumero(f.n)} op{f.n > 0 ? ` · ${formatarPct(f.acerto, 0)}` : ""}
-                          </span>
-                        </button>
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {faixaSel ? (
-          <div className="mt-4 rounded-xl border p-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h4 className="font-semibold">
-                {faixaSel.rotulo}{" "}
-                {faixaSel.classe ? <span className={cn("ml-2 rounded-md px-1.5 py-0.5 text-[11px] ring-1", FUNDO[faixaSel.classe])}>{ROTULO_CLASSE[faixaSel.classe]}</span> : null}
-              </h4>
-              <span className="text-sm text-muted-foreground tabular-nums">
-                <RotuloComInfo chave="score">score</RotuloComInfo> <strong className="text-foreground">{formatarNumero(faixaSel.score)}</strong> ·{" "}
-                <RotuloComInfo chave="lote">lote</RotuloComInfo>&nbsp;{formatarPct(faixaSel.lote, 0)}
-              </span>
+              {/* a altura de quatro fatos fica reservada: quadro sem classe tem três, e o mapa não pula */}
+              <Fatos className="max-w-[24rem] xl:min-h-28 xl:pb-0.5">
+                <Fato rotulo="Operações">
+                  <span className="font-medium">{formatarNumero(mostrada.n)}</span>
+                  <span className="text-muted-foreground"> · {pct(mostrada.acerto)} com ganho</span>
+                </Fato>
+                <Fato rotulo="Resultado">
+                  <Valor valor={mostrada.total} inteiro={Math.abs(mostrada.total) >= 1000} className="font-medium" />
+                </Fato>
+                <Fato rotulo="Maior queda">
+                  {mostrada.dd > 0 ? (
+                    <Valor valor={-mostrada.dd} inteiro={mostrada.dd >= 1000} className="font-medium" />
+                  ) : (
+                    <span className="text-sutil">nenhuma</span>
+                  )}
+                </Fato>
+                {mostrada.classe ? (
+                  <Fato rotulo="Tamanho sugerido da posição">
+                    <span className="font-medium">{pct(mostrada.lote)}</span>
+                  </Fato>
+                ) : null}
+              </Fatos>
             </div>
-            <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4 lg:grid-cols-8">
-              <Item
-                rotulo="Operações"
-                info="operacoes"
-                texto="Quantas operações começaram neste dia da semana e nesta hora, no período escolhido."
-                valor={formatarNumero(faixaSel.n)}
-              />
-              <Item rotulo="Acerto" info="taxaAcerto" valor={formatarPct(faixaSel.acerto, 0)} />
-              <Item rotulo="Recuperação" info="recuperacaoFaixa" valor={rec(faixaSel.recuperacao)} />
-              <Item rotulo="Drawdown" info="drawdownFaixa" valor={formatarBRL(faixaSel.dd, { inteiro: faixaSel.dd >= 1000 })} />
-              <Item rotulo="DD relativo" info="ddRelativo" valor={faixaSel.ddRelativo === null ? "–" : `${formatarMultiplo(faixaSel.ddRelativo, 1)}×`} />
-              <Item rotulo="Expectativa / op" info="expectativaOperacao" valor={<Valor valor={faixaSel.expectativa} />} />
-              <Item rotulo="Total" info="totalFaixa" valor={<Valor valor={faixaSel.total} inteiro={Math.abs(faixaSel.total) >= 1000} />} />
-              <Item
-                rotulo="Meses positivos"
-                info="mesesPositivos"
-                valor={`${formatarNumero(faixaSel.mesesPositivos)} de ${formatarNumero(faixaSel.mesesComDados)}`}
-              />
-            </dl>
-            <p className="mt-2 text-xs text-muted-foreground tabular-nums">{formatarTextoRegra(faixaSel.motivo)}.</p>
-          </div>
-        ) : null}
+
+            {/* O mapa. Cabe em 375 px sem rolar de lado (o de antes tinha largura mínima de 640 px e rolava):
+                cinco colunas iguais e o dia abreviado no celular. A margem negativa desfaz o vão de fora da
+                tabela, para os quadros alinharem com o resto da tela. */}
+            <div className="mt-8" onPointerLeave={() => setApontada(null)}>
+              <div className="-mx-[2px]">
+                <table className="w-full table-fixed border-separate border-spacing-[2px]">
+                  <caption className="sr-only">Mapa dos dias e horários, pela hora de entrada das operações</caption>
+                  <thead>
+                    <tr>
+                      <th className="w-9 sm:w-12" />
+                      {DIAS_UTEIS.map((d) => (
+                        <th key={d} scope="col" className="h-7 px-1.5 text-left text-[0.8125rem] font-normal text-sutil sm:px-3">
+                          <span className="sm:hidden">{DIA_CURTO[d]}</span>
+                          <span className="max-sm:hidden">{DIA[d]}</span>
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {horas.map((h) => (
+                      <tr key={h}>
+                        <th scope="row" className="text-left text-[0.8125rem] font-normal whitespace-nowrap text-sutil">
+                          {h}h
+                        </th>
+                        {DIAS_UTEIS.map((d) => {
+                          const f = porCelula.get(`${d}-${h}`);
+                          // sem operação nenhuma no período: o lugar fica vazio, sem botão
+                          if (!f || f.n === 0) return <td key={d} />;
+                          const chave = chaveFaixa(f);
+                          const apagada = filtroEfetivo !== "todos" && f.classe !== filtroEfetivo;
+                          return (
+                            <td key={d} className="p-0">
+                              <button
+                                type="button"
+                                onPointerEnter={(e) => {
+                                  // no toque não há "passar por cima": o toque fixa o quadro
+                                  if (e.pointerType === "mouse") setApontada(chave);
+                                }}
+                                onFocus={() => setApontada(chave)}
+                                onBlur={() => setApontada(null)}
+                                onClick={() => alternar(chave)}
+                                aria-pressed={fixada === chave}
+                                aria-label={`${nomeDoHorario(f)}: ${f.classe ? ROTULO_CLASSE[f.classe] : "poucas operações para avaliar"}`}
+                                className={cn(
+                                  "flex w-full items-center overflow-hidden rounded-[3px] px-1.5 text-left text-xs font-medium whitespace-nowrap transition-opacity sm:px-3 sm:text-sm",
+                                  "outline-foreground -outline-offset-2 focus-visible:outline-2",
+                                  ALTURA_DO_QUADRO,
+                                  f.classe ? FUNDO[f.classe] : "text-sutil",
+                                  apagada && "opacity-30",
+                                  // o quadro que está no alto da tela leva o contorno na cor do texto
+                                  chaveMostrada === chave ? "outline-2" : "outline-0",
+                                )}
+                              >
+                                {f.classe ? ROTULO_CLASSE[f.classe] : "–"}
+                              </button>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <p className="mt-3 text-[0.8125rem] text-pretty text-sutil">
+              Cada quadro é um dia da semana e uma hora de entrada, pelo histórico das operações que começaram ali.
+              {temTraco ? ` O traço é onde há menos de ${formatarNumero(p.amostraMinima)} operações: pouco para avaliar.` : ""}
+            </p>
+          </>
+        )}
       </section>
 
-      {insights.length > 0 ? (
-        <section className="painel">
-          <div className="border-b px-4 py-3 sm:px-5">
-            <h3 className="font-semibold">O que as regras apontam</h3>
-          </div>
-          <ul className="divide-y divide-(--painel-fio)">
-            {insights.map((i) => (
-              <li key={i.chave} className="px-4 py-2.5 text-sm sm:px-5">
-                {formatarTextoRegra(i.texto)}
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-    </div>
-  );
-}
+      {r.nOperacoes > 0 && totalComDados > 0 ? (
+        <>
+          <Painel
+            id="lista"
+            titulo="Todos os dias e horários"
+            apoio="do melhor para o pior: pela classe e, dentro dela, pela nota"
+            acao={
+              classesPresentes.length > 1 ? (
+                <Segmentado ariaLabel="Classe" opcoes={opcoesDeClasse} valor={filtroEfetivo} onChange={setFiltro} />
+              ) : undefined
+            }
+            fio={false}
+            corpo="pt-1"
+          >
+            <div className="tbl-moldura">
+              <table className="tbl [&_td]:h-10">
+                <thead>
+                  <tr>
+                    <th>Dia e horário</th>
+                    <th>Classe</th>
+                    <th className="num">Operações</th>
+                    <th className="num">Acertos</th>
+                    <th className="num">Resultado</th>
+                    <th className="num">Maior queda</th>
+                    <th className="num">Nota</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visiveis.map((f) => (
+                    <tr key={chaveFaixa(f)}>
+                      <td className="font-medium whitespace-nowrap">{nomeDoHorario(f)}</td>
+                      <td className="whitespace-nowrap text-muted-foreground">{f.classe ? ROTULO_CLASSE[f.classe] : "–"}</td>
+                      <td className="num">{formatarNumero(f.n)}</td>
+                      <td className="num">{pct(f.acerto)}</td>
+                      {/* sem centavos nas duas colunas de dinheiro, para os valores alinharem */}
+                      <td className="num">
+                        <Valor valor={f.total} inteiro />
+                      </td>
+                      <td className="num text-muted-foreground">{f.dd > 0 ? formatarBRL(-f.dd, { sinal: true, inteiro: true }) : "nenhuma"}</td>
+                      <td className="num font-medium">{formatarNumero(f.score)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {linhas.length > LINHAS_DA_TABELA ? (
+              <button type="button" onClick={() => setVerTodos((v) => !v)} aria-expanded={verTodos} className={cn("mt-4 text-[0.8125rem]", LINK_DO_PAINEL)}>
+                {verTodos ? `Ver só os ${LINHAS_DA_TABELA} primeiros` : `Ver os ${formatarNumero(linhas.length)} dias e horários`}
+              </button>
+            ) : null}
+          </Painel>
 
-/** 19/09/2026: o rótulo acima do número saiu da caixa alta; ganhou o i do "o que é" (texto troca o do glossário) */
-function Item({ rotulo, info, texto, valor }: { rotulo: string; info: ChaveIndicador; texto?: string; valor: React.ReactNode }) {
-  return (
-    <div>
-      <dt className="text-xs text-muted-foreground">
-        <RotuloComInfo chave={info} texto={texto}>
-          {rotulo}
-        </RotuloComInfo>
-      </dt>
-      <dd className="font-semibold tabular-nums">{valor}</dd>
+          <Painel
+            id="classificacao"
+            titulo="Como a classificação é feita"
+            apoio={`só entra dia e horário com ${formatarNumero(p.amostraMinima)} operações ou mais`}
+            acao={
+              <Link href="/metodologia#faixas" className={LINK_DO_PAINEL}>
+                Como a conta é feita
+              </Link>
+            }
+            corpo=""
+          >
+            <ListaKpi itens={criterios} />
+          </Painel>
+        </>
+      ) : null}
     </div>
   );
 }

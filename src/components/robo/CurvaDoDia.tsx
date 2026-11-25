@@ -10,7 +10,7 @@ import {
   type PontoDoDesenho,
 } from "@/components/graficos/CurvaProfit";
 import { PONTOS_LEVE, baldesDoPregao, fatiar, janelaDosDados, legendaCurtaDoSaldo, rotulosDeTempo, serieDoSaldoParaDesenho } from "@/components/graficos/series-da-curva";
-import { formatarBRL, formatarDuracao, formatarHora, formatarMfeMae, formatarNumero, formatarPontos, formatarPreco, rotuloLado } from "@/lib/formato";
+import { formatarBRL, formatarDuracao, formatarHora, formatarMfeMae, formatarNumero, formatarPreco, rotuloLado } from "@/lib/formato";
 import type { HorarioPregao } from "@/lib/stats/pregao";
 import {
   dentesPorOperacao,
@@ -42,10 +42,15 @@ interface Props {
   /** título no modo série */
   tituloSerie?: string;
   /**
-   * Texto ao lado da amostra da linha (a tela ao vivo usa um mais curto, que fica bem em print). Só no modo
-   * por fechamento, como `${legenda} · por fechamento`; no modo série a legenda é a curta da medição (legendaCurtaDoSaldo)
-   * mais " · líquido" (revisão de 23/09/2026: anexar o texto inteiro dava três linhas a 375 px na tela cheia, e
-   * "por contrato, líquido de custos" já está escrito debaixo do número grande nas duas telas).
+   * Texto ao lado da amostra da linha, só no modo por fechamento (a tela ao vivo usa um mais curto, que fica bem
+   * em print). No modo série a legenda é a curta da medição (legendaCurtaDoSaldo: "a cada 5 s", e "aproximado"
+   * ou "desde 10:32" quando há ressalva); revisão de 23/09/2026: anexar o texto inteiro dava três linhas a
+   * 375 px na tela cheia.
+   *
+   * 25/11/2026 (ficha Mesa): a legenda não leva mais os sufixos " · por fechamento" e " · líquido". O primeiro
+   * repetia o título ("operação a operação") em jargão; o segundo repetia a premissa, que as duas telas escrevem
+   * debaixo do número grande ("com 1 contrato, já descontados os custos"). O padrão deixou de ser "1 contrato,
+   * líquido de custos" pelo mesmo motivo.
    */
   legenda?: string;
   /**
@@ -56,16 +61,23 @@ interface Props {
 }
 
 const reais = (v: number) => formatarBRL(v, { sinal: true });
-// a régua em R$ com centavos, como a do Profit (24/09/2026, Artur: "só senti falta das casas decimais")
-const eixoEmReais = (v: number) => formatarNumero(v, 2);
+// A régua em R$, com a unidade em cada marca ("R$ 240", "R$ 2,50"): o eixo não tem título desde a ficha Mesa
+// (25/11/2026), e "240,50" sozinho não dizia o que era. Os centavos (24/09/2026, Artur: "só senti falta das
+// casas decimais") ficam na marca que os tem; é o mesmo formato da curva do dia no calendário (DiaEscolhido).
+const eixoEmReais = (v: number) => formatarBRL(v, { inteiro: Number.isInteger(v) });
+// o valor escrito ao lado de "maior queda", no trecho vermelho da curva: "−R$ 45,50", "−R$ 1.240"
+const quedaEmReais = (v: number) => formatarBRL(v, { sinal: true, inteiro: Math.abs(v) >= 100 });
 const SEM_ROTULOS: Array<{ x: number; rotulo: string }> = [];
 
 /**
  * O dia em curva, operação a operação, no lugar do tabelão (17/09/2026, pedido do Artur: "essa visão
  * geral com esse tabelão não está legal"). Num dia de 345 operações a tabela não deixava ver o dia;
  * a curva mostra de relance quando subiu, quando devolveu e onde está agora, e apontar um ponto abre a
- * operação inteira na linha de leitura no alto: hora, lado, entrada e saída, duração, pontos,
- * resultado e o acumulado.
+ * operação inteira na linha de leitura no alto: hora, lado, entrada e saída, duração, resultado, o
+ * melhor e o pior momento dela (quando foi medida) e o resultado do dia até ali. Em 25/11/2026 (ficha Mesa;
+ * Lucas: "para um leigo está muito difícil de entender") a leitura trocou "MFE / MAE" por "Melhor e pior
+ * momento" e "Acumulado do dia" por "Resultado do dia até aqui", e deixou de trazer os pontos da operação,
+ * como a lista de operações logo abaixo (LinhaOperacao); os pontos continuam na aba Operações.
  * Com memo (18/09/2026): quem usa re-renderiza por outros motivos (posição, status); a curva só
  * refaz quando chega operação nova, que troca a referência de `operacoes`.
  *
@@ -76,8 +88,9 @@ const SEM_ROTULOS: Array<{ x: number; rotulo: string }> = [];
  * marcadores MEP/MEN saíram do desenho em 24/09/2026 (Artur: "estilo do profit", "essas bolinhas não tem no
  * profit", "tira o MEP e o MEN também, só o escrito"); a série e a exposição continuam chegando inteiras, e
  * os números do MEP/MEN ficam no bloco Exposição do dia. Sem série (EA anterior, robô sem
- * coletor, rota ainda não respondeu) fica a curva por fechamento, rotulada assim, agora com o dente de
- * MFE/MAE de cada operação medida.
+ * coletor, rota ainda não respondeu) fica a curva por fechamento, agora com o dente de MFE/MAE de cada
+ * operação medida. Ela se apresenta pelo título ("operação a operação") e pela legenda ("na ordem em que as
+ * operações fecharam", a mesma do calendário); até 25/11/2026 a legenda dizia " · por fechamento".
  */
 export const CurvaDoDia = memo(function CurvaDoDia({
   operacoes,
@@ -87,8 +100,8 @@ export const CurvaDoDia = memo(function CurvaDoDia({
   valorPonto,
   altura = 190,
   titulo = "Resultado do dia, operação a operação",
-  tituloSerie = "Resultado do dia, medido no MT5",
-  legenda = "1 contrato, líquido de custos",
+  tituloSerie = "Resultado do dia, medido no MetaTrader 5",
+  legenda = "na ordem em que as operações fecharam",
   coletorAtrasado = false,
 }: Props) {
   const id = `dia-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
@@ -164,11 +177,10 @@ export const CurvaDoDia = memo(function CurvaDoDia({
             ...(temPrecos
               ? [{ rotulo: "Entrada e saída", valor: `${formatarPreco(o.preco_entrada)} → ${formatarPreco(o.preco_saida)}` }]
               : []),
-            { rotulo: "Pontos", valor: `${formatarPontos(o.pontos_por_contrato, true)} pts`, tom: tomDe(o.pontos_por_contrato) },
-            // o calor da operação, em pontos, logo depois dos pontos que ela fez
-            ...(dente ? [{ rotulo: "MFE / MAE", valor: formatarMfeMae(dente.mfe, dente.mae) }] : []),
             { rotulo: "Resultado", valor: reais(ultimo.liquido), tom: tomDe(ultimo.liquido) },
-            { rotulo: "Acumulado do dia", valor: reais(ultimo.acumulado), tom: tomDe(ultimo.acumulado) },
+            // o calor da operação: o máximo que o preço andou a favor e contra, em pontos
+            ...(dente ? [{ rotulo: "Melhor e pior momento", valor: formatarMfeMae(dente.mfe, dente.mae) }] : []),
+            { rotulo: "Resultado do dia até aqui", valor: reais(ultimo.acumulado), tom: tomDe(ultimo.acumulado) },
           ],
         };
       } else {
@@ -181,8 +193,9 @@ export const CurvaDoDia = memo(function CurvaDoDia({
           subtitulo: `${formatarNumero(fatia.length)} operações (${formatarNumero(primeiro.ordem)}ª a ${formatarNumero(ultimo.ordem)}ª)`,
           linhas: [
             { rotulo: "Resultado", valor: reais(valor), tom: tomDe(valor) },
-            { rotulo: "Acumulado do dia", valor: reais(ultimo.acumulado), tom: tomDe(ultimo.acumulado) },
-            ...(dente ? [{ rotulo: "MFE / MAE (extremos)", valor: formatarMfeMae(dente.mfe, dente.mae) }] : []),
+            { rotulo: "Resultado do dia até aqui", valor: reais(ultimo.acumulado), tom: tomDe(ultimo.acumulado) },
+            // o melhor e o pior entre as operações do ponto (o subtítulo já diz quantas são)
+            ...(dente ? [{ rotulo: "Melhor e pior momento", valor: formatarMfeMae(dente.mfe, dente.mae) }] : []),
           ],
         };
       }
@@ -209,7 +222,7 @@ export const CurvaDoDia = memo(function CurvaDoDia({
       legenda={
         <span className="inline-flex items-center gap-1.5">
           <AmostraDaLinha cores={CURVA_POR_OPERACAO} />
-          {serie ? `${serie.legenda} · líquido` : `${legenda} · por fechamento`}
+          {serie ? serie.legenda : legenda}
         </span>
       }
     >
@@ -223,8 +236,9 @@ export const CurvaDoDia = memo(function CurvaDoDia({
         rotulosX={serie ? serie.rotulosX : porFechamento.rotulosX}
         comecarNoPrimeiroPonto={serie !== null}
         formatarEixo={eixoEmReais}
+        formatarQueda={quedaEmReais}
         rotuloVertical="Saldo do dia (R$)"
-        rotuloAria={serie ? "Saldo de hoje medido no MetaTrader 5 ao longo do pregão" : "Resultado acumulado de hoje, operação a operação"}
+        rotuloAria={serie ? "Saldo de hoje medido no MetaTrader 5 ao longo do pregão" : "Resultado de hoje, operação a operação"}
       />
     </MolduraProfit>
   );

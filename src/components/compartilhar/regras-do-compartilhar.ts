@@ -61,15 +61,20 @@ export function rotuloAcessivelDoBotao(nomeRobo: string, dia: string): string {
   return `Compartilhar o dia do ${nomeRobo}, ${formatarDataLonga(dia)}`;
 }
 
-/** o alt da prévia: diz o que a imagem traz, sem repetir os números (eles mudam; o alt é da prévia) */
+/**
+ * o alt da prévia: diz o que a imagem traz, sem repetir os números (eles mudam; o alt é da prévia). Nas palavras
+ * da imagem desde 25/11/2026 (ficha Mesa): "com 1 contrato" no lugar de "por contrato" e "o melhor e o pior
+ * momento do dia" no de "o MEP, o MEN".
+ */
 export function textoAlternativoDoCard(nomeRobo: string, dia: string, formato: FormatoCard): string {
-  return `Imagem do dia do ${nomeRobo}, ${formatarDataLonga(dia)}, formato ${formato === "story" ? "story (vertical)" : "quadrado"}, com o resultado por contrato, as operações, o MEP, o MEN e a curva do dia.`;
+  return `Imagem do dia do ${nomeRobo}, ${formatarDataLonga(dia)}, formato ${formato === "story" ? "story (vertical)" : "quadrado"}: o resultado com 1 contrato, as operações e quantas tiveram ganho, o melhor e o pior momento do dia e a curva do dia.`;
 }
 
 /**
  * título e texto que vão junto com o arquivo no compartilhamento do celular (o texto vira a legenda). Robô
  * em conta demo diz isso na legenda também (revisão de 24/09/2026): a legenda pode ser encaminhada sem a
- * imagem, e o site nunca esconde que é demo.
+ * imagem, e o site nunca esconde que é demo. A premissa vai como o site a escreve ("com 1 contrato, já
+ * descontados os custos"); até 25/11/2026 era "por 1 contrato, líquido de custos".
  */
 export function textosDoCompartilhamento(
   nomeRobo: string,
@@ -80,7 +85,7 @@ export function textosDoCompartilhamento(
   const data = formatarDataLonga(dia);
   return {
     title: `${nomeRobo} · ${data}`,
-    text: `O dia do ${nomeRobo} em ${data}, por 1 contrato, líquido de custos.${contaDemo ? " Conta demo." : ""} ${link}`,
+    text: `O dia do ${nomeRobo} em ${data}, com 1 contrato, já descontados os custos.${contaDemo ? " Conta demo." : ""} ${link}`,
   };
 }
 

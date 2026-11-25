@@ -2,13 +2,12 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { AtualizadoHa } from "@/components/compartilhados/AtualizadoHa";
-import type { ChaveIndicador } from "@/components/compartilhados/glossario";
-import { InfoIndicador, RotuloComInfo } from "@/components/compartilhados/InfoIndicador";
 import { Segmentado } from "@/components/compartilhados/Segmentado";
 import { Valor } from "@/components/compartilhados/Valor";
 import { CurvaCapital } from "@/components/graficos/CurvaCapital";
 import { expandirSerie, type SerieCompacta } from "@/components/graficos/series-da-curva";
-import { formatarBRL, formatarData, formatarDataLonga, formatarNumero, formatarPct } from "@/lib/formato";
+import { Fato, Fatos, NumeroGrande } from "@/components/sistema/Numero";
+import { formatarData, formatarDataLonga, formatarNumero, formatarPct } from "@/lib/formato";
 import { calcularKpis } from "@/lib/stats/kpis";
 import type { LinhaDiaria, OpcoesSerie } from "@/lib/stats/tipos";
 import { mesmoRecorte } from "./curva-por-periodo";
@@ -24,15 +23,6 @@ import {
 } from "./periodos-resumo";
 import { usePregaoAberto, useRobo } from "./RoboAoVivoProvider";
 
-// o "o que é" do número grande de cada aba, no título (19/09/2026): desde o início é o acumulado
-const INFO_DO_PERIODO: Record<PeriodoResumo, ChaveIndicador> = {
-  hoje: "resultadoDia",
-  semana: "resultadoPeriodo",
-  mes: "resultadoPeriodo",
-  ano: "resultadoPeriodo",
-  tudo: "acumulado",
-};
-
 interface Props {
   /** a série diária inteira; o recorte por período é feito aqui */
   linhas: LinhaDiaria[];
@@ -43,54 +33,52 @@ interface Props {
 }
 
 /**
- * O painel que abre a visão geral: "Hoje" ao vivo e, nas outras abas, o resultado da semana, do mês,
- * do ano e desde o início, com a curva de capital ao lado (18/09/2026, Artur: "faltam filtros, hoje,
- * semana, mes, tudo"). Antes eram dois blocos separados, "Hoje ao vivo" e "Curva de capital", sem
- * recorte. Os números vêm de calcularKpis sobre a série diária recortada; a curva, de CurvaCapital.
- * Desde 19/09/2026 não abre sempre em "Hoje": fora do pregão e sem operação no dia, abre no primeiro
- * período com operação (periodoInicial). Enquanto a pessoa não toca no filtro, a escolha acompanha o
- * pregão: abriu ou chegou operação, volta para "Hoje". Robô sem coletor (só histórico importado) não
- * tem dia ao vivo: para ele o pregão aberto não conta, nem no período inicial nem no "ao vivo" do título.
+ * O que abre a visão geral do robô: "Hoje" ao vivo e, nos outros períodos, o resultado da semana, do mês, do
+ * ano e desde o início (18/09/2026, Artur: "faltam filtros, hoje, semana, mes, tudo"). Desde a ficha Mesa
+ * (25/11/2026, segunda passada) é o mesmo desenho da página inicial, sem caixa: uma linha de título com o
+ * período à direita, o número grande com a premissa embaixo, os fatos ao lado e a curva na largura toda.
+ *
+ * Os números vêm de calcularKpis sobre a série diária recortada; a curva, de CurvaCapital. Desde
+ * 19/09/2026 não abre sempre em "Hoje": fora do pregão e sem operação no dia, abre no primeiro período com
+ * operação (periodoInicial). Enquanto a pessoa não toca no filtro, a escolha acompanha o pregão: abriu ou
+ * chegou operação, volta para "Hoje". Robô sem coletor (só histórico importado) não tem dia ao vivo: para ele
+ * o pregão aberto não conta, nem no período inicial nem no "ao vivo" do título.
  */
 export function PainelResultado({ linhas, pontosPorOperacao, valorPonto, capitalReferencia }: Props) {
   const { estado, robo, hoje } = useRobo();
   const aberto = usePregaoAberto();
   const aoVivo = aberto && robo.tem_coletor;
   const operacoesHoje = estado.operacoes.length;
+  const temPosicao = estado.posicoes.length > 0;
   const automatico = useMemo(
-    () => periodoInicial(linhas, hoje, { operacoesHoje, pregaoAberto: aoVivo }),
-    [linhas, hoje, operacoesHoje, aoVivo],
+    // o pregão aberto só leva a "Hoje" quando há o que mostrar (operação fechada ou aberta): antes disso "Hoje"
+    // é um zero grande, e a página abre no primeiro período com operação (ficha Mesa, 25/11/2026)
+    () => periodoInicial(linhas, hoje, { operacoesHoje, pregaoAberto: aoVivo && (operacoesHoje > 0 || temPosicao) }),
+    [linhas, hoje, operacoesHoje, aoVivo, temPosicao],
   );
   const [escolhido, setEscolhido] = useState<PeriodoResumo | null>(null);
   const periodo = escolhido ?? automatico;
   const atualizadoEm = estado.ultimaMensagemEm ?? estado.ultimoHeartbeatEm;
 
   return (
-    <section aria-labelledby="resultado" className="painel">
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 border-b px-4 py-3 sm:px-5">
-        <div className="min-w-0">
-          {/* o i fica fora do h2 (19/09/2026): o h2 dá nome à seção, e o "O que é …" do botão entraria nele */}
-          <div className="flex items-center gap-1.5">
-            <h2 id="resultado" className="font-semibold">
-              {/* "ao vivo" só com o pregão aberto e coletor: no sábado o painel é o dia parado */}
-              {periodo === "hoje" ? (aoVivo ? "Hoje ao vivo" : "Hoje") : TITULO_DO_PERIODO[periodo]}
-            </h2>
-            <InfoIndicador chave={INFO_DO_PERIODO[periodo]} />
-          </div>
+    <section aria-labelledby="resultado">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-8 gap-y-3">
+        <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 text-[0.9375rem] text-muted-foreground">
+          <h2 id="resultado" className="font-normal">
+            {/* "ao vivo" só com o pregão aberto e coletor: no sábado é o dia parado */}
+            {periodo === "hoje" ? (aoVivo ? "Hoje, ao vivo" : "Hoje") : TITULO_DO_PERIODO[periodo]}
+          </h2>
           {periodo === "hoje" ? (
-            <p className="text-xs text-muted-foreground">
-              <span className="first-letter:uppercase">{formatarDataLonga(hoje)}</span>
+            <>
+              <span>· {formatarDataLonga(hoje)}</span>
               {/* sem coletor não há sinal: "atualizado sem dados" não diz nada (19/09/2026) */}
               {robo.tem_coletor ? (
-                <>
-                  {" · "}
-                  <AtualizadoHa em={atualizadoEm} />
-                </>
+                <span className="text-sutil">
+                  · <AtualizadoHa em={atualizadoEm} className="text-[0.8125rem] text-sutil" />
+                </span>
               ) : null}
-            </p>
-          ) : (
-            <Subtitulo linhas={noPeriodo(linhas, periodo, hoje)} />
-          )}
+            </>
+          ) : null}
         </div>
         <Segmentado ariaLabel="Período do resultado" opcoes={PERIODOS_RESUMO} valor={periodo} onChange={setEscolhido} />
       </div>
@@ -110,44 +98,6 @@ export function PainelResultado({ linhas, pontosPorOperacao, valorPonto, capital
         />
       )}
     </section>
-  );
-}
-
-/** "de 15/09/2026 a 18/09/2026 · 4 pregões" */
-function Subtitulo({ linhas }: { linhas: LinhaDiaria[] }) {
-  if (linhas.length === 0) return null;
-  const dias = linhas.map((l) => l.dia).sort();
-  const n = dias.length;
-  return (
-    <p className="text-xs text-muted-foreground tabular-nums">
-      {n === 1 ? formatarData(dias[0]) : `de ${formatarData(dias[0])} a ${formatarData(dias[n - 1])}`} · {formatarNumero(n)}{" "}
-      {n === 1 ? "pregão" : "pregões"}
-    </p>
-  );
-}
-
-/** Um azulejo por número, como nos painéis de trading: rótulo pequeno (com o "o que é"), valor, apoio embaixo. */
-function Azulejo({
-  rotulo,
-  info,
-  detalhe,
-  children,
-  className,
-}: {
-  rotulo: string;
-  info: ChaveIndicador;
-  detalhe?: string;
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <div className={`rounded-xl border border-(--painel-fio) px-3 py-2.5 ${className ?? ""}`}>
-      <dt className="text-xs text-muted-foreground">
-        <RotuloComInfo chave={info}>{rotulo}</RotuloComInfo>
-      </dt>
-      <dd className="mt-1 text-base font-semibold tabular-nums">{children}</dd>
-      {detalhe ? <dd className="text-[11px] text-muted-foreground tabular-nums">{detalhe}</dd> : null}
-    </div>
   );
 }
 
@@ -194,88 +144,52 @@ function ResultadoDoPeriodo({
   );
 
   if (recorte.length === 0) {
-    return <p className="px-4 py-10 text-center text-sm text-muted-foreground">{VAZIO_DO_PERIODO[periodo]}</p>;
+    return <p className="py-12 text-sm text-muted-foreground">{VAZIO_DO_PERIODO[periodo]}</p>;
   }
 
-  const pontosDoPeriodo = recorte.reduce((s, l) => s + l.pontos_por_contrato, 0);
-  const bruto = recorte.reduce((s, l) => s + l.resultado_brl_por_contrato, 0);
+  const dias = recorte.map((l) => l.dia).sort();
+  const quando = dias.length === 1 ? `em ${formatarData(dias[0])}` : `de ${formatarData(dias[0])} a ${formatarData(dias[dias.length - 1])}`;
 
   return (
-    <div className="grid gap-5 p-4 sm:p-5 lg:grid-cols-[1fr_1.6fr] lg:items-start motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-300">
-      <div className="space-y-5">
-        {/* sem rótulo em cima do número (19/09/2026): ele repetia o título ("Resultado da semana, por
-            contrato"); o "por contrato" foi para a linha de custos */}
-        <div>
-          <p className="text-4xl font-semibold tracking-tight sm:text-5xl">
-            <Valor valor={k.acumulado} inteiro={Math.abs(k.acumulado) >= 10_000} />
-          </p>
-          <p className="mt-1.5 flex flex-wrap gap-x-3 text-sm text-muted-foreground">
-            <Valor valor={pontosDoPeriodo} unidade="pontos" colorir={false} className="text-foreground" />
-            <span className="tabular-nums">
-              {formatarNumero(k.nOperacoes)} {k.nOperacoes === 1 ? "operação" : "operações"}
-            </span>
-            {k.nOperacoes > 0 ? (
-              <span className="tabular-nums">
-                {formatarNumero(k.nGain)}/{formatarNumero(k.nOperacoes)} gains
-              </span>
-            ) : null}
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Por contrato, líquido de custos (bruto{" "}
-            <Valor valor={bruto} inteiro={Math.abs(bruto) >= 10_000} colorir={false} className="text-muted-foreground" />
-            ).
-          </p>
+    <>
+      <div className="mt-3 grid gap-x-16 gap-y-6 lg:grid-cols-[minmax(0,auto)_minmax(0,22rem)] lg:items-end lg:justify-start">
+        <div className="min-w-0">
+          <NumeroGrande valor={k.acumulado} />
+          <p className="mt-3 text-sm text-pretty text-muted-foreground">com 1 contrato, já descontados os custos · {quando}</p>
         </div>
 
-        <dl className="grid grid-cols-2 gap-2">
-          {/* como nas abas Desempenho e Risco (19/09/2026): % do capital de referência no número; embaixo o
-              R$ e o capital, senão o % parece a conta inteira. "máx." como no cartão do Desempenho: com o i,
-              "máximo" descia de linha no azulejo de 375 px e o número ficava abaixo do vizinho */}
-          <Azulejo
-            rotulo="Drawdown máx."
-            info={k.drawdownMaximoPct !== null ? "drawdownPct" : "drawdown"}
-            detalhe={
-              k.drawdown.valor === 0
-                ? undefined
-                : k.drawdownMaximoPct !== null && capitalReferencia
-                  ? `${formatarBRL(-k.drawdown.valor, { inteiro: k.drawdown.valor >= 1000, sinal: true })} sobre capital de ${formatarBRL(capitalReferencia, { inteiro: true })}`
-                  : k.drawdown.fundo
-                    ? `fundo em ${formatarData(k.drawdown.fundo)}`
-                    : undefined
-            }
-          >
+        <Fatos className="lg:pb-0.5">
+          <Fato rotulo="Dias com ganho">
+            <span className="font-medium">{formatarNumero(k.diasPositivos)}</span>
+            <span className="text-muted-foreground"> de {formatarNumero(k.nDias)}</span>
+          </Fato>
+          {k.piorDia && k.piorDia.valor < 0 ? (
+            <Fato rotulo="Pior dia">
+              <span className="mr-3 text-sutil">{formatarData(k.piorDia.dia)}</span>
+              <Valor valor={k.piorDia.valor} inteiro={Math.abs(k.piorDia.valor) >= 1000} className="font-medium" />
+            </Fato>
+          ) : null}
+          <Fato rotulo="Maior queda" info="drawdown">
             {k.drawdown.valor === 0 ? (
-              <span className="text-muted-foreground">nenhum</span>
-            ) : k.drawdownMaximoPct !== null ? (
-              formatarPct(k.drawdownMaximoPct)
+              <span className="text-sutil">nenhuma</span>
             ) : (
-              <Valor valor={-k.drawdown.valor} inteiro={k.drawdown.valor >= 1000} />
+              <Valor valor={-k.drawdown.valor} inteiro={k.drawdown.valor >= 1000} className="font-medium" />
             )}
-          </Azulejo>
-          <Azulejo rotulo="Taxa de acerto" info="taxaAcerto" detalhe={`${formatarNumero(k.nGain)} gains · ${formatarNumero(k.nLoss)} losses`}>
-            {formatarPct(k.taxaAcerto)}
-          </Azulejo>
-          <Azulejo rotulo="Melhor dia" info="melhorDia" detalhe={k.melhorDia ? formatarData(k.melhorDia.dia) : undefined}>
-            {k.melhorDia ? <Valor valor={k.melhorDia.valor} /> : "–"}
-          </Azulejo>
-          <Azulejo rotulo="Pior dia" info="piorDia" detalhe={k.piorDia ? formatarData(k.piorDia.dia) : undefined}>
-            {k.piorDia ? <Valor valor={k.piorDia.valor} /> : "–"}
-          </Azulejo>
-          {/* 19/09/2026: contagem de dias, não dinheiro, então uma cor só; sem "5 pregões" embaixo, que o
-              subtítulo do painel já diz */}
-          <Azulejo rotulo="Dias positivos × negativos" info="diasPositivosNegativos" className="col-span-2">
-            {formatarNumero(k.diasPositivos)}
-            <span className="text-muted-foreground"> × </span>
-            {formatarNumero(k.diasNegativos)}
-          </Azulejo>
-        </dl>
+          </Fato>
+          {k.nOperacoes > 0 ? (
+            <Fato rotulo="Operações">
+              <span className="font-medium">{formatarNumero(k.nOperacoes)}</span>
+              <span className="text-muted-foreground"> · {formatarPct(k.taxaAcerto, 0)} com ganho</span>
+            </Fato>
+          ) : null}
+        </Fatos>
       </div>
 
-      <div className="min-w-0">
+      <div className="mt-8 min-w-0">
         <CurvaCapital
           linhas={recorte}
           opcoes={opcoes}
-          altura={330}
+          altura={360}
           mostrarResumo={false}
           pontosPorOperacao={pontos}
           carregarPorOperacao={jaCompleta ? undefined : carregarPorOperacao}
@@ -285,6 +199,6 @@ function ResultadoDoPeriodo({
           modoInicial={periodo === "semana" || periodo === "mes" ? "operacao" : "dia"}
         />
       </div>
-    </div>
+    </>
   );
 }

@@ -27,12 +27,13 @@ function focarSecao(id: string) {
 
 /**
  * Qual seção está sendo lida, por IntersectionObserver (19/09/2026): vale a primeira seção que ainda
- * não terminou acima da linha de leitura, 140 px abaixo do topo — ou seja, a que está logo abaixo do
- * cabeçalho. Por isso a raiz é a tela inteira menos esses 140 px: uma seção "sai" quando o fim dela
- * passa da linha, e a de baixo assume. Os 140 px ficam abaixo dos 96 px do scroll-mt das seções, senão
- * a seção anterior continuava com uns pixels na faixa e ficava marcada depois do clique na âncora
- * (medido na Metodologia). Sem faixa curta no topo, a última seção também acende no fim da página,
- * onde já não há rolagem para ela subir.
+ * não terminou acima da linha de leitura, 140 px abaixo do topo — ou seja, a que está logo abaixo da
+ * fita fixa. Por isso a raiz é a tela inteira menos esses 140 px: uma seção "sai" quando o fim dela
+ * passa da linha, e a de baixo assume. A linha tem de ficar abaixo de onde a âncora para, senão a seção
+ * anterior continuava com uns pixels na faixa e ficava marcada depois do clique (medido em 19/09/2026,
+ * quando a âncora parava a 96 px; desde a ficha Mesa, 25/11/2026, ela para a 61 px no computador, que é
+ * o scroll-padding-top do html: os 49 px da fita mais a folga). Sem faixa curta no topo, a última seção
+ * também acende no fim da página, onde já não há rolagem para ela subir.
  * O observador só dispara quando uma seção entra ou sai — não há ouvinte de rolagem, e setState com o
  * mesmo id não re-renderiza: só a troca de seção custa um render.
  * `ids` vem como texto para o efeito não recomeçar a cada render do pai.
@@ -66,13 +67,16 @@ function useSecaoAtiva(ids: string): string | null {
 }
 
 /**
- * O índice de texto da Metodologia: uma linha por seção, a que está sendo lida com o fio da marca à
- * esquerda. Sai só a lista, porque o <nav aria-label="Seções"> já é da própria página.
+ * O índice de "Como funciona": uma linha de texto por seção, e a que está sendo lida com um fio na cor do
+ * texto à esquerda. Sai só a lista, porque o <nav aria-label="Seções"> já é da própria página.
+ *
+ * 25/11/2026 (ficha Mesa): texto de 13 px, sem caixa alta e sem cor de marca; o marcador é o mesmo fio da
+ * barra lateral (item atual = fio na cor do texto). O índice fica preso ao lado do conteúdo, só em tela
+ * larga; no celular a página se lê de cima a baixo.
  *
  * 20/09/2026: o componente tinha duas variantes, e a prop que escolhia entre elas saiu junto com a
  * segunda — a barra de traços colada na lateral direita da home e do Comparativo, que o Artur viu nos
- * prints e não quis. A navegação do site passou a ser a barra lateral do Cabecalho, e um indicador de
- * seção solto no meio da tela virava outra coisa no mesmo lugar. Sobrou um uso só: a Metodologia.
+ * prints e não quis. Sobrou um uso só: esta página.
  *
  * Sem JavaScript os links funcionam do mesmo jeito — só não há marca de seção atual.
  */
@@ -80,7 +84,7 @@ export function NavSecoes({ secoes, className }: Props) {
   const ativa = useSecaoAtiva(secoes.map((s) => s.id).join(","));
 
   return (
-    <ol className={cn("space-y-0.5 text-sm", className)}>
+    <ol className={cn("text-[0.8125rem]", className)}>
       {secoes.map((s) => {
         const atual = s.id === ativa;
         return (
@@ -90,10 +94,8 @@ export function NavSecoes({ secoes, className }: Props) {
               aria-current={atual ? "true" : undefined}
               onClick={() => focarSecao(s.id)}
               className={cn(
-                "block border-l-2 py-0.5 pl-3 transition-colors motion-reduce:transition-none",
-                atual
-                  ? "border-primary text-foreground"
-                  : "border-transparent text-muted-foreground hover:border-(--painel-fio-forte) hover:text-foreground",
+                "block border-l-2 py-1 pl-3.5 text-pretty transition-colors motion-reduce:transition-none",
+                atual ? "border-foreground text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
               )}
             >
               {s.rotulo}

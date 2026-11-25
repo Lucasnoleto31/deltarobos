@@ -1,5 +1,4 @@
-import type { ChaveIndicador } from "@/components/compartilhados/glossario";
-import { RotuloComInfo } from "@/components/compartilhados/InfoIndicador";
+import { ListaKpi, type ItemKpi } from "@/components/desempenho/CardsKpi";
 import { Valor } from "@/components/compartilhados/Valor";
 import { formatarBRL, formatarData, formatarMultiplo, formatarNumero, formatarPct } from "@/lib/formato";
 import { calcularKpis } from "@/lib/stats/kpis";
@@ -11,148 +10,81 @@ interface Props {
   valorPonto: number;
   capitalReferencia: number | null;
   hoje: string;
-}
-
-/** Os quatro números que se procura primeiro: cartão, rótulo (com o "o que é"), valor e uma linha de apoio. */
-function CardKpi({
-  rotulo,
-  info,
-  children,
-  detalhe,
-}: {
-  rotulo: string;
-  info: ChaveIndicador;
-  children: React.ReactNode;
-  detalhe?: React.ReactNode;
-}) {
-  return (
-    <div className="painel p-4">
-      <p className="rotulo-metrica">
-        <RotuloComInfo chave={info}>{rotulo}</RotuloComInfo>
-      </p>
-      <p className="mt-2 text-xl leading-none font-semibold tracking-tight tabular-nums sm:text-2xl">{children}</p>
-      {detalhe ? <p className="mt-1.5 text-xs text-muted-foreground tabular-nums">{detalhe}</p> : null}
-    </div>
-  );
-}
-
-/** Os outros oito, em lista agrupada: rótulo à esquerda, valor à direita, o apoio embaixo do rótulo. */
-function LinhaKpi({
-  rotulo,
-  info,
-  children,
-  detalhe,
-}: {
-  rotulo: string;
-  info: ChaveIndicador;
-  children: React.ReactNode;
-  detalhe?: React.ReactNode;
-}) {
-  return (
-    <div className="sep [--sep:16px] flex items-center justify-between gap-3 px-4 py-2.5">
-      <dt className="min-w-0">
-        <RotuloComInfo chave={info} className="block text-sm">
-          {rotulo}
-        </RotuloComInfo>
-        {detalhe ? <span className="block text-xs text-muted-foreground tabular-nums">{detalhe}</span> : null}
-      </dt>
-      <dd className="shrink-0 text-sm font-semibold tabular-nums">{children}</dd>
-    </div>
-  );
+  className?: string;
 }
 
 /**
- * KPIs da visão geral (spec §8.2), em R$ líquido por 1 contrato, desde o início. Eram doze cartões
- * iguais, que no celular davam seis fileiras (812 px) sem hierarquia. Desde 17/09/2026: quatro
- * cartões e oito linhas. As fórmulas que vinham embaixo do número ("soma dos gains ÷ soma dos
- * losses") saíram: a definição de cada métrica está na metodologia. O drawdown segue as abas Desempenho
- * e Risco desde 19/09/2026: % do capital de referência no número e, embaixo, o R$ e o capital ("-R$ 34.599
- * sobre capital de R$ 35.000"; só o R$ fazia o 98,9% parecer a conta inteira). Sem capital, R$ no número.
- * Desde 19/09/2026 cada rótulo traz o i com o "o que é" do glossário, no lugar das fórmulas que saíram.
+ * "Mais números" da visão geral do robô (spec §8.2), desde o início, em R$ para 1 contrato e já com custos.
+ * Desde a ficha Mesa (25/11/2026) é uma lista só, sem cartões: o resultado e a maior queda já estão no topo
+ * da página, e aqui ficam os números de quem quer ir além, cada um com nome de leigo e uma linha dizendo o
+ * que ele quer dizer na prática ("ganhou R$ 1,13 para cada R$ 1,00 perdido"). O termo técnico fica na
+ * explicação que o nome abre ao toque.
  */
-export function KpisRobo({ linhas, valorPonto, capitalReferencia, hoje }: Props) {
-  const k = calcularKpis(
-    linhas,
-    { base: "liquido", unidade: "brl", valorPonto },
-    { hoje, capitalReferencia },
-  );
+export function KpisRobo({ linhas, valorPonto, capitalReferencia, hoje, className }: Props) {
+  const k = calcularKpis(linhas, { base: "liquido", unidade: "brl", valorPonto }, { hoje, capitalReferencia });
 
   if (k.nDias === 0) {
-    return (
-      <p className="painel px-4 py-8 text-center text-sm text-muted-foreground">{VAZIO_DO_PERIODO.tudo}</p>
-    );
+    return <p className="py-6 text-sm text-muted-foreground">{VAZIO_DO_PERIODO.tudo}</p>;
   }
 
-  return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <CardKpi rotulo="Acumulado" info="acumulado" detalhe={`${formatarNumero(k.nDias)} ${k.nDias === 1 ? "dia" : "dias"} de pregão`}>
-          <Valor valor={k.acumulado} inteiro={Math.abs(k.acumulado) >= 1000} />
-        </CardKpi>
-        <CardKpi rotulo="Mês atual" info="mesAtual">
-          <Valor valor={k.mes} inteiro={Math.abs(k.mes) >= 1000} />
-        </CardKpi>
-        <CardKpi
-          rotulo="Drawdown máximo"
-          // o número é o % do capital quando há capital; sem ele, o R$
-          info={k.drawdownMaximoPct !== null ? "drawdownPct" : "drawdown"}
-          detalhe={
-            k.drawdown.valor === 0
-              ? undefined
-              : k.drawdownMaximoPct !== null && capitalReferencia
-                ? `${formatarBRL(-k.drawdown.valor, { inteiro: k.drawdown.valor >= 1000, sinal: true })} sobre capital de ${formatarBRL(capitalReferencia, { inteiro: true })}`
-                : k.drawdown.fundo
-                  ? `fundo em ${formatarData(k.drawdown.fundo)}`
-                  : undefined
-          }
-        >
-          {k.drawdown.valor === 0 ? (
-            <span className="text-muted-foreground">nenhum</span>
-          ) : k.drawdownMaximoPct !== null ? (
-            formatarPct(k.drawdownMaximoPct)
-          ) : (
-            <Valor valor={-k.drawdown.valor} inteiro={k.drawdown.valor >= 1000} />
-          )}
-        </CardKpi>
-        {/* número e rótulo presos (19/09/2026): no celular quebrava "2.420 / losses" */}
-        <CardKpi
-          rotulo="Taxa de acerto"
-          info="taxaAcerto"
-          detalhe={
-            <>
-              {formatarNumero(k.nGain)}&nbsp;gains · {formatarNumero(k.nLoss)}&nbsp;losses
-            </>
-          }
-        >
-          {formatarPct(k.taxaAcerto)}
-        </CardKpi>
-      </div>
+  const itens: ItemKpi[] = [
+    {
+      rotulo: "Acertos",
+      info: "taxaAcerto",
+      valor: formatarPct(k.taxaAcerto),
+      detalhe: `${formatarNumero(k.nGain)} operações com ganho, ${formatarNumero(k.nLoss)} com perda`,
+    },
+    {
+      rotulo: "Ganho médio contra perda média",
+      info: "payoff",
+      valor: formatarMultiplo(k.payoff),
+      detalhe:
+        k.payoff === null
+          ? undefined
+          : k.payoff < 1
+            ? "os ganhos são menores que as perdas: o robô depende de acertar muito"
+            : "os ganhos são maiores que as perdas",
+    },
+    {
+      rotulo: "Fator de lucro",
+      info: "fatorLucro",
+      valor: formatarMultiplo(k.fatorLucro),
+      detalhe: k.fatorLucro === null ? undefined : `ganhou ${formatarBRL(k.fatorLucro)} para cada R$ 1,00 perdido`,
+    },
+    {
+      rotulo: "Operações",
+      info: "operacoes",
+      valor: formatarNumero(k.nOperacoes),
+      detalhe: `${formatarNumero(k.mediaOperacoesDia, 1)} por dia, em ${formatarNumero(k.nDias)} ${k.nDias === 1 ? "pregão" : "pregões"}`,
+    },
+    {
+      rotulo: "Média por mês",
+      info: "mediaMensal",
+      valor: <Valor valor={k.mediaMensal} inteiro={Math.abs(k.mediaMensal) >= 1000} />,
+      detalhe: `em ${formatarNumero(k.nMeses)} ${k.nMeses === 1 ? "mês" : "meses"}; os meses variam muito entre si`,
+    },
+    {
+      rotulo: "Melhor dia",
+      valor: k.melhorDia ? <Valor valor={k.melhorDia.valor} inteiro={Math.abs(k.melhorDia.valor) >= 1000} /> : "–",
+      detalhe: k.melhorDia ? formatarData(k.melhorDia.dia) : undefined,
+    },
+    {
+      rotulo: "Maior sequência de dias com perda",
+      info: "sequenciaDiasNegativos",
+      valor: formatarNumero(k.maiorSequenciaDiasNegativos),
+      detalhe: `a maior de dias com ganho foi de ${formatarNumero(k.maiorSequenciaDiasPositivos)}`,
+    },
+    ...(k.drawdownMaximoPct !== null && capitalReferencia && k.drawdown.valor > 0
+      ? [
+          {
+            rotulo: "Maior queda, em % do capital",
+            info: "drawdownPct" as const,
+            valor: formatarPct(k.drawdownMaximoPct),
+            detalhe: `${formatarBRL(-k.drawdown.valor, { inteiro: true, sinal: true })} sobre o capital de referência de ${formatarBRL(capitalReferencia, { inteiro: true })}`,
+          },
+        ]
+      : []),
+  ];
 
-      <dl className="painel grid overflow-hidden sm:grid-cols-2 sm:[&>div:nth-last-child(-n+2)]:after:hidden">
-        <LinhaKpi rotulo="Média mensal" info="mediaMensal" detalhe={`${formatarNumero(k.nMeses)} ${k.nMeses === 1 ? "mês" : "meses"}`}>
-          <Valor valor={k.mediaMensal} inteiro={Math.abs(k.mediaMensal) >= 1000} />
-        </LinhaKpi>
-        <LinhaKpi rotulo="Operações" info="operacoes" detalhe={`${formatarNumero(k.mediaOperacoesDia, 1)} por dia`}>
-          {formatarNumero(k.nOperacoes)}
-        </LinhaKpi>
-        <LinhaKpi rotulo="Fator de lucro" info="fatorLucro">{formatarMultiplo(k.fatorLucro)}</LinhaKpi>
-        <LinhaKpi rotulo="Payoff" info="payoff">{formatarMultiplo(k.payoff)}</LinhaKpi>
-        <LinhaKpi rotulo="Melhor dia" info="melhorDia" detalhe={k.melhorDia ? formatarData(k.melhorDia.dia) : undefined}>
-          {k.melhorDia ? <Valor valor={k.melhorDia.valor} /> : "–"}
-        </LinhaKpi>
-        <LinhaKpi rotulo="Pior dia" info="piorDia" detalhe={k.piorDia ? formatarData(k.piorDia.dia) : undefined}>
-          {k.piorDia ? <Valor valor={k.piorDia.valor} /> : "–"}
-        </LinhaKpi>
-        {/* contagem de dias, não dinheiro: uma cor só (19/09/2026) */}
-        <LinhaKpi rotulo="Dias positivos × negativos" info="diasPositivosNegativos">
-          {formatarNumero(k.diasPositivos)}
-          <span className="text-muted-foreground"> × </span>
-          {formatarNumero(k.diasNegativos)}
-        </LinhaKpi>
-        <LinhaKpi rotulo="Maior sequência de dias negativos" info="sequenciaDiasNegativos" detalhe={`de positivos: ${formatarNumero(k.maiorSequenciaDiasPositivos)}`}>
-          {formatarNumero(k.maiorSequenciaDiasNegativos)}
-        </LinhaKpi>
-      </dl>
-    </div>
-  );
+  return <ListaKpi itens={itens} className={className} />;
 }

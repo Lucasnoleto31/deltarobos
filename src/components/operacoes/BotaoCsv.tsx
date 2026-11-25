@@ -1,8 +1,8 @@
 "use client";
 
-import { Download } from "lucide-react";
+import { cn } from "cn";
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
+import { LINK_DO_PAINEL } from "@/components/sistema/Painel";
 import { formatarHoraSeg, formatarNumero } from "@/lib/formato";
 import { supabaseBrowser } from "@/lib/supabase/cliente";
 import type { OperacaoPublica } from "@/lib/tipos";
@@ -12,6 +12,7 @@ interface Props {
   slug: string;
   filtros: FiltrosUrl;
   total: number;
+  className?: string;
 }
 
 const LIMITE = 50_000;
@@ -25,8 +26,12 @@ function celula(v: string | number | null): string {
 /**
  * Exporta a lista filtrada (até 50.000 linhas) em CSV com ; e vírgula decimal, pra abrir no Excel pt-BR.
  * 19/09/2026: a falha sai numa linha embaixo do botão, lida pelo leitor de tela, em vez do alerta do navegador.
+ *
+ * Ficha Mesa (25/11/2026): era um botão com borda e ícone no topo da aba; agora é um link de texto no pé
+ * da tabela, ao lado da paginação. O texto diz que o arquivo traz todas as operações do filtro, não só as
+ * 50 da página. É o arquivo que guarda o que saiu da tabela: símbolo, resultado antes dos custos e custos.
  */
-export function BotaoCsv({ slug, filtros, total }: Props) {
+export function BotaoCsv({ slug, filtros, total, className }: Props) {
   const [ocupado, setOcupado] = useState(false);
   const [falhou, setFalhou] = useState(false);
 
@@ -97,14 +102,29 @@ export function BotaoCsv({ slug, filtros, total }: Props) {
     }
   };
 
+  // sem operação não há o que baixar: o link nem aparece
+  if (total === 0) return null;
+
+  const rotulo =
+    total > LIMITE
+      ? `Baixar as ${formatarNumero(LIMITE)} mais recentes em planilha (CSV)`
+      : total === 1
+        ? "Baixar em planilha (CSV)"
+        : "Baixar todas em planilha (CSV)";
+
   return (
-    <div className="flex flex-col items-end">
-      <Button variant="outline" onClick={exportar} disabled={ocupado || total === 0}>
-        <Download data-icon="inline-start" />
-        {ocupado ? "Gerando…" : total > LIMITE ? `Exportar CSV (${formatarNumero(LIMITE)} mais recentes)` : "Exportar CSV"}
-      </Button>
+    <div className={cn("relative flex flex-col items-end", className)}>
+      <button
+        type="button"
+        onClick={exportar}
+        disabled={ocupado}
+        // o texto é pequeno: o ::after aumenta a área de toque sem mexer no desenho
+        className={cn(LINK_DO_PAINEL, "relative after:absolute after:-inset-x-2 after:-inset-y-2.5 disabled:pointer-events-none disabled:opacity-60")}
+      >
+        {ocupado ? "Gerando o arquivo…" : rotulo}
+      </button>
       <p role="status" className={falhou ? "mt-1.5 text-xs text-foreground" : "sr-only"}>
-        {falhou ? "O CSV não foi gerado. Tente de novo." : ""}
+        {falhou ? "O arquivo não foi gerado. Tente de novo." : ""}
       </p>
     </div>
   );

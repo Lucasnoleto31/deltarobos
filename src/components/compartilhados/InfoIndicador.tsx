@@ -70,30 +70,20 @@ export function InfoIndicador({ chave, texto, className }: Props) {
           {explicacao}
         </span>
       </Tooltip.Trigger>
-      <Tooltip.Portal>
-        <Tooltip.Positioner side="top" sideOffset={6} collisionPadding={12} className="z-50">
-          {/* mesma família da dica dos gráficos, em text-sm: fundo de popover, fio, canto e sombra curta */}
-          <Tooltip.Popup
-            aria-hidden
-            className={cn(
-              "w-max max-w-64 origin-(--transform-origin) rounded-xl border border-(--painel-fio-forte) bg-popover px-3 py-2.5 text-left text-sm leading-snug text-popover-foreground",
-              "shadow-[0_10px_28px_-14px_rgba(0,0,0,0.55)] outline-none",
-              "transition-[opacity,scale] duration-150 ease-out data-ending-style:scale-95 data-ending-style:opacity-0 data-starting-style:scale-95 data-starting-style:opacity-0 motion-reduce:transition-none",
-            )}
-          >
-            <p className="font-semibold text-foreground">{nome}</p>
-            <p className="mt-1 text-pretty text-muted-foreground">{explicacao}</p>
-          </Tooltip.Popup>
-        </Tooltip.Positioner>
-      </Tooltip.Portal>
+      <Balao nome={nome} explicacao={explicacao} />
     </Tooltip.Root>
   );
 }
 
 /**
- * O rótulo com o i logo depois, na mesma linha do texto. O i vai preso à última palavra (word joiner e
- * nowrap), então quando o rótulo quebra ele desce junto e nunca fica sozinho na linha de baixo. Não muda a
- * caixa de quem usa: é um span em linha, e o i tem a altura da letra.
+ * O rótulo que explica a si mesmo (25/11/2026, Lucas: "o site está com muita cara de IA"). Era o rótulo
+ * com um i depois, em 52 lugares do site; o i em todo número era o que mais lia como template. O glossário
+ * continua inteiro (o pedido do Artur de 19/09/2026, "em todos os cards deve ter uma info sobre o que é"):
+ * agora o próprio rótulo é o gatilho, com um sublinhado pontilhado discreto, e abre o mesmo balão, do
+ * mesmo jeito (mouse, foco, toque, Esc). O nome acessível é o próprio texto do rótulo; a explicação vai no
+ * aria-describedby.
+ *
+ * As mesmas regras do i valem aqui: é um <button>, então não vai dentro de <a> nem de outro <button>.
  */
 export function RotuloComInfo({
   chave,
@@ -106,13 +96,60 @@ export function RotuloComInfo({
   children: React.ReactNode;
   className?: string;
 }) {
+  const { nome, texto: padrao } = GLOSSARIO[chave];
+  const explicacao = (texto ?? padrao).replace(/R\$ /g, `R$${ESPACO_FIXO}`);
+  const [aberto, setAberto] = useState(false);
+  const ponteiro = useRef<string>("mouse");
+  const idTexto = useId();
+
   return (
-    <span className={className}>
-      {children}
-      <span className="whitespace-nowrap">
-        &#8288;
-        <InfoIndicador chave={chave} texto={texto} className="ml-1" />
-      </span>
-    </span>
+    <Tooltip.Root open={aberto} onOpenChange={setAberto}>
+      <Tooltip.Trigger
+        delay={120}
+        closeDelay={80}
+        closeOnClick={false}
+        aria-describedby={idTexto}
+        onPointerDown={(e) => {
+          ponteiro.current = e.pointerType;
+        }}
+        onClick={(e) => {
+          if (ponteiro.current === "mouse" && e.detail > 0) setAberto(true);
+          else setAberto((a) => !a);
+        }}
+        className={cn(
+          "relative cursor-help rounded-sm text-left underline decoration-dotted decoration-1 underline-offset-[3px] outline-none",
+          "[text-decoration-color:color-mix(in_srgb,currentColor_40%,transparent)] transition-[text-decoration-color]",
+          "hover:[text-decoration-color:currentColor] focus-visible:ring-2 focus-visible:ring-ring/50 data-popup-open:[text-decoration-color:currentColor]",
+          className,
+        )}
+      >
+        {children}
+        <span id={idTexto} hidden>
+          {explicacao}
+        </span>
+      </Tooltip.Trigger>
+      <Balao nome={nome} explicacao={explicacao} />
+    </Tooltip.Root>
+  );
+}
+
+/** O balão do glossário, o mesmo para o i e para o rótulo sublinhado. */
+function Balao({ nome, explicacao }: { nome: string; explicacao: string }) {
+  return (
+    <Tooltip.Portal>
+      <Tooltip.Positioner side="top" sideOffset={6} collisionPadding={12} className="z-50">
+        <Tooltip.Popup
+          aria-hidden
+          className={cn(
+            "w-max max-w-64 origin-(--transform-origin) rounded-xl border border-(--painel-fio-forte) bg-popover px-3 py-2.5 text-left text-sm leading-snug text-popover-foreground",
+            "shadow-[0_10px_28px_-14px_rgba(0,0,0,0.55)] outline-none",
+            "transition-[opacity,scale] duration-150 ease-out data-ending-style:scale-95 data-ending-style:opacity-0 data-starting-style:scale-95 data-starting-style:opacity-0 motion-reduce:transition-none",
+          )}
+        >
+          <p className="font-semibold text-foreground">{nome}</p>
+          <p className="mt-1 text-pretty text-muted-foreground">{explicacao}</p>
+        </Tooltip.Popup>
+      </Tooltip.Positioner>
+    </Tooltip.Portal>
   );
 }

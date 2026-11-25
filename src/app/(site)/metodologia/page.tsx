@@ -1,531 +1,892 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { GLOSSARIO, type ChaveIndicador } from "@/components/compartilhados/glossario";
-import { RevelarNaRolagem } from "@/components/compartilhados/RevelarNaRolagem";
+import { Faq } from "@/components/compartilhados/Faq";
+import { ComoComecar } from "@/components/home/ComoComecar";
+import { TextoDeHoje } from "@/components/home/TextoDeHoje";
 import { NavSecoes } from "@/components/layout/NavSecoes";
-import { Voltar } from "@/components/layout/Voltar";
-import { formatarMultiplo, formatarNumero, formatarPct } from "@/lib/formato";
-import { PARAMETROS_FAIXAS_PADRAO } from "@/lib/stats/faixas";
+import { CabecalhoPagina, CorpoPagina, Grade } from "@/components/sistema/Pagina";
+import { carregarCasa } from "@/lib/consultas/casa";
+import { formatarBRL, formatarMultiplo, formatarNumero, formatarPct } from "@/lib/formato";
+import { HORAS, LOTE_POR_CLASSE, ROTULO_CLASSE } from "@/lib/stats/faixas";
 import { LIMITE_SEM_HEARTBEAT_SEG } from "@/lib/stats/pregao";
+import { calmar, capitalMinimoRecomendado, recoveryFactor, retornoAnualizado, riscoDeRuina } from "@/lib/stats/risco";
+import { acumular, maiorQueda } from "@/lib/stats/serie-casa";
+import { LIMITE_APERTADO } from "@/lib/stats/simulador";
+import type { RoboPublico } from "@/lib/tipos";
+import { AoLado, ComExemplo, Conta, CurvaDeExemplo, Linhas, Secao, Subtitulo, Texto, type Linha } from "./pecas";
+
+// 25/11/2026: a página passou a ler o banco (o link de abertura de conta do "Como começar", o valor do ponto
+// de cada ativo, o fator de segurança e as regras dos horários em uso), então revalida como as outras telas
+export const revalidate = 60;
 
 export const metadata: Metadata = {
-  title: "Metodologia",
-  description:
-    "Como cada métrica da Quants Robôs é calculada, como os dados são coletados do MetaTrader 5, o que é custo e o que é normalização por contrato.",
+  title: "Como funciona",
+  description: "De onde vêm os números da Quants Robôs, como cada um é calculado e como começar a usar um robô.",
 };
 
+// O índice ao lado do conteúdo. Os ids são os endereços que as outras telas usam (/metodologia#custos,
+// #drawdown, #simulador, #como-comecar…): seção que foi juntada a outra em 25/11/2026 manteve o id num
+// subtítulo, num parágrafo ou numa linha (custos, operacoes-em-aberto, periodos, fator-lucro, payoff,
+// sequencias, curva-do-dia, risco-de-ruina).
 const SECOES = [
-  { id: "coleta", titulo: "Como os dados chegam" },
-  { id: "normalizacao", titulo: "Por contrato" },
-  { id: "custos", titulo: "Bruto e líquido" },
-  { id: "operacao", titulo: "O que é uma operação" },
-  { id: "operacoes-em-aberto", titulo: "Operações em aberto" },
-  { id: "resultado", titulo: "Resultado do dia, mês, ano e acumulado" },
-  { id: "mep-men", titulo: "MEP e MEN do dia" },
-  { id: "curva-do-dia", titulo: "A curva do dia" },
-  { id: "drawdown", titulo: "Drawdown e recuperação" },
-  { id: "taxa-acerto", titulo: "Taxa de acerto" },
-  { id: "fator-lucro", titulo: "Fator de lucro" },
-  { id: "payoff", titulo: "Payoff" },
-  { id: "sequencias", titulo: "Sequências e dias" },
-  { id: "capital-minimo", titulo: "Capital mínimo recomendado" },
-  { id: "simulador", titulo: "Simulador com o meu capital" },
-  { id: "indices-risco", titulo: "Calmar, recovery factor, Ulcer e tempo em drawdown" },
-  { id: "risco-de-ruina", titulo: "Risco de ruína" },
-  { id: "faixas", titulo: "Validação de faixas" },
-  { id: "periodos", titulo: "Períodos e dia de pregão" },
-  { id: "glossario", titulo: "Glossário" },
+  { id: "como-comecar", rotulo: "Como começar" },
+  { id: "coleta", rotulo: "De onde vêm os números" },
+  { id: "status", rotulo: "O que o site diz do robô agora" },
+  { id: "normalizacao", rotulo: "1 contrato e custos" },
+  { id: "operacao", rotulo: "O que é uma operação" },
+  { id: "resultado", rotulo: "Resultado e períodos" },
+  { id: "drawdown", rotulo: "Maior queda" },
+  { id: "taxa-acerto", rotulo: "Acertos e operações" },
+  { id: "mep-men", rotulo: "Melhor e pior momento do dia" },
+  { id: "capital-minimo", rotulo: "Capital mínimo" },
+  { id: "simulador", rotulo: "Simular meu capital" },
+  { id: "indices-risco", rotulo: "Mais números de risco" },
+  { id: "faixas", rotulo: "Melhores horários" },
+  { id: "glossario", rotulo: "Palavras do mercado" },
+  { id: "perguntas", rotulo: "Perguntas frequentes" },
 ];
 
-// o mesmo limite que decide o selo "Sem atualização" (lib/stats/pregao), para o texto não descolar dele
+// o mesmo limite que decide a frase "sem atualização no momento" (lib/stats/pregao), para o texto não descolar dele
 const MINUTOS_SEM_SINAL = formatarNumero(LIMITE_SEM_HEARTBEAT_SEG / 60);
 
-// os números das regras de faixa saem dos parâmetros padrão de lib/stats/faixas (19/09/2026), como o lote
-// no glossário: se o padrão mudar lá, o texto muda junto
-const PF = PARAMETROS_FAIXAS_PADRAO;
+const reais = (v: number, sinal = false) => formatarBRL(v, { sinal, inteiro: true });
+const centavos = (v: number, sinal = false) => formatarBRL(v, { sinal });
 const vezes = (v: number) => `${formatarNumero(v, Number.isInteger(v) ? 0 : 1)}×`;
 
-function Secao({ id, titulo, children }: { id: string; titulo: string; children: React.ReactNode }) {
+// ── Os exemplos ────────────────────────────────────────────────────────────────────────────────────
+// Onde a conta de verdade mora em lib/stats, o exemplo é feito com a MESMA função (acumular, maiorQueda,
+// capitalMinimoRecomendado, riscoDeRuina, calmar, recoveryFactor): se a regra mudar lá, o exemplo muda junto.
+
+// a maior queda: seis pregões, com o ponto mais alto no segundo e o mais baixo no quarto
+const CURVA_DA_QUEDA = acumular([300, 200, -150, -250, 180, 320].map((valor, i) => ({ dia: `dia ${i + 1}`, valor })));
+const QUEDA = maiorQueda(CURVA_DA_QUEDA);
+
+// as operações: 7 com ganho de R$ 100 e 3 com perda de R$ 150
+const OPS = { comGanho: 7, ganho: 100, comPerda: 3, perda: 150 };
+const OPS_TOTAL = OPS.comGanho + OPS.comPerda;
+const OPS_GANHOS = OPS.comGanho * OPS.ganho;
+const OPS_PERDAS = OPS.comPerda * OPS.perda;
+const OPS_ACERTOS = OPS.comGanho / OPS_TOTAL;
+const OPS_RELACAO = OPS.ganho / OPS.perda;
+
+// o risco de ruína das mesmas operações, com um capital que cobre poucas perdas médias e outro que cobre cem
+const RUINA = { capital: 3000, capitalFolgado: 15000 };
+const RUINA_GANHO_ESPERADO = OPS_ACERTOS * OPS_RELACAO - (1 - OPS_ACERTOS);
+const ruinaCom = (capital: number) => riscoDeRuina({ taxaAcerto: OPS_ACERTOS, payoff: OPS_RELACAO, capital, perdaMedia: OPS.perda });
+
+// os números de risco: meio ano de pregões
+const RISCO = { resultado: 2000, pregoes: 126, queda: 1000 };
+
+// o capital mínimo: a margem e a maior queda de um robô qualquer
+const MINIMO = { margem: 150, queda: 2000 };
+
+// a nota de um horário
+const NOTA = { posicao: 0.8, mesesComGanho: 8, meses: 10, operacoes: 50 };
+const NOTA_PARTES = [50 * NOTA.posicao, 30 * (NOTA.mesesComGanho / NOTA.meses), 20 * Math.min(1, NOTA.operacoes / 100)];
+
+// os atalhos de período das telas (lib/stats/periodos, components/robo/periodos-resumo e a página inicial)
+const PERIODOS: ReadonlyArray<readonly [nome: string, texto: string]> = [
+  ["Hoje", "o pregão de hoje"],
+  ["Semana", "de segunda-feira até hoje"],
+  ["Mês", "do dia 1º até hoje"],
+  ["Ano", "de 1º de janeiro até hoje"],
+  ["7 dias, 30 dias", "pelo calendário"],
+  ["3 meses, 12 meses", "pelo calendário"],
+  ["30 pregões", "os últimos 30 com operação"],
+  ["Tudo, desde o início", "o histórico inteiro"],
+  ["Personalizado", "entre duas datas"],
+];
+
+interface AtivoDoSite {
+  codigo: string;
+  nome: string;
+  valorPonto: number;
+}
+
+/** Os ativos que os robôs do site operam, na ordem dos robôs: saem do cadastro, nunca do código. */
+function ativosDosRobos(robos: readonly RoboPublico[]): AtivoDoSite[] {
+  const vistos = new Map<string, AtivoDoSite>();
+  for (const r of robos) {
+    if (r.status === "arquivado" || vistos.has(r.ativo)) continue;
+    vistos.set(r.ativo, { codigo: r.ativo, nome: r.ativo_nome, valorPonto: r.valor_ponto_brl });
+  }
+  return [...vistos.values()];
+}
+
+/** O exemplo da maior queda: a curva com o trecho em vermelho, como nas curvas do site, e a conta dia a dia. */
+function ExemploDaQueda() {
+  if (!QUEDA) return null;
+  const topo = QUEDA.iInicio >= 0 ? CURVA_DA_QUEDA[QUEDA.iInicio] : null;
+  const fundo = CURVA_DA_QUEDA[QUEDA.iFundo];
+  const alto = topo?.acumulado ?? 0;
+  const volta = CURVA_DA_QUEDA.find((p, i) => i > QUEDA.iFundo && p.acumulado >= alto);
   return (
-    // 19/09/2026: sem scroll-mt aqui — o scroll-padding-top do html (globals.css) já desconta o
-    // cabeçalho fixo, e os dois somavam, deixando a seção quase 100 px abaixo do necessário.
-    // A entrada ao rolar fica DENTRO da <section>, nunca nela: quem carrega o id não pode ser o
-    // elemento que translada, senão o clique na âncora mira a posição ainda deslocada e o título
-    // termina encostado no cabeçalho (medido: 12 px a menos de folga). A casca parada não aparece,
-    // porque a <section> não tem fio nem fundo — o que entra é o texto inteiro, de uma vez só.
-    <section id={id}>
-      <RevelarNaRolagem className="space-y-3" desloca={10}>
-        <h2 className="text-xl font-semibold tracking-tight">{titulo}</h2>
-        <div className="space-y-3 text-pretty text-muted-foreground [&_strong]:text-foreground">{children}</div>
-      </RevelarNaRolagem>
-    </section>
+    <AoLado titulo="Exemplo: seis pregões">
+      <CurvaDeExemplo
+        acumulados={CURVA_DA_QUEDA.map((p) => p.acumulado)}
+        queda={QUEDA}
+        descricao={`Curva de exemplo: sobe até ${reais(alto)}, cai até ${reais(fundo.acumulado)} e volta a subir. A queda está em vermelho.`}
+        className="mt-3"
+      />
+      <table className="mt-4 w-full">
+        <thead>
+          <tr className="text-[0.8125rem] text-sutil">
+            <th className="pb-1 text-left font-normal">Pregão</th>
+            <th className="pb-1 text-right font-normal">No dia</th>
+            <th className="pb-1 text-right font-normal">Soma</th>
+          </tr>
+        </thead>
+        <tbody>
+          {CURVA_DA_QUEDA.map((p, i) => (
+            <tr key={p.dia} className="leading-7">
+              <td className="text-muted-foreground">{i + 1}</td>
+              <td className="text-right">{reais(p.valor, true)}</td>
+              <td className={i > QUEDA.iInicio && i <= QUEDA.iFundo ? "text-right text-negativo" : "text-right"}>{reais(p.acumulado)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="mt-1.5 flex items-baseline justify-between gap-4 border-t border-(--painel-fio-forte) pt-1.5 leading-7">
+        <span>Maior queda</span>
+        <span className="font-medium whitespace-nowrap text-negativo">{reais(-QUEDA.valor, true)}</span>
+      </p>
+      <p className="mt-1 text-[0.8125rem] leading-relaxed text-pretty text-muted-foreground">
+        De {reais(alto)}
+        {topo ? `, no ${topo.dia},` : ""} a {reais(fundo.acumulado)}, no {fundo.dia}.
+        {volta ? ` No ${volta.dia} a soma volta ao ponto mais alto: a queda foi recuperada.` : ""}
+      </p>
+    </AoLado>
   );
 }
 
 /**
- * Um indicador (19/09/2026, Artur: "as explicações sobre os indicadores devem ser de fácil entendimento, para
- * qualquer leigo entender"): primeiro o que o número quer dizer, com o mesmo texto do i ao lado dele no site
- * (GLOSSARIO), e depois a conta, para quem quiser refazer. As regras de cálculo são as de antes.
- * `nome` põe o nome do glossário em cima, quando a seção junta mais de um indicador.
+ * "Como funciona" (spec §8.7): de onde vêm os números, como cada um é calculado e como começar.
+ *
+ * Ficha Mesa, 25/11/2026 (Lucas: "para um leigo está muito difícil de entender"; "coisas que não são
+ * necessárias pode tirar"). Era um documento técnico de vinte seções numa coluna estreita; virou um manual:
+ * - "Como começar" abre a página (saiu da página inicial; a barra lateral aponta para /metodologia#como-comecar);
+ * - o índice fica preso à direita, só em tela larga, e o conteúdo segue alinhado ao título, como nas outras telas;
+ * - cada seção diz primeiro o que a coisa é, em palavras de todo dia, depois a conta em palavras e, ao lado,
+ *   um exemplo com números. Os nomes são os da tela (maior queda, acertos, melhor e pior momento); o nome
+ *   técnico aparece uma vez, pequeno, para quem o conhece de outro lugar;
+ * - saíram o histórico de versões do coletor, as repetições entre seções e o que só um desenvolvedor leria.
+ *   As regras de cálculo são as mesmas.
+ *
+ * O texto deixou de vir do GLOSSARIO (era a regra de 19/09/2026: o mesmo texto do "o que é" ao lado do
+ * número): o glossário ainda usa os nomes antigos (drawdown, payoff, gain, loss), que a ficha tirou da tela.
+ *
+ * Nada de robô, ativo, link ou parâmetro fixo no código: o valor do ponto vem do cadastro dos robôs, e o
+ * fator de segurança e as regras dos horários são os que o banco tem em uso (carregarCasa, o mesmo que a
+ * casca do site já carrega neste render).
  */
-function Indicador({ chave, nome = false, children }: { chave: ChaveIndicador; nome?: boolean; children?: React.ReactNode }) {
-  const g = GLOSSARIO[chave];
+export default async function PaginaMetodologia() {
+  const casa = await carregarCasa();
+  const { links, fatorSeguranca, faixas: regras } = casa.parametros;
+  const ativos = ativosDosRobos(casa.robos);
+  const ativoDoExemplo = ativos[0] ?? null;
+
+  // 25/11/2026: o estado do robô deixou de ser um selo ("Operando", "Posicionado", "Histórico") e virou uma
+  // frase (components/home/frase-de-hoje). Cada linha desenha a frase com o mesmo componente da barra
+  // lateral, para o manual nunca descolar da tela; a explicação segue a ordem de statusAoVivo
+  // (lib/stats/status-robo): cadastro > sem coletor > pregão fechado > coletor parado > em operação > horário.
+  const frases: Linha[] = [
+    {
+      nome: <TextoDeHoje className="text-sm" robo={{ statusAoVivo: "operando", operouHoje: false, hoje: 0 }} />,
+      texto:
+        "O pregão está aberto, o coletor está mandando sinal e é horário do robô, mas nenhuma operação fechou hoje. Se o robô está ligado ou não, só a conta sabe.",
+    },
+    {
+      nome: <TextoDeHoje className="text-sm" robo={{ statusAoVivo: "operando", operouHoje: true, hoje: 240, hojeOperacoes: 3 }} />,
+      texto: "O resultado das operações que já fecharam hoje, com 1 contrato e já descontados os custos. Continua na tela depois que o pregão fecha.",
+    },
+    {
+      nome: <TextoDeHoje className="text-sm" robo={{ statusAoVivo: "posicionado", operouHoje: false, hoje: 0 }} />,
+      texto: "O robô tem pelo menos uma entrada aberta neste momento. Se alguma operação já fechou hoje, o resultado dela vem junto.",
+    },
+    {
+      nome: <TextoDeHoje className="text-sm" robo={{ statusAoVivo: "fora_do_horario", operouHoje: false, hoje: 0 }} />,
+      texto: "O pregão está fechado, ou está aberto mas fora do horário do robô, e nenhuma operação fechou hoje.",
+    },
+    {
+      nome: <TextoDeHoje className="text-sm" robo={{ statusAoVivo: "historico", operouHoje: false, hoje: 0, dadosAte: casa.hoje }} />,
+      texto: "O robô não tem coletor no MetaTrader 5: os números vêm do histórico importado, até a data indicada.",
+    },
+    {
+      nome: <TextoDeHoje className="text-sm" robo={{ statusAoVivo: "desconhecido", operouHoje: false, hoje: 0 }} />,
+      texto: `O pregão está aberto e o coletor não manda sinal há mais de ${MINUTOS_SEM_SINAL} minutos. O que aparece de hoje pode estar atrasado.`,
+    },
+    // os três estados do cadastro numa linha só: as palavras já dizem o que são.
+    // 19/09/2026: o arquivado sai da página inicial, do menu e do Comparativo, mas robos_publico ainda o
+    // devolve e /robos/[slug] continua abrindo
+    {
+      nome: (
+        <>
+          <TextoDeHoje className="text-sm" robo={{ statusAoVivo: "em_breve", operouHoje: false, hoje: 0 }} />
+          <span className="text-muted-foreground">, </span>
+          <TextoDeHoje className="text-sm" robo={{ statusAoVivo: "pausado", operouHoje: false, hoje: 0 }} />
+          <span className="text-muted-foreground">, </span>
+          <TextoDeHoje className="text-sm" robo={{ statusAoVivo: "arquivado", operouHoje: false, hoje: 0 }} />
+        </>
+      ),
+      texto:
+        "O robô ainda não começou a operar em conta real, parou de operar ou saiu da lista do site. O histórico que existe continua no endereço dele.",
+    },
+  ];
+
+  const numerosDasOperacoes: Linha[] = [
+    {
+      nome: "Acertos",
+      tecnico: "taxa de acerto",
+      texto: "De cada 100 operações, quantas terminaram com ganho. Sozinho, não diz se o robô ganha dinheiro: depende também do tamanho dos ganhos e das perdas.",
+      conta: "operações com ganho ÷ total de operações.",
+      exemplo: `${formatarNumero(OPS.comGanho)} ÷ ${formatarNumero(OPS_TOTAL)} = ${formatarPct(OPS_ACERTOS, 0)}`,
+    },
+    {
+      id: "fator-lucro",
+      nome: "Fator de lucro",
+      texto: "Quanto o robô ganhou para cada R$ 1 perdido. Acima de 1, ganhou mais do que perdeu.",
+      conta: "soma dos ganhos ÷ soma das perdas. Sem nenhuma perda no período, fica sem valor.",
+      exemplo: `${reais(OPS_GANHOS)} ÷ ${reais(OPS_PERDAS)} = ${formatarMultiplo(OPS_GANHOS / OPS_PERDAS)}`,
+    },
+    {
+      id: "payoff",
+      nome: "Ganho médio contra perda média",
+      tecnico: "payoff",
+      texto: "O tamanho do ganho médio comparado com o da perda média. Quanto menor, mais o robô precisa acertar para lucrar.",
+      conta: "ganho médio ÷ perda média.",
+      exemplo: `${reais(OPS.ganho)} ÷ ${reais(OPS.perda)} = ${formatarMultiplo(OPS_RELACAO)}`,
+    },
+    {
+      id: "sequencias",
+      nome: "Maior sequência",
+      texto:
+        "O maior número de operações com ganho seguidas e o de operações com perda seguidas, na ordem em que fecharam. Uma operação que fecha em zero interrompe a contagem.",
+    },
+    {
+      nome: "Dias com ganho e com perda",
+      texto:
+        "Quantos pregões terminaram com ganho e quantos com perda. Dia que fecha em zero não entra em nenhum dos dois e interrompe a sequência de dias com perda.",
+    },
+  ];
+
+  // 22/09/2026: duas fontes. O coletor 1.1.0 mede a cada movimento do preço, com a operação aberta (o
+  // número do Profit); nos dias sem essa medição, a conta é por fechamento. A tela diz qual valeu no dia.
+  const fontesDoDia: Linha[] = [
+    {
+      nome: "Medido no MetaTrader",
+      texto:
+        "A cada movimento do preço, o coletor soma o que o robô já realizou no dia com o resultado da operação ainda aberta e guarda o maior e o menor valor, já descontado o custo das operações fechadas até ali. Se o coletor começou com o dia em andamento, o número vem marcado como parcial.",
+    },
+    {
+      nome: "Por fechamento",
+      texto:
+        "Nos dias sem essa medição, como os do histórico importado, o site refaz a soma do dia a cada operação que fecha. Como não enxerga a operação aberta, o número fica igual ou mais perto de zero.",
+    },
+    {
+      nome: "Melhor e pior momento da operação",
+      tecnico: "MFE e MAE",
+      texto:
+        "O máximo que o preço andou a favor e contra a operação enquanto ela esteve aberta, em pontos. Fica vazio nas operações que o coletor não acompanhou.",
+    },
+  ];
+
+  const respostasDoSimulador: Linha[] = [
+    {
+      nome: "Cabe",
+      texto: `O capital cobre o capital mínimo e a maior queda simulada não passa de ${formatarPct(LIMITE_APERTADO, 0)} do capital inicial.`,
+    },
+    {
+      nome: "Apertado",
+      texto: `Cabe, mas a maior queda simulada passa de ${formatarPct(LIMITE_APERTADO, 0)} do capital inicial.`,
+    },
+    {
+      nome: "Não cabe",
+      texto: "O capital é menor que o capital mínimo, ou a maior queda simulada é igual ou maior que o capital: o patrimônio simulado teria zerado.",
+    },
+  ];
+
+  const numerosDeRisco: Linha[] = [
+    {
+      nome: "Tempo abaixo do topo",
+      tecnico: "tempo em drawdown",
+      texto: "A parte dos pregões em que a curva estava abaixo do maior valor que já tinha alcançado. Quanto menor, menos tempo o robô passa recuperando perdas.",
+      conta: "dias abaixo do topo ÷ dias de pregão.",
+    },
+    {
+      nome: "Fator de recuperação",
+      texto: "Quantas vezes o resultado do período cobre a maior queda. Acima de 1, o robô já ganhou mais do que perdeu no pior momento.",
+      conta: "resultado do período ÷ maior queda.",
+      exemplo: `${reais(RISCO.resultado)} ÷ ${reais(RISCO.queda)} = ${formatarMultiplo(recoveryFactor(RISCO.resultado, RISCO.queda))}`,
+    },
+    {
+      nome: "Calmar",
+      texto: "Quanto o robô renderia em um ano, no ritmo do período, comparado com a maior queda.",
+      conta: "resultado do período × 252 ÷ dias de pregão do período, dividido pela maior queda. 252 é o número usual de pregões num ano.",
+      exemplo: `${reais(retornoAnualizado(RISCO.resultado, RISCO.pregoes))} ÷ ${reais(RISCO.queda)} = ${formatarMultiplo(calmar(RISCO.resultado, RISCO.pregoes, RISCO.queda))}`,
+    },
+    {
+      nome: "Índice de úlcera",
+      texto: "Mede ao mesmo tempo a profundidade e a duração das quedas. Quanto menor, mais estável foi a curva.",
+      conta: "raiz quadrada da média dos quadrados da queda de cada dia. Fica em % do capital de referência, quando ele existe.",
+    },
+  ];
+
+  // os acertos do horário são os mesmos da seção das operações, só que contando as operações do horário
+  const numerosDoHorario: Linha[] = [
+    {
+      nome: "Recuperação",
+      texto: "Quantas vezes o resultado do horário cobre a maior queda dele. Acima de 1, o resultado já pagou a pior queda.",
+      conta: "resultado do horário ÷ maior queda do horário, somando uma operação depois da outra.",
+    },
+    {
+      nome: "Queda relativa",
+      tecnico: "drawdown relativo",
+      texto: "Compara a maior queda do horário com a queda típica dos horários: 1 é igual à típica, 2 é o dobro.",
+      conta: "maior queda do horário ÷ mediana das maiores quedas dos horários com operações suficientes.",
+    },
+  ];
+
+  const palavras: { termo: string; texto: string }[] = [
+    ...(ativos.length > 0
+      ? [
+          {
+            termo: ativos.map((a) => `${a.nome} (${a.codigo})`).join(", "),
+            texto: "Contratos futuros negociados na B3, a bolsa brasileira. Entre parênteses, o código de cada um.",
+          },
+        ]
+      : []),
+    { termo: "Contrato", texto: "A unidade mínima de negociação. Os valores do site são sempre para 1 contrato." },
+    { termo: "Pregão", texto: "O dia de negociação da bolsa. Fins de semana e feriados não têm pregão." },
+    { termo: "Capital de referência", texto: "O valor de conta usado como base para 1 contrato do robô. As porcentagens do site são calculadas sobre ele." },
+    { termo: "Flutuante", texto: "O resultado da operação ainda aberta, se fosse encerrada agora. Só vira resultado quando a operação fecha." },
+    { termo: "Magic number", texto: "Termo do MetaTrader 5: o número que cada robô grava nas próprias ordens. É como o site sabe qual robô fez cada operação." },
+  ];
+
   return (
-    <div className="space-y-1.5">
-      {nome ? <h3 className="font-medium text-foreground">{g.nome}</h3> : null}
-      <p className="text-foreground">{g.texto}</p>
-      {children ? (
-        <p>
-          <strong className="font-medium">Como se calcula:</strong> {children}
-        </p>
-      ) : null}
-    </div>
-  );
-}
+    <>
+      <CabecalhoPagina
+        titulo="Como funciona"
+        descricao="De onde vêm os números, como cada um é calculado e como começar. Tudo pode ser refeito a partir das operações listadas na aba Operações de cada robô."
+      />
 
-/** Spec §8.7: definição de cada métrica, coleta, custos, normalização e glossário. */
-export default function PaginaMetodologia() {
-  return (
-    <div className="conteudo grid gap-8 py-8 lg:grid-cols-[220px_1fr] lg:gap-10 lg:py-10">
-      {/* o índice só no computador, na lateral; no celular a página se lê de cima a baixo (18/09/2026).
-          O rótulo "Seções" em caixa alta é rótulo de grupo e fica, por preferência do dono (19/09/2026).
-          19/09/2026: o índice acompanha a rolagem e marca a seção que está sendo lida (NavSecoes); o
-          pl-3 do rótulo alinha com os links, que agora têm o fio da marca à esquerda. A altura máxima é
-          a da tela menos o cabeçalho: com 18 seções a lista rola no próprio lugar em tela baixa. */}
-      <nav aria-label="Seções" className="hidden lg:sticky lg:top-20 lg:block lg:max-h-[calc(100dvh-6rem)] lg:self-start lg:overflow-y-auto">
-        <p className="mb-2 pl-3 text-xs font-medium tracking-wide text-muted-foreground uppercase">Seções</p>
-        <NavSecoes secoes={SECOES.map(({ id, titulo }) => ({ id, rotulo: titulo }))} />
-      </nav>
+      <CorpoPagina>
+        <ComoComecar links={links} />
 
-      <article className="max-w-prose space-y-12">
-        <header className="space-y-3">
-          <Voltar href="/">Início</Voltar>
-          <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Metodologia</h1>
-          <p className="text-lg text-muted-foreground">
-            Cada número do site pode ser refeito a partir das operações listadas na aba Operações de cada robô.
-          </p>
-        </header>
+        <Grade>
+          {/* O índice só em tela larga, preso à direita enquanto a página rola; no celular a página se lê de
+              cima a baixo (18/09/2026). Vem antes do conteúdo no HTML, para o teclado chegar nele primeiro.
+              A altura máxima é a da janela menos a fita do topo: em janela baixa a lista rola no próprio lugar. */}
+          <nav
+            aria-label="Seções"
+            className="hidden xl:sticky xl:top-[calc(var(--altura-cabecalho)_+_1.5rem)] xl:col-span-3 xl:col-start-10 xl:row-start-1 xl:block xl:max-h-[calc(100dvh_-_var(--altura-cabecalho)_-_3rem)] xl:self-start xl:overflow-y-auto"
+          >
+            <p className="mb-1.5 pl-4 text-[0.8125rem] text-sutil">Nesta página</p>
+            <NavSecoes secoes={SECOES} />
+          </nav>
 
-        <Secao id="coleta" titulo="Como os dados chegam">
-          <p>
-            Em cada MetaTrader 5 da Quants Robôs roda um coletor: um programa que <strong>não opera</strong>, só lê a
-            conta. A cada negócio executado ele envia o registro para o site na hora. A cada 3 segundos envia também
-            saldo, posições abertas e cotação. Ao iniciar, reenvia os últimos dias para conferência. Desde a versão
-            1.1.0, mede também, a cada movimento do preço, o MFE e o MAE de cada operação e o MEP e o MEN do dia; desde
-            a 1.1.2, guarda a cada 5 segundos o saldo do dia com a posição aberta, que desenha a curva do dia (ver
-            abaixo).
-          </p>
-          <p>
-            Nada é digitado à mão. Se o coletor parar por mais de {MINUTOS_SEM_SINAL} minutos em horário de pregão, o site avisa{" "}
-            <strong>&quot;sem atualização&quot;</strong> em vez de mostrar dado velho como se fosse ao vivo.
-          </p>
-          <p>
-            Cada robô tem uma <strong>conta principal</strong>, que alimenta as estatísticas públicas. Quando essa conta é
-            demo, o site mostra um selo &quot;conta demo&quot; ao lado do nome.
-          </p>
-          <p>
-            Um robô pode ter um <strong>horário mínimo de operação</strong>. Operações abertas antes desse horário ficam
-            fora do site e das estatísticas, embora continuem registradas. O horário vale para todo o histórico do robô,
-            então a curva, os números e os relatórios usam o mesmo conjunto de operações.
-          </p>
-          <p>
-            Também pode ter uma <strong>duração mínima</strong>: operações coletadas do MetaTrader abertas e fechadas em
-            menos tempo que isso ficam fora (o histórico importado não tem duração e não entra nessa regra). A regra existe porque a conta pode preencher uma ordem a mercado num preço
-            defasado e bater o alvo milissegundos depois, um ganho que nenhuma corretora daria de verdade; esses
-            registros continuam no banco, mas não entram na performance.
-          </p>
-        </Secao>
+          <div className="@container min-w-0 space-y-10 xl:col-span-9 xl:col-start-1 xl:row-start-1">
+            <Secao id="coleta" titulo="De onde vêm os números">
+              <ComExemplo
+                exemplo={
+                  <Conta
+                    titulo="O que o coletor envia"
+                    linhas={[
+                      { rotulo: "Cada negócio executado", valor: "na hora" },
+                      { rotulo: "Saldo, operações em aberto e cotação", valor: "a cada 3 segundos" },
+                      { rotulo: "Saldo do dia, para a curva do dia", valor: "a cada 5 segundos" },
+                      { rotulo: "Os últimos dias, para conferência", valor: "ao iniciar" },
+                    ]}
+                  />
+                }
+              >
+                <Texto>
+                  <p>
+                    Em cada MetaTrader 5 da Quants Robôs roda um coletor: um programa que <strong>não opera</strong>, só lê a conta e envia ao
+                    site cada operação assim que ela fecha. Nenhum número é digitado à mão.
+                  </p>
+                  <p>
+                    Se o coletor ficar mais de {MINUTOS_SEM_SINAL} minutos sem mandar sinal com o pregão aberto, o site escreve{" "}
+                    <strong>sem atualização no momento</strong> em vez de mostrar dado velho como se fosse ao vivo.
+                  </p>
+                  <p>
+                    Cada robô tem uma <strong>conta principal</strong>, que alimenta os números públicos. Quando ela é uma conta demo, isso vem
+                    escrito junto dos dados do robô.
+                  </p>
+                  <p>
+                    Um robô pode ter um <strong>horário mínimo</strong> e uma <strong>duração mínima</strong> de operação. O que abre antes desse
+                    horário, ou abre e fecha em menos tempo que a duração mínima, continua guardado, mas fica fora do site e de todas as
+                    contas. A duração mínima existe porque a conta pode registrar, num preço defasado, um ganho de milissegundos que nenhuma
+                    corretora daria de verdade.
+                  </p>
+                </Texto>
+              </ComExemplo>
+            </Secao>
 
-        <Secao id="normalizacao" titulo="Por contrato">
-          <p>
-            Todo valor é dividido pela quantidade de contratos da operação. Um gain de R$&nbsp;60 com 2 contratos aparece como{" "}
-            <strong>R$&nbsp;30 por contrato</strong>. Assim, contas com tamanhos de posição diferentes não distorcem a média, e
-            você multiplica pelo número de contratos que pretende usar.
-          </p>
-          <p>
-            Os pontos viram reais pelo valor do ponto de cada ativo: <strong>WIN R$&nbsp;0,20</strong> e{" "}
-            <strong>WDO R$&nbsp;10,00</strong> por ponto, por contrato. O código do contrato muda a cada vencimento (WINV26,
-            WINZ26…), mas tudo é agrupado pelo ativo.
-          </p>
-        </Secao>
+            <Secao id="status" titulo="O que o site diz do robô agora">
+              <Texto>
+                <p>Junto do nome de cada robô, o site escreve em uma frase o que ele fez hoje.</p>
+                <p>
+                  O site sabe três coisas: se o pregão está aberto, se é horário do robô e se o coletor está mandando sinal.{" "}
+                  <strong>Não sabe se o robô está ligado</strong> na conta, e por isso nunca escreve “ligado” nem “operando”.
+                </p>
+              </Texto>
+              <Linhas comoNaTela itens={frases} />
+            </Secao>
 
-        <Secao id="custos" titulo="Bruto e líquido">
-          <p>
-            <strong>Bruto</strong> é o resultado como o MetaTrader informa, antes dos custos. <strong>Líquido</strong> é o
-            bruto menos um custo fixo por contrato em cada operação (corretagem e taxas da bolsa), configurado por robô e
-            mostrado na seção Transparência de cada um. O site mostra o líquido; o bruto aparece ao lado dele no painel de
-            resultado, nos relatórios mensais e no filtro Custos da aba Desempenho.
-          </p>
-          <p>
-            Gain e loss são decididos sempre pelo <strong>líquido</strong>: uma operação que ganhou R$&nbsp;0,10 bruto e
-            pagou R$&nbsp;0,25 de custo conta como loss.
-          </p>
-        </Secao>
+            <Secao id="normalizacao" titulo="Com 1 contrato, já descontados os custos">
+              <ComExemplo
+                exemplo={
+                  <Conta
+                    linhas={[
+                      { rotulo: "Ganho de uma operação com 2 contratos", valor: centavos(60, true) },
+                      { rotulo: "Dividido por 2: com 1 contrato", valor: centavos(30, true) },
+                      { rotulo: "Custo de 1 contrato", valor: centavos(-0.5, true) },
+                    ]}
+                    resultado={{ rotulo: "O que entra no site", valor: centavos(29.5, true) }}
+                  />
+                }
+              >
+                <Texto>
+                  <p>Esta frase acompanha os números do site. Ela diz duas coisas.</p>
+                  <p>
+                    <strong>Com 1 contrato.</strong> Todo valor é dividido pela quantidade de contratos da operação. Assim, robôs que operam
+                    tamanhos diferentes podem ser comparados, e você multiplica pelo número de contratos que pretende usar.
+                  </p>
+                  <p id="custos">
+                    <strong>Já descontados os custos.</strong> De cada operação sai um custo fixo por contrato (corretagem e taxas da bolsa),
+                    definido por robô e mostrado na página dele. O valor antes dos custos continua disponível nos relatórios mensais e na aba
+                    Desempenho.
+                  </p>
+                  <p>
+                    Ganho e perda são decididos depois dos custos: uma operação que ganhou R$&nbsp;0,10 e pagou R$&nbsp;0,25 de custo conta
+                    como perda.
+                  </p>
+                </Texto>
+              </ComExemplo>
+            </Secao>
 
-        <Secao id="operacao" titulo="O que é uma operação">
-          <p>
-            Uma operação vai da entrada do robô no mercado até a posição zerar. Quando ele entra em partes, vale o preço
-            médio das entradas; quando sai em partes, o preço médio das saídas. Nas duas médias, cada parte pesa pelo
-            número de contratos. Se o robô vira a mão, passando de comprado para vendido (ou o contrário) sem zerar, uma
-            operação fecha ali e outra começa.
-          </p>
-          <p>
-            Os <strong>pontos por contrato</strong> são a diferença entre a saída e a entrada, a favor da posição: na
-            compra, saída menos entrada; na venda, entrada menos saída. O resultado em reais é o do MetaTrader, para bater
-            no centavo com o relatório da corretora.
-          </p>
-        </Secao>
+            <Secao id="operacao" titulo="O que conta como uma operação">
+              <ComExemplo
+                exemplo={
+                  ativoDoExemplo ? (
+                    <div className="space-y-6">
+                      <Conta
+                        linhas={[
+                          { rotulo: "Compra que saiu acima da entrada", valor: "150 pontos" },
+                          { rotulo: `1 ponto de ${ativoDoExemplo.nome}`, valor: centavos(ativoDoExemplo.valorPonto) },
+                        ]}
+                        resultado={{ rotulo: "Com 1 contrato, antes dos custos", valor: centavos(150 * ativoDoExemplo.valorPonto, true) }}
+                      />
+                      {/* com um ativo só, a conta de cima já disse quanto vale o ponto */}
+                      {ativos.length > 1 ? (
+                        <Conta
+                          titulo="Quanto vale 1 ponto, com 1 contrato"
+                          linhas={ativos.map((a) => ({ rotulo: `${a.nome} (${a.codigo})`, valor: centavos(a.valorPonto) }))}
+                        />
+                      ) : null}
+                    </div>
+                  ) : null
+                }
+              >
+                <Texto>
+                  <p>Uma operação vai da entrada do robô no mercado até a posição zerar.</p>
+                  <p>
+                    Quando ele entra ou sai em partes, vale o preço médio das entradas e o das saídas, cada parte pesando pelo número de
+                    contratos. Se o robô vira a mão, de comprado para vendido (ou o contrário) sem zerar, uma operação fecha ali e outra
+                    começa.
+                  </p>
+                  <p>
+                    Os <strong>pontos</strong> são a diferença entre a saída e a entrada, a favor da posição: na compra, saída menos entrada;
+                    na venda, entrada menos saída. O resultado em reais é o que o MetaTrader informa, para bater no centavo com o relatório
+                    da corretora. O código do contrato muda a cada vencimento, e o site junta tudo pelo ativo.
+                  </p>
+                </Texto>
 
-        {/* 21/09/2026: o contador "operações em aberto" da barra, dos cards, do Hoje ao vivo e da tela Ao vivo */}
-        <Secao id="operacoes-em-aberto" titulo="Operações em aberto">
-          <p>
-            <strong>Operações em aberto</strong> é quantas entradas o robô fez e ainda não fechou neste momento, na conta
-            principal. Cada entrada ainda aberta conta 1: se o robô entrou duas vezes e nenhuma zerou, são 2 operações em
-            aberto; quando uma delas fecha, o número cai. É uma contagem de entradas, não de contratos: o site não mostra
-            quantos contratos há em cada entrada nem o tamanho da conta.
-          </p>
-          <p>
-            O número vem do sinal do coletor, que manda as posições abertas a cada 3 segundos, e aparece na barra da
-            home, no card do robô, no painel Hoje ao vivo e na tela Ao vivo. Respeita o atraso configurável de cada robô:
-            uma entrada só passa a contar depois desse atraso. Fora do pregão o contador não aparece, e se o coletor ficar
-            mais de {MINUTOS_SEM_SINAL} minutos sem mandar sinal ele some, pela mesma regra do selo{" "}
-            <strong>&quot;sem atualização&quot;</strong>.
-          </p>
-        </Secao>
+                {/* 21/09/2026: o contador de operações em aberto. Conta entradas, nunca contratos (spec §6) */}
+                <div className="space-y-2">
+                  <Subtitulo id="operacoes-em-aberto">Operações em aberto</Subtitulo>
+                  <Texto>
+                    <p>
+                      Cada entrada que o robô fez e ainda não fechou conta 1. É número de entradas, nunca de contratos: o site não mostra
+                      quantos contratos há em cada entrada nem o tamanho da conta.
+                    </p>
+                    <p>
+                      A contagem respeita o atraso configurado para cada robô e some fora do pregão ou quando o coletor fica sem sinal.
+                    </p>
+                  </Texto>
+                </div>
+              </ComExemplo>
+            </Secao>
 
-        <Secao id="resultado" titulo="Resultado do dia, mês, ano e acumulado">
-          <Indicador chave="resultadoPeriodo">
-            soma do resultado por contrato, já com custos, das operações fechadas no período. Cada operação conta no dia
-            de pregão em que fechou, pelo horário de Brasília.
-          </Indicador>
-          <Indicador chave="mediaMensal" nome>
-            o acumulado dividido pelo número de meses com pregão na série.
-          </Indicador>
-        </Secao>
+            <Secao id="resultado" titulo="Resultado e períodos">
+              <ComExemplo
+                exemplo={
+                  <div id="periodos">
+                    <AoLado titulo="Os períodos terminam hoje">
+                      <dl>
+                        {PERIODOS.map(([nome, texto]) => (
+                          <div key={nome} className="flex items-baseline justify-between gap-4 leading-7">
+                            <dt>{nome}</dt>
+                            <dd className="text-right text-muted-foreground">{texto}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    </AoLado>
+                  </div>
+                }
+              >
+                <Texto>
+                  <p>
+                    O resultado de um período é a soma dos ganhos menos as perdas das operações fechadas nele, com 1 contrato e já descontados
+                    os custos.
+                  </p>
+                  <p>
+                    Cada operação conta no dia de pregão em que fechou, pelo horário de Brasília. Sábados, domingos e feriados da bolsa não são
+                    dias de pregão.
+                  </p>
+                  <p>
+                    A <strong>média por mês</strong> é o resultado do período dividido pelo número de meses em que o robô teve pregão.
+                  </p>
+                </Texto>
+              </ComExemplo>
+            </Secao>
 
-        {/* 22/09/2026: duas fontes. O coletor 1.1.0 mede tick a tick (o número do Profit); antes dele, por fechamento */}
-        <Secao id="mep-men" titulo="MEP e MEN do dia">
-          <Indicador chave="mep" nome />
-          <Indicador chave="men" nome />
-          <p>
-            <strong>Medido no MT5, tick a tick.</strong> Desde a versão 1.1.0 do coletor, o próprio MetaTrader 5 mede o MEP e
-            o MEN: a cada movimento do preço, o coletor soma o que o robô já realizou no dia com o flutuante das posições
-            abertas, por 1 contrato, e guarda o maior e o menor valor, com a hora e quantas operações já tinham fechado. É
-            o mesmo número do Profit. O site mostra esse valor já com custos: do bruto medido, desconta o custo por
-            contrato de cada operação fechada até o momento do extremo (a posição ainda aberta não pagou custo). No detalhe
-            do dia, no calendário, e no painel &quot;Hoje ao vivo&quot; aparece <strong>&quot;medido no MT5, tick a tick&quot;</strong>;
-            quando o coletor subiu com o dia já em andamento, ou reiniciou no meio dele, aparece também{" "}
-            <strong>&quot;parcial&quot;</strong>, porque um extremo anterior pode ter ficado de fora. Desde a 1.1.1 o coletor
-            recebe do site as regras que tiram operações da conta pública (hora mínima, duração mínima) e mede o saldo já
-            sem elas; num dia medido sem essas regras (coletor 1.1.0) em que alguma operação ficou fora, o site volta ao
-            cálculo por fechamento, para o número bater com a curva do dia. A partir do coletor 1.1.2 o caminho inteiro
-            entre esses dois extremos aparece na{" "}
-            <Link href="#curva-do-dia" className="underline underline-offset-4 hover:text-foreground">
-              curva do dia
-            </Link>
-            .
-          </p>
-          <p>
-            <strong>Por fechamento.</strong> Nos dias sem essa medição (antes do coletor 1.1.0, histórico importado, conta com
-            o coletor antigo), o site calcula: a cada operação que fecha, soma o resultado do dia até ali, já com custos e
-            por 1 contrato. O MEP é o maior valor positivo dessa soma e o MEN, o menor valor negativo. Se a soma nunca ficou
-            positiva, o MEP é zero e não há operação do MEP; o mesmo vale para o MEN. Em empate, o site aponta a primeira
-            operação em que o extremo aconteceu. Como só olha os fechamentos, sem a posição aberta, esse número fica
-            sempre <strong>igual ou mais perto de zero</strong> que o do Profit, e o detalhe do dia diz{" "}
-            <strong>&quot;por fechamento&quot;</strong>.
-          </p>
-          <Indicador chave="mfe" nome />
-          <Indicador chave="mae" nome />
-          <p>
-            <strong>Como se calcula:</strong> enquanto a operação está aberta, o coletor confere a cada negócio do ativo a
-            diferença entre o preço do momento e o preço de entrada, a favor da posição: na compra, preço menos entrada; na
-            venda, entrada menos preço. O MFE é a maior dessas diferenças (nunca abaixo de zero) e o MAE a menor (nunca
-            acima), em pontos por 1 contrato. Aparecem na lista de operações (coluna &quot;MFE / MAE&quot;) e no CSV; ficam
-            vazios nas operações que o coletor 1.1.0 não acompanhou, e marcados como parciais quando ele subiu com a
-            operação já aberta.
-          </p>
-        </Secao>
+            <Secao id="drawdown" titulo="Maior queda" apoio="o nome técnico é drawdown">
+              <ComExemplo exemplo={<ExemploDaQueda />}>
+                <Texto>
+                  <p>
+                    É a distância entre o ponto mais alto que a soma do resultado alcançou e o ponto mais baixo que veio depois. Mostra o
+                    tamanho do pior momento: quanto o robô chegou a devolver antes de voltar a subir. Nas curvas do site ela aparece em
+                    vermelho, na própria linha.
+                  </p>
+                  <p>
+                    A conta: em cada dia, mede-se quanto a soma está abaixo do maior valor que já teve. A maior queda é a maior dessas
+                    distâncias no período. Aparece em reais, com 1 contrato, e em porcentagem do capital de referência, quando o robô tem um.
+                  </p>
+                  <p>
+                    O <strong>tempo de recuperação</strong> são os dias corridos entre o último dia no ponto mais alto e o primeiro dia em que a
+                    curva voltou a ele. Enquanto não volta, aparece “ainda não recuperou”.
+                  </p>
+                  <p>
+                    Uma curva desenhada operação por operação passa pelo saldo no meio de cada pregão, e por isso pode mostrar uma queda maior
+                    que a curva por dia, que só olha o fechamento de cada dia.
+                  </p>
+                </Texto>
+              </ComExemplo>
+            </Secao>
 
-        {/* 23/09/2026: a curva real do dia (coletor 1.1.2, migration 0024). A conta é a de lib/stats/saldo-dia
-            (liquidarSerie, dentesPorOperacao); como no MEP/MEN, a tela diz qual foi a fonte do dia mostrado */}
-        <Secao id="curva-do-dia" titulo="A curva do dia">
-          <Indicador chave="curvaDoDia" nome />
-          <p>
-            <strong>Medida no MT5.</strong> Desde a versão 1.1.2 do coletor, a cada 5 segundos o MetaTrader 5 fecha um
-            intervalo com o menor, o maior e o último valor do saldo do dia com a posição aberta, por 1 contrato: é o
-            mesmo saldo que alimenta o MEP e o MEN. No site, a linha segue o último valor de cada intervalo, limpa, no
-            estilo do Profit, e o eixo vai do primeiro ao último dado do dia, crescendo junto com o pregão; a imagem do
-            dia para compartilhar desenha também a faixa clara entre o menor e o maior. O valor mostrado é líquido: do bruto medido, desconta o custo por contrato de
-            cada operação fechada antes do fim daquele intervalo (a posição ainda aberta não pagou custo). Por isso o
-            pico e o vale dessa curva podem diferir do MEP e do MEN da seção anterior em um custo por contrato, quando a
-            saída cai no mesmo intervalo do extremo: a curva paga o custo no intervalo da saída, e o MEP e o MEN medidos
-            descontam só as saídas anteriores ao extremo. Robô com mais de uma medição no mesmo intervalo mostra a soma
-            delas, com o aviso <strong>&quot;aproximado&quot;</strong>. Se o coletor subiu com o dia em
-            andamento, a curva começa quando a medição começou (sem rampa desde a abertura), com a nota{" "}
-            <strong>&quot;medido a partir de HH:MM&quot;</strong>, e as saídas anteriores já entram no realizado. No painel
-            &quot;Hoje ao vivo&quot;, na tela Ao vivo e no detalhe do dia do calendário, o título diz{" "}
-            <strong>&quot;medido no MT5&quot;</strong>.
-          </p>
-          <p>
-            <strong>Por fechamento.</strong> Nos dias sem a série (antes do coletor 1.1.2, histórico importado, conta com o
-            coletor antigo), o site soma o resultado operação por operação, na ordem em que fecharam, e rotula a curva{" "}
-            <strong>&quot;por fechamento&quot;</strong>, como o MEP e o MEN da seção anterior. Essa curva só passa pelos
-            fechamentos: o que a posição aberta chegou a ganhar ou perder no meio do caminho não aparece nela.
-          </p>
-          <Indicador chave="faixaSaldo" nome />
-          <Indicador chave="dentesExcursao" nome />
-          <p>
-            <strong>Como se calcula o dente:</strong> nas curvas por operação (a aba &quot;Por operação&quot; da curva de
-            capital, o detalhe do dia e a curva por fechamento), cada operação medida ganha um traço vertical que vai do
-            saldo antes da operação mais o MAE até o saldo antes da operação mais o MFE, convertidos em reais pelo valor
-            do ponto (ou deixados em pontos, quando a curva está em pontos) e multiplicados pelos contratos escolhidos. O
-            custo não entra no traço, porque só é pago no fechamento. Quando a curva agrupa operações vizinhas, o traço
-            cobre o pior MAE e o melhor MFE do grupo. A dica de cada ponto mostra &quot;MFE / MAE&quot; em pontos por
-            contrato.
-          </p>
-        </Secao>
+            <Secao id="taxa-acerto" titulo="Acertos e os números das operações">
+              <Texto>
+                <p>Estes números saem das operações fechadas no período, sempre depois dos custos.</p>
+                <p>
+                  O exemplo: {formatarNumero(OPS_TOTAL)} operações, {formatarNumero(OPS.comGanho)} com ganho de {reais(OPS.ganho)} cada (
+                  {reais(OPS_GANHOS)} ao todo) e {formatarNumero(OPS.comPerda)} com perda de {reais(OPS.perda)} cada ({reais(OPS_PERDAS)} ao todo).
+                  O resultado é {reais(OPS_GANHOS - OPS_PERDAS, true)}.
+                </p>
+              </Texto>
+              <Linhas itens={numerosDasOperacoes} />
+            </Secao>
 
-        <Secao id="drawdown" titulo="Drawdown e recuperação">
-          <Indicador chave="drawdown">
-            a curva de capital soma o resultado dia a dia. O drawdown de cada dia é a distância entre a curva e o maior
-            valor que ela já tinha atingido. O drawdown máximo é a maior dessas distâncias no período, em reais por
-            contrato e, quando há capital de referência, em porcentagem dele.
-          </Indicador>
-          <p>
-            Na aba &quot;Por operação&quot; da curva, cada ponto é uma operação fechada, ligada à seguinte, uma a uma (até
-            20 mil operações no período; acima disso o site agrupa operações vizinhas). Como essa curva passa pelo saldo no
-            meio de cada pregão, o drawdown por operação pode ser maior que o drawdown por dia, que só olha o fechamento de
-            cada dia.
-          </p>
-          <Indicador chave="tempoRecuperacao" nome>
-            os dias corridos entre o último dia no topo e o primeiro dia em que a curva voltou a ele. Se ainda não voltou,
-            aparece &quot;em recuperação&quot;.
-          </Indicador>
-        </Secao>
+            <Secao id="mep-men" titulo="Melhor e pior momento do dia" apoio="os nomes técnicos são MEP e MEN">
+              <ComExemplo
+                exemplo={
+                  <div>
+                    <Conta
+                      titulo="Exemplo: um dia com duas operações"
+                      linhas={[
+                        { rotulo: "A 1ª operação fecha com", valor: reais(80, true) },
+                        { rotulo: "A 2ª chega a estar perdendo", valor: reais(-200, true) },
+                        { rotulo: "Pior momento, medido", valor: <span className="text-negativo">{reais(80 - 200, true)}</span> },
+                        { rotulo: "A 2ª fecha com", valor: reais(-50, true) },
+                      ]}
+                      resultado={{ rotulo: "O dia termina em", valor: reais(80 - 50, true) }}
+                    />
+                    <p className="mt-2 max-w-sm text-[0.8125rem] leading-relaxed text-pretty text-muted-foreground">
+                      Por fechamento, esse dia não teria pior momento: a soma dos fechamentos ({reais(80, true)}, depois {reais(80 - 50, true)})
+                      nunca ficou negativa.
+                    </p>
+                  </div>
+                }
+              >
+                <Texto>
+                  <p>
+                    São o ponto mais alto e o mais baixo que o resultado do dia alcançou com o pregão em andamento. O pior momento mostra
+                    quanto o dia chegou a ficar no prejuízo, mesmo quando terminou bem.
+                  </p>
+                  <p>Há dois jeitos de medir, e a tela diz qual valeu em cada dia.</p>
+                </Texto>
+                <Linhas itens={fontesDoDia} />
 
-        <Secao id="taxa-acerto" titulo="Taxa de acerto">
-          <Indicador chave="taxaAcerto">número de operações com resultado líquido positivo dividido pelo total de operações.</Indicador>
-        </Secao>
+                {/* 23/09/2026: a curva real do dia (coletor 1.1.2, migration 0024). A conta é a de lib/stats/saldo-dia
+                    (liquidarSerie); como no melhor e no pior momento, a tela diz qual foi a fonte do dia mostrado */}
+                <div className="space-y-2">
+                  <Subtitulo id="curva-do-dia">A curva do dia</Subtitulo>
+                  <Texto>
+                    <p>
+                      Mostra o resultado ao longo do pregão, com as mesmas duas fontes: nos dias medidos, o saldo com a operação aberta,
+                      guardado a cada 5 segundos; nos outros, uma linha que liga um fechamento ao seguinte.
+                    </p>
+                    <p>Se o coletor começou com o dia em andamento, a curva começa na hora em que a medição começou.</p>
+                  </Texto>
+                </div>
+              </ComExemplo>
+            </Secao>
 
-        <Secao id="fator-lucro" titulo="Fator de lucro">
-          <Indicador chave="fatorLucro">
-            a soma de todos os gains dividida pela soma de todos os losses, sem o sinal de menos. Sem nenhum loss no período,
-            a conta dividiria por zero, e o fator fica sem valor.
-          </Indicador>
-        </Secao>
+            <Secao id="capital-minimo" titulo="Capital mínimo">
+              <ComExemplo
+                exemplo={
+                  <Conta
+                    linhas={[
+                      { rotulo: "Margem de 1 contrato", valor: reais(MINIMO.margem) },
+                      { rotulo: "Maior queda do histórico", valor: reais(MINIMO.queda) },
+                      { rotulo: `Maior queda × ${formatarMultiplo(fatorSeguranca, 1)}`, valor: reais(MINIMO.queda * fatorSeguranca) },
+                    ]}
+                    resultado={{
+                      rotulo: "Capital mínimo",
+                      valor: reais(Math.round(capitalMinimoRecomendado(MINIMO.margem, MINIMO.queda, fatorSeguranca))),
+                    }}
+                  />
+                }
+              >
+                <Texto>
+                  <p>
+                    É quanto ter na conta para operar 1 contrato com alguma folga: a margem que a corretora exige mais a maior queda que o
+                    robô já teve, aumentada por um fator de segurança.
+                  </p>
+                  <p>
+                    A conta: <strong>margem + maior queda × {formatarMultiplo(fatorSeguranca, 1)}</strong>. A margem é a que a corretora exige
+                    para manter 1 contrato em day trade, e é configurada por ativo. A maior queda é a de todo o histórico do robô, seja qual
+                    for o período escolhido na tela.
+                  </p>
+                  <p>É uma referência de conforto, não uma garantia: quedas futuras podem ser maiores que as do histórico.</p>
+                </Texto>
+              </ComExemplo>
+            </Secao>
 
-        <Secao id="payoff" titulo="Payoff">
-          <Indicador chave="payoff">o ganho médio dividido pela perda média, sem o sinal de menos.</Indicador>
-        </Secao>
+            {/* 23/09/2026: a página /simulador (spec §8.6). A conta é a de lib/stats/simulador: soma ponderada das séries
+                diárias públicas, maior queda em % sobre o capital inicial informado e capital mínimo pela regra logo acima */}
+            <Secao id="simulador" titulo="Simular meu capital">
+              <ComExemplo
+                exemplo={
+                  <Conta
+                    titulo="Exemplo: um dia da simulação"
+                    linhas={[
+                      { rotulo: "Capital informado", valor: reais(10000) },
+                      { rotulo: `Um robô com 2 contratos, num dia de ${reais(50, true)}`, valor: reais(100, true) },
+                      { rotulo: `Outro com 1 contrato, num dia de ${reais(-30, true)}`, valor: reais(-30, true) },
+                    ]}
+                    resultado={{ rotulo: "Patrimônio simulado no fim do dia", valor: reais(10070) }}
+                  />
+                }
+              >
+                <Texto>
+                  <p>
+                    O simulador aplica o histórico dos robôs ao capital e aos contratos que você informar. É aritmética sobre o que já
+                    aconteceu: não é recomendação nem projeção de resultado.
+                  </p>
+                  <p>
+                    Para cada dia de pregão, soma o resultado de cada robô escolhido vezes os contratos informados; dia em que o robô não
+                    operou conta zero. O patrimônio simulado é o capital informado mais essa soma, dia a dia.
+                  </p>
+                  <p>
+                    A maior queda é medida nessa curva. Em porcentagem, é sempre sobre o <strong>capital inicial informado</strong>, não sobre
+                    o patrimônio do momento.
+                  </p>
+                  <p>
+                    O capital mínimo da carteira é a soma, robô a robô, de contratos × capital mínimo de 1 contrato. Robô sem margem
+                    configurada fica sem capital mínimo, e a soma dos outros vale como piso.
+                  </p>
+                </Texto>
+              </ComExemplo>
 
-        <Secao id="sequencias" titulo="Sequências e dias">
-          <Indicador chave="maiorSequencia" nome />
-          <Indicador chave="diasPositivosNegativos" nome>
-            olha o resultado líquido de cada dia de pregão. Melhor e pior dia são o maior e o menor desses resultados.
-          </Indicador>
-        </Secao>
+              <div className="space-y-3">
+                <Subtitulo>A resposta do simulador</Subtitulo>
+                <Linhas itens={respostasDoSimulador} />
+              </div>
 
-        <Secao id="capital-minimo" titulo="Capital mínimo recomendado">
-          <Indicador chave="capitalMinimo">
-            por contrato, <strong>margem de referência + drawdown máximo × fator de segurança</strong>. O fator padrão é
-            1,5, e o drawdown é o de todo o histórico do robô, seja qual for o período escolhido na aba Risco. A margem é
-            a exigida pela corretora para manter um contrato em day trade e é configurada por ativo. É uma referência de
-            conforto, não uma garantia.
-          </Indicador>
-        </Secao>
+              <Texto>
+                <p>
+                  O simulador só multiplica o resultado de 1 contrato. Numa conta real, os custos e a diferença de preço na execução podem
+                  ser outros, e cada contrato a mais precisa de margem na corretora e de ser preenchido no mercado.
+                </p>
+              </Texto>
+            </Secao>
 
-        {/* 23/09/2026: a página /simulador (spec §8.6). A conta é a de lib/stats/simulador: soma ponderada das séries
-            diárias públicas, drawdown em % sobre o capital inicial informado e capital mínimo pela regra logo acima */}
-        <Secao id="simulador" titulo="Simulador com o meu capital">
-          <Indicador chave="simulador">
-            para cada dia de pregão,{" "}
-            <strong>
-              resultado = soma, sobre os robôs escolhidos, de contratos × resultado líquido por contrato do robô no dia
-            </strong>{" "}
-            (dia em que o robô não operou conta zero), sobre as mesmas séries diárias públicas do site. O patrimônio
-            simulado é o capital informado mais esse resultado acumulado, dia a dia. O drawdown é medido nessa curva como
-            na curva de capital; em porcentagem, é dividido pelo <strong>capital inicial informado</strong>, não pelo
-            patrimônio do momento. O capital mínimo da carteira é a soma, por robô, de contratos × capital mínimo por
-            contrato (a regra acima, com o drawdown máximo de todo o histórico do robô, e não só do período escolhido).
-            Os períodos são 3 meses, 12 meses, ano e tudo, todos terminando hoje. Dia de pregão é o dia em que algum robô
-            escolhido operou: dia sem operação de nenhum não entra na contagem nem interrompe a sequência negativa; dia em
-            que a soma dá zero interrompe. O pior mês é a menor soma mensal dentro do período, e os meses das pontas podem
-            estar incompletos (3 e 12 meses começam no dia do mês de hoje; o mês corrente está em andamento): a tela diz
-            quantos pregões entraram.
-          </Indicador>
-          <Indicador chave="semaforoCapital" nome>
-            <strong>não cabe</strong> se o capital é menor que o capital mínimo ou se o drawdown máximo simulado é maior
-            ou igual ao capital (o patrimônio simulado teria zerado); <strong>apertado</strong> se cabe, mas o drawdown
-            máximo simulado passa de 25% do capital inicial; <strong>cabe</strong> no resto (25% exatos cabem). O capital
-            mínimo por contrato é o número inteiro publicado na aba Risco. Robô sem margem de referência configurada fica
-            sem capital mínimo; a soma dos mínimos dos outros robôs escolhidos vale como piso, e acima dele só a regra do
-            drawdown decide.
-          </Indicador>
-          <p>
-            <strong>O que o simulador não é.</strong> Não é recomendação de investimento nem projeção de resultado: é
-            aritmética sobre o que já aconteceu, e resultado passado não garante resultado futuro; quedas futuras podem
-            ser maiores que as do histórico. O custo é o custo fixo por contrato de cada robô, e os custos e a diferença
-            de preço na execução de uma conta real podem ser outros. Operar mais contratos que o padrão do robô tem
-            liquidez e margem próprias: cada contrato a mais precisa ser preenchido no mercado e exige margem da
-            corretora, e o simulador só multiplica o resultado por contrato. O capital mínimo é a referência de conforto
-            publicada na aba Risco, não uma garantia.
-          </p>
-        </Secao>
+            <Secao id="indices-risco" titulo="Mais números de risco">
+              <Texto>
+                <p>Ficam na aba Quedas e risco de cada robô, para quem quer ir além da maior queda.</p>
+                <p>
+                  O exemplo: resultado de {reais(RISCO.resultado)} em {formatarNumero(RISCO.pregoes)} pregões, meio ano, com maior queda de{" "}
+                  {reais(RISCO.queda)}.
+                </p>
+              </Texto>
+              <Linhas itens={numerosDeRisco} />
 
-        <Secao id="indices-risco" titulo="Calmar, recovery factor, Ulcer e tempo em drawdown">
-          <Indicador chave="calmar" nome>
-            <strong>retorno anualizado ÷ drawdown máximo</strong>. O retorno anualizado é o resultado do período
-            multiplicado por 252 (o número usual de pregões num ano) e dividido pelo número de dias de pregão do período.
-          </Indicador>
-          <Indicador chave="recoveryFactor" nome>
-            <strong>resultado do período ÷ drawdown máximo</strong>.
-          </Indicador>
-          <Indicador chave="ulcer" nome>
-            a <strong>raiz quadrada da média dos quadrados do drawdown de cada dia</strong>. Elevar ao quadrado pesa mais as
-            quedas fundas. Fica em % do capital de referência quando ele existe.
-          </Indicador>
-          <Indicador chave="tempoEmDrawdown" nome>
-            a fração dos dias de pregão em que a curva estava abaixo do último topo.
-          </Indicador>
-        </Secao>
+              <div className="space-y-3">
+                <Subtitulo id="risco-de-ruina">Risco de ruína</Subtitulo>
+                <ComExemplo
+                  exemplo={
+                    <div>
+                      <Conta
+                        titulo={`Exemplo: ${formatarPct(OPS_ACERTOS, 0)} de acertos, ganho médio de ${reais(OPS.ganho)}, perda média de ${reais(OPS.perda)} e capital de ${reais(RUINA.capital)}`}
+                        linhas={[
+                          {
+                            rotulo: "Ganho esperado",
+                            valor: `${formatarMultiplo(OPS_ACERTOS)} × ${formatarMultiplo(OPS_RELACAO)} − ${formatarMultiplo(1 - OPS_ACERTOS)} = ${formatarMultiplo(RUINA_GANHO_ESPERADO)}`,
+                          },
+                          {
+                            rotulo: "Perdas que o capital aguenta",
+                            valor: `${reais(RUINA.capital)} ÷ ${reais(OPS.perda)} = ${formatarNumero(RUINA.capital / OPS.perda)}`,
+                          },
+                        ]}
+                        resultado={{
+                          rotulo: `Risco: (1 − ${formatarMultiplo(RUINA_GANHO_ESPERADO)}) ÷ (1 + ${formatarMultiplo(RUINA_GANHO_ESPERADO)}), elevado a ${formatarNumero(RUINA.capital / OPS.perda)}`,
+                          valor: formatarPct(ruinaCom(RUINA.capital), 1),
+                        }}
+                      />
+                      <p className="mt-2 max-w-sm text-[0.8125rem] leading-relaxed text-pretty text-muted-foreground">
+                        Com {reais(RUINA.capitalFolgado)} de capital são {formatarNumero(RUINA.capitalFolgado / OPS.perda)} perdas médias, e o
+                        risco aparece como {formatarPct(ruinaCom(RUINA.capitalFolgado), 1)}.
+                      </p>
+                    </div>
+                  }
+                >
+                  <Texto>
+                    <p>
+                      É uma estimativa da chance de perder todo o capital de referência, supondo que toda perda tem o tamanho da perda média
+                      e que uma operação não tem relação com a anterior.
+                    </p>
+                    <p>
+                      A conta: o ganho esperado por operação, medido em perdas médias, é acertos × (ganho médio ÷ perda média) − (1 −
+                      acertos). O capital de referência ÷ perda média diz quantas perdas médias ele aguenta. Quanto maior o ganho esperado e
+                      quanto mais perdas o capital aguenta, menor o risco; com ganho esperado zero ou negativo, é 100%.
+                    </p>
+                    {/* 19/09/2026 ("o risco de ruína está zero, por quê?"): primeiro a frase para quem não quer a conta */}
+                    <p>
+                      <strong>Por que aparece 0,0%.</strong> Quando o capital cobre centenas de perdas médias, a conta dá um número tão pequeno
+                      que arredonda para zero. É um limite do modelo, não uma garantia: perdas reais costumam vir juntas, em dias ruins. O
+                      tamanho do pior momento está na maior queda.
+                    </p>
+                  </Texto>
+                </ComExemplo>
+              </div>
+            </Secao>
 
-        <Secao id="risco-de-ruina" titulo="Risco de ruína">
-          <Indicador chave="riscoRuina">
-            é a aproximação clássica da ruína do apostador. <strong>E = acerto × payoff − (1 − acerto)</strong> é o ganho
-            esperado por operação, contado em perdas médias; <strong>unidades = capital de referência ÷ perda média</strong> é quantas
-            perdas médias seguidas o capital aguenta; e <strong>risco = ((1 − E) ÷ (1 + E)) ^ unidades</strong>. Se E for
-            zero ou negativo, o risco é 100%: sem expectativa positiva, é questão de tempo.
-          </Indicador>
-          {/* 19/09/2026: primeiro a frase para quem não quer a conta, depois o porquê em números */}
-          <p>
-            <strong>Por que aparece 0,0%.</strong> Quando o capital de referência cobre centenas de perdas médias, como
-            costuma acontecer, a conta dá um número tão pequeno que arredonda para 0,0%. Isso é uma limitação do modelo, não
-            uma garantia: ele trata cada perda como se não tivesse relação com as outras, e as perdas reais vêm agrupadas em
-            dias ruins. O tamanho desse pior momento aparece no drawdown máximo.
-          </p>
-          <p>
-            Em números: com expectativa positiva, a base da conta fica abaixo de 1, e um número abaixo de 1 elevado a
-            centenas cai muito rápido. Com a base em 0,95, bastam 150 perdas médias para o resultado ficar abaixo de 0,05%,
-            e o site mostra 0,0%. Só quando a expectativa é quase zero a base fica tão perto de 1 que o risco continua alto.
-            O risco de ruína serve como ordem de grandeza, não como probabilidade exata.
-          </p>
-        </Secao>
+            <Secao id="faixas" titulo="Melhores horários">
+              <Texto>
+                <p>
+                  Cada combinação de dia da semana e hora de entrada, como segunda às 10h, junta as operações que começaram ali. O site mede
+                  cada horário e diz em quais o histórico foi melhor.
+                </p>
+                <p>
+                  Os horários vão de segunda a sexta, das {HORAS[0]}h às {HORAS[HORAS.length - 1]}h. Três números decidem a classificação de
+                  cada um: os acertos, a recuperação e a queda relativa.
+                </p>
+              </Texto>
+              <Linhas itens={numerosDoHorario} />
 
-        <Secao id="faixas" titulo="Validação de faixas">
-          <Indicador chave="faixa" />
-          <p>
-            As faixas vão de segunda a sexta, das 9h às 17h, e cada operação entra na do dia e da hora em que abriu. Para
-            cada faixa, o site calcula três números.
-          </p>
-          <Indicador chave="taxaAcerto" nome>
-            operações da faixa com resultado líquido positivo ÷ operações da faixa. As regras chamam esse número de
-            consistência.
-          </Indicador>
-          <Indicador chave="recuperacaoFaixa" nome>
-            <strong>resultado líquido da faixa ÷ drawdown máximo da faixa</strong>, com a curva somada operação a operação.
-          </Indicador>
-          <Indicador chave="ddRelativo" nome>
-            <strong>drawdown da faixa ÷ mediana dos drawdowns</strong> das faixas com a amostra mínima.
-          </Indicador>
-          <p>
-            <strong>Classificação</strong>, com os parâmetros padrão e nesta ordem. Faixa com menos de{" "}
-            <strong>{formatarNumero(PF.amostraMinima)} operações</strong> fica sem classificação: com tão poucas, o resultado
-            pode ser sorte ou azar. <strong>Evitar</strong> se qualquer uma valer: acerto abaixo de{" "}
-            {formatarPct(PF.evitar.acertoMax, 0)}, recuperação abaixo de {formatarMultiplo(PF.evitar.recuperacaoMax)} ou
-            drawdown relativo acima de {vezes(PF.evitar.ddRelativoMin)}. <strong>Ligar</strong> se acerto ≥{" "}
-            {formatarPct(PF.ligar.acertoMin, 0)}, recuperação ≥ {formatarMultiplo(PF.ligar.recuperacaoMin)} e drawdown
-            relativo ≤ {vezes(PF.ligar.ddRelativoMax)}. <strong>Cautela</strong> se acerto ≥ {formatarPct(PF.cautela.acertoMin, 0)}{" "}
-            e recuperação ≥ {formatarMultiplo(PF.cautela.recuperacaoMin)}. O resto é <strong>Neutro</strong>. Os parâmetros em
-            uso estão em Regras, na aba Faixas de cada robô.
-          </p>
-          <Indicador chave="lote" nome />
-          <Indicador chave="score" nome>
-            <strong>50 × percentil da expectativa</strong> entre as faixas (0 para a pior, 1 para a melhor){" "}
-            <strong>+ 30 × estabilidade</strong> (meses positivos ÷ meses com operação){" "}
-            <strong>+ 20 × confiança</strong> (operações ÷ 100, no máximo 1). Faixa com expectativa zero ou negativa fica
-            com no máximo 40. As frases de &quot;O que as regras apontam&quot; saem de regras fixas aplicadas a esses números.
-          </Indicador>
-        </Secao>
+              {/* 25/11/2026: os limites são os que o banco tem em uso (parametros.faixas, os mesmos da aba Melhores
+                  horários), não mais os padrões do código; a ordem das linhas é a de classificarFaixa (lib/stats/faixas) */}
+              <div className="space-y-3">
+                <Subtitulo>A classificação</Subtitulo>
+                <div className="tbl-moldura">
+                  <table className="tbl min-w-[44rem]">
+                    <thead>
+                      <tr>
+                        <th>Classificação</th>
+                        <th>Acertos</th>
+                        <th>Recuperação</th>
+                        <th>Queda relativa</th>
+                        <th className="num">Tamanho sugerido da posição</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td className="font-medium">Sem classificação</td>
+                        <td colSpan={3} className="text-muted-foreground">
+                          menos de {formatarNumero(regras.amostraMinima)} operações: com tão poucas, o resultado pode ser sorte ou azar
+                        </td>
+                        <td className="num text-sutil">–</td>
+                      </tr>
+                      <tr>
+                        <td className="font-medium">{ROTULO_CLASSE.evitar}</td>
+                        <td>abaixo de {formatarPct(regras.evitar.acertoMax, 0)}</td>
+                        <td>ou abaixo de {formatarMultiplo(regras.evitar.recuperacaoMax)}</td>
+                        <td>ou acima de {vezes(regras.evitar.ddRelativoMin)}</td>
+                        <td className="num">{formatarPct(LOTE_POR_CLASSE.evitar, 0)}</td>
+                      </tr>
+                      <tr>
+                        <td className="font-medium">{ROTULO_CLASSE.ligar}</td>
+                        <td>{formatarPct(regras.ligar.acertoMin, 0)} ou mais</td>
+                        <td>e {formatarMultiplo(regras.ligar.recuperacaoMin)} ou mais</td>
+                        <td>e até {vezes(regras.ligar.ddRelativoMax)}</td>
+                        <td className="num">{formatarPct(LOTE_POR_CLASSE.ligar, 0)}</td>
+                      </tr>
+                      <tr>
+                        <td className="font-medium">{ROTULO_CLASSE.cautela}</td>
+                        <td>{formatarPct(regras.cautela.acertoMin, 0)} ou mais</td>
+                        <td>e {formatarMultiplo(regras.cautela.recuperacaoMin)} ou mais</td>
+                        <td className="text-sutil">–</td>
+                        <td className="num">{formatarPct(LOTE_POR_CLASSE.cautela, 0)}</td>
+                      </tr>
+                      <tr>
+                        <td className="font-medium">{ROTULO_CLASSE.neutro}</td>
+                        <td colSpan={3} className="text-muted-foreground">
+                          o que não entrou em nenhuma das anteriores
+                        </td>
+                        <td className="num">{formatarPct(LOTE_POR_CLASSE.neutro, 0)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <p className="text-[0.8125rem] text-pretty text-muted-foreground">
+                  As regras são conferidas de cima para baixo, e vale a primeira que servir. A última coluna é quanto do tamanho normal da
+                  posição usar em cada classificação.
+                </p>
+              </div>
 
-        <Secao id="periodos" titulo="Períodos e dia de pregão">
-          <p>
-            Dia de pregão é a data em Brasília. Sábados, domingos e feriados da B3 não contam como dia.
-          </p>
-          <p>
-            Os atalhos de período terminam hoje: <strong>Hoje</strong> é o dia corrente, vazio em fim de semana e
-            feriado; <strong>Semana</strong> vai de segunda-feira até hoje; <strong>Mês</strong>, do dia 1º até hoje;{" "}
-            <strong>Ano</strong>, de 1º de janeiro até hoje; <strong>Tudo</strong> é o histórico inteiro.{" "}
-            <strong>Personalizado</strong>, na aba Desempenho, é qualquer intervalo entre duas datas.
-          </p>
-        </Secao>
+              <ComExemplo
+                exemplo={
+                  <Conta
+                    titulo="Exemplo: a nota de um horário"
+                    linhas={[
+                      { rotulo: `Posição ${formatarMultiplo(NOTA.posicao, 1)} entre os horários, × 50`, valor: formatarNumero(NOTA_PARTES[0]) },
+                      {
+                        rotulo: `${formatarNumero(NOTA.mesesComGanho)} de ${formatarNumero(NOTA.meses)} meses com ganho, × 30`,
+                        valor: formatarNumero(NOTA_PARTES[1]),
+                      },
+                      { rotulo: `${formatarNumero(NOTA.operacoes)} operações ÷ 100, × 20`, valor: formatarNumero(NOTA_PARTES[2]) },
+                    ]}
+                    resultado={{ rotulo: "Nota", valor: formatarNumero(Math.round(NOTA_PARTES.reduce((s, v) => s + v, 0))) }}
+                  />
+                }
+              >
+                <Texto>
+                  <p>
+                    A <strong>nota</strong>, de 0 a 100, só serve para ordenar os horários. Até 50 pontos vêm de quanto o horário ganha por
+                    operação em comparação com os outros: o pior recebe 0, o melhor 50. Até 30 vêm da regularidade: meses com ganho ÷ meses
+                    com operação. Até 20 vêm da quantidade: operações ÷ 100, no máximo 1. Horário que perde em média fica com no máximo 40.
+                  </p>
+                </Texto>
+              </ComExemplo>
+            </Secao>
 
-        <Secao id="glossario" titulo="Glossário">
-          <dl className="grid gap-3 sm:grid-cols-[160px_1fr]">
-            <dt className="font-medium text-foreground">WIN / WDO</dt>
-            <dd>Mini índice Bovespa e mini dólar, contratos futuros da B3.</dd>
-            <dt className="font-medium text-foreground">Contrato</dt>
-            <dd>Unidade mínima negociada. O resultado do site é sempre por 1 contrato.</dd>
-            <dt className="font-medium text-foreground">Magic number</dt>
-            <dd>
-              Termo do MetaTrader 5: o número que cada robô grava nas próprias ordens. É como o site sabe qual robô fez
-              cada operação.
-            </dd>
-            <dt className="font-medium text-foreground">Sinal do coletor</dt>
-            <dd>Saldo, posições abertas e cotação que o coletor manda a cada 3 segundos.</dd>
-            <dt className="font-medium text-foreground">Flutuante</dt>
-            <dd>Resultado da posição aberta se fosse fechada agora, por contrato.</dd>
-            <dt className="font-medium text-foreground">Operações em aberto</dt>
-            <dd>Quantas entradas o robô ainda não fechou agora, cada uma contando 1. Nunca é número de contratos.</dd>
-            <dt className="font-medium text-foreground">MEP / MEN</dt>
-            <dd>
-              Máxima exposição positiva e negativa do dia: o ponto mais alto e o mais baixo do saldo do dia. Medidos no
-              MetaTrader 5 tick a tick nos dias que o coletor 1.1.0 acompanhou; por fechamento de operação nos outros.
-            </dd>
-            <dt className="font-medium text-foreground">MFE / MAE</dt>
-            <dd>
-              Máxima excursão favorável e adversa de uma operação: o máximo que o preço andou a favor e contra enquanto ela
-              esteve aberta, em pontos por contrato, medido no MetaTrader 5.
-            </dd>
-            <dt className="font-medium text-foreground">Série do saldo</dt>
-            <dd>
-              O saldo do dia com a posição aberta, guardado pelo coletor 1.1.2 a cada 5 segundos (menor, maior e último
-              valor de cada intervalo). É o que desenha a curva do dia nos dias medidos.
-            </dd>
-          </dl>
-          {/* 19/09/2026: os selos ao lado do nome do robô, com as condições de statusAoVivo (lib/stats/status-robo) */}
-          <h3 id="status" className="pt-4 text-base font-semibold text-foreground">
-            Selo de status
-          </h3>
-          <dl className="grid gap-3 sm:grid-cols-[160px_1fr]">
-            <dt className="font-medium text-foreground">Operando</dt>
-            <dd>Pregão aberto, sinal do coletor em dia, sem posição aberta e dentro do horário de operação do robô.</dd>
-            <dt className="font-medium text-foreground">Posicionado</dt>
-            <dd>Pregão aberto, sinal do coletor em dia e o robô com posição aberta agora (1 ou mais operações em aberto).</dd>
-            <dt className="font-medium text-foreground">Fora do horário</dt>
-            <dd>Pregão do ativo fechado; ou pregão aberto, sinal em dia, sem posição e fora do horário de operação do robô.</dd>
-            <dt className="font-medium text-foreground">Sem atualização</dt>
-            <dd>Pregão aberto e o coletor sem mandar sinal há mais de {MINUTOS_SEM_SINAL} minutos.</dd>
-            <dt className="font-medium text-foreground">Histórico</dt>
-            <dd>O robô não tem coletor no MetaTrader 5: os números vêm só do histórico importado.</dd>
-            <dt className="font-medium text-foreground">Em breve</dt>
-            <dd>O robô ainda não começou a operar em conta real.</dd>
-            <dt className="font-medium text-foreground">Pausado</dt>
-            <dd>O robô parou de operar; o histórico continua no site.</dd>
-            {/* 19/09/2026: o arquivado sai da home, do menu e do Comparativo, mas robos_publico ainda o
-                devolve e /robos/[slug] continua abrindo */}
-            <dt className="font-medium text-foreground">Arquivado</dt>
-            <dd>O robô saiu da lista do site; a página e o histórico continuam no endereço dele.</dd>
-          </dl>
-        </Secao>
+            <Secao id="glossario" titulo="Palavras do mercado" corpo="">
+              <dl className="grid gap-x-12 @3xl:grid-cols-2">
+                {palavras.map((p) => (
+                  <div key={p.termo} className="border-b border-(--painel-fio) py-3 text-sm">
+                    <dt className="font-medium">{p.termo}</dt>
+                    <dd className="mt-0.5 leading-relaxed text-pretty text-muted-foreground">{p.texto}</dd>
+                  </div>
+                ))}
+              </dl>
+            </Secao>
 
-        <p className="text-sm text-muted-foreground">
-          Dúvida sobre algum número? Fale com a equipe pela{" "}
-          <Link href="/#comunidade" className="underline underline-offset-4 hover:text-foreground">
-            comunidade
-          </Link>
-          .
-        </p>
-      </article>
-    </div>
+            <Secao id="perguntas" titulo="Perguntas frequentes" corpo="">
+              <Faq />
+            </Secao>
+          </div>
+        </Grade>
+      </CorpoPagina>
+    </>
   );
 }

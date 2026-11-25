@@ -14,8 +14,15 @@
 // séries a mais. A do SALDO do dia medido pelo EA 1.1.2 (serieDoSaldoParaDesenho, marcadoresDoSaldo), que
 // desenha a posição aberta oscilando em vez de um degrau por fechamento, e os DENTES de MFE/MAE nas curvas
 // por operação (o traço vertical do "calor" de cada operação), que viajam em SerieCompacta.dentes.
+//
+// 25/11/2026 (ficha Mesa; Lucas: "quero algo intuitivo, fácil de entender, para um leigo está muito difícil de
+// entender"): a leitura de cada ponto fala a língua da tela (DESIGN.md, seção 7). "Drawdown" virou "Abaixo do
+// topo", "Acumulado" virou "Resultado até aqui", "12 · 67% de acerto" virou "Operações com ganho: 8 de 12",
+// "MFE / MAE" virou "Melhor e pior momento", "Faixa" virou "Mínimo e máximo" e os marcadores "MEP" e "MEN" viraram
+// "melhor momento" e "pior momento". Só o texto mudou: os campos (acumulado, drawdown, dente.mfe, dente.mae) e
+// as contas são os mesmos.
 
-import { formatarBRL, formatarData, formatarDataCurta, formatarHora, formatarHoraSeg, formatarMfeMae, formatarNumero, formatarPct, formatarPontos } from "@/lib/formato";
+import { formatarBRL, formatarData, formatarDataCurta, formatarHora, formatarHoraSeg, formatarMfeMae, formatarNumero, formatarPontos } from "@/lib/formato";
 import { curvaPorOperacao, hora as horaDaOperacao, mae, mfe, temExcursao, valorOperacao, type OperacaoCompacta } from "@/lib/stats/operacoes";
 import {
   dentesPorOperacao,
@@ -79,8 +86,13 @@ function intervaloDeDatas(de: string, ate: string): string {
 /** "205ª", "1.234ª": a ordem da operação, com o ponto de milhar. */
 const ordinal = (k: number) => `${formatarNumero(k)}ª`;
 
+/**
+ * Quanto o ponto está abaixo do maior valor que a curva já alcançou (o que o mercado chama de drawdown). Até
+ * 25/11/2026 o rótulo era "Drawdown" e, no topo, o valor era "no topo"; com o rótulo novo o topo se lê "Abaixo
+ * do topo: nada".
+ */
 const linhaDoDrawdown = (dd: number, fmt: (v: number) => string) =>
-  ({ rotulo: "Drawdown", valor: dd < 0 ? fmt(dd) : "no topo", tom: dd < 0 ? ("negativo" as const) : ("neutro" as const) });
+  ({ rotulo: "Abaixo do topo", valor: dd < 0 ? fmt(dd) : "nada", tom: dd < 0 ? ("negativo" as const) : ("neutro" as const) });
 
 export interface SeriePorDia {
   pontos: PontoDoDesenho[];
@@ -89,7 +101,7 @@ export interface SeriePorDia {
   curva: PontoCurva[];
 }
 
-/** Um ponto por dia de pregão (ou por fatia de dias, em série longa), com operações e acerto do dia na leitura. */
+/** Um ponto por dia de pregão (ou por fatia de dias, em série longa); a leitura diz quantas operações do dia terminaram com ganho. */
 export function seriePorDia(linhas: readonly LinhaDiaria[], opcoes: OpcoesSerie): SeriePorDia {
   const curva = curvaAcumulada(linhas, opcoes);
   const fmt = formatador(opcoes);
@@ -125,10 +137,9 @@ export function seriePorDia(linhas: readonly LinhaDiaria[], opcoes: OpcoesSerie)
       ...cabecalho,
       linhas: [
         { rotulo: "Resultado", valor: fmt(valor), tom: tomDe(valor) },
-        ...(nOps > 0
-          ? [{ rotulo: "Operações", valor: `${formatarNumero(nOps)} · ${formatarPct(nGain / nOps, 0)} de acerto` }]
-          : []),
-        { rotulo: "Acumulado", valor: fmt(ultimo.acumulado), tom: tomDe(ultimo.acumulado) },
+        // "8 de 12", como o "Dias com ganho: 170 de 241" das telas (25/11/2026; era "12 · 67% de acerto")
+        ...(nOps > 0 ? [{ rotulo: "Operações com ganho", valor: `${formatarNumero(nGain)} de ${formatarNumero(nOps)}` }] : []),
+        { rotulo: "Resultado até aqui", valor: fmt(ultimo.acumulado), tom: tomDe(ultimo.acumulado) },
         linhaDoDrawdown(drawdown, fmt),
       ],
     };
@@ -368,24 +379,25 @@ export function expandirSerie(serie: SerieCompacta, opcoes: OpcoesSerie): PontoD
       subtitulo: uma ? `${ordinal(ate)} operação` : `${formatarNumero(ate - de)} operações (${ordinal(de + 1)} a ${ordinal(ate)})`,
       linhas: [
         { rotulo: "Resultado", valor: fmt(valor), tom: tomDe(valor) },
-        { rotulo: "Acumulado", valor: fmt(acumulado), tom: tomDe(acumulado) },
+        { rotulo: "Resultado até aqui", valor: fmt(acumulado), tom: tomDe(acumulado) },
         linhaDoDrawdown(drawdown, fmt),
       ],
     };
     return { posicao, acumulado, drawdown, dica, eixo: umDiaSo ? ordinal(ate) : datas[iAte] };
   });
 
-  // Os dentes de MFE/MAE (23/09/2026): o traço do ponto e, no FIM da dica, "MFE / MAE" ("+200 / −75 pts");
-  // na fatia de várias operações é o envelope, e o rótulo diz "(extremos)". A série sem medição não traz o
+  // Os dentes de MFE/MAE (23/09/2026): o traço do ponto e, no FIM da dica, "Melhor e pior momento" ("+200 /
+  // −75 pts"): o máximo que o preço andou a favor e contra durante a operação. Na fatia de várias operações é o
+  // envelope (o melhor e o pior entre elas), com o mesmo rótulo, porque o subtítulo já diz quantas são. Até
+  // 25/11/2026 o rótulo era "MFE / MAE" e, na fatia, "MFE / MAE (extremos)". A série sem medição não traz o
   // campo e sai exatamente como antes. O JSON vem de fora: só entra o que tem a forma [k, de, ate, mfe, mae].
   for (const d of serie.dentes ?? []) {
     if (!Array.isArray(d) || d.length !== 5 || !d.every((v) => typeof v === "number" && Number.isFinite(v))) continue;
     const [k, de, ate, mfeDoPonto, maeDoPonto] = d;
     const p = pontos[k];
     if (!p) continue;
-    const [inicio, fim] = limitesDaFatia(k, total, max);
     p.dente = { de, ate, mfe: mfeDoPonto, mae: maeDoPonto };
-    p.dica.linhas.push({ rotulo: fim - inicio === 1 ? "MFE / MAE" : "MFE / MAE (extremos)", valor: formatarMfeMae(mfeDoPonto, maeDoPonto) });
+    p.dica.linhas.push({ rotulo: "Melhor e pior momento", valor: formatarMfeMae(mfeDoPonto, maeDoPonto) });
   }
   return pontos;
 }
@@ -419,7 +431,8 @@ export interface OpcoesSerieDoSaldo {
  * cair no instante do valor que ele mostra (revisão de 23/09/2026: no primeiro balde, cada vértice ficava até 20 s
  * à esquerda e a linha terminava antes do fim real da série). O drawdown é contra o pico dos últimos até ali,
  * como na série por operação. A dica diz a hora com segundos do início do grupo, quantos intervalos o ponto
- * junta, o saldo e a faixa; a etiqueta do eixo de baixo na mira é a mesma hora.
+ * junta, o saldo e o mínimo e o máximo dele ("Mínimo e máximo" desde 25/11/2026; era "Faixa"); a etiqueta do
+ * eixo de baixo na mira é a mesma hora.
  */
 export function serieDoSaldoParaDesenho(baldes: readonly BaldeReduzido[], opcoes: OpcoesSerieDoSaldo): PontoDaSerie[] {
   const fmt = formatador(opcoes);
@@ -432,7 +445,7 @@ export function serieDoSaldoParaDesenho(baldes: readonly BaldeReduzido[], opcoes
       titulo,
       // "intervalo", e não "balde": texto público (revisão de 23/09/2026)
       subtitulo: nBaldes > 1 ? `${nBaldes} intervalos de ${opcoes.bucketSeg} s` : undefined,
-      linhas: [{ rotulo: "Saldo", valor: fmt(ultimo), tom: tomDe(ultimo) }, ...(faixa ? [{ rotulo: "Faixa", valor: `${fmt(min)} a ${fmt(max)}` }] : [])],
+      linhas: [{ rotulo: "Saldo", valor: fmt(ultimo), tom: tomDe(ultimo) }, ...(faixa ? [{ rotulo: "Mínimo e máximo", valor: `${fmt(min)} a ${fmt(max)}` }] : [])],
     };
     const ponto: PontoDaSerie = { posicao: posicaoNaJanela(tUltimo, opcoes.janela), acumulado: ultimo, drawdown: Math.min(0, ultimo - pico), dica, eixo: titulo };
     if (faixa) ponto.faixa = faixa;
@@ -501,12 +514,16 @@ export function rotulosDeTempo(janela: { inicio: number; fim: number }): Array<{
   return saida;
 }
 
-/** MEP/MEN da própria série (mepMenDaSerie) como marcadores: { posicao: posicaoNaJanela(t), valor, rotulo: "MEP"|"MEN", tom }; só os que passam de zero. */
+/**
+ * O melhor e o pior momento da própria série (mepMenDaSerie) como marcadores: { posicao: posicaoNaJanela(t),
+ * valor, rotulo: "melhor momento" | "pior momento", tom }; só os que passam de zero. Os rótulos eram as siglas
+ * "MEP" e "MEN" até 25/11/2026 (ficha Mesa).
+ */
 export function marcadoresDoSaldo(baldes: ReadonlyArray<BaldeQualquer>, janela: JanelaEpoch): MarcadorDaCurva[] {
   const { mep, mepT, men, menT } = mepMenDaSerie(baldes);
   const marcadores: MarcadorDaCurva[] = [];
-  if (mep > 0 && mepT !== null) marcadores.push({ posicao: posicaoNaJanela(mepT, janela), valor: mep, rotulo: "MEP", tom: "positivo" });
-  if (men < 0 && menT !== null) marcadores.push({ posicao: posicaoNaJanela(menT, janela), valor: men, rotulo: "MEN", tom: "negativo" });
+  if (mep > 0 && mepT !== null) marcadores.push({ posicao: posicaoNaJanela(mepT, janela), valor: mep, rotulo: "melhor momento", tom: "positivo" });
+  if (men < 0 && menT !== null) marcadores.push({ posicao: posicaoNaJanela(menT, janela), valor: men, rotulo: "pior momento", tom: "negativo" });
   return marcadores;
 }
 

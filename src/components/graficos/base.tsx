@@ -1,9 +1,10 @@
 // Peças comuns dos gráficos, trazidas do Zeve Hub (17/09/2026, pedido do Artur: "os gráficos do hub
 // vai bem"). Sem biblioteca: as barras são HTML, para o texto não encolher com a largura da tela, e a
-// curva é SVG esticado com traço de espessura fixa. Regras do kit estético (blocos 4 e 7): barra com
-// gradiente vertical e trilho atrás, linhas-guia horizontais pontilhadas e nenhuma vertical, e a
-// leitura do ponto numa linha fixa acima do desenho (19/09/2026; antes, cartão flutuante). Aqui só
-// se desenha: todo número chega pronto de quem chama.
+// curva é SVG esticado com traço de espessura fixa. Desde a ficha Mesa (25/11/2026) o desenho é o do
+// DESIGN.md: guias em fio contínuo na cor do fio (a do zero tracejada, no fio forte), eixo em 12 px no
+// terceiro nível de texto, nada de gradiente nem de trilho, e a leitura do ponto numa linha de texto
+// fixa acima do desenho (19/09/2026; antes, cartão flutuante). Aqui só se desenha: todo número chega
+// pronto de quem chama.
 
 import { cn } from "cn";
 import type { PointerEvent as ReactPointerEvent } from "react";
@@ -59,7 +60,7 @@ interface PropsEixo {
 /** Os rótulos do eixo. As cópias invisíveis só dão a largura da coluna; as visíveis ficam na altura da marca. */
 export function Eixo({ marcas, y, altura, formatar, lado = "esquerda" }: PropsEixo) {
   return (
-    <div aria-hidden className="relative text-[11px] text-muted-foreground tabular-nums" style={{ height: altura }}>
+    <div aria-hidden className="relative text-xs text-sutil" style={{ height: altura }}>
       {marcas.map((m) => (
         <span key={m} className="invisible block h-0 leading-none whitespace-nowrap">
           {formatar(m)}
@@ -78,7 +79,7 @@ export function Eixo({ marcas, y, altura, formatar, lado = "esquerda" }: PropsEi
   );
 }
 
-/** Linhas-guia horizontais pontilhadas; a do zero mais forte. */
+/** Linhas-guia horizontais na cor do fio; a do zero tracejada, no fio forte (ficha Mesa, 25/11/2026; eram pontilhadas). */
 export function Guias({ marcas, y }: { marcas: number[]; y: (v: number) => number }) {
   return (
     <>
@@ -86,8 +87,8 @@ export function Guias({ marcas, y }: { marcas: number[]; y: (v: number) => numbe
         <div
           key={m}
           aria-hidden
-          className="absolute inset-x-0 border-t border-dotted"
-          style={{ top: `${y(m)}%`, borderColor: mistura("--foreground", m === 0 ? 22 : 8) }}
+          className={cn("absolute inset-x-0 border-t", m === 0 ? "border-dashed border-(--painel-fio-forte)" : "border-(--painel-fio)")}
+          style={{ top: `${y(m)}%` }}
         />
       ))}
     </>
@@ -101,7 +102,11 @@ const COR_DO_TOM: Record<Tom, string> = {
   neutro: "text-foreground",
 };
 
-/** As cores da leitura sobre um fundo que não é o do site: a moldura grafite do Profit, escura nos dois temas. */
+/**
+ * Cores próprias para a leitura. Existia para a moldura grafite do Profit, escura nos dois temas; desde a
+ * ficha Mesa (25/11/2026) nenhum gráfico tem fundo próprio e ninguém a passa: a leitura usa os tokens do
+ * tema. O tipo e a prop ficam para não quebrar quem ainda os importe.
+ */
 export interface PaletaDaLeitura {
   titulo: string;
   texto: string;
@@ -111,49 +116,52 @@ export interface PaletaDaLeitura {
 }
 
 /**
- * A leitura do ponto apontado numa linha fixa no alto do gráfico, como a legenda de dados do Profit.
- * Até 19/09/2026 era um cartão flutuante ao lado do ponteiro, e ele cobria o fim da curva, a etiqueta
- * do valor e a barra apontada ("quando passo o mouse sobre o gráfico de desempenho ele esconde o
- * resultado"). Aqui fica fora da área do desenho e não cobre nada; quem chama reserva a altura
- * (uma linha no largo, mais no estreito) para o gráfico não pular quando o texto muda.
+ * A leitura do ponto apontado numa linha de texto fixa no alto do gráfico. Até 19/09/2026 era um cartão
+ * flutuante ao lado do ponteiro, e ele cobria o fim da curva e a barra apontada ("quando passo o mouse
+ * sobre o gráfico de desempenho ele esconde o resultado"). Aqui fica fora da área do desenho e não cobre
+ * nada; quem chama reserva a altura (uma linha no largo, mais no estreito) para o gráfico não pular quando
+ * o texto muda. Texto de 12 px com linha de 16 px (ficha Mesa, 25/11/2026; eram 11 px): a data em destaque,
+ * os rótulos em cinza e só o valor com a cor do ganho ou da perda. `conteudo` nulo deixa a linha vazia,
+ * com a altura reservada.
  */
-export function Leitura({ conteudo, paleta, className }: { conteudo: ConteudoDaDica; paleta?: PaletaDaLeitura; className?: string }) {
+export function Leitura({ conteudo, paleta, className }: { conteudo: ConteudoDaDica | null; paleta?: PaletaDaLeitura; className?: string }) {
   const cor = (c?: string) => (c ? { color: c } : undefined);
   const corDoValor = (tom: Tom = "neutro") =>
     paleta ? { color: tom === "positivo" ? paleta.positivo : tom === "negativo" ? paleta.negativo : paleta.titulo } : undefined;
   return (
-    <div
-      role="status"
-      className={cn("flex flex-wrap content-start items-baseline gap-x-4 gap-y-0.5 text-[11px] leading-4 tabular-nums", className)}
-    >
-      {/* título e subtítulo não quebram por dentro, mas o subtítulo pode descer inteiro para a linha de baixo:
-          "28/08/2026 a 11/09/2026 · pico de R$ 17.960 ainda não recuperado" num só bloco tinha 365 px e
-          esticava a página do Risco a 398 px num celular de 390 (varredura de 24/09/2026) */}
-      <span>
-        <span className={cn("font-semibold whitespace-nowrap", !paleta && "text-foreground")} style={cor(paleta?.titulo)}>
-          {conteudo.titulo}
-        </span>
-        {conteudo.subtitulo ? (
-          <>
-            {/* o espaço fica FORA do nowrap: é ele que dá o ponto de quebra */}
-            {" "}
-            <span className={cn("whitespace-nowrap", !paleta && "text-muted-foreground")} style={cor(paleta?.texto)}>
-              {"· "}
-              {conteudo.subtitulo}
+    <div role="status" className={cn("flex flex-wrap content-start items-baseline gap-x-4 gap-y-0.5 text-xs leading-4", className)}>
+      {conteudo ? (
+        <>
+          {/* título e subtítulo não quebram por dentro, mas o subtítulo pode descer inteiro para a linha de baixo:
+              "28/08/2026 a 11/09/2026 · pico de R$ 17.960 ainda não recuperado" num só bloco tinha 365 px e
+              esticava a página do Risco a 398 px num celular de 390 (varredura de 24/09/2026) */}
+          <span>
+            <span className={cn("font-medium whitespace-nowrap", !paleta && "text-foreground")} style={cor(paleta?.titulo)}>
+              {conteudo.titulo}
             </span>
-          </>
-        ) : null}
-      </span>
-      {conteudo.linhas.map((l) => (
-        <span key={l.rotulo} className="whitespace-nowrap">
-          <span className={cn(!paleta && "text-muted-foreground")} style={cor(paleta?.rotulo)}>
-            {l.rotulo}
-          </span>{" "}
-          <span className={cn("font-medium", !paleta && COR_DO_TOM[l.tom ?? "neutro"])} style={corDoValor(l.tom)}>
-            {l.valor}
+            {conteudo.subtitulo ? (
+              <>
+                {/* o espaço fica FORA do nowrap: é ele que dá o ponto de quebra */}
+                {" "}
+                <span className={cn("whitespace-nowrap", !paleta && "text-muted-foreground")} style={cor(paleta?.texto)}>
+                  {"· "}
+                  {conteudo.subtitulo}
+                </span>
+              </>
+            ) : null}
           </span>
-        </span>
-      ))}
+          {conteudo.linhas.map((l) => (
+            <span key={l.rotulo} className="whitespace-nowrap">
+              <span className={cn(!paleta && "text-muted-foreground")} style={cor(paleta?.rotulo)}>
+                {l.rotulo}
+              </span>{" "}
+              <span className={cn("font-medium", !paleta && COR_DO_TOM[l.tom ?? "neutro"])} style={corDoValor(l.tom)}>
+                {l.valor}
+              </span>
+            </span>
+          ))}
+        </>
+      ) : null}
     </div>
   );
 }

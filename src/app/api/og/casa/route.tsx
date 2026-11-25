@@ -1,5 +1,5 @@
 import { ImageResponse } from "next/og";
-import { ACENTO, FUNDO, MUDO, TEXTO, corDoResultado as cor } from "@/components/card/cores";
+import { ACENTO, FIO, FUNDO, MUDO, NEGATIVO, SUTIL, TEXTO, corDoResultado as cor, partesDoValor } from "@/components/card/cores";
 import { SIMBOLO_CAMINHOS, SIMBOLO_VIEWBOX } from "@/components/marca/Simbolo";
 import { listarEstatisticas, listarRobos, resumoCasaHoje } from "@/lib/consultas/publico";
 import { formatarBRL, formatarDataLonga, formatarHora } from "@/lib/formato";
@@ -10,7 +10,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 // as cores (tokens do tema escuro, a imagem não lê CSS) moram em components/card/cores desde 24/09/2026,
-// junto com as da imagem do dia; o comportamento é o mesmo de antes
+// junto com as da imagem do dia; desde a ficha Mesa (25/11/2026) são as do sistema novo
 
 function brl(v: number): string {
   return formatarBRL(v, { sinal: true, inteiro: Math.abs(v) >= 1000 });
@@ -42,7 +42,12 @@ async function ultimoPregaoDeTodos(hoje: string) {
   return { dia, robos: lista, total: lista.reduce((s, r) => s + r.valor, 0) };
 }
 
-/** Imagem OG da home: resultado do dia de todos os robôs. */
+/**
+ * Imagem OG da home: o resultado do dia dos robôs somados. Desde a ficha Mesa (25/11/2026) tem a composição
+ * das telas do sistema, sem caixa: a marca e a data em cima; o número grande, com o sinal e o "R$" mais
+ * apagados e a premissa embaixo; e, depois de um fio, o resultado de cada robô numa linha. A informação é a
+ * mesma de antes; os textos passaram para as palavras do site ("com 1 contrato", "já descontados os custos").
+ */
 export async function GET() {
   const hoje = hojeSP();
   const resumo = await resumoCasaHoje();
@@ -56,9 +61,9 @@ export async function GET() {
   const passado = (resumo?.n_operacoes ?? 0) > 0 ? null : await ultimoPregaoDeTodos(hoje);
   const robos = (passado ? passado.robos : vivos).slice(0, 4);
   const total = passado ? passado.total : (resumo?.resultado_liquido_por_contrato ?? 0);
-  const rotulo = passado
-    ? "Último pregão, todos os robôs, por contrato"
-    : "Resultado de hoje, todos os robôs, por contrato";
+  const rotulo = passado ? "Resultado do último pregão, robôs somados" : "Resultado de hoje, robôs somados";
+  const [prefixo, algarismos] = partesDoValor(robos.length > 0 ? brl(total) : "Em breve");
+  const negativo = robos.length > 0 && total < 0;
 
   return new ImageResponse(
     (
@@ -68,7 +73,6 @@ export async function GET() {
           height: "100%",
           display: "flex",
           flexDirection: "column",
-          justifyContent: "space-between",
           background: FUNDO,
           color: TEXTO,
           padding: 64,
@@ -82,7 +86,7 @@ export async function GET() {
                 <path key={i} d={d} fill={ACENTO} />
               ))}
             </svg>
-            <span style={{ display: "flex", gap: 8, fontSize: 28, fontWeight: 600 }}>
+            <span style={{ display: "flex", gap: 8, fontSize: 28 }}>
               <span>Quants</span>
               <span style={{ color: MUDO }}>Robôs</span>
             </span>
@@ -90,26 +94,41 @@ export async function GET() {
           <span style={{ fontSize: 22, color: MUDO }}>{formatarDataLonga(passado ? passado.dia : hoje)}</span>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <span style={{ fontSize: 30, color: MUDO }}>{rotulo}</span>
-          <span style={{ fontSize: 96, fontWeight: 700, color: cor(total), letterSpacing: -2 }}>
-            {robos.length > 0 ? brl(total) : "Em breve"}
-          </span>
+        {/* o número grande, como o do site: sinal e moeda mais apagados; negativo, vermelho inteiro */}
+        <div style={{ display: "flex", flexDirection: "column", marginTop: 64 }}>
+          <span style={{ fontSize: 28, color: MUDO }}>{rotulo}</span>
+          <div style={{ display: "flex", alignItems: "flex-end", marginTop: 14 }}>
+            {prefixo ? (
+              <span style={{ fontSize: 120, lineHeight: 1, letterSpacing: -4, marginRight: 20, color: negativo ? NEGATIVO : MUDO }}>{prefixo}</span>
+            ) : null}
+            <span style={{ fontSize: 120, lineHeight: 1, letterSpacing: -4, color: negativo ? NEGATIVO : TEXTO }}>{algarismos}</span>
+          </div>
+          {robos.length > 0 ? (
+            <span style={{ fontSize: 24, color: MUDO, marginTop: 18 }}>com 1 contrato em cada robô, já descontados os custos</span>
+          ) : null}
         </div>
 
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
-          <div style={{ display: "flex", gap: 48 }}>
+        {/* cada robô, depois de um fio */}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-end",
+            marginTop: "auto",
+            borderTop: `1px solid ${FIO}`,
+            paddingTop: 28,
+          }}
+        >
+          <div style={{ display: "flex", gap: 56 }}>
             {robos.map((r) => (
               <div key={r.slug} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 <span style={{ fontSize: 22, color: MUDO }}>{r.nome}</span>
-                <span style={{ fontSize: 40, fontWeight: 700, color: cor(r.valor) }}>
-                  {brl(r.valor)}
-                </span>
+                <span style={{ fontSize: 36, color: cor(r.valor) }}>{brl(r.valor)}</span>
               </div>
             ))}
           </div>
-          <span style={{ fontSize: 20, color: MUDO }}>
-            {passado ? "direto do MetaTrader 5" : `ao vivo do MT5 · ${formatarHora(new Date())}`}
+          <span style={{ fontSize: 20, color: SUTIL }}>
+            {passado ? "direto do MetaTrader 5" : `ao vivo, direto do MetaTrader 5 · ${formatarHora(new Date())}`}
           </span>
         </div>
       </div>
