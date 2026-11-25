@@ -8,7 +8,7 @@ import { curvaAcumulada, drawdownMaximo } from "@/lib/stats/serie";
 import type { EstatisticaPublica, MercadoPublico, RoboPublico } from "@/lib/tipos";
 
 export interface CapitalDoRobo {
-  /** capital mínimo publicado, inteiro em R$; nulo quando o ativo não tem margem cadastrada ou a leitura das entradas falhou */
+  /** capital mínimo publicado, inteiro em R$; nulo quando o ativo não tem margem cadastrada a leitura das entradas falhou ou o robô ainda não tem série */
   capitalMinimo: number | null;
   /** margem (garantia) por contrato do ativo, em R$; nula se não cadastrada */
   margem: number | null;
@@ -32,15 +32,15 @@ function montarCapital(
   pico: PicoDoRobo | null,
   hoje: string,
 ): CapitalDoRobo {
-  const curva = curvaAcumulada(
-    linhas.filter((l) => l.dia <= hoje),
-    { base: "liquido", unidade: "brl", valorPonto: robo.valor_ponto_brl },
-  );
+  const ateHoje = linhas.filter((l) => l.dia <= hoje);
+  const curva = curvaAcumulada(ateHoje, { base: "liquido", unidade: "brl", valorPonto: robo.valor_ponto_brl });
   const maiorQueda = drawdownMaximo(curva).valor;
   const margem = mercado.find((m) => m.prefixo_simbolo === robo.ativo)?.margem_referencia ?? null;
   const entradas = Math.max(1, pico?.maximo ?? 0);
   return {
-    capitalMinimo: margem === null || pico === null ? null : Math.round(capitalMinimoRecomendado(margem, maiorQueda, fator, entradas)),
+    // sem série (robô que ainda não operou, ou leitura que falhou e voltou vazia) a maior queda seria zero e o capital
+    // sairia só a garantia: desconhecido, como quando a leitura das entradas falha
+    capitalMinimo: margem === null || pico === null || ateHoje.length === 0 ? null : Math.round(capitalMinimoRecomendado(margem, maiorQueda, fator, entradas)),
     margem,
     entradas,
     entradasEm: pico && pico.maximo > 0 ? pico.quando : null,
